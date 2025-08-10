@@ -4,42 +4,29 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard - Mini App Telegram</title>
+  
+  <!-- ANTI-CACHÉ -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root { 
-        --bg:#f5f7fa;
-        --card-bg:#fff;
-        --text:#333;
-        --muted:#555;
-        --badge-color:#e74c3c;
-        --primary:#4a76f3;
-        --action-bg:#4caf50;
-        --action-text:#fff;
-        --error-bg:#e74c3c; 
-        --delete-bg: #e74c3c; 
-        --delete-text: #fff; 
-        --menu-bg: #fff; 
-        --confirm-yes-bg: #e74c3c; 
-        --confirm-no-bg: #cccccc;
-        --pending-bg: #28a745; 
-        --bought-bg: #dc3545; 
-        --list-item-text: #fff; 
-        --edit-icon-color: #007bff; 
-        --checkbox-border: #ddd;
+        --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c;
+        --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; 
+        --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; 
+        --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; 
+        --list-item-text: #fff; --edit-icon-color: #007bff; --checkbox-border: #ddd;
         --checkbox-checked-bg: var(--primary);
     }
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px;}
     .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:20px;}
-    .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative; transition: opacity 0.3s;}
+    .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative; transition: opacity 0.3s; cursor: pointer;}
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
     .card-badge{position:absolute;top:12px;left:12px;background:var(--badge-color);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.9rem;}
-    .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
-    .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; overflow: hidden; }
-    .dropdown-menu.show { display: block; }
-    .dropdown-item { padding: 12px 20px; color: var(--text); cursor: pointer; display: block; text-align: left; }
-    .dropdown-item:hover { background-color: var(--bg); }
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
     .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
     .tab.active{color:var(--badge-color);}
@@ -47,10 +34,7 @@
     .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
     .form-card h2{margin-bottom:16px;font-size:1.4rem;}
     .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
-    .form-card textarea,.form-card input,.form-card .radio-group{width:100%;margin-top:8px;}
-    .form-card textarea,.form-card input{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
-    .radio-group{display:flex;gap:10px;}
-    .radio-group label{font-weight:400;color:var(--text);}
+    .form-card textarea,.form-card input{width:100%;margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
     .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:not-allowed;opacity:.6;transition:opacity .2s,background .2s;}
     .form-card button.enabled{cursor:pointer;opacity:1;}
     .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1000;font-size:1rem;}
@@ -62,25 +46,11 @@
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
     .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
     .list-header h2 { font-size: 1.4rem; margin: 0; }
-    .reminder-list, .shopping-list { list-style: none; padding: 0; margin: 0; }
-    .reminder-item, .shopping-item { background: var(--card-bg); border-radius: 10px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between; }
-    .reminder-details, .shopping-details { display: flex; flex-direction: column; flex-grow: 1; }
-    .reminder-text, .shopping-text { font-size: 1.1rem; font-weight: 500; }
-    .reminder-date, .shopping-date { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
-    .reminder-actions { display: flex; align-items: center; gap: 5px; }
-    .reminder-delete-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; }
-    .reminder-delete-btn:hover { color: var(--delete-bg); }
-    .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
-    .confirm-btn-yes { background-color: var(--confirm-yes-bg); color: var(--delete-text); }
-    .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
-    .no-reminders, .no-shopping-items { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
-    #main:empty { display: none; }
-
-    .shopping-list-header-row { display: flex; align-items: center; justify-content: flex-end; padding: 0 10px 10px 10px; color: var(--muted); font-size: 0.9rem; }
-    .shopping-list-header-row input[type="checkbox"] { margin-left: 5px; }
+    .shopping-list { list-style: none; padding: 0; margin: 0; }
+    .no-items { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
     .shopping-item { display: flex; align-items: center; gap: 5px; padding: 10px; }
     .shopping-item-checkbox-wrapper { flex-shrink: 0; margin-right: 8px; }
-    .shopping-item input[type="checkbox"] { appearance: none; -webkit-appearance: none; -moz-appearance: none; width: 20px; height: 20px; border: 2px solid var(--checkbox-border); border-radius: 4px; background-color: var(--card-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background-color 0.2s, border-color 0.2s; }
+    .shopping-item input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; border: 2px solid var(--checkbox-border); border-radius: 4px; background-color: var(--card-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background-color 0.2s, border-color 0.2s; }
     .shopping-item input[type="checkbox"]::after { content: '✔'; font-size: 14px; color: var(--action-text); display: none; }
     .shopping-item input[type="checkbox"]:checked { background-color: var(--checkbox-checked-bg); border-color: var(--checkbox-checked-bg); }
     .shopping-item input[type="checkbox"]:checked::after { display: block; }
@@ -91,93 +61,71 @@
     .shopping-item-toggle-btn .item-date { font-size: 0.75rem; opacity: 0.8; margin-top: 5px; }
     .shopping-item-menu-container { position: relative; flex-shrink: 0; margin-left: auto; }
     .shopping-item-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
-    .shopping-item-menu-btn:hover { color: var(--primary); }
-    .shopping-item-dropdown-menu { display: none; position: absolute; top: 30px; right: 0; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
+    .shopping-item-dropdown-menu { display: none; position: absolute; top: 30px; right: 0; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; min-width: 150px; }
     .shopping-item-dropdown-menu.show { display: block; }
     .shopping-item-dropdown-item { padding: 10px 15px; color: var(--text); cursor: pointer; display: block; text-align: left; }
-    .dropdown-item:hover { background-color: var(--bg); }
-    .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; display: inline-block; }
-    .confirm-btn-yes { background-color: var(--confirm-yes-bg); color: var(--delete-text); }
-    .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
     .add-article-btn-container { padding: 10px; text-align: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-    .add-article-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: transform 0.2s ease; }
-    .add-article-btn:active { transform: translateY(1px); }
-    .multi-select-action-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: not-allowed; opacity: 0.6; flex-grow: 1; max-width: 250px; transition: opacity 0.2s; }
-    .multi-select-action-btn.enabled { cursor: pointer; opacity: 1; }
-    .shopping-list-section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px 10px; padding-top: 10px; border-top: 1px solid var(--muted); text-align: left; }
-    .shopping-list-section-title:first-of-type { border-top: none; margin-top: 0; }
-    .card.disabled { opacity: 0.5; pointer-events: none; }
+    .add-article-btn, .multi-select-action-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: transform 0.2s ease; }
+    .multi-select-action-btn:not(.enabled) { cursor: not-allowed; opacity: 0.6; }
+    .section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px; padding-top: 10px; border-top: 1px solid var(--muted); text-align: left; }
+    .section-title:first-of-type { border-top: none; margin-top: 0; }
   </style>
 </head>
 <body>
-  <div id="spinner" class="spinner"></div>
+  <div id="spinner" class="spinner" style="display: none;"></div>
   <div id="main"></div>
   <div class="tabs">
     <div class="tab active" id="tab-home">Home</div>
-    <div class="tab" id="tab-recordatorios-placeholder"></div>
+    <div class="tab" id="tab-recordatorios">Recordatorios</div>
   </div>
   <div id="toast" class="toast"></div>
+
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const tg = window.Telegram?.WebApp;
       if (tg) {
         tg.expand();
         if (tg.themeParams) {
-            document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
-            document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
-            document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333');
-            document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555');
-            document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3');
-            document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
-            document.documentElement.style.setProperty('--menu-bg', tg.themeParams.secondary_bg_color || '#ffffff');
-            document.documentElement.style.setProperty('--confirm-yes-bg', tg.themeParams.destructive_text_color || '#e74c3c');
-            document.documentElement.style.setProperty('--confirm-no-bg', tg.themeParams.hint_color || '#cccccc');
-            document.documentElement.style.setProperty('--pending-bg', tg.themeParams.button_color || '#28a745');
-            document.documentElement.style.setProperty('--bought-bg', tg.themeParams.destructive_text_color || '#dc3545');
-            document.documentElement.style.setProperty('--list-item-text', tg.themeParams.button_text_color || '#fff');
-            document.documentElement.style.setProperty('--edit-icon-color', tg.themeParams.link_color || '#007bff');
-            document.documentElement.style.setProperty('--checkbox-border', tg.themeParams.hint_color || '#ddd');
-            document.documentElement.style.setProperty('--checkbox-checked-bg', tg.themeParams.button_color || '#4a76f3');
+            Object.keys(tg.themeParams).forEach(key => {
+                let cssVar = `--${key.replace(/_/g, '-')}`;
+                document.documentElement.style.setProperty(cssVar, tg.themeParams[key]);
+            });
         }
       }
 
       const mainContent = document.getElementById('main');
       const spinner = document.getElementById('spinner');
+      const webhookURL = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
+      let chatId;
 
       function showSpinner() { spinner.style.display = 'block'; }
       function hideSpinner() { spinner.style.display = 'none'; }
-
-      showSpinner(); 
-
-      let chatId = tg?.initDataUnsafe?.user?.id || parseInt(prompt('Ingresa tu chat_id para pruebas:', ''), 10);
-      console.log("DEBUG: chat_ID obtained:", chatId);
-
-      // ▼▼▼ ÚNICO CAMBIO IMPORTANTE ▼▼▼
-      const webhookURL = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
-
+      
       function showToast(msg, isError = false) {
-        clearTimeout(window.toastTimer);
         const t = document.getElementById('toast');
         t.textContent = msg;
-        t.className = 'toast show' + (isError ? ' error' : '');
-        window.toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000);
+        t.className = `toast show ${isError ? 'error' : ''}`;
+        setTimeout(() => t.className = 'toast', 3000);
       }
       
-      async function fetchWithTimeout(resource, options = {}, timeout = 15000) {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), timeout);
+      async function callApi(payload) {
+        showSpinner();
         try {
-            const response = await fetch(resource, { ...options, signal: controller.signal });
-            clearTimeout(id);
-            if (!response.ok) {
-              const errorText = await response.text();
-              throw new Error(`Error del servidor (${response.status}): ${errorText}`);
-            }
-            return response;
-        } catch (error) {
-            clearTimeout(id);
-            if (error.name === 'AbortError') throw new Error('Timeout: El servidor no respondió a tiempo.');
-            throw error;
+          const response = await fetch(webhookURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, chat_ID: chatId })
+          });
+          if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+          const data = await response.json();
+          if (data.error) throw new Error(data.error);
+          return data;
+        } catch (err) {
+          showToast(err.message, true);
+          mainContent.innerHTML = `<div class="no-items">❌<br>Error de comunicación.<br><small>${err.message}</small></div>`;
+          throw err;
+        } finally {
+          hideSpinner();
         }
       }
 
@@ -186,118 +134,181 @@
         mainContent.innerHTML = `
           <div class="grid">
             <div class="card" id="card-recordatorios-wrapper">
-              <div class="card-badge" id="badge-recordatorios">...</div>
-              <button class="card-menu-btn" data-menu-for="recordatorios">⋮</button>
               <div class="card-icon">🗓️</div>
               <div class="card-title">Recordatorios</div>
             </div>
             <div class="card" id="card-shopping-list-wrapper">
-                <div class="card-icon">🛒</div>
-                <div class="card-title">Lista de Compras</div>
-                <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
-                <div class="dropdown-menu" id="menu-shopping-list">
-                    <a class="dropdown-item" id="view-shopping-list-link">Ver lista</a>
-                    <a class="dropdown-item" id="add-shopping-item-link">Añadir artículo</a>
-                </div>
+              <div class="card-icon">🛒</div>
+              <div class="card-title">Lista de Compras</div>
             </div>
           </div>`;
-        
-        document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-        document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
-        
-        // Aquí iría la lógica para la tarjeta de recordatorios
-        // document.getElementById('card-recordatorios-wrapper').onclick = renderRemindersList; 
+        document.getElementById('card-shopping-list-wrapper').onclick = renderShoppingList;
+        document.getElementById('card-recordatorios-wrapper').onclick = () => showToast("Función de recordatorios en construcción.");
       }
       
-      document.body.addEventListener('click', (e) => {
-        const menuBtn = e.target.closest('.card-menu-btn');
-        const shoppingItemMenuButton = e.target.closest('.shopping-item-menu-btn'); 
-        
-        document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
-        document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
-
-        if (menuBtn) { 
-            e.stopPropagation();
-            const menuId = `menu-${menuBtn.dataset.menuFor}`;
-            const menu = document.getElementById(menuId);
-            if (menu) menu.classList.add('show'); 
-        } else if (shoppingItemMenuButton) { 
-            e.stopPropagation();
-            const menuId = `menu-shopping-item-${shoppingItemMenuButton.dataset.itemTrackingCode}`;
-            const menu = document.getElementById(menuId);
-            if (menu) menu.classList.add('show'); 
-        }
-      });
-      
       async function renderShoppingList() { 
-          mainContent.innerHTML = ''; 
-          showSpinner();
           try {
-              const res = await fetchWithTimeout(webhookURL, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ chat_ID: chatId, Type: 'get_shopping_list' })
-              });
-              const items = await res.json(); 
-              if (items.error) throw new Error(items.error);
+              const items = await callApi({ Type: 'get_shopping_list' });
               renderShoppingListItems(items); 
-          } catch (err) {
-              mainContent.innerHTML = `<div class="no-shopping-items">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`;
-              showToast(`Error al cargar la lista: ${err.message}`, true);
-          } finally {
-              hideSpinner();
-          }
+          } catch (err) { /* El error ya se muestra en callApi */ }
       }
 
       function renderShoppingListItems(items) {
           const pendingItems = items.filter(item => item['2'] === 'Pendiente');
           const boughtItems = items.filter(item => item['2'] === 'Comprado');
-          let listHtml = '';
-          if (pendingItems.length > 0) {
-              listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>';
-              listHtml += pendingItems.map(item => `<li class="shopping-item" id="shopping-item-${item['3']}"><div class="shopping-item-checkbox-wrapper" style="width: 28px;"></div><button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="${item['2']}"><span>${item['1']}</span></button><div class="shopping-item-menu-container"><button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button><div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}"><a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a><a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a></div></div></li>`).join('');
+          let listHtml = `
+            <div class="list-container">
+              <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Lista de Compras</h2></div>
+              <ul class="shopping-list" id="shopping-list-ul">`;
+          
+          if (items.length === 0) {
+              listHtml += '<div class="no-items">🛒<br>¡Tu lista está vacía!</div>';
+          } else {
+              if (pendingItems.length > 0) {
+                  listHtml += '<h3 class="section-title">Pendientes</h3>';
+                  listHtml += pendingItems.map(item => shoppingItemTemplate(item, false)).join('');
+              }
+              if (boughtItems.length > 0) {
+                  listHtml += '<h3 class="section-title">Comprados</h3>';
+                  listHtml += boughtItems.map(item => shoppingItemTemplate(item, true)).join('');
+              }
           }
-          if (boughtItems.length > 0) {
-              listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>';
-              listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
-              listHtml += boughtItems.map(item => `<li class="shopping-item" id="shopping-item-${item['3']}"><div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}" data-current-status="${item['2']}"></div><button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="${item['2']}"><span>${item['1']}</span>${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}</button><div class="shopping-item-menu-container"><button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button><div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}"><a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a><a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a></div></div></li>`).join('');
-          }
-          if (items.length === 0) listHtml = '<div class="no-shopping-items">🛒<br>¡Tu lista de compras está vacía!<br>Añade algunos artículos.</div>';
-          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Lista de Compras</h2></div><ul class="shopping-list" id="shopping-list-ul">${listHtml}</ul><div class="add-article-btn-container"><button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button><button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar seleccionados como pendientes</button></div></div>`;
+
+          listHtml += `</ul><div class="add-article-btn-container">
+                        <button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button>
+                        ${boughtItems.length > 0 ? '<button class="multi-select-action-btn" id="multi-select-toggle-btn">Marcar como pendientes</button>' : ''}
+                       </div></div>`;
+
+          mainContent.innerHTML = listHtml;
           document.getElementById('back-to-dashboard').onclick = renderDashboard;
           document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
           document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
-          const selectAllCheckbox = document.getElementById('select-all-checkbox');
-          if (selectAllCheckbox) selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); };
-          document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
-          document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
-          updateMultiSelectButtonState(); 
+          if (boughtItems.length > 0) {
+              document.querySelectorAll('.shopping-item-checkbox').forEach(cb => cb.onchange = updateMultiSelectButtonState);
+              document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
+              updateMultiSelectButtonState();
+          }
       }
-      function handleShoppingItemInteractions(event) {
-          const t = event.target, b=t.closest('.shopping-item-toggle-btn'),m=t.closest('.shopping-item-menu-btn'),e=t.closest('.edit-btn-item'),d=t.closest('.delete-btn-item'),c=t.closest('.shopping-item-checkbox');
-          if (!t.closest('.shopping-item-dropdown-menu') && !m) document.querySelectorAll('.shopping-item-dropdown-menu').forEach(i => i.classList.remove('show'));
-          if (b) toggleShoppingItemStatus(b.dataset.trackingCode, b.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente');
-          else if (m) { event.stopPropagation(); const i = `menu-shopping-item-${m.dataset.itemTrackingCode}`, j=document.getElementById(i); document.querySelectorAll('.shopping-item-dropdown-menu').forEach(k=>k.classList.remove('show')); if (j) j.classList.add('show'); }
-          else if (e) { event.stopPropagation(); document.querySelectorAll('.shopping-item-dropdown-menu').forEach(i=>i.classList.remove('show')); editShoppingItem(e.dataset.trackingCode, e.dataset.currentDescription); }
-          else if (d) { event.stopPropagation(); document.querySelectorAll('.shopping-item-dropdown-menu').forEach(i=>i.classList.remove('show')); const code=d.dataset.trackingCode, cont=d.closest('.shopping-item-menu-container'), btn=cont.querySelector('.shopping-item-menu-btn'); if (btn) btn.style.display='none'; const y=document.createElement('button');y.className='confirm-btn-yes';y.textContent='Sí';y.onclick=async()=>{showSpinner();try{await executeDeleteShoppingItem(code);}catch(err){showToast(err.message||'Error al eliminar',true);if(btn)btn.style.display='block';y.remove();n.remove();}finally{hideSpinner();}}; const n=document.createElement('button');n.className='confirm-btn-no';n.textContent='No';n.onclick=()=>{if(btn)btn.style.display='block';y.remove();n.remove();}; if(cont){cont.appendChild(y);cont.appendChild(n);} }
-          else if (c) updateMultiSelectButtonState();
-      }
-      function updateMultiSelectButtonState() { const cbs=document.querySelectorAll('.shopping-item-checkbox'), btn=document.getElementById('multi-select-toggle-btn'), sel=Array.from(cbs).filter(cb=>cb.checked&&cb.dataset.currentStatus==='Comprado').length; if(sel>0){btn.classList.add('enabled');btn.disabled=false;btn.textContent=`Marcar ${sel} como pendientes`;}else{btn.classList.remove('enabled');btn.disabled=true;btn.textContent='Marcar seleccionados como pendientes';} }
-      async function callApi(payload) { showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, chat_ID: chatId }) }); const items = await res.json(); if (items.error) throw new Error(items.error); return items; } catch (err) { showToast(err.message, true); throw err; } finally { hideSpinner(); } }
-      async function toggleShoppingItemStatus(trackingCode, newStatus) { const items=await callApi({Type:'toggle_item_status',tracking_code:trackingCode,new_status:newStatus}); showToast(`Artículo marcado como ${newStatus}`); renderShoppingListItems(items); }
-      async function toggleSelectedItemsToPending() { const codes=Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).filter(cb=>cb.dataset.currentStatus==='Comprado').map(cb=>cb.dataset.trackingCode); if (codes.length === 0) return; const items = await callApi({Type:'toggle_multiple_to_pending', tracking_codes:codes}); showToast(`${codes.length} artículos marcados como Pendiente.`); renderShoppingListItems(items); }
-      async function editShoppingItem(code, desc) { const newDesc=prompt('Editar descripción:',desc); if (newDesc && newDesc.trim() !== '' && newDesc.trim() !== desc) { const items = await callApi({Type:'edit_item_description', tracking_code:code, new_description:newDesc.trim()}); showToast('Artículo editado'); renderShoppingListItems(items); } }
-      async function executeDeleteShoppingItem(code) { const items = await callApi({Type:'delete_item_shopping_list',tracking_code:code}); showToast('Artículo eliminado'); renderShoppingListItems(items); }
-      async function addArticle() { const btn=document.getElementById('add-article-send-btn'), desc=document.getElementById('article-description').value.trim(); if(desc===''){showToast('La descripción no puede estar vacía.',true);return;} btn.disabled=true; const items = await callApi({Type:'add_articulo', description:desc}); showToast('Artículo añadido'); renderShoppingListItems(items); }
-      function renderAddArticleForm() { mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-shopping-list">‹</button><h2>➕ Añadir Artículo</h2></div><div class="form-card"><label>Descripción</label><textarea id="article-description" rows="2" required></textarea><button id="add-article-send-btn" disabled>Añadir</button></div></div>`; document.getElementById('back-to-shopping-list').onclick=renderShoppingList; const input=document.getElementById('article-description'),btn=document.getElementById('add-article-send-btn'); input.oninput=()=>{if(input.value.trim()!==''){btn.classList.add('enabled');btn.disabled=false;}else{btn.classList.remove('enabled');btn.disabled=true;}}; btn.onclick=addArticle; input.focus(); }
-      function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); const tab=document.getElementById(activeTabId); if (tab) tab.classList.add('active'); }
-      document.getElementById('tab-home').onclick = renderDashboard;
 
-      // LLAMADA FINAL DE INICIALIZACIÓN
-      renderDashboard(); // Dibuja el dashboard
-      hideSpinner();     // Oculta el spinner
+      function shoppingItemTemplate(item, isBought) {
+        return `<li class="shopping-item" id="shopping-item-${item['3']}">
+                  ${isBought ? `<div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}"></div>` : ''}
+                  <button class="shopping-item-toggle-btn ${isBought ? 'bought' : 'pending'}" data-tracking-code="${item['3']}" data-current-status="${item['2']}">
+                    <span>${item['1']}</span>
+                    ${isBought && item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
+                  </button>
+                  <div class="shopping-item-menu-container">
+                    <button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button>
+                    <div class="shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}">
+                      <a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a>
+                      <a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a>
+                    </div>
+                  </div>
+                </li>`;
+      }
+
+      function handleShoppingItemInteractions(event) {
+          const target = event.target;
+          const toggleBtn = target.closest('.shopping-item-toggle-btn');
+          const menuBtn = target.closest('.shopping-item-menu-btn');
+          const editBtn = target.closest('.edit-btn-item');
+          const deleteBtn = target.closest('.delete-btn-item');
+
+          document.querySelectorAll('.shopping-item-dropdown-menu').forEach(menu => {
+              if (!menuBtn || menu.id !== `menu-shopping-item-${menuBtn.dataset.itemTrackingCode}`) {
+                  menu.classList.remove('show');
+              }
+          });
+
+          if (toggleBtn) {
+            toggleShoppingItemStatus(toggleBtn.dataset.trackingCode, toggleBtn.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente');
+          } else if (menuBtn) {
+            event.stopPropagation();
+            document.getElementById(`menu-shopping-item-${menuBtn.dataset.itemTrackingCode}`).classList.toggle('show');
+          } else if (editBtn) {
+            editShoppingItem(editBtn.dataset.trackingCode, editBtn.dataset.currentDescription);
+          } else if (deleteBtn) {
+            deleteShoppingItem(deleteBtn.dataset.trackingCode);
+          }
+      }
+
+      function updateMultiSelectButtonState() {
+          const btn = document.getElementById('multi-select-toggle-btn');
+          if(!btn) return;
+          const selectedCount = document.querySelectorAll('.shopping-item-checkbox:checked').length;
+          btn.classList.toggle('enabled', selectedCount > 0);
+          btn.textContent = selectedCount > 0 ? `Marcar ${selectedCount} como pendientes` : 'Marcar como pendientes';
+      }
+
+      async function toggleShoppingItemStatus(trackingCode, newStatus) {
+        const items = await callApi({Type:'toggle_item_status', tracking_code: trackingCode, new_status: newStatus});
+        showToast(`Artículo marcado como ${newStatus}`);
+        renderShoppingListItems(items);
+      }
+
+      async function toggleSelectedItemsToPending() {
+        const btn = document.getElementById('multi-select-toggle-btn');
+        if (!btn.classList.contains('enabled')) return;
+        const codes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
+        if (codes.length === 0) return;
+        const items = await callApi({Type:'toggle_multiple_to_pending', tracking_codes: codes});
+        showToast(`${codes.length} artículos marcados como Pendiente.`);
+        renderShoppingListItems(items);
+      }
+
+      async function editShoppingItem(code, desc) {
+        const newDesc = prompt('Editar descripción:', desc);
+        if (newDesc && newDesc.trim() !== '' && newDesc.trim() !== desc) {
+          const items = await callApi({Type:'edit_item_description', tracking_code: code, new_description: newDesc.trim()});
+          showToast('Artículo editado');
+          renderShoppingListItems(items);
+        }
+      }
+      
+      async function deleteShoppingItem(code) {
+        if(confirm('¿Seguro que quieres eliminar este artículo?')){
+            const items = await callApi({Type:'delete_item_shopping_list', tracking_code: code});
+            showToast('Artículo eliminado');
+            renderShoppingListItems(items);
+        }
+      }
+
+      function renderAddArticleForm() {
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-shopping-list">‹</button><h2>➕ Añadir Artículo</h2></div><div class="form-card"><label>Descripción</label><textarea id="article-description" rows="2" required></textarea><button id="add-article-send-btn" class="enabled">Añadir</button></div></div>`;
+        document.getElementById('back-to-shopping-list').onclick = renderShoppingList;
+        document.getElementById('add-article-send-btn').onclick = addArticle;
+        document.getElementById('article-description').focus();
+      }
+
+      async function addArticle() {
+        const desc = document.getElementById('article-description').value.trim();
+        if (desc === '') { showToast('La descripción no puede estar vacía.', true); return; }
+        const items = await callApi({Type:'add_articulo', description: desc});
+        showToast('Artículo añadido');
+        renderShoppingListItems(items);
+      }
+      
+      function setActiveTab(activeTabId) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(activeTabId)?.classList.add('active');
+      }
+
+      function initializeApp() {
+        showSpinner();
+        chatId = tg?.initDataUnsafe?.user?.id;
+        if (!chatId) {
+            chatId = prompt('Ingresa tu chat_id para pruebas:', '6840956330');
+        }
+        if (chatId) {
+            renderDashboard();
+        }
+        hideSpinner();
+      }
+      
+      document.getElementById('tab-home').onclick = renderDashboard;
+      
+      initializeApp();
     });
   </script>
 </body>
 </html>
-
