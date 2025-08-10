@@ -25,7 +25,6 @@
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative; transition: opacity 0.3s; cursor: pointer;}
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
-    .card-badge{position:absolute;top:12px;left:12px;background:var(--badge-color);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.9rem;}
     .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
     .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; overflow: hidden; }
     .dropdown-menu.show { display: block; }
@@ -35,16 +34,12 @@
     .tab.active{color:var(--badge-color);}
     .list-container{max-width:480px;margin:20px auto;padding:10px;}
     .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
-    .form-card h2{margin-bottom:16px;font-size:1.4rem;}
-    .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
     .form-card textarea,.form-card input{width:100%;margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
     .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:pointer;opacity:1;}
     .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1000;font-size:1rem;}
     .toast.error{background:var(--error-bg);}
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
     .spinner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;z-index:1001;}
-    @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
-    @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
     .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
     .list-header h2 { font-size: 1.4rem; margin: 0; }
@@ -52,22 +47,20 @@
     .no-items { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
     .shopping-item { display: flex; align-items: center; gap: 5px; padding: 10px; }
     .shopping-item-checkbox-wrapper { flex-shrink: 0; margin-right: 8px; }
-    .shopping-item input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; border: 2px solid var(--checkbox-border); border-radius: 4px; background-color: var(--card-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background-color 0.2s, border-color 0.2s; }
+    .shopping-item input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; border: 2px solid var(--checkbox-border); border-radius: 4px; background-color: var(--card-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .shopping-item input[type="checkbox"]::after { content: '✔'; font-size: 14px; color: var(--action-text); display: none; }
     .shopping-item input[type="checkbox"]:checked { background-color: var(--checkbox-checked-bg); border-color: var(--checkbox-checked-bg); }
     .shopping-item input[type="checkbox"]:checked::after { display: block; }
-    .shopping-item-toggle-btn { flex-grow: 1; padding: 10px 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; color: var(--list-item-text); cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: background-color 0.2s ease, transform 0.1s ease; }
-    .shopping-item-toggle-btn:active { transform: translateY(1px); }
+    .shopping-item-toggle-btn { flex-grow: 1; padding: 10px 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; color: var(--list-item-text); cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
     .shopping-item-toggle-btn.pending { background-color: var(--pending-bg); }
     .shopping-item-toggle-btn.bought { background-color: var(--bought-bg); }
     .shopping-item-toggle-btn .item-date { font-size: 0.75rem; opacity: 0.8; margin-top: 5px; }
     .shopping-item-menu-container { position: relative; flex-shrink: 0; margin-left: auto; }
-    .shopping-item-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
     .shopping-item-dropdown-menu { display: none; position: absolute; top: 30px; right: 0; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; min-width: 150px; }
     .shopping-item-dropdown-menu.show { display: block; }
     .shopping-item-dropdown-item { padding: 10px 15px; color: var(--text); cursor: pointer; display: block; text-align: left; }
     .add-article-btn-container { padding: 10px; text-align: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-    .add-article-btn, .multi-select-action-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: transform 0.2s ease; }
+    .add-article-btn, .multi-select-action-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; }
     .multi-select-action-btn:not(.enabled) { cursor: not-allowed; opacity: 0.6; }
     .section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px; padding-top: 10px; border-top: 1px solid var(--muted); text-align: left; }
     .section-title:first-of-type { border-top: none; margin-top: 0; }
@@ -85,15 +78,7 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const tg = window.Telegram?.WebApp;
-      if (tg) {
-        tg.expand();
-        if (tg.themeParams) {
-            Object.keys(tg.themeParams).forEach(key => {
-                let cssVar = `--${key.replace(/_/g, '-')}`;
-                document.documentElement.style.setProperty(cssVar, tg.themeParams[key]);
-            });
-        }
-      }
+      if (tg) tg.expand();
 
       const mainContent = document.getElementById('main');
       const spinner = document.getElementById('spinner');
@@ -136,23 +121,19 @@
         mainContent.innerHTML = `
           <div class="grid">
             <div class="card" id="card-recordatorios-wrapper">
-                <div class="card-icon">🗓️</div>
-                <div class="card-title">Recordatorios</div>
+              <div class="card-icon">🗓️</div>
+              <div class="card-title">Recordatorios</div>
             </div>
             <div class="card" id="card-shopping-list-wrapper">
-                <div class="card-icon">🛒</div>
-                <div class="card-title">Lista de Compras</div>
-                <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
-                <div class="dropdown-menu" id="menu-shopping-list">
-                    <a class="dropdown-item" id="view-shopping-list-link">Ver lista</a>
-                    <a class="dropdown-item" id="add-shopping-item-link">Añadir artículo</a>
-                </div>
+              <div class="card-icon">🛒</div>
+              <div class="card-title">Lista de Compras</div>
+              <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
+              <div class="dropdown-menu" id="menu-shopping-list">
+                <a class="dropdown-item" id="view-shopping-list-link">Ver lista</a>
+                <a class="dropdown-item" id="add-shopping-item-link">Añadir artículo</a>
+              </div>
             </div>
           </div>`;
-        
-        document.getElementById('card-shopping-list-wrapper').onclick = (e) => {
-            if(!e.target.closest('.card-menu-btn')) renderShoppingList();
-        };
         document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
         document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
         document.getElementById('card-recordatorios-wrapper').onclick = () => showToast("Función de recordatorios en construcción.");
@@ -161,14 +142,14 @@
       document.body.addEventListener('click', (e) => {
         const menuBtn = e.target.closest('.card-menu-btn');
         document.querySelectorAll('.dropdown-menu, .shopping-item-dropdown-menu').forEach(m => {
-            if (!menuBtn || m.id !== `menu-${menuBtn.dataset.menuFor}`) {
-                m.classList.remove('show');
-            }
+          if (!menuBtn || (m.id !== `menu-${menuBtn.dataset.menuFor}` && m.id !== `menu-shopping-item-${menuBtn.dataset.itemTrackingCode}`)) {
+            m.classList.remove('show');
+          }
         });
         if (menuBtn) {
-            e.stopPropagation();
-            const menuId = `menu-${menuBtn.dataset.menuFor}`;
-            document.getElementById(menuId)?.classList.toggle('show');
+          e.stopPropagation();
+          const menuId = menuBtn.dataset.menuFor ? `menu-${menuBtn.dataset.menuFor}` : `menu-shopping-item-${menuBtn.dataset.itemTrackingCode}`;
+          document.getElementById(menuId)?.classList.toggle('show');
         }
       });
       
@@ -207,7 +188,6 @@
 
           mainContent.innerHTML = listHtml;
           document.getElementById('back-to-dashboard').onclick = renderDashboard;
-          document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
           document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
           if (boughtItems.length > 0) {
               document.querySelectorAll('.shopping-item-checkbox').forEach(cb => cb.onchange = updateMultiSelectButtonState);
@@ -224,7 +204,7 @@
                     ${isBought && item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
                   </button>
                   <div class="shopping-item-menu-container">
-                    <button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button>
+                    <button class="card-menu-btn" data-item-tracking-code="${item['3']}">⋮</button>
                     <div class="shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}">
                       <a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a>
                       <a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a>
@@ -233,24 +213,16 @@
                 </li>`;
       }
 
+      mainContent.addEventListener('click', handleShoppingItemInteractions);
+
       function handleShoppingItemInteractions(event) {
           const target = event.target;
           const toggleBtn = target.closest('.shopping-item-toggle-btn');
-          const menuBtn = target.closest('.shopping-item-menu-btn');
           const editBtn = target.closest('.edit-btn-item');
           const deleteBtn = target.closest('.delete-btn-item');
 
-          document.querySelectorAll('.shopping-item-dropdown-menu').forEach(menu => {
-              if (!menuBtn || menu.id !== `menu-shopping-item-${menuBtn.dataset.itemTrackingCode}`) {
-                  menu.classList.remove('show');
-              }
-          });
-
           if (toggleBtn) {
             toggleShoppingItemStatus(toggleBtn.dataset.trackingCode, toggleBtn.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente');
-          } else if (menuBtn) {
-            event.stopPropagation();
-            document.getElementById(`menu-shopping-item-${menuBtn.dataset.itemTrackingCode}`).classList.toggle('show');
           } else if (editBtn) {
             editShoppingItem(editBtn.dataset.trackingCode, editBtn.dataset.currentDescription);
           } else if (deleteBtn) {
@@ -300,7 +272,7 @@
       }
 
       function renderAddArticleForm() {
-        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-shopping-list">‹</button><h2>➕ Añadir Artículo</h2></div><div class="form-card"><label>Descripción</label><textarea id="article-description" rows="2" required></textarea><button id="add-article-send-btn" class="enabled">Añadir</button></div></div>`;
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-shopping-list">‹</button><h2>➕ Añadir Artículo</h2></div><div class="form-card"><label>Descripción</label><textarea id="article-description" rows="2" required></textarea><button id="add-article-send-btn">Añadir</button></div></div>`;
         document.getElementById('back-to-shopping-list').onclick = renderShoppingList;
         document.getElementById('add-article-send-btn').onclick = addArticle;
         document.getElementById('article-description').focus();
