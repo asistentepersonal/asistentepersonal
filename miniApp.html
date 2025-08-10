@@ -144,26 +144,23 @@
       const mainContent = document.getElementById('main');
       const spinner = document.getElementById('spinner');
 
-      // DEFINICIONES DE FUNCIONES showSpinner y hideSpinner MOVIDAS AQUÍ
-      // para que estén disponibles antes de ser llamadas
       function showSpinner() { spinner.style.display = 'block'; }
       function hideSpinner() { spinner.style.display = 'none'; }
 
-      // Llamada inicial al spinner (ahora que la función está definida)
       showSpinner(); 
 
-      // El prompt para chat_ID sigue aquí, pero ahora se ejecuta después de showSpinner
       let chatId = tg?.initDataUnsafe?.user?.id || parseInt(prompt('Ingresa tu chat_id para pruebas:', ''), 10);
       console.log("DEBUG: chat_ID obtained:", chatId);
 
-      const webhookURL = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
+      // ▼▼▼ ÚNICO CAMBIO IMPORTANTE ▼▼▼
+      const webhookURL = 'https://script.google.com/macros/s/AKfycbzSoUEQYBC1OgP2ebgRULG-Na2og-W5xQ_loEan1Wt8ylM8nsf_vcFhytw97tJ__rWuKQ/exec';
 
       function showToast(msg, isError = false) {
         clearTimeout(window.toastTimer);
         const t = document.getElementById('toast');
         t.textContent = msg;
         t.className = 'toast show' + (isError ? ' error' : '');
-        window.toastTimer = setTimeout(() => { t.className = 'toast'; }, 4000);
+        window.toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000);
       }
       
       async function fetchWithTimeout(resource, options = {}, timeout = 15000) {
@@ -188,7 +185,7 @@
         setActiveTab('tab-home');
         mainContent.innerHTML = `
           <div class="grid">
-            <div class="card disabled" id="card-recordatorios-wrapper">
+            <div class="card" id="card-recordatorios-wrapper">
               <div class="card-badge" id="badge-recordatorios">...</div>
               <button class="card-menu-btn" data-menu-for="recordatorios">⋮</button>
               <div class="card-icon">🗓️</div>
@@ -207,6 +204,9 @@
         
         document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
         document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+        
+        // Aquí iría la lógica para la tarjeta de recordatorios
+        // document.getElementById('card-recordatorios-wrapper').onclick = renderRemindersList; 
       }
       
       document.body.addEventListener('click', (e) => {
@@ -299,8 +299,4 @@
     });
   </script>
 </body>
-
 </html>
-
-
-
