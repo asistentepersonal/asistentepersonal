@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard - Mini App Telegram</title>
   
-  <!-- ANTI-CACHÉ -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -27,16 +26,19 @@
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
     .card-badge{position:absolute;top:12px;left:12px;background:var(--badge-color);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.9rem;}
+    .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
+    .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; overflow: hidden; }
+    .dropdown-menu.show { display: block; }
+    .dropdown-item { padding: 12px 20px; color: var(--text); cursor: pointer; display: block; text-align: left; }
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
     .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
     .tab.active{color:var(--badge-color);}
-    .form-container, .list-container{max-width:480px;margin:20px auto;padding:10px;}
+    .list-container{max-width:480px;margin:20px auto;padding:10px;}
     .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
     .form-card h2{margin-bottom:16px;font-size:1.4rem;}
     .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
     .form-card textarea,.form-card input{width:100%;margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
-    .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:not-allowed;opacity:.6;transition:opacity .2s,background .2s;}
-    .form-card button.enabled{cursor:pointer;opacity:1;}
+    .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:pointer;opacity:1;}
     .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1000;font-size:1rem;}
     .toast.error{background:var(--error-bg);}
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
@@ -134,17 +136,41 @@
         mainContent.innerHTML = `
           <div class="grid">
             <div class="card" id="card-recordatorios-wrapper">
-              <div class="card-icon">🗓️</div>
-              <div class="card-title">Recordatorios</div>
+                <div class="card-icon">🗓️</div>
+                <div class="card-title">Recordatorios</div>
             </div>
             <div class="card" id="card-shopping-list-wrapper">
-              <div class="card-icon">🛒</div>
-              <div class="card-title">Lista de Compras</div>
+                <div class="card-icon">🛒</div>
+                <div class="card-title">Lista de Compras</div>
+                <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
+                <div class="dropdown-menu" id="menu-shopping-list">
+                    <a class="dropdown-item" id="view-shopping-list-link">Ver lista</a>
+                    <a class="dropdown-item" id="add-shopping-item-link">Añadir artículo</a>
+                </div>
             </div>
           </div>`;
-        document.getElementById('card-shopping-list-wrapper').onclick = renderShoppingList;
+        
+        document.getElementById('card-shopping-list-wrapper').onclick = (e) => {
+            if(!e.target.closest('.card-menu-btn')) renderShoppingList();
+        };
+        document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+        document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
         document.getElementById('card-recordatorios-wrapper').onclick = () => showToast("Función de recordatorios en construcción.");
       }
+      
+      document.body.addEventListener('click', (e) => {
+        const menuBtn = e.target.closest('.card-menu-btn');
+        document.querySelectorAll('.dropdown-menu, .shopping-item-dropdown-menu').forEach(m => {
+            if (!menuBtn || m.id !== `menu-${menuBtn.dataset.menuFor}`) {
+                m.classList.remove('show');
+            }
+        });
+        if (menuBtn) {
+            e.stopPropagation();
+            const menuId = `menu-${menuBtn.dataset.menuFor}`;
+            document.getElementById(menuId)?.classList.toggle('show');
+        }
+      });
       
       async function renderShoppingList() { 
           try {
