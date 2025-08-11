@@ -16,7 +16,11 @@
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
-    .card-badge{position:absolute;top:12px;left:12px;background:var(--badge-color);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.9rem;}
+    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.9rem;}
+    .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
+    .card-badge.green{background-color:#28a745;left:12px;}
+    .card-badge.red{background-color:#e74c3c;right:12px;}
+    .card-badge-group .card-badge{position:static;} /* Anula la posición absoluta para los items del grupo */
     .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
     .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; overflow: hidden; }
     .dropdown-menu.show { display: block; }
@@ -126,7 +130,7 @@
           chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '');
       }
 
-      let lastCount = { reminders: null, shoppingItems: null }, toastTimer; 
+      let lastCount = { reminders: 0, shoppingPending: 0, shoppingBought: 0 }, toastTimer; 
       const mainContent = document.getElementById('main');
       const spinner = document.getElementById('spinner');
 
@@ -156,8 +160,6 @@
         }
       }
 
-      // CORRECCIÓN: Esta es la función que se llama al iniciar la app.
-      // Ahora está correctamente definida y hace la petición fetch al servidor.
       async function initializeAppContent() {
         showSpinner();
         try {
@@ -166,20 +168,14 @@
           const data = await res.json();
           if (data.error) throw new Error(data.error);
           lastCount.reminders = data.remindersCount || 0;
+          lastCount.shoppingPending = data.shoppingPendingCount || 0;
+          lastCount.shoppingBought = data.shoppingBoughtCount || 0;
         } catch (err) {
           console.error('Error en la carga inicial:', err);
-          lastCount.reminders = 0; 
           showToast(`Error al cargar datos: ${err.message}`, true);
         } finally {
           renderDashboard();
           hideSpinner();
-        }
-      }
-
-      function updateBadge(type, count) {
-        if (type === 'reminders') {
-            const badge = document.getElementById('badge-recordatorios');
-            if (badge) badge.textContent = count;
         }
       }
 
@@ -188,7 +184,7 @@
         mainContent.innerHTML = `
           <div class="grid">
             <div class="card" id="card-recordatorios-wrapper">
-              <div class="card-badge" id="badge-recordatorios">${lastCount.reminders ?? '...'}</div>
+              <div class="card-badge red" style="left:12px;">${lastCount.reminders ?? '...'}</div>
               <button class="card-menu-btn" data-menu-for="recordatorios">⋮</button>
               <div class="card-icon">🗓️</div>
               <div class="card-title">Recordatorios</div>
@@ -198,6 +194,10 @@
               </div>
             </div>
             <div class="card" id="card-shopping-list-wrapper">
+                <div class="card-badge-group">
+                  <div class="card-badge green">${lastCount.shoppingPending ?? '...'}</div>
+                  <div class="card-badge red">${lastCount.shoppingBought ?? '...'}</div>
+                </div>
                 <div class="card-icon">🛒</div>
                 <div class="card-title">Lista de Compras</div>
                 <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
@@ -207,7 +207,6 @@
                 </div>
             </div>
           </div>`;
-        updateBadge('reminders', lastCount.reminders);
         document.getElementById('add-reminder-link').onclick = renderReminderForm;
         document.getElementById('list-reminders-link').onclick = renderRemindersList;
         document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
@@ -218,24 +217,14 @@
         const menuBtn = e.target.closest('.card-menu-btn');
         const shoppingItemMenuButton = e.target.closest('.shopping-item-menu-btn'); 
         document.querySelectorAll('.dropdown-menu, .shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
-        if (menuBtn) { 
-            e.stopPropagation();
-            const menu = document.getElementById(`menu-${menuBtn.dataset.menuFor}`);
-            if (menu) menu.classList.add('show'); 
-        } else if (shoppingItemMenuButton) { 
-            e.stopPropagation();
-            const menu = document.getElementById(`menu-shopping-item-${shoppingItemMenuButton.dataset.itemTrackingCode}`);
-            if (menu) menu.classList.add('show'); 
-        }
+        if (menuBtn) { e.stopPropagation(); const menu = document.getElementById(`menu-${menuBtn.dataset.menuFor}`); if (menu) menu.classList.add('show'); } 
+        else if (shoppingItemMenuButton) { e.stopPropagation(); const menu = document.getElementById(`menu-shopping-item-${shoppingItemMenuButton.dataset.itemTrackingCode}`); if (menu) menu.classList.add('show'); }
       });
 
       function renderReminderForm() { 
         mainContent.innerHTML = `
           <div class="list-container">
-            <div class="list-header">
-                <button class="back-btn" id="back-to-dashboard">‹</button>
-                <h2>📝 Nuevo Recordatorio</h2>
-            </div>
+            <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
             <div class="form-card">
               <label>Descripción</label><textarea id="text" rows="3" required></textarea>
               <label>Fecha y hora</label><input type="datetime-local" id="time" required/>
@@ -248,32 +237,19 @@
             </div>
           </div>`;
         document.getElementById('back-to-dashboard').onclick = renderDashboard;
-        const textInput = document.getElementById('text');
-        const timeInput = document.getElementById('time');
-        const sendBtn = document.getElementById('sendBtn');
+        const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn');
         function validateForm() {
             const isTextValid = textInput.value.trim() !== '';
             const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date();
             sendBtn.disabled = !(isTextValid && isTimeValid);
             sendBtn.classList.toggle('enabled', !sendBtn.disabled);
         }
-        textInput.oninput = validateForm;
-        timeInput.oninput = validateForm;
-        sendBtn.onclick = sendReminder;
-        validateForm();
+        textInput.oninput = validateForm; timeInput.oninput = validateForm; sendBtn.onclick = sendReminder; validateForm();
       }
 
       async function sendReminder() {
-        const sendBtn = document.getElementById('sendBtn');
-        sendBtn.disabled = true;
-        sendBtn.classList.remove('enabled');
-        const payload = { 
-          chat_ID: chatId, 
-          Type: 'add_reminder',
-          description: document.getElementById('text').value.trim(), 
-          time: document.getElementById('time').value,
-          category: document.querySelector('input[name="category"]:checked').value
-        };
+        const sendBtn = document.getElementById('sendBtn'); sendBtn.disabled = true; sendBtn.classList.remove('enabled');
+        const payload = { chat_ID: chatId, Type: 'add_reminder', description: document.getElementById('text').value.trim(), time: document.getElementById('time').value, category: document.querySelector('input[name="category"]:checked').value };
         showSpinner();
         try {
           const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) });
@@ -284,10 +260,8 @@
           showToast('Recordatorio guardado');
           setTimeout(renderDashboard, 1000);
         } catch (err) {
-          console.error('Error en sendReminder:', err);
           showToast(err.message || 'Error al enviar', true);
-          sendBtn.disabled = false;
-          sendBtn.classList.add('enabled');
+          sendBtn.disabled = false; sendBtn.classList.add('enabled');
         } finally {
           hideSpinner();
         }
@@ -300,27 +274,14 @@
               if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
               const reminders = await res.json();
               if (reminders.error) throw new Error(reminders.error);
-              let listHtml = '';
-              if (reminders.length > 0) {
-                  listHtml = reminders.map(item => `
+              let listHtml = (reminders.length > 0) ? reminders.map(item => `
                       <li class="reminder-item" id="reminder-${item.tracking_code}">
-                          <div class="reminder-details">
-                              <span class="reminder-text">${item.Descripcion}</span>
-                              <span class="reminder-date">${item.Fecha} - ${item.Categoria}</span>
-                          </div>
-                          <div class="reminder-actions">
-                            <button class="reminder-delete-btn" data-tracking-code="${item.tracking_code}">🗑️</button>
-                          </div>
-                      </li>`).join('');
-              } else {
-                  listHtml = '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>';
-              }
+                          <div class="reminder-details"><span class="reminder-text">${item.Descripcion}</span><span class="reminder-date">${item.Fecha} - ${item.Categoria}</span></div>
+                          <div class="reminder-actions"><button class="reminder-delete-btn" data-tracking-code="${item.tracking_code}">🗑️</button></div>
+                      </li>`).join('') : '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>';
               mainContent.innerHTML = `
                   <div class="list-container">
-                      <div class="list-header">
-                          <button class="back-btn" id="back-to-dashboard">‹</button>
-                          <h2>Recordatorios Activos</h2>
-                      </div>
+                      <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Recordatorios Activos</h2></div>
                       <ul class="reminder-list" id="reminders-list-ul">${listHtml}</ul>
                   </div>`;
               document.getElementById('back-to-dashboard').onclick = renderDashboard;
@@ -340,17 +301,11 @@
               const trackingCode = deleteButton.dataset.trackingCode;
               deleteButton.style.display = 'none';
               const confirmBtnYes = document.createElement('button');
-              confirmBtnYes.className = 'confirm-btn-yes';
-              confirmBtnYes.textContent = 'Sí';
+              confirmBtnYes.className = 'confirm-btn-yes'; confirmBtnYes.textContent = 'Sí';
               confirmBtnYes.onclick = () => executeDeleteReminder(trackingCode);
               const confirmBtnNo = document.createElement('button');
-              confirmBtnNo.className = 'confirm-btn-no';
-              confirmBtnNo.textContent = 'No';
-              confirmBtnNo.onclick = () => {
-                  deleteButton.style.display = 'block';
-                  confirmBtnYes.remove();
-                  confirmBtnNo.remove();
-              };
+              confirmBtnNo.className = 'confirm-btn-no'; confirmBtnNo.textContent = 'No';
+              confirmBtnNo.onclick = () => { deleteButton.style.display = 'block'; confirmBtnYes.remove(); confirmBtnNo.remove(); };
               deleteButton.parentElement.appendChild(confirmBtnYes);
               deleteButton.parentElement.appendChild(confirmBtnNo);
           }
@@ -364,13 +319,11 @@
               const data = await res.json();
               if (data.error) throw new Error(data.error);
               lastCount.reminders = data.length;
-              updateBadge('reminders', lastCount.reminders);
-              showToast('Recordatorio eliminado');
               const itemToRemove = document.getElementById(`reminder-${trackingCode}`);
               if (itemToRemove) itemToRemove.remove();
-              if (document.querySelectorAll('.reminder-item').length === 0) {
-                  document.getElementById('reminders-list-ul').innerHTML = '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>';
-              }
+              if (document.querySelectorAll('.reminder-item').length === 0) { document.getElementById('reminders-list-ul').innerHTML = '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>'; }
+              initializeAppContent(); // Vuelve a cargar el dashboard para actualizar contadores
+              showToast('Recordatorio eliminado');
           } catch (err) {
               showToast(err.message || 'Error al eliminar', true);
           } finally {
@@ -384,41 +337,14 @@
           let listHtml = '';
           if (pendingItems.length > 0) {
               listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>';
-              listHtml += pendingItems.map(item => `
-                  <li class="shopping-item" id="shopping-item-${item['3']}">
-                      <div class="shopping-item-checkbox-wrapper" style="width: 28px;"></div>
-                      <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="${item['2']}"><span>${item['1']}</span></button>
-                      <div class="shopping-item-menu-container">
-                          <button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button>
-                          <div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}">
-                              <a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a>
-                              <a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a>
-                          </div>
-                      </div>
-                  </li>`).join('');
+              listHtml += pendingItems.map(item => `<li class="shopping-item" id="shopping-item-${item['3']}"><div class="shopping-item-checkbox-wrapper" style="width: 28px;"></div><button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="${item['2']}"><span>${item['1']}</span></button><div class="shopping-item-menu-container"><button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button><div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}"><a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a><a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a></div></div></li>`).join('');
           }
           if (boughtItems.length > 0) {
               listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>';
               listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
-              listHtml += boughtItems.map(item => `
-                  <li class="shopping-item" id="shopping-item-${item['3']}">
-                      <div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}" data-current-status="${item['2']}"></div>
-                      <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="${item['2']}">
-                          <span>${item['1']}</span>
-                          ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
-                      </button>
-                      <div class="shopping-item-menu-container">
-                          <button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button>
-                          <div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}">
-                              <a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a>
-                              <a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a>
-                          </div>
-                      </div>
-                  </li>`).join('');
+              listHtml += boughtItems.map(item => `<li class="shopping-item" id="shopping-item-${item['3']}"><div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}" data-current-status="${item['2']}"></div><button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="${item['2']}"><span>${item['1']}</span>${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}</button><div class="shopping-item-menu-container"><button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button><div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}"><a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a><a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a></div></div></li>`).join('');
           }
-          if (items.length === 0) { 
-              listHtml = '<div class="no-shopping-items">🛒<br>Tu lista está vacía.</div>';
-          }
+          if (items.length === 0) { listHtml = '<div class="no-shopping-items">🛒<br>Tu lista está vacía.</div>'; }
           mainContent.innerHTML = `
               <div class="list-container">
                   <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Lista de Compras</h2></div>
@@ -428,16 +354,11 @@
                       <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
                   </div>
               </div>`;
-          document.getElementById('back-to-dashboard').onclick = renderDashboard;
+          document.getElementById('back-to-dashboard').onclick = initializeAppContent;
           document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
           document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
           const selectAllCheckbox = document.getElementById('select-all-checkbox');
-          if (selectAllCheckbox) { 
-              selectAllCheckbox.onchange = (e) => {
-                  document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; });
-                  updateMultiSelectButtonState();
-              };
-          }
+          if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
           document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
           document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
           updateMultiSelectButtonState(); 
@@ -460,12 +381,10 @@
           const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
           const selectedBoughtCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
           if (selectedBoughtCount > 0) {
-              multiSelectToggleButton.classList.add('enabled');
-              multiSelectToggleButton.disabled = false;
+              multiSelectToggleButton.classList.add('enabled'); multiSelectToggleButton.disabled = false;
               multiSelectToggleButton.textContent = `Marcar ${selectedBoughtCount} para comprar`;
           } else {
-              multiSelectToggleButton.classList.remove('enabled');
-              multiSelectToggleButton.disabled = true;
+              multiSelectToggleButton.classList.remove('enabled'); multiSelectToggleButton.disabled = true;
               multiSelectToggleButton.textContent = 'Marcar para comprar';
           }
       }
@@ -478,7 +397,8 @@
               if (!res.ok) throw new Error(`Error: ${res.statusText}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              renderShoppingListItems(items); 
+              renderShoppingListItems(items);
+              initializeAppContent(); 
           } catch (err) {
               showToast(err.message || 'Error al actualizar', true);
           } finally {
@@ -507,7 +427,8 @@
               if (!res.ok) throw new Error(`Error: ${res.statusText}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              renderShoppingListItems(items); 
+              renderShoppingListItems(items);
+              initializeAppContent();
           } catch (err) {
               showToast(err.message || 'Error al cambiar estado', true);
           } finally {
@@ -538,7 +459,8 @@
               if (!res.ok) throw new Error(`Error: ${res.status}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              renderShoppingListItems(items); 
+              renderShoppingListItems(items);
+              initializeAppContent();
           } catch (err) {
               showToast(err.message || 'Error al eliminar', true);
           } finally {
@@ -572,7 +494,8 @@
               if (!res.ok) throw new Error(`Error: ${res.statusText}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              renderShoppingListItems(items); 
+              renderShoppingListItems(items);
+              initializeAppContent();
           } catch (err) {
               showToast(err.message || 'Error al añadir', true);
           } finally {
@@ -584,12 +507,10 @@
           const activeTab = document.getElementById(activeTabId);
           if (activeTab) activeTab.classList.add('active');
       }
-      document.getElementById('tab-home').onclick = renderDashboard;
+      document.getElementById('tab-home').onclick = initializeAppContent;
       
-      // Lanzamiento inicial de la aplicación.
       initializeAppContent();
     });
   </script>
 </body>
 </html>
-
