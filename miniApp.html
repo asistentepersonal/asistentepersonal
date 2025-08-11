@@ -6,7 +6,6 @@
   <title>Dashboard - Mini App Telegram</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    /* TU CSS COMPLETO Y SIN CAMBIOS VA AQUÍ */
     :root { 
         --bg:#f5f7fa;
         --card-bg:#fff;
@@ -76,198 +75,36 @@
     .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
     .no-reminders, .no-shopping-items { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
     #main:empty { display: none; }
-
-    .shopping-list-header-row { 
-        display: flex;
-        align-items: center;
-        justify-content: flex-end; 
-        padding: 0 10px 10px 10px;
-        color: var(--muted);
-        font-size: 0.9rem;
-    }
-    .shopping-list-header-row input[type="checkbox"] {
-        margin-left: 5px; 
-    }
-
-    .shopping-item {
-        display: flex;
-        align-items: center;
-        gap: 5px; 
-        padding: 10px;
-    }
-
-    .shopping-item-checkbox-wrapper { 
-        flex-shrink: 0;
-        margin-right: 8px;
-    }
-    .shopping-item input[type="checkbox"] {
-        appearance: none;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        width: 20px;
-        height: 20px;
-        border: 2px solid var(--checkbox-border);
-        border-radius: 4px;
-        background-color: var(--card-bg);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        transition: background-color 0.2s, border-color 0.2s;
-    }
-    .shopping-item input[type="checkbox"]::after {
-        content: '✔'; 
-        font-size: 14px;
-        color: var(--action-text);
-        display: none;
-    }
-    .shopping-item input[type="checkbox"]:checked {
-        background-color: var(--checkbox-checked-bg);
-        border-color: var(--checkbox-checked-bg);
-    }
-    .shopping-item input[type="checkbox"]:checked::after {
-        display: block;
-    }
-
-
-    .shopping-item-toggle-btn { 
-        flex-grow: 1; 
-        padding: 10px 15px; 
-        border: none; 
-        border-radius: 8px; 
-        font-size: 1rem; 
-        font-weight: 600; 
-        color: var(--list-item-text); 
-        cursor: pointer; 
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start; 
-        text-align: left; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        transition: background-color 0.2s ease, transform 0.1s ease;
-    }
+    .shopping-list-header-row { display: flex; align-items: center; justify-content: flex-end; padding: 0 10px 10px 10px; color: var(--muted); font-size: 0.9rem; }
+    .shopping-list-header-row input[type="checkbox"] { margin-left: 5px; }
+    .shopping-item { display: flex; align-items: center; gap: 5px; padding: 10px; }
+    .shopping-item-checkbox-wrapper { flex-shrink: 0; margin-right: 8px; }
+    .shopping-item input[type="checkbox"] { appearance: none; -webkit-appearance: none; -moz-appearance: none; width: 20px; height: 20px; border: 2px solid var(--checkbox-border); border-radius: 4px; background-color: var(--card-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background-color 0.2s, border-color 0.2s; }
+    .shopping-item input[type="checkbox"]::after { content: '✔'; font-size: 14px; color: var(--action-text); display: none; }
+    .shopping-item input[type="checkbox"]:checked { background-color: var(--checkbox-checked-bg); border-color: var(--checkbox-checked-bg); }
+    .shopping-item input[type="checkbox"]:checked::after { display: block; }
+    .shopping-item-toggle-btn { flex-grow: 1; padding: 10px 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; color: var(--list-item-text); cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: background-color 0.2s ease, transform 0.1s ease; }
     .shopping-item-toggle-btn:active { transform: translateY(1px); }
-
     .shopping-item-toggle-btn.pending { background-color: var(--pending-bg); }
     .shopping-item-toggle-btn.bought { background-color: var(--bought-bg); }
     .shopping-item-toggle-btn .item-date { font-size: 0.75rem; opacity: 0.8; margin-top: 5px; }
-
-    .shopping-item-menu-container {
-        position: relative;
-        flex-shrink: 0;
-        margin-left: auto; 
-    }
-
-    .shopping-item-menu-btn {
-        background: transparent;
-        border: none;
-        font-size: 1.5rem; 
-        color: var(--muted);
-        cursor: pointer;
-        padding: 5px;
-        line-height: 1;
-    }
-    .shopping-item-menu-btn:hover {
-        color: var(--primary);
-    }
-
-    .shopping-item-dropdown-menu {
-        display: none;
-        position: absolute;
-        top: 30px; 
-        right: 0;
-        background-color: var(--menu-bg);
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        z-index: 50; 
-        overflow: hidden;
-        min-width: 150px; 
-    }
-    .shopping-item-dropdown-menu.show {
-        display: block;
-    }
-
-    .shopping-item-dropdown-item {
-        padding: 10px 15px;
-        color: var(--text);
-        cursor: pointer;
-        display: block;
-        text-align: left;
-    }
-    .shopping-item-dropdown-item:hover {
-        background-color: var(--bg);
-    }
-    .confirm-btn-yes, .confirm-btn-no {
-        padding: 8px 12px;
-        border: none;
-        border-radius: 5px;
-        font-size: 0.9rem;
-        font-weight: bold;
-        cursor: pointer;
-        margin-left: 5px;
-        display: inline-block; /* Asegura que sean visibles cuando se crean */
-    }
+    .shopping-item-menu-container { position: relative; flex-shrink: 0; margin-left: auto; }
+    .shopping-item-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
+    .shopping-item-menu-btn:hover { color: var(--primary); }
+    .shopping-item-dropdown-menu { display: none; position: absolute; top: 30px; right: 0; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
+    .shopping-item-dropdown-menu.show { display: block; }
+    .shopping-item-dropdown-item { padding: 10px 15px; color: var(--text); cursor: pointer; display: block; text-align: left; }
+    .shopping-item-dropdown-item:hover { background-color: var(--bg); }
+    .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; display: inline-block; }
     .confirm-btn-yes { background-color: var(--confirm-yes-bg); color: var(--delete-text); }
     .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
-
-
-    .add-article-btn-container { 
-        padding: 10px; 
-        text-align: center; 
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap; 
-        justify-content: center;
-    }
-    .add-article-btn { 
-        background-color: var(--primary); 
-        color: var(--action-text); 
-        padding: 12px 20px; 
-        border: none; 
-        border-radius: 8px; 
-        font-size: 1.1rem; 
-        font-weight: 600; 
-        cursor: pointer;
-        flex-grow: 1; 
-        max-width: 250px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        transition: transform 0.2s ease;
-    }
+    .add-article-btn-container { padding: 10px; text-align: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .add-article-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: transform 0.2s ease; }
     .add-article-btn:active { transform: translateY(1px); }
-
-    .multi-select-action-btn { 
-        background-color: var(--primary); 
-        color: var(--action-text);
-        padding: 12px 20px;
-        border: none;
-        border-radius: 8px;
-        font-size: 1.1rem;
-        font-weight: 600;
-        cursor: not-allowed;
-        opacity: 0.6;
-        flex-grow: 1;
-        max-width: 250px;
-        transition: opacity 0.2s;
-    }
-    .multi-select-action-btn.enabled {
-        cursor: pointer;
-        opacity: 1;
-    }
-
-    .shopping-list-section-title {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: var(--text);
-        margin: 20px 10px 10px 10px;
-        padding-top: 10px;
-        border-top: 1px solid var(--muted); 
-        text-align: left;
-    }
-    .shopping-list-section-title:first-of-type { 
-        border-top: none;
-        margin-top: 0;
-    }
+    .multi-select-action-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: not-allowed; opacity: 0.6; flex-grow: 1; max-width: 250px; transition: opacity 0.2s; }
+    .multi-select-action-btn.enabled { cursor: pointer; opacity: 1; }
+    .shopping-list-section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px 10px; padding-top: 10px; border-top: 1px solid var(--muted); text-align: left; }
+    .shopping-list-section-title:first-of-type { border-top: none; margin-top: 0; }
   </style>
 </head>
 <body>
@@ -278,13 +115,11 @@
     <div class="tab" id="tab-recordatorios-placeholder"></div>
   </div>
   <div id="toast" class="toast"></div>
-
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const tg = window.Telegram?.WebApp;
       if (tg) {
         tg.expand();
-        // Lógica de temas de Telegram (sin cambios)
         if (tg.themeParams) {
             document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
             document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
@@ -295,7 +130,6 @@
             document.documentElement.style.setProperty('--menu-bg', tg.themeParams.secondary_bg_color || '#ffffff');
             document.documentElement.style.setProperty('--confirm-yes-bg', tg.themeParams.destructive_text_color || '#e74c3c');
             document.documentElement.style.setProperty('--confirm-no-bg', tg.themeParams.button_color || '#cccccc');
-            
             document.documentElement.style.setProperty('--pending-bg', tg.themeParams.button_color || '#28a745');
             document.documentElement.style.setProperty('--bought-bg', tg.themeParams.destructive_text_color || '#dc3545');
             document.documentElement.style.setProperty('--list-item-text', tg.themeParams.button_text_color || '#fff');
@@ -304,64 +138,471 @@
             document.documentElement.style.setProperty('--checkbox-checked-bg', tg.themeParams.button_color || '#4a76f3');
         }
       }
-
-      // =========================================================================
-      // === CONFIGURACIÓN PRINCIPAL ===
-      // =========================================================================
-      // Pega aquí la URL de implementación de tu Google Apps Script.
-      const webhookURL = 'https://script.google.com/macros/s/AKfycbzSoUEQYBC1OgP2ebgRULG-Na2og-W5xQ_loEan1Wt8ylM8nsf_vcFhytw97tJ__rWuKQ/exec'; 
       
-      // Simula el entorno de Telegram pidiendo el chat_ID si no se detecta.
+      const webhookURL = 'https://script.google.com/macros/s/AKfycbzSoUEQYBC1OgP2ebgRULG-Na2og-W5xQ_loEan1Wt8ylM8nsf_vcFhytw97tJ__rWuKQ/exec';
       let chatId = tg?.initDataUnsafe?.user?.id;
       if (!chatId) {
           chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '');
       }
       console.log("DEBUG: Usando chat_ID:", chatId);
-      // =========================================================================
 
+      let lastCount = { reminders: null, shoppingItems: null }, toastTimer; 
       const mainContent = document.getElementById('main');
       const spinner = document.getElementById('spinner');
-      let toastTimer; 
 
+      function showSpinner() { spinner.style.display = 'block'; }
+      function hideSpinner() { spinner.style.display = 'none'; }
+
+      function showToast(msg, isError = false) {
+        clearTimeout(toastTimer);
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast show' + (isError ? ' error' : '');
+        toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000);
+      }
+      
       async function fetchWithTimeout(resource, options = {}, timeout = 30000) { 
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
         try {
-            // =========================================================================
-            // === CAMBIO CLAVE PARA EVITAR EL ERROR 'PREFLIGHT' (CORS) ===
-            // =========================================================================
-            // Enviamos los datos como texto plano. Google Apps Script no requerirá una
-            // comprobación 'preflight' para este tipo de contenido.
             const modifiedOptions = {
                 ...options,
                 signal: controller.signal,
-                method: 'POST', // Aseguramos que sea POST
-                headers: {
-                    'Content-Type': 'text/plain;charset=utf-8', 
-                },
-                body: options.body // El body ya es un string JSON
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: options.body
             };
-            // =========================================================================
-            
             const response = await fetch(resource, modifiedOptions);
             clearTimeout(id);
             return response;
-
         } catch (error) {
             clearTimeout(id);
             if (error.name === 'AbortError') {
-                throw new Error('Timeout: La solicitud tardó demasiado.');
+                throw new Error('Timeout: La solicitud tardó demasiado en responder. Inténtelo nuevamente.');
             }
             throw error;
         }
       }
 
-      // ... EL RESTO DE TU CÓDIGO JAVASCRIPT VA AQUÍ EXACTAMENTE IGUAL ...
-      // NO HAY NECESIDAD DE CAMBIAR NINGUNA OTRA FUNCIÓN.
-      // Las funciones como `renderShoppingList`, `executeDeleteShoppingItem`, etc.,
-      // ya utilizan `fetchWithTimeout`, por lo que heredarán este cambio automáticamente.
-      // Pega aquí todo tu código JS desde la función `showSpinner()` hasta el final.
-      // Omito el resto para brevedad, pero debe estar todo.
+      async function initializeAppContent() {
+        try {
+          const res = await fetchWithTimeout(webhookURL, {
+            body: JSON.stringify({ chat_ID: chatId, Type: 'actualizar' })
+          });
+          const data = await res.json();
+          lastCount.reminders = data.remindersCount || 0;
+        } catch (err) {
+          console.error('Error en la carga inicial de recordatorios:', err);
+          lastCount.reminders = 0; 
+          showToast(`Error al cargar recordatorios: ${err.message}`, true);
+        } finally {
+          renderDashboard();
+        }
+      }
+
+      function updateBadge(type, count) {
+        if (type === 'reminders') {
+            const badge = document.getElementById('badge-recordatorios');
+            if (badge) badge.textContent = count;
+        }
+      }
+
+      function renderDashboard() {
+        setActiveTab('tab-home');
+        mainContent.innerHTML = `
+          <div class="grid">
+            <div class="card" id="card-recordatorios-wrapper">
+              <div class="card-badge" id="badge-recordatorios">${lastCount.reminders ?? '...'}</div>
+              <button class="card-menu-btn" data-menu-for="recordatorios">⋮</button>
+              <div class="card-icon">🗓️</div>
+              <div class="card-title">Recordatorios</div>
+              <div class="dropdown-menu" id="menu-recordatorios">
+                <a class="dropdown-item" id="add-reminder-link">Añadir recordatorio</a>
+                <a class="dropdown-item" id="list-reminders-link">Ver lista de activos</a>
+              </div>
+            </div>
+            <div class="card" id="card-shopping-list-wrapper">
+                <div class="card-icon">🛒</div>
+                <div class="card-title">Lista de Compras</div>
+                <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
+                <div class="dropdown-menu" id="menu-shopping-list">
+                    <a class="dropdown-item" id="view-shopping-list-link">Ver lista</a>
+                    <a class="dropdown-item" id="add-shopping-item-link">Añadir artículo</a>
+                </div>
+            </div>
+          </div>`;
+        updateBadge('reminders', lastCount.reminders);
+        document.getElementById('add-reminder-link').onclick = renderForm;
+        document.getElementById('list-reminders-link').onclick = renderRemindersList;
+        document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+        document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+      }
+      
+      document.body.addEventListener('click', (e) => {
+        const menuBtn = e.target.closest('.card-menu-btn');
+        const shoppingItemMenuButton = e.target.closest('.shopping-item-menu-btn'); 
+        
+        document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+        document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
+
+        if (menuBtn) { 
+            e.stopPropagation();
+            const menuId = `menu-${menuBtn.dataset.menuFor}`;
+            const menu = document.getElementById(menuId);
+            if (menu) menu.classList.add('show'); 
+        } else if (shoppingItemMenuButton) { 
+            e.stopPropagation();
+            const menuId = `menu-shopping-item-${shoppingItemMenuButton.dataset.itemTrackingCode}`;
+            const menu = document.getElementById(menuId);
+            if (menu) menu.classList.add('show'); 
+        }
+      });
+
+      function renderForm() { 
+        mainContent.innerHTML = `
+          <div class="list-container">
+            <div class="list-header">
+                <button class="back-btn" id="back-to-dashboard">‹</button>
+                <h2>📝 Nuevo Recordatorio</h2>
+            </div>
+            <div class="form-card">
+              <label>Descripción</label><textarea id="text" rows="3" required></textarea>
+              <label>Fecha y hora</label><input type="datetime-local" id="time" required/>
+              <label>Tipo</label><div class="radio-group"><label><input type="radio" name="type" value="once"/> Único</label><label><input type="radio" name="type" value="daily"/> Diario</label></div>
+              <button id="sendBtn" disabled>Enviar</button>
+            </div>
+          </div>`;
+        document.getElementById('back-to-dashboard').onclick = renderDashboard;
+        document.getElementById('text').oninput = validateForm;
+        document.getElementById('time').oninput = validateForm;
+        document.querySelectorAll('input[name="type"]').forEach(r => r.onchange = validateForm);
+        document.getElementById('sendBtn').onclick = sendReminder;
+        validateForm();
+      }
+
+      function validateForm() {
+        const t = document.getElementById('text')?.value.trim();
+        const d = document.getElementById('time')?.value;
+        const r = document.querySelector('input[name="type"]:checked');
+        const b = document.getElementById('sendBtn');
+        let isDateValid = false;
+        if (d) { isDateValid = new Date(d) > new Date(); }
+        if (b) {
+          if (t && d && r && isDateValid) { b.classList.add('enabled'); b.disabled = false; }
+          else { b.classList.remove('enabled'); b.disabled = true; }
+        }
+      }
+
+      async function renderRemindersList() {
+          mainContent.innerHTML = `<div class="no-reminders">Función de recordatorios no implementada en esta versión.</div>`;
+          // Lógica futura para listar recordatorios.
+      }
+
+      function handleReminderActionClick(event) {
+          // Lógica futura para eliminar recordatorios.
+      }
+
+      async function executeDeleteReminder(jobId, trackingCode) {
+         // Lógica futura para eliminar recordatorios.
+      }
+
+      async function sendReminder() {
+        // Lógica futura para enviar recordatorios.
+      }
+
+      function renderShoppingListItems(items) {
+          mainContent.innerHTML = '';
+          const pendingItems = items.filter(item => item['2'] === 'Pendiente');
+          const boughtItems = items.filter(item => item['2'] === 'Comprado');
+          let listHtml = '';
+          if (pendingItems.length > 0) {
+              listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>';
+              listHtml += pendingItems.map(item => `
+                  <li class="shopping-item" id="shopping-item-${item['3']}">
+                      <div class="shopping-item-checkbox-wrapper" style="width: 28px;"></div>
+                      <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="${item['2']}">
+                          <span>${item['1']}</span>
+                      </button>
+                      <div class="shopping-item-menu-container">
+                          <button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button>
+                          <div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}">
+                              <a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a>
+                              <a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a>
+                          </div>
+                      </div>
+                  </li>`).join('');
+          }
+          if (boughtItems.length > 0) {
+              listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>';
+              listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
+              listHtml += boughtItems.map(item => `
+                  <li class="shopping-item" id="shopping-item-${item['3']}">
+                      <div class="shopping-item-checkbox-wrapper">
+                          <input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}" data-current-status="${item['2']}">
+                      </div>
+                      <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="${item['2']}">
+                          <span>${item['1']}</span>
+                          ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
+                      </button>
+                      <div class="shopping-item-menu-container">
+                          <button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button>
+                          <div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}">
+                              <a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a>
+                              <a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a>
+                          </div>
+                      </div>
+                  </li>`).join('');
+          }
+          if (items.length === 0) { 
+              listHtml = '<div class="no-shopping-items">🛒<br>¡Tu lista de compras está vacía!<br>Añade algunos artículos.</div>';
+          }
+          mainContent.innerHTML = `
+              <div class="list-container">
+                  <div class="list-header">
+                      <button class="back-btn" id="back-to-dashboard">‹</button>
+                      <h2>Lista de Compras</h2>
+                  </div>
+                  <ul class="shopping-list" id="shopping-list-ul">${listHtml}</ul>
+                  <div class="add-article-btn-container">
+                      <button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button>
+                      <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar seleccionados para comprar</button>
+                  </div>
+              </div>`;
+          document.getElementById('back-to-dashboard').onclick = renderDashboard;
+          document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
+          document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
+          const selectAllCheckbox = document.getElementById('select-all-checkbox');
+          const itemCheckboxes = document.querySelectorAll('.shopping-item-checkbox');
+          const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
+          if (selectAllCheckbox) { 
+              selectAllCheckbox.onchange = (e) => {
+                  itemCheckboxes.forEach(cb => { cb.checked = e.target.checked; });
+                  updateMultiSelectButtonState();
+              };
+          }
+          itemCheckboxes.forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
+          multiSelectToggleButton.onclick = toggleSelectedItemsToPending;
+          updateMultiSelectButtonState(); 
+      }
+
+      async function renderShoppingList() { 
+          mainContent.innerHTML = ''; 
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, {
+                  body: JSON.stringify({ chat_ID: chatId, Type: 'get_shopping_list' })
+              });
+              if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              renderShoppingListItems(items); 
+          } catch (err) {
+              mainContent.innerHTML = `<div class="no-shopping-items">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`;
+              console.error('Error en renderShoppingList:', err);
+              showToast(`Error al cargar la lista: ${err.message}`, true);
+          } finally {
+              hideSpinner();
+          }
+      }
+
+      function updateMultiSelectButtonState() {
+          const itemCheckboxes = document.querySelectorAll('.shopping-item-checkbox');
+          const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
+          const selectedBoughtCount = Array.from(itemCheckboxes).filter(cb => cb.checked && cb.dataset.currentStatus === 'Comprado').length;
+
+          if (selectedBoughtCount > 0) {
+              multiSelectToggleButton.classList.add('enabled');
+              multiSelectToggleButton.disabled = false;
+              multiSelectToggleButton.textContent = `Marcar ${selectedBoughtCount} para comprar`;
+          } else {
+              multiSelectToggleButton.classList.remove('enabled');
+              multiSelectToggleButton.disabled = true;
+              multiSelectToggleButton.textContent = 'Marcar seleccionados para comprar';
+          }
+      }
+
+      async function toggleSelectedItemsToPending() {
+          const selectedCheckboxes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked'));
+          const trackingCodesToUpdate = selectedCheckboxes.map(cb => cb.dataset.trackingCode);
+          if (trackingCodesToUpdate.length === 0) return;
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, {
+                  body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_multiple_to_pending', tracking_codes: trackingCodesToUpdate })
+              });
+              if (!res.ok) throw new Error(`Error al actualizar: ${res.statusText}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              showToast(`${trackingCodesToUpdate.length} artículos movidos a pendientes.`);
+              renderShoppingListItems(items); 
+          } catch (err) {
+              console.error('Error al actualizar artículos:', err);
+              showToast(err.message || 'Error al actualizar', true);
+          } finally {
+              hideSpinner();
+          }
+      }
+
+      function handleShoppingItemInteractions(event) {
+          const toggleButton = event.target.closest('.shopping-item-toggle-btn');
+          const editMenuItem = event.target.closest('.edit-btn-item');
+          const deleteMenuItem = event.target.closest('.delete-btn-item');
+
+          if (toggleButton) {
+              const trackingCode = toggleButton.dataset.trackingCode;
+              const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+              toggleShoppingItemStatus(trackingCode, newStatus);
+          } else if (editMenuItem) {
+              event.stopPropagation();
+              document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
+              const trackingCode = editMenuItem.dataset.trackingCode;
+              const currentDescription = editMenuItem.dataset.currentDescription;
+              editShoppingItem(trackingCode, currentDescription);
+          } else if (deleteMenuItem) {
+              event.stopPropagation();
+              document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
+              const trackingCode = deleteMenuItem.dataset.trackingCode;
+              const menuContainer = deleteMenuItem.closest('.shopping-item-menu-container');
+              const originalMenuButton = menuContainer.querySelector('.shopping-item-menu-btn');
+              if (originalMenuButton) originalMenuButton.style.display = 'none';
+
+              const confirmBtnYes = document.createElement('button');
+              confirmBtnYes.className = 'confirm-btn-yes';
+              confirmBtnYes.textContent = 'Sí';
+              confirmBtnYes.onclick = () => executeDeleteShoppingItem(trackingCode);
+
+              const confirmBtnNo = document.createElement('button');
+              confirmBtnNo.className = 'confirm-btn-no';
+              confirmBtnNo.textContent = 'No';
+              confirmBtnNo.onclick = () => {
+                  if (originalMenuButton) originalMenuButton.style.display = 'block';
+                  confirmBtnYes.remove();
+                  confirmBtnNo.remove();
+              };
+              
+              if (menuContainer) {
+                  menuContainer.appendChild(confirmBtnYes);
+                  menuContainer.appendChild(confirmBtnNo);
+              }
+          }
+      }
+
+      async function toggleShoppingItemStatus(trackingCode, newStatus) {
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, {
+                  body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_item_status', tracking_code: trackingCode, new_status: newStatus })
+              });
+              if (!res.ok) throw new Error(`Error al cambiar estado: ${res.statusText}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              showToast(`Artículo marcado como ${newStatus}`);
+              renderShoppingListItems(items); 
+          } catch (err) {
+              console.error('Error al cambiar estado del artículo:', err);
+              showToast(err.message || 'Error al cambiar estado', true);
+          } finally {
+              hideSpinner();
+          }
+      }
+
+      async function editShoppingItem(trackingCode, currentDescription) {
+          const newDescription = prompt('Editar descripción del artículo:', currentDescription);
+          if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== currentDescription) {
+              showSpinner();
+              try {
+                  const res = await fetchWithTimeout(webhookURL, {
+                      body: JSON.stringify({ chat_ID: chatId, Type: 'edit_item_description', tracking_code: trackingCode, new_description: newDescription.trim() })
+                  });
+                  if (!res.ok) throw new Error(`Error al editar: ${res.statusText}`);
+                  const items = await res.json();
+                  if (items.error) throw new Error(items.error);
+                  showToast('Artículo editado con éxito');
+                  renderShoppingListItems(items); 
+              } catch (err) {
+                  console.error('Error al editar artículo:', err);
+                  showToast(err.message || 'Error al editar', true);
+              } finally {
+                  hideSpinner();
+              }
+          }
+      }
+
+      async function executeDeleteShoppingItem(trackingCode) {
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, {
+                  body: JSON.stringify({ Type: 'delete_item_shopping_list', chat_ID: chatId, tracking_code: trackingCode })
+              });
+              if (!res.ok) throw new Error(`Error al eliminar: ${res.status}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              showToast('Artículo eliminado');
+              renderShoppingListItems(items); 
+          } catch (err) {
+              console.error('Error al eliminar artículo:', err);
+              showToast(err.message || 'Error al eliminar', true);
+          } finally {
+              hideSpinner();
+          }
+      }
+
+      function renderAddArticleForm() {
+          mainContent.innerHTML = `
+              <div class="list-container">
+                  <div class="list-header">
+                      <button class="back-btn" id="back-to-shopping-list">‹</button>
+                      <h2>➕ Añadir Artículo</h2>
+                  </div>
+                  <div class="form-card">
+                      <label>Descripción del Artículo</label><textarea id="article-description" rows="2" required></textarea>
+                      <button id="add-article-send-btn" disabled>Añadir</button>
+                  </div>
+              </div>`;
+          document.getElementById('back-to-shopping-list').onclick = renderShoppingList;
+          const descriptionInput = document.getElementById('article-description');
+          const sendBtn = document.getElementById('add-article-send-btn');
+          descriptionInput.oninput = () => {
+              sendBtn.disabled = descriptionInput.value.trim() === '';
+              sendBtn.classList.toggle('enabled', !sendBtn.disabled);
+          };
+          sendBtn.onclick = addArticle;
+          descriptionInput.focus();
+      }
+
+      async function addArticle() {
+          const description = document.getElementById('article-description').value.trim();
+          if (!description) return;
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, {
+                  body: JSON.stringify({ chat_ID: chatId, Type: 'add_articulo', description: description })
+              });
+              if (!res.ok) throw new Error(`Error al añadir: ${res.statusText}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              showToast('Artículo añadido con éxito');
+              renderShoppingListItems(items); 
+          } catch (err) {
+              console.error('Error en addArticle:', err);
+              showToast(err.message || 'Error al añadir', true);
+          } finally {
+              hideSpinner();
+          }
+      }
+
+      function setActiveTab(activeTabId) {
+          document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+          const activeTab = document.getElementById(activeTabId);
+          if (activeTab) activeTab.classList.add('active');
+      }
+
+      document.getElementById('tab-home').onclick = renderDashboard;
+      
+      showSpinner();
+      initializeAppContent().finally(() => {
+          hideSpinner();
+      });
     });
   </script>
 </body>
