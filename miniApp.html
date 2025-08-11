@@ -2,9 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
+  <!-- Cabeceras Anti-Caché (Capa 1 de defensa) -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
+  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard - Mini App Telegram</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -20,7 +22,7 @@
     .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
     .card-badge.green{background-color:#28a745;left:12px;}
     .card-badge.red{background-color:#e74c3c;right:12px;}
-    .card-badge-group .card-badge{position:static;} /* Anula la posición absoluta para los items del grupo */
+    .card-badge-group .card-badge{position:static;}
     .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
     .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; overflow: hidden; }
     .dropdown-menu.show { display: block; }
@@ -101,6 +103,16 @@
   </div>
   <div id="toast" class="toast"></div>
   <script>
+    // --- SOLUCIÓN ANTI-CACHÉ ROBUSTA (Capa 2 de defensa) ---
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has('v')) {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('v', new Date().getTime());
+        window.location.replace(newUrl.href);
+      }
+    })();
+
     document.addEventListener('DOMContentLoaded', () => {
       const tg = window.Telegram?.WebApp;
       if (tg) {
@@ -236,7 +248,7 @@
               <button id="sendBtn" disabled>Crear Recordatorio</button>
             </div>
           </div>`;
-        document.getElementById('back-to-dashboard').onclick = renderDashboard;
+        document.getElementById('back-to-dashboard').onclick = initializeAppContent;
         const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn');
         function validateForm() {
             const isTextValid = textInput.value.trim() !== '';
@@ -256,9 +268,8 @@
           if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
           const data = await res.json();
           if (data.error) throw new Error(data.error);
-          lastCount.reminders = data.length;
           showToast('Recordatorio guardado');
-          setTimeout(renderDashboard, 1000);
+          setTimeout(initializeAppContent, 500);
         } catch (err) {
           showToast(err.message || 'Error al enviar', true);
           sendBtn.disabled = false; sendBtn.classList.add('enabled');
@@ -284,7 +295,7 @@
                       <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Recordatorios Activos</h2></div>
                       <ul class="reminder-list" id="reminders-list-ul">${listHtml}</ul>
                   </div>`;
-              document.getElementById('back-to-dashboard').onclick = renderDashboard;
+              document.getElementById('back-to-dashboard').onclick = initializeAppContent;
               document.getElementById('reminders-list-ul').addEventListener('click', handleReminderActionClick);
           } catch (err) {
               mainContent.innerHTML = `<div class="no-reminders">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`;
@@ -318,11 +329,10 @@
               if (!res.ok) throw new Error(`Error al eliminar: ${res.status}`);
               const data = await res.json();
               if (data.error) throw new Error(data.error);
-              lastCount.reminders = data.length;
               const itemToRemove = document.getElementById(`reminder-${trackingCode}`);
               if (itemToRemove) itemToRemove.remove();
               if (document.querySelectorAll('.reminder-item').length === 0) { document.getElementById('reminders-list-ul').innerHTML = '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>'; }
-              initializeAppContent(); // Vuelve a cargar el dashboard para actualizar contadores
+              initializeAppContent();
               showToast('Recordatorio eliminado');
           } catch (err) {
               showToast(err.message || 'Error al eliminar', true);
