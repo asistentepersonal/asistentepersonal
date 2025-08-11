@@ -49,8 +49,8 @@
     .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
     .form-card textarea,.form-card input,.form-card .radio-group{width:100%;margin-top:8px;}
     .form-card textarea,.form-card input{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
-    .radio-group{display:flex;gap:10px;}
-    .radio-group label{font-weight:400;color:var(--text);}
+    .radio-group{display:flex;gap:10px;align-items:center;}
+    .radio-group label{font-weight:400;color:var(--text);margin-top:0;}
     .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:not-allowed;opacity:.6;transition:opacity .2s,background .2s;}
     .form-card button.enabled{cursor:pointer;opacity:1;}
     .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1000;font-size:1rem;}
@@ -112,7 +112,6 @@
   <div id="main"></div>
   <div class="tabs">
     <div class="tab active" id="tab-home">Home</div>
-    <div class="tab" id="tab-recordatorios-placeholder"></div>
   </div>
   <div id="toast" class="toast"></div>
   <script>
@@ -144,7 +143,6 @@
       if (!chatId) {
           chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '');
       }
-      console.log("DEBUG: Usando chat_ID:", chatId);
 
       let lastCount = { reminders: null, shoppingItems: null }, toastTimer; 
       const mainContent = document.getElementById('main');
@@ -165,38 +163,32 @@
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
         try {
-            const modifiedOptions = {
-                ...options,
-                signal: controller.signal,
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: options.body
-            };
+            const modifiedOptions = { ...options, signal: controller.signal, method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: options.body };
             const response = await fetch(resource, modifiedOptions);
             clearTimeout(id);
             return response;
         } catch (error) {
             clearTimeout(id);
-            if (error.name === 'AbortError') {
-                throw new Error('Timeout: La solicitud tardó demasiado en responder. Inténtelo nuevamente.');
-            }
+            if (error.name === 'AbortError') throw new Error('Timeout: La solicitud tardó demasiado.');
             throw error;
         }
       }
 
       async function initializeAppContent() {
+        showSpinner();
         try {
-          const res = await fetchWithTimeout(webhookURL, {
-            body: JSON.stringify({ chat_ID: chatId, Type: 'actualizar' })
-          });
+          const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_initial_counts' }) });
+          if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
           const data = await res.json();
+          if (data.error) throw new Error(data.error);
           lastCount.reminders = data.remindersCount || 0;
         } catch (err) {
-          console.error('Error en la carga inicial de recordatorios:', err);
+          console.error('Error en la carga inicial:', err);
           lastCount.reminders = 0; 
-          showToast(`Error al cargar recordatorios: ${err.message}`, true);
+          showToast(`Error al cargar datos: ${err.message}`, true);
         } finally {
           renderDashboard();
+          hideSpinner();
         }
       }
 
@@ -232,7 +224,8 @@
             </div>
           </div>`;
         updateBadge('reminders', lastCount.reminders);
-        document.getElementById('add-reminder-link').onclick = renderForm;
+        // --- Conexiones de los botones ---
+        document.getElementById('add-reminder-link').onclick = renderReminderForm;
         document.getElementById('list-reminders-link').onclick = renderRemindersList;
         document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
         document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
@@ -241,24 +234,23 @@
       document.body.addEventListener('click', (e) => {
         const menuBtn = e.target.closest('.card-menu-btn');
         const shoppingItemMenuButton = e.target.closest('.shopping-item-menu-btn'); 
-        
-        document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
-        document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
-
+        document.querySelectorAll('.dropdown-menu, .shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
         if (menuBtn) { 
             e.stopPropagation();
-            const menuId = `menu-${menuBtn.dataset.menuFor}`;
-            const menu = document.getElementById(menuId);
+            const menu = document.getElementById(`menu-${menuBtn.dataset.menuFor}`);
             if (menu) menu.classList.add('show'); 
         } else if (shoppingItemMenuButton) { 
             e.stopPropagation();
-            const menuId = `menu-shopping-item-${shoppingItemMenuButton.dataset.itemTrackingCode}`;
-            const menu = document.getElementById(menuId);
+            const menu = document.getElementById(`menu-shopping-item-${shoppingItemMenuButton.dataset.itemTrackingCode}`);
             if (menu) menu.classList.add('show'); 
         }
       });
 
-      function renderForm() { 
+      // ======================================================================
+      // --- SECCIÓN DE RECORDATORIOS ---
+      // ======================================================================
+
+      function renderReminderForm() { 
         mainContent.innerHTML = `
           <div class="list-container">
             <div class="list-header">
@@ -268,50 +260,150 @@
             <div class="form-card">
               <label>Descripción</label><textarea id="text" rows="3" required></textarea>
               <label>Fecha y hora</label><input type="datetime-local" id="time" required/>
-              <label>Tipo</label><div class="radio-group"><label><input type="radio" name="type" value="once"/> Único</label><label><input type="radio" name="type" value="daily"/> Diario</label></div>
-              <button id="sendBtn" disabled>Enviar</button>
+              <label>Tipo</label>
+              <div class="radio-group">
+                <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
+                <label><input type="radio" name="category" value="Diario"/> Diario</label>
+              </div>
+              <button id="sendBtn" class="enabled" disabled>Crear Recordatorio</button>
             </div>
           </div>`;
         document.getElementById('back-to-dashboard').onclick = renderDashboard;
-        document.getElementById('text').oninput = validateForm;
-        document.getElementById('time').oninput = validateForm;
-        document.querySelectorAll('input[name="type"]').forEach(r => r.onchange = validateForm);
-        document.getElementById('sendBtn').onclick = sendReminder;
+        const textInput = document.getElementById('text');
+        const timeInput = document.getElementById('time');
+        const sendBtn = document.getElementById('sendBtn');
+
+        function validateForm() {
+            const isTextValid = textInput.value.trim() !== '';
+            const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date();
+            sendBtn.disabled = !(isTextValid && isTimeValid);
+        }
+        textInput.oninput = validateForm;
+        timeInput.oninput = validateForm;
+        sendBtn.onclick = sendReminder;
         validateForm();
       }
 
-      function validateForm() {
-        const t = document.getElementById('text')?.value.trim();
-        const d = document.getElementById('time')?.value;
-        const r = document.querySelector('input[name="type"]:checked');
-        const b = document.getElementById('sendBtn');
-        let isDateValid = false;
-        if (d) { isDateValid = new Date(d) > new Date(); }
-        if (b) {
-          if (t && d && r && isDateValid) { b.classList.add('enabled'); b.disabled = false; }
-          else { b.classList.remove('enabled'); b.disabled = true; }
+      async function sendReminder() {
+        const payload = { 
+          chat_ID: chatId, 
+          Type: 'add_reminder',
+          description: document.getElementById('text').value.trim(), 
+          time: document.getElementById('time').value,
+          category: document.querySelector('input[name="category"]:checked').value
+        };
+        showSpinner();
+        try {
+          const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) });
+          if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          lastCount.reminders = data.length;
+          showToast('Recordatorio guardado');
+          setTimeout(renderDashboard, 1000);
+        } catch (err) {
+          console.error('Error en sendReminder:', err);
+          showToast(err.message || 'Error al enviar', true);
+        } finally {
+          hideSpinner();
         }
       }
 
       async function renderRemindersList() {
-          mainContent.innerHTML = `<div class="no-reminders">Función de recordatorios no implementada en esta versión.</div>`;
-          // Lógica futura para listar recordatorios.
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_reminders_list' }) });
+              if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+              const reminders = await res.json();
+              if (reminders.error) throw new Error(reminders.error);
+              
+              let listHtml = '';
+              if (reminders.length > 0) {
+                  listHtml = reminders.map(item => `
+                      <li class="reminder-item" id="reminder-${item.tracking_code}">
+                          <div class="reminder-details">
+                              <span class="reminder-text">${item.Descripcion}</span>
+                              <span class="reminder-date">${item.Fecha} - ${item.Categoria}</span>
+                          </div>
+                          <div class="reminder-actions">
+                            <button class="reminder-delete-btn" data-tracking-code="${item.tracking_code}">🗑️</button>
+                          </div>
+                      </li>`).join('');
+              } else {
+                  listHtml = '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>';
+              }
+
+              mainContent.innerHTML = `
+                  <div class="list-container">
+                      <div class="list-header">
+                          <button class="back-btn" id="back-to-dashboard">‹</button>
+                          <h2>Recordatorios Activos</h2>
+                      </div>
+                      <ul class="reminder-list" id="reminders-list-ul">${listHtml}</ul>
+                  </div>`;
+              
+              document.getElementById('back-to-dashboard').onclick = renderDashboard;
+              document.getElementById('reminders-list-ul').addEventListener('click', handleReminderActionClick);
+          } catch (err) {
+              mainContent.innerHTML = `<div class="no-reminders">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`;
+              showToast(`Error al cargar la lista: ${err.message}`, true);
+          } finally {
+              hideSpinner();
+          }
       }
 
       function handleReminderActionClick(event) {
-          // Lógica futura para eliminar recordatorios.
+          const deleteButton = event.target.closest('.reminder-delete-btn');
+          if (deleteButton) {
+              event.stopPropagation();
+              const trackingCode = deleteButton.dataset.trackingCode;
+              deleteButton.style.display = 'none';
+
+              const confirmBtnYes = document.createElement('button');
+              confirmBtnYes.className = 'confirm-btn-yes';
+              confirmBtnYes.textContent = 'Sí';
+              confirmBtnYes.onclick = () => executeDeleteReminder(trackingCode);
+
+              const confirmBtnNo = document.createElement('button');
+              confirmBtnNo.className = 'confirm-btn-no';
+              confirmBtnNo.textContent = 'No';
+              confirmBtnNo.onclick = () => {
+                  deleteButton.style.display = 'block';
+                  confirmBtnYes.remove();
+                  confirmBtnNo.remove();
+              };
+              deleteButton.parentElement.appendChild(confirmBtnYes);
+              deleteButton.parentElement.appendChild(confirmBtnNo);
+          }
       }
 
-      async function executeDeleteReminder(jobId, trackingCode) {
-         // Lógica futura para eliminar recordatorios.
+      async function executeDeleteReminder(trackingCode) {
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_reminder', tracking_code: trackingCode }) });
+              if (!res.ok) throw new Error(`Error al eliminar: ${res.status}`);
+              const data = await res.json();
+              if (data.error) throw new Error(data.error);
+              lastCount.reminders = data.length;
+              updateBadge('reminders', lastCount.reminders);
+              showToast('Recordatorio eliminado');
+              const itemToRemove = document.getElementById(`reminder-${trackingCode}`);
+              if (itemToRemove) itemToRemove.remove();
+              if (document.querySelectorAll('.reminder-item').length === 0) {
+                  document.getElementById('reminders-list-ul').innerHTML = '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>';
+              }
+          } catch (err) {
+              showToast(err.message || 'Error al eliminar', true);
+          } finally {
+              hideSpinner();
+          }
       }
 
-      async function sendReminder() {
-        // Lógica futura para enviar recordatorios.
-      }
-
+      // ======================================================================
+      // --- SECCIÓN DE LISTA DE LA COMPRA ---
+      // ======================================================================
+      
       function renderShoppingListItems(items) {
-          mainContent.innerHTML = '';
           const pendingItems = items.filter(item => item['2'] === 'Pendiente');
           const boughtItems = items.filter(item => item['2'] === 'Comprado');
           let listHtml = '';
@@ -320,9 +412,7 @@
               listHtml += pendingItems.map(item => `
                   <li class="shopping-item" id="shopping-item-${item['3']}">
                       <div class="shopping-item-checkbox-wrapper" style="width: 28px;"></div>
-                      <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="${item['2']}">
-                          <span>${item['1']}</span>
-                      </button>
+                      <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="${item['2']}"><span>${item['1']}</span></button>
                       <div class="shopping-item-menu-container">
                           <button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button>
                           <div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}">
@@ -337,9 +427,7 @@
               listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
               listHtml += boughtItems.map(item => `
                   <li class="shopping-item" id="shopping-item-${item['3']}">
-                      <div class="shopping-item-checkbox-wrapper">
-                          <input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}" data-current-status="${item['2']}">
-                      </div>
+                      <div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}" data-current-status="${item['2']}"></div>
                       <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="${item['2']}">
                           <span>${item['1']}</span>
                           ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
@@ -354,62 +442,48 @@
                   </li>`).join('');
           }
           if (items.length === 0) { 
-              listHtml = '<div class="no-shopping-items">🛒<br>¡Tu lista de compras está vacía!<br>Añade algunos artículos.</div>';
+              listHtml = '<div class="no-shopping-items">🛒<br>Tu lista está vacía.</div>';
           }
           mainContent.innerHTML = `
               <div class="list-container">
-                  <div class="list-header">
-                      <button class="back-btn" id="back-to-dashboard">‹</button>
-                      <h2>Lista de Compras</h2>
-                  </div>
+                  <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Lista de Compras</h2></div>
                   <ul class="shopping-list" id="shopping-list-ul">${listHtml}</ul>
                   <div class="add-article-btn-container">
                       <button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button>
-                      <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar seleccionados para comprar</button>
+                      <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
                   </div>
               </div>`;
           document.getElementById('back-to-dashboard').onclick = renderDashboard;
           document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
           document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
           const selectAllCheckbox = document.getElementById('select-all-checkbox');
-          const itemCheckboxes = document.querySelectorAll('.shopping-item-checkbox');
-          const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
           if (selectAllCheckbox) { 
               selectAllCheckbox.onchange = (e) => {
-                  itemCheckboxes.forEach(cb => { cb.checked = e.target.checked; });
+                  document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; });
                   updateMultiSelectButtonState();
               };
           }
-          itemCheckboxes.forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
-          multiSelectToggleButton.onclick = toggleSelectedItemsToPending;
+          document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
+          document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
           updateMultiSelectButtonState(); 
       }
-
       async function renderShoppingList() { 
-          mainContent.innerHTML = ''; 
           showSpinner();
           try {
-              const res = await fetchWithTimeout(webhookURL, {
-                  body: JSON.stringify({ chat_ID: chatId, Type: 'get_shopping_list' })
-              });
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_shopping_list' }) });
               if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
               renderShoppingListItems(items); 
           } catch (err) {
               mainContent.innerHTML = `<div class="no-shopping-items">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`;
-              console.error('Error en renderShoppingList:', err);
-              showToast(`Error al cargar la lista: ${err.message}`, true);
           } finally {
               hideSpinner();
           }
       }
-
       function updateMultiSelectButtonState() {
-          const itemCheckboxes = document.querySelectorAll('.shopping-item-checkbox');
           const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
-          const selectedBoughtCount = Array.from(itemCheckboxes).filter(cb => cb.checked && cb.dataset.currentStatus === 'Comprado').length;
-
+          const selectedBoughtCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
           if (selectedBoughtCount > 0) {
               multiSelectToggleButton.classList.add('enabled');
               multiSelectToggleButton.disabled = false;
@@ -417,192 +491,126 @@
           } else {
               multiSelectToggleButton.classList.remove('enabled');
               multiSelectToggleButton.disabled = true;
-              multiSelectToggleButton.textContent = 'Marcar seleccionados para comprar';
+              multiSelectToggleButton.textContent = 'Marcar para comprar';
           }
       }
-
       async function toggleSelectedItemsToPending() {
-          const selectedCheckboxes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked'));
-          const trackingCodesToUpdate = selectedCheckboxes.map(cb => cb.dataset.trackingCode);
+          const trackingCodesToUpdate = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
           if (trackingCodesToUpdate.length === 0) return;
           showSpinner();
           try {
-              const res = await fetchWithTimeout(webhookURL, {
-                  body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_multiple_to_pending', tracking_codes: trackingCodesToUpdate })
-              });
-              if (!res.ok) throw new Error(`Error al actualizar: ${res.statusText}`);
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_multiple_to_pending', tracking_codes: trackingCodesToUpdate }) });
+              if (!res.ok) throw new Error(`Error: ${res.statusText}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              showToast(`${trackingCodesToUpdate.length} artículos movidos a pendientes.`);
               renderShoppingListItems(items); 
           } catch (err) {
-              console.error('Error al actualizar artículos:', err);
               showToast(err.message || 'Error al actualizar', true);
           } finally {
               hideSpinner();
           }
       }
-
       function handleShoppingItemInteractions(event) {
           const toggleButton = event.target.closest('.shopping-item-toggle-btn');
           const editMenuItem = event.target.closest('.edit-btn-item');
           const deleteMenuItem = event.target.closest('.delete-btn-item');
-
-          if (toggleButton) {
-              const trackingCode = toggleButton.dataset.trackingCode;
-              const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
-              toggleShoppingItemStatus(trackingCode, newStatus);
-          } else if (editMenuItem) {
+          if (toggleButton) { toggleShoppingItemStatus(toggleButton.dataset.trackingCode, toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente'); } 
+          else if (editMenuItem) {
               event.stopPropagation();
               document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
-              const trackingCode = editMenuItem.dataset.trackingCode;
-              const currentDescription = editMenuItem.dataset.currentDescription;
-              editShoppingItem(trackingCode, currentDescription);
+              editShoppingItem(editMenuItem.dataset.trackingCode, editMenuItem.dataset.currentDescription);
           } else if (deleteMenuItem) {
               event.stopPropagation();
-              document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
-              const trackingCode = deleteMenuItem.dataset.trackingCode;
-              const menuContainer = deleteMenuItem.closest('.shopping-item-menu-container');
-              const originalMenuButton = menuContainer.querySelector('.shopping-item-menu-btn');
-              if (originalMenuButton) originalMenuButton.style.display = 'none';
-
-              const confirmBtnYes = document.createElement('button');
-              confirmBtnYes.className = 'confirm-btn-yes';
-              confirmBtnYes.textContent = 'Sí';
-              confirmBtnYes.onclick = () => executeDeleteShoppingItem(trackingCode);
-
-              const confirmBtnNo = document.createElement('button');
-              confirmBtnNo.className = 'confirm-btn-no';
-              confirmBtnNo.textContent = 'No';
-              confirmBtnNo.onclick = () => {
-                  if (originalMenuButton) originalMenuButton.style.display = 'block';
-                  confirmBtnYes.remove();
-                  confirmBtnNo.remove();
-              };
-              
-              if (menuContainer) {
-                  menuContainer.appendChild(confirmBtnYes);
-                  menuContainer.appendChild(confirmBtnNo);
-              }
+              document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show'));
+              executeDeleteShoppingItem(deleteMenuItem.dataset.trackingCode);
           }
       }
-
       async function toggleShoppingItemStatus(trackingCode, newStatus) {
           showSpinner();
           try {
-              const res = await fetchWithTimeout(webhookURL, {
-                  body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_item_status', tracking_code: trackingCode, new_status: newStatus })
-              });
-              if (!res.ok) throw new Error(`Error al cambiar estado: ${res.statusText}`);
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_item_status', tracking_code: trackingCode, new_status: newStatus }) });
+              if (!res.ok) throw new Error(`Error: ${res.statusText}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              showToast(`Artículo marcado como ${newStatus}`);
               renderShoppingListItems(items); 
           } catch (err) {
-              console.error('Error al cambiar estado del artículo:', err);
               showToast(err.message || 'Error al cambiar estado', true);
           } finally {
               hideSpinner();
           }
       }
-
       async function editShoppingItem(trackingCode, currentDescription) {
-          const newDescription = prompt('Editar descripción del artículo:', currentDescription);
+          const newDescription = prompt('Editar descripción:', currentDescription);
           if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== currentDescription) {
               showSpinner();
               try {
-                  const res = await fetchWithTimeout(webhookURL, {
-                      body: JSON.stringify({ chat_ID: chatId, Type: 'edit_item_description', tracking_code: trackingCode, new_description: newDescription.trim() })
-                  });
-                  if (!res.ok) throw new Error(`Error al editar: ${res.statusText}`);
+                  const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'edit_item_description', tracking_code: trackingCode, new_description: newDescription.trim() }) });
+                  if (!res.ok) throw new Error(`Error: ${res.statusText}`);
                   const items = await res.json();
                   if (items.error) throw new Error(items.error);
-                  showToast('Artículo editado con éxito');
                   renderShoppingListItems(items); 
               } catch (err) {
-                  console.error('Error al editar artículo:', err);
                   showToast(err.message || 'Error al editar', true);
               } finally {
                   hideSpinner();
               }
           }
       }
-
       async function executeDeleteShoppingItem(trackingCode) {
           showSpinner();
           try {
-              const res = await fetchWithTimeout(webhookURL, {
-                  body: JSON.stringify({ Type: 'delete_item_shopping_list', chat_ID: chatId, tracking_code: trackingCode })
-              });
-              if (!res.ok) throw new Error(`Error al eliminar: ${res.status}`);
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ Type: 'delete_item_shopping_list', chat_ID: chatId, tracking_code: trackingCode }) });
+              if (!res.ok) throw new Error(`Error: ${res.status}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              showToast('Artículo eliminado');
               renderShoppingListItems(items); 
           } catch (err) {
-              console.error('Error al eliminar artículo:', err);
               showToast(err.message || 'Error al eliminar', true);
           } finally {
               hideSpinner();
           }
       }
-
       function renderAddArticleForm() {
           mainContent.innerHTML = `
               <div class="list-container">
-                  <div class="list-header">
-                      <button class="back-btn" id="back-to-shopping-list">‹</button>
-                      <h2>➕ Añadir Artículo</h2>
-                  </div>
+                  <div class="list-header"><button class="back-btn" id="back-to-shopping-list">‹</button><h2>➕ Añadir Artículo</h2></div>
                   <div class="form-card">
-                      <label>Descripción del Artículo</label><textarea id="article-description" rows="2" required></textarea>
+                      <label>Descripción</label><textarea id="article-description" rows="2" required></textarea>
                       <button id="add-article-send-btn" disabled>Añadir</button>
                   </div>
               </div>`;
           document.getElementById('back-to-shopping-list').onclick = renderShoppingList;
-          const descriptionInput = document.getElementById('article-description');
           const sendBtn = document.getElementById('add-article-send-btn');
-          descriptionInput.oninput = () => {
-              sendBtn.disabled = descriptionInput.value.trim() === '';
-              sendBtn.classList.toggle('enabled', !sendBtn.disabled);
+          document.getElementById('article-description').oninput = (e) => {
+              const isEnabled = e.target.value.trim() !== '';
+              sendBtn.disabled = !isEnabled;
+              sendBtn.classList.toggle('enabled', isEnabled);
           };
           sendBtn.onclick = addArticle;
-          descriptionInput.focus();
       }
-
       async function addArticle() {
           const description = document.getElementById('article-description').value.trim();
           if (!description) return;
           showSpinner();
           try {
-              const res = await fetchWithTimeout(webhookURL, {
-                  body: JSON.stringify({ chat_ID: chatId, Type: 'add_articulo', description: description })
-              });
-              if (!res.ok) throw new Error(`Error al añadir: ${res.statusText}`);
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'add_articulo', description: description }) });
+              if (!res.ok) throw new Error(`Error: ${res.statusText}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              showToast('Artículo añadido con éxito');
               renderShoppingListItems(items); 
           } catch (err) {
-              console.error('Error en addArticle:', err);
               showToast(err.message || 'Error al añadir', true);
           } finally {
               hideSpinner();
           }
       }
-
       function setActiveTab(activeTabId) {
           document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
           const activeTab = document.getElementById(activeTabId);
           if (activeTab) activeTab.classList.add('active');
       }
-
       document.getElementById('tab-home').onclick = renderDashboard;
-      
-      showSpinner();
-      initializeAppContent().finally(() => {
-          hideSpinner();
-      });
+      initializeAppContent();
     });
   </script>
 </body>
