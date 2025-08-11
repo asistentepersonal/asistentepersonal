@@ -2,6 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
+  <!-- Cabeceras Anti-Caché para que los usuarios siempre tengan la última versión -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard - Mini App Telegram</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -224,7 +229,6 @@
             </div>
           </div>`;
         updateBadge('reminders', lastCount.reminders);
-        // --- Conexiones de los botones ---
         document.getElementById('add-reminder-link').onclick = renderReminderForm;
         document.getElementById('list-reminders-link').onclick = renderRemindersList;
         document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
@@ -246,10 +250,6 @@
         }
       });
 
-      // ======================================================================
-      // --- SECCIÓN DE RECORDATORIOS ---
-      // ======================================================================
-
       function renderReminderForm() { 
         mainContent.innerHTML = `
           <div class="list-container">
@@ -265,7 +265,7 @@
                 <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
                 <label><input type="radio" name="category" value="Diario"/> Diario</label>
               </div>
-              <button id="sendBtn" class="enabled" disabled>Crear Recordatorio</button>
+              <button id="sendBtn" disabled>Crear Recordatorio</button>
             </div>
           </div>`;
         document.getElementById('back-to-dashboard').onclick = renderDashboard;
@@ -277,6 +277,7 @@
             const isTextValid = textInput.value.trim() !== '';
             const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date();
             sendBtn.disabled = !(isTextValid && isTimeValid);
+            sendBtn.classList.toggle('enabled', !sendBtn.disabled);
         }
         textInput.oninput = validateForm;
         timeInput.oninput = validateForm;
@@ -285,6 +286,9 @@
       }
 
       async function sendReminder() {
+        const sendBtn = document.getElementById('sendBtn');
+        sendBtn.disabled = true;
+        sendBtn.classList.remove('enabled');
         const payload = { 
           chat_ID: chatId, 
           Type: 'add_reminder',
@@ -304,6 +308,8 @@
         } catch (err) {
           console.error('Error en sendReminder:', err);
           showToast(err.message || 'Error al enviar', true);
+          sendBtn.disabled = false;
+          sendBtn.classList.add('enabled');
         } finally {
           hideSpinner();
         }
@@ -358,12 +364,10 @@
               event.stopPropagation();
               const trackingCode = deleteButton.dataset.trackingCode;
               deleteButton.style.display = 'none';
-
               const confirmBtnYes = document.createElement('button');
               confirmBtnYes.className = 'confirm-btn-yes';
               confirmBtnYes.textContent = 'Sí';
               confirmBtnYes.onclick = () => executeDeleteReminder(trackingCode);
-
               const confirmBtnNo = document.createElement('button');
               confirmBtnNo.className = 'confirm-btn-no';
               confirmBtnNo.textContent = 'No';
@@ -398,10 +402,6 @@
               hideSpinner();
           }
       }
-
-      // ======================================================================
-      // --- SECCIÓN DE LISTA DE LA COMPRA ---
-      // ======================================================================
       
       function renderShoppingListItems(items) {
           const pendingItems = items.filter(item => item['2'] === 'Pendiente');
