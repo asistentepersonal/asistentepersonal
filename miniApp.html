@@ -332,10 +332,8 @@
           const data = await res.json();
           if (data.error) throw new Error(data.error);
           showToast('Nota eliminada');
-          const itemToRemove = document.getElementById(`note-${noteId}`);
-          if(itemToRemove) itemToRemove.remove();
-          if (document.querySelectorAll('.note-item').length === 0) { document.getElementById('notes-list-ul').innerHTML = '<div class="no-notes">📝<br>No tienes notas guardadas.</div>'; }
           initializeAppContent();
+          renderNotesList();
         } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
       }
 
@@ -351,7 +349,9 @@
           sendBtn.disabled = !(isTextValid && isTimeValid && isRadioSelected); 
           sendBtn.classList.toggle('enabled', !sendBtn.disabled); 
         }
-        textInput.oninput = validateReminderForm; timeInput.oninput = validateReminderForm; radios.forEach(r => r.onchange = validateReminderForm);
+        textInput.addEventListener('input', validateReminderForm);
+        timeInput.addEventListener('input', validateReminderForm);
+        radios.forEach(r => r.addEventListener('change', validateReminderForm));
         sendBtn.onclick = sendReminder; 
         validateReminderForm();
       }
@@ -409,9 +409,6 @@
               if (!res.ok) throw new Error(`Error al eliminar: ${res.status}`);
               const data = await res.json();
               if (data.error) throw new Error(data.error);
-              const itemToRemove = document.getElementById(`reminder-${trackingCode}`);
-              if (itemToRemove) itemToRemove.remove();
-              if (document.querySelectorAll('.reminder-item').length === 0) { document.getElementById('reminders-list-ul').innerHTML = '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>'; }
               initializeAppContent(); showToast('Recordatorio eliminado');
           } catch (err) { showToast(err.message || 'Error al eliminar', true); } finally { hideSpinner(); }
       }
