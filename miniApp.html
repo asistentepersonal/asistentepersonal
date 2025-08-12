@@ -228,7 +228,6 @@
           if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
           const notes = await res.json();
           if (notes.error) throw new Error(notes.error);
-          
           let listHtml = (notes.length > 0) ? notes.map(note => `
             <li class="note-item" id="note-${note.Nota_ID}">
               <div class="note-header">
@@ -249,19 +248,10 @@
               </div>
               <div class="note-description">${note.Descripcion}</div>
             </li>`).join('') : '<div class="no-notes">📝<br>No tienes notas guardadas.</div>';
-          
-          mainContent.innerHTML = `
-            <div class="list-container">
-              <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Mis Notas</h2></div>
-              <ul class="notes-list" id="notes-list-ul">${listHtml}</ul>
-            </div>`;
+          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Mis Notas</h2></div><ul class="notes-list" id="notes-list-ul">${listHtml}</ul></div>`;
           document.getElementById('back-to-dashboard').onclick = initializeAppContent;
           document.getElementById('notes-list-ul').addEventListener('click', handleNoteInteractions);
-        } catch (err) {
-          mainContent.innerHTML = `<div class="no-notes">❌<br>Error al cargar las notas.<br><small>${err.message}</small></div>`;
-        } finally {
-          hideSpinner();
-        }
+        } catch (err) { mainContent.innerHTML = `<div class="no-notes">❌<br>Error al cargar las notas.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
       }
       function handleNoteInteractions(event) {
         const interactiveHeader = event.target.closest('.note-header-interactive');
@@ -286,10 +276,7 @@
         const isEditing = note !== null;
         mainContent.innerHTML = `
           <div class="list-container">
-            <div class="list-header">
-              <button class="back-btn" id="back-to-notes-list">‹</button>
-              <h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2>
-            </div>
+            <div class="list-header"><button class="back-btn" id="back-to-notes-list">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
             <div class="form-card">
               <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
               <label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea>
@@ -315,11 +302,12 @@
         const btn = document.getElementById('save-note-btn');
         const titleInput = document.getElementById('note-title');
         const descriptionInput = document.getElementById('note-description');
-        titleInput.classList.remove('input-error');
-        descriptionInput.classList.remove('input-error');
-        if (!titleInput.value.trim() || !descriptionInput.value.trim()) {
-          if (!titleInput.value.trim()) titleInput.classList.add('input-error');
-          if (!descriptionInput.value.trim()) descriptionInput.classList.add('input-error');
+        titleInput.classList.remove('input-error'); descriptionInput.classList.remove('input-error');
+        const isTitleValid = titleInput.value.trim() !== '';
+        const isDescriptionValid = descriptionInput.value.trim() !== '';
+        if (!isTitleValid || !isDescriptionValid) {
+          if (!isTitleValid) titleInput.classList.add('input-error');
+          if (!isDescriptionValid) descriptionInput.classList.add('input-error');
           showToast('Por favor, rellena todos los campos.', true);
           return;
         }
