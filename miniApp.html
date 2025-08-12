@@ -22,7 +22,7 @@
     .card-badge.red{background-color:#e74c3c;right:12px;}
     .card-badge-group .card-badge{position:static;}
     .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
-    .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; }
+    .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; overflow: hidden; }
     .dropdown-menu.show { display: block; }
     .dropdown-item { padding: 12px 20px; color: var(--text); cursor: pointer; display: block; text-align: left; }
     .dropdown-item:hover { background-color: var(--bg); }
@@ -37,6 +37,7 @@
     .form-card textarea,.form-card input{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
     .form-card .input-error { border-color: var(--error-bg) !important; }
     .radio-group{display:flex;gap:10px;align-items:center;}
+    .radio-group.input-error { border: 1px solid var(--error-bg); border-radius: 8px; padding: 5px; }
     .radio-group label{font-weight:400;color:var(--text);margin-top:0;}
     .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:not-allowed;opacity:.6;transition:opacity .2s,background .2s;}
     .form-card button.enabled{cursor:pointer;opacity:1;}
@@ -49,30 +50,45 @@
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
     .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
     .list-header h2 { font-size: 1.4rem; margin: 0; }
-    .reminder-list, .shopping-list, .notes-list, .agenda-view { list-style: none; padding: 0; margin: 0; }
+    .reminder-list, .shopping-list, .notes-list { list-style: none; padding: 0; margin: 0; }
     .reminder-item, .shopping-item { background: var(--card-bg); border-radius: 10px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between; }
-    .reminder-details { display: flex; flex-direction: column; flex-grow: 1; }
-    .reminder-text { font-size: 1.1rem; font-weight: 500; }
-    .reminder-date { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+    .reminder-details, .shopping-details { display: flex; flex-direction: column; flex-grow: 1; }
+    .reminder-text, .shopping-text { font-size: 1.1rem; font-weight: 500; }
+    .reminder-date, .shopping-date { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
     .reminder-actions { display: flex; align-items: center; gap: 5px; }
     .reminder-delete-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; }
-    .no-reminders, .no-shopping-items, .no-notes, .no-events { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
+    .reminder-delete-btn:hover { color: var(--delete-bg); }
+    .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
+    .confirm-btn-yes { background-color: var(--confirm-yes-bg); color: var(--delete-text); }
+    .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
+    .no-reminders, .no-shopping-items, .no-notes { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
     #main:empty { display: none; }
+    .shopping-list-header-row { display: flex; align-items: center; justify-content: flex-end; padding: 0 10px 10px 10px; color: var(--muted); font-size: 0.9rem; }
+    .shopping-list-header-row input[type="checkbox"] { margin-left: 5px; }
     .shopping-item { display: flex; align-items: center; gap: 5px; padding: 10px; }
     .shopping-item-checkbox-wrapper { flex-shrink: 0; margin-right: 8px; }
-    .shopping-item input[type="checkbox"] { width: 20px; height: 20px; }
-    .shopping-item-toggle-btn { flex-grow: 1; padding: 10px 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; color: var(--list-item-text); cursor: pointer; text-align: left; }
+    .shopping-item input[type="checkbox"] { appearance: none; -webkit-appearance: none; -moz-appearance: none; width: 20px; height: 20px; border: 2px solid var(--checkbox-border); border-radius: 4px; background-color: var(--card-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background-color 0.2s, border-color 0.2s; }
+    .shopping-item input[type="checkbox"]::after { content: '✔'; font-size: 14px; color: var(--action-text); display: none; }
+    .shopping-item input[type="checkbox"]:checked { background-color: var(--checkbox-checked-bg); border-color: var(--checkbox-checked-bg); }
+    .shopping-item input[type="checkbox"]:checked::after { display: block; }
+    .shopping-item-toggle-btn { flex-grow: 1; padding: 10px 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; color: var(--list-item-text); cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: background-color 0.2s ease, transform 0.1s ease; }
+    .shopping-item-toggle-btn:active { transform: translateY(1px); }
     .shopping-item-toggle-btn.pending { background-color: var(--pending-bg); }
     .shopping-item-toggle-btn.bought { background-color: var(--bought-bg); }
-    .item-date { font-size: 0.75rem; opacity: 0.8; margin-top: 5px; display: block;}
-    .shopping-item-menu-container { position: relative; flex-shrink: 0; }
-    .shopping-item-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; }
-    .shopping-item-dropdown-menu { min-width: 150px; }
+    .shopping-item-toggle-btn .item-date { font-size: 0.75rem; opacity: 0.8; margin-top: 5px; }
+    .shopping-item-menu-container { position: relative; flex-shrink: 0; margin-left: auto; }
+    .shopping-item-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; }
+    .shopping-item-menu-btn:hover { color: var(--primary); }
+    .shopping-item-dropdown-menu { display: none; position: absolute; top: 30px; right: 0; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
+    .shopping-item-dropdown-menu.show { display: block; }
+    .shopping-item-dropdown-item { padding: 10px 15px; color: var(--text); cursor: pointer; display: block; text-align: left; }
+    .shopping-item-dropdown-item:hover { background-color: var(--bg); }
     .add-article-btn-container { padding: 10px; text-align: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-    .add-article-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; }
+    .add-article-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: transform 0.2s ease; }
+    .add-article-btn:active { transform: translateY(1px); }
     .multi-select-action-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: not-allowed; opacity: 0.6; flex-grow: 1; max-width: 250px; transition: opacity 0.2s; }
     .multi-select-action-btn.enabled { cursor: pointer; opacity: 1; }
-    .shopping-list-section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px 10px; padding-top: 10px; border-top: 1px solid #eee; text-align: left; }
+    .shopping-list-section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px 10px; padding-top: 10px; border-top: 1px solid var(--muted); text-align: left; }
     .shopping-list-section-title:first-of-type { border-top: none; margin-top: 0; }
     .note-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; }
     .note-header { display: flex; align-items: center; justify-content: space-between; padding: 15px; }
@@ -80,346 +96,459 @@
     .note-title-section { display: flex; flex-direction: column; text-align: left; }
     .note-title { font-size: 1.1rem; font-weight: 500; }
     .note-date { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
-    .note-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; flex-shrink: 0; }
+    .note-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; z-index: 5; flex-shrink: 0; }
     .note-description { padding: 0 15px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; white-space: pre-wrap; word-wrap: break-word; text-align: left; color: var(--text); }
     .note-item.open .note-description { max-height: 500px; padding: 0 15px 15px; }
+    .note-dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
+    .note-dropdown-menu.show { display: block; }
     .expand-arrow { font-size: 1.5rem; color: var(--muted); transition: transform 0.3s ease; }
     .note-item.open .expand-arrow { transform: rotate(180deg); }
-    .day-header { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #eee; }
-    .event-item { background: var(--card-bg); border-radius: 10px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between; }
-    .event-details { text-align: left; flex-grow: 1; cursor: pointer;}
-    .event-time { font-weight: 600; }
-    .event-summary { font-size: 1.1rem; }
-    .event-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; flex-shrink: 0; }
-    .event-dropdown-menu { min-width: 150px; }
-    .event-description { white-space: pre-wrap; word-wrap: break-word; text-align: left; color: var(--text); margin-top: 10px; }
   </style>
 </head>
 <body>
   <div id="spinner" class="spinner"></div>
   <div id="main"></div>
-  <div class="tabs"> <div class="tab active" id="tab-home">Home</div> </div>
+  <div class="tabs">
+    <div class="tab active" id="tab-home">Home</div>
+  </div>
   <div id="toast" class="toast"></div>
-  
   <script>
     (function() { const params = new URLSearchParams(window.location.search); if (!params.has('v')) { const newUrl = new URL(window.location.href); newUrl.searchParams.set('v', new Date().getTime()); window.location.replace(newUrl.href); } })();
+
     document.addEventListener('DOMContentLoaded', () => {
       const tg = window.Telegram?.WebApp;
       if (tg) {
         tg.expand();
         if (tg.themeParams) {
-          const style = document.documentElement.style;
-          style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
-          style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
-          style.setProperty('--text', tg.themeParams.text_color || '#333333');
-          style.setProperty('--muted', tg.themeParams.hint_color || '#555555');
-          style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3');
-          style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
-          style.setProperty('--destructive-text', tg.themeParams.destructive_text_color || '#e74c3c');
+            document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
+            document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
+            document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333');
+            document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555');
+            document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3');
+            document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
+            document.documentElement.style.setProperty('--menu-bg', tg.themeParams.secondary_bg_color || '#ffffff');
+            document.documentElement.style.setProperty('--confirm-yes-bg', tg.themeParams.destructive_text_color || '#e74c3c');
+            document.documentElement.style.setProperty('--confirm-no-bg', tg.themeParams.button_color || '#cccccc');
+            document.documentElement.style.setProperty('--pending-bg', tg.themeParams.button_color || '#28a745');
+            document.documentElement.style.setProperty('--bought-bg', tg.themeParams.destructive_text_color || '#dc3545');
+            document.documentElement.style.setProperty('--list-item-text', tg.themeParams.button_text_color || '#fff');
+            document.documentElement.style.setProperty('--edit-icon-color', tg.themeParams.link_color || '#007bff');
+            document.documentElement.style.setProperty('--checkbox-border', tg.themeParams.hint_color || '#ddd');
+            document.documentElement.style.setProperty('--checkbox-checked-bg', tg.themeParams.button_color || '#4a76f3');
         }
       }
       
       const webhookURL = 'https://script.google.com/macros/s/AKfycbw3KSGoSdoEgfPIysm6Uo6mzd4Sc6ePCMZoTyOgFpI8jB61ejkhYTNrOiuspAJ5_Ql93g/exec';
-      let chatId = tg?.initDataUnsafe?.user?.id || new URLSearchParams(window.location.search).get('test_chat_id');
-      if (!chatId && !tg?.initDataUnsafe?.user?.id) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID:', ''); }
+      let chatId = tg?.initDataUnsafe?.user?.id;
+      if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', ''); }
 
-      let lastCount = {}, toastTimer; 
+      let lastCount = { reminders: 0, shoppingPending: 0, shoppingBought: 0, notes: 0 }, toastTimer; 
       const mainContent = document.getElementById('main');
       const spinner = document.getElementById('spinner');
 
       function showSpinner() { spinner.style.display = 'block'; }
       function hideSpinner() { spinner.style.display = 'none'; }
       function showToast(msg, isError = false) { clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
-      async function fetchWithTimeout(resource, options = {}, timeout = 30000) { const controller = new AbortController(); const id = setTimeout(() => controller.abort(), timeout); try { const response = await fetch(resource, { ...options, signal: controller.signal, method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: options.body }); clearTimeout(id); return response; } catch (error) { clearTimeout(id); throw (error.name === 'AbortError') ? new Error('Timeout') : error; } }
+      async function fetchWithTimeout(resource, options = {}, timeout = 30000) { const controller = new AbortController(); const id = setTimeout(() => controller.abort(), timeout); try { const modifiedOptions = { ...options, signal: controller.signal, method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: options.body }; const response = await fetch(resource, modifiedOptions); clearTimeout(id); return response; } catch (error) { clearTimeout(id); if (error.name === 'AbortError') throw new Error('Timeout: La solicitud tardó demasiado.'); throw error; } }
 
       async function initializeAppContent() {
         showSpinner();
         try {
           const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_initial_counts' }) });
-          if (!res.ok) throw new Error(`Error: ${res.status}`);
+          if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
           const data = await res.json();
           if (data.error) throw new Error(data.error);
-          lastCount = data;
-        } catch (err) { showToast(`Error al cargar datos: ${err.message}`, true);
-        } finally { renderDashboard(); hideSpinner(); }
+          lastCount.reminders = data.remindersCount || 0;
+          lastCount.shoppingPending = data.shoppingPendingCount || 0;
+          lastCount.shoppingBought = data.shoppingBoughtCount || 0;
+          lastCount.notes = data.notesCount || 0;
+        } catch (err) {
+          console.error('Error en la carga inicial:', err);
+          showToast(`Error al cargar datos: ${err.message}`, true);
+        } finally {
+          renderDashboard();
+          hideSpinner();
+        }
       }
 
       function renderDashboard() {
         setActiveTab('tab-home');
         mainContent.innerHTML = `
           <div class="grid">
-            <div class="card" data-action="reminders"><div class="card-badge red" style="left:12px;">${lastCount.remindersCount ?? '0'}</div><button class="card-menu-btn" data-menu-for="reminders">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-reminders"><a class="dropdown-item" data-action="add-reminder">Añadir</a><a class="dropdown-item" data-action="list-reminders">Ver Lista</a></div></div>
-            <div class="card" data-action="shopping"><div class="card-badge-group"><div class="card-badge green">${lastCount.shoppingPendingCount ?? '0'}</div><div class="card-badge red">${lastCount.shoppingBoughtCount ?? '0'}</div></div><button class="card-menu-btn" data-menu-for="shopping">⋮</button><div class="card-icon">🛒</div><div class="card-title">Lista de Compras</div><div class="dropdown-menu" id="menu-shopping"><a class="dropdown-item" data-action="list-shopping">Ver Lista</a></div></div>
-            <div class="card" data-action="notes"><div class="card-badge red" style="left:12px;">${lastCount.notesCount ?? '0'}</div><button class="card-menu-btn" data-menu-for="notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" data-action="add-note">Añadir</a><a class="dropdown-item" data-action="list-notes">Ver Lista</a></div></div>
-            <div class="card" data-action="calendar"><div class="card-badge red" style="left:12px;">${lastCount.calendarTodayCount ?? '0'}</div><button class="card-menu-btn" data-menu-for="calendar">⋮</button><div class="card-icon">📅</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" data-action="add-event">Añadir Evento</a><a class="dropdown-item" data-action="view-agenda">Ver Agenda</a></div></div>
+            <div class="card" id="card-recordatorios-wrapper">
+              <div class="card-badge red" style="left:12px;">${lastCount.reminders ?? '...'}</div>
+              <button class="card-menu-btn" data-menu-for="recordatorios">⋮</button>
+              <div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div>
+              <div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div>
+            </div>
+            <div class="card" id="card-shopping-list-wrapper">
+              <div class="card-badge-group"><div class="card-badge green">${lastCount.shoppingPending ?? '...'}</div><div class="card-badge red">${lastCount.shoppingBought ?? '...'}</div></div>
+              <div class="card-icon">🛒</div><div class="card-title">Lista de Compras</div>
+              <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
+              <div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div>
+            </div>
+            <div class="card" id="card-notes-wrapper">
+              <div class="card-badge red" style="left:12px;">${lastCount.notes ?? '...'}</div>
+              <button class="card-menu-btn" data-menu-for="notes">⋮</button>
+              <div class="card-icon">📝</div><div class="card-title">Notas</div>
+              <div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div>
+            </div>
+            <!-- INICIO: FUTURA CARD DE CALENDARIO -->
+            <!-- FIN: FUTURA CARD DE CALENDARIO -->
+            <!-- INICIO: FUTURA CARD DE TIEMPO -->
+            <!-- FIN: FUTURA CARD DE TIEMPO -->
           </div>`;
+        document.getElementById('add-reminder-link').onclick = renderReminderForm;
+        document.getElementById('list-reminders-link').onclick = renderRemindersList;
+        document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+        document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+        document.getElementById('add-note-link').onclick = () => renderNoteForm();
+        document.getElementById('list-notes-link').onclick = renderNotesList;
       }
       
       document.body.addEventListener('click', (e) => {
-        const menuBtn = e.target.closest('.card-menu-btn, .note-menu-btn, .event-menu-btn, .shopping-item-menu-btn');
-        const allMenus = document.querySelectorAll('.dropdown-menu');
-        if (!menuBtn) {
-            if (!e.target.closest('.dropdown-menu')) { allMenus.forEach(m => m.classList.remove('show')); }
-            return;
-        }
-        e.stopPropagation();
-        const getMenuId = (btn) => {
-            if (btn.dataset.menuFor) return `menu-${btn.dataset.menuFor}`;
-            if (btn.dataset.noteId) return `menu-note-${btn.dataset.noteId}`;
-            if (btn.dataset.eventId) return `menu-event-${btn.dataset.eventId}`;
-            if (btn.dataset.trackingCode) return `menu-item-${btn.dataset.trackingCode}`;
-            return null;
-        };
-        const menuId = getMenuId(menuBtn);
-        if (!menuId) return;
-        const menu = document.getElementById(menuId);
-        if (!menu) return;
-        const isShown = menu.classList.contains('show');
-        allMenus.forEach(m => m.classList.remove('show'));
-        if (!isShown) menu.classList.add('show');
-
-        const dropdownItem = e.target.closest('.dropdown-item');
-        if(dropdownItem) {
-            const action = dropdownItem.dataset.action;
-            if (action === 'add-reminder') renderReminderForm();
-            if (action === 'list-reminders') renderRemindersList();
-            if (action === 'list-shopping') renderShoppingList();
-            if (action === 'add-note') renderNoteForm();
-            if (action === 'list-notes') renderNotesList();
-            if (action === 'add-event') renderEventForm();
-            if (action === 'view-agenda') renderAgendaView();
+        const menuBtn = e.target.closest('.card-menu-btn, .note-menu-btn');
+        document.querySelectorAll('.dropdown-menu, .note-dropdown-menu').forEach(m => m.classList.remove('show')); 
+        if (menuBtn) { 
+          e.stopPropagation(); 
+          const menuId = menuBtn.classList.contains('note-menu-btn') ? `menu-note-${menuBtn.dataset.noteId}` : `menu-${menuBtn.dataset.menuFor}`;
+          const menu = document.getElementById(menuId);
+          if (menu) menu.classList.add('show');
         }
       });
-      
-      function setActiveTab(id) { document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === id)); }
 
-      // ======================================================================
-      // --- RECORDATORIOS ---
-      // ======================================================================
-      function renderReminderForm() {
-        mainContent.innerHTML = `<div class="form-container"><div class="list-header"><button class="back-btn">‹</button><h2>Añadir Recordatorio</h2></div><div class="form-card"><label for="reminder-desc">Descripción</label><textarea id="reminder-desc" rows="3"></textarea><label for="reminder-time">Fecha y Hora</label><input type="datetime-local" id="reminder-time"><label>Categoría</label><div class="radio-group" id="reminder-category"><input type="radio" id="cat-work" name="category" value="Trabajo"><label for="cat-work">Trabajo</label><input type="radio" id="cat-personal" name="category" value="Personal"><label for="cat-personal">Personal</label><input type="radio" id="cat-other" name="category" value="Otro" checked><label for="cat-other">Otro</label></div><button id="save-btn">Guardar</button></div></div>`;
-        mainContent.querySelector('.back-btn').onclick = initializeAppContent;
-        const saveBtn = mainContent.querySelector('#save-btn');
-        const descInput = mainContent.querySelector('#reminder-desc');
-        const timeInput = mainContent.querySelector('#reminder-time');
-        const validate = () => { const isValid = descInput.value.trim() !== '' && timeInput.value !== ''; saveBtn.classList.toggle('enabled', isValid);};
-        descInput.oninput = timeInput.oninput = validate;
-        saveBtn.onclick = () => saveBtn.classList.contains('enabled') && saveReminder();
-      }
-      async function saveReminder() {
-        showSpinner();
-        const payload = { chat_ID: chatId, Type: 'add_reminder', description: document.getElementById('reminder-desc').value, time: document.getElementById('reminder-time').value, category: document.querySelector('input[name="category"]:checked').value };
-        try {
-            const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) });
-            const data = await res.json(); if(data.error) throw new Error(data.error);
-            showToast('Recordatorio añadido');
-            initializeAppContent();
-        } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
-      }
-      async function renderRemindersList() {
-        showSpinner();
-        try {
-            const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_reminders_list' }) });
-            const reminders = await res.json(); if(reminders.error) throw new Error(reminders.error);
-            mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Recordatorios</h2></div><ul class="reminder-list">${reminders.length > 0 ? reminders.map(r => `<li class="reminder-item" id="reminder-${r.tracking_code}"><div class="reminder-details"><span class="reminder-text">${r.Descripcion}</span><span class="reminder-date">${r.Fecha} (${r.Categoria})</span></div><div class="reminder-actions"><button class="reminder-delete-btn" data-code="${r.tracking_code}">🗑️</button></div></li>`).join('') : '<li class="no-reminders">No tienes recordatorios.</li>'}</ul></div>`;
-            mainContent.querySelector('.back-btn').onclick = initializeAppContent;
-            mainContent.querySelectorAll('.reminder-delete-btn').forEach(btn => btn.onclick = (e) => confirmDeleteReminder(e.currentTarget.dataset.code));
-        } catch(err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
-      }
-      function confirmDeleteReminder(trackingCode) {
-        tg.showConfirm("¿Seguro que quieres eliminar este recordatorio?", (ok) => ok && executeDeleteReminder(trackingCode));
-      }
-      async function executeDeleteReminder(trackingCode) {
-        showSpinner();
-        try {
-            await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_reminder', tracking_code: trackingCode }) });
-            showToast('Recordatorio eliminado.');
-            initializeAppContent();
-        } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
-      }
-
-      // ======================================================================
-      // --- LISTA DE LA COMPRA ---
-      // ======================================================================
-      async function renderShoppingList() {
-          showSpinner();
-          try {
-              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_shopping_list' }) });
-              const items = await res.json(); if (items.error) throw new Error(items.error);
-              const pendingItems = items.filter(i => i['2'] === 'Pendiente');
-              const boughtItems = items.filter(i => i['2'] === 'Comprado');
-              mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Lista de Compras</h2></div><div class="add-article-btn-container"><button class="add-article-btn" id="add-article-toggle-btn">Añadir Artículo</button><button class="multi-select-action-btn" id="move-to-pending-btn">Pasar a Pendiente</button></div><div id="add-item-form-container" style="display:none; padding:10px; margin-top:-10px;"><div class="form-card" style="padding:15px; box-shadow:none; border:1px solid #eee;"><input type="text" id="new-item-description" placeholder="Nombre del artículo..."><div style="display:flex; gap:10px; margin-top:10px;"><button id="save-new-item-btn" style="flex:2; cursor:pointer;">Guardar</button><button id="cancel-new-item-btn" style="flex:1; background:#aaa; cursor:pointer;">Cancelar</button></div></div></div><ul class="shopping-list" id="shopping-ul"></ul></div>`;
-              const shoppingUl = document.getElementById('shopping-ul');
-              if (items.length === 0) { shoppingUl.innerHTML = '<li class="no-shopping-items">La lista está vacía.</li>'; }
-              else { shoppingUl.innerHTML = `${pendingItems.length > 0 ? `<h3 class="shopping-list-section-title">Pendientes</h3>${pendingItems.map(item => shoppingItemHTML(item)).join('')}` : ''}${boughtItems.length > 0 ? `<h3 class="shopping-list-section-title">Comprados</h3>${boughtItems.map(item => shoppingItemHTML(item)).join('')}` : ''}`; }
-              mainContent.querySelector('.back-btn').onclick = initializeAppContent;
-              attachShoppingListListeners();
-          } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
-      }
-      function shoppingItemHTML(item, isEditing = false) {
-          const [desc, status, code, date] = [item['1'], item['2'], item['3'], item['4']];
-          if(isEditing) return `<div class="shopping-item"><input type="text" value="${desc}" id="edit-desc-${code}" style="flex-grow:1;"><button data-action="save-edit" data-code="${code}">✔️</button><button data-action="cancel-edit">❌</button></div>`;
-          const isPending = status === 'Pendiente';
-          return `<li class="shopping-item" id="item-${code}" data-status="${status}"><div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-code="${code}" ${!isPending ? 'checked' : ''}></div><button class="shopping-item-toggle-btn ${isPending ? 'pending' : 'bought'}" data-code="${code}" data-new-status="${isPending ? 'Comprado' : 'Pendiente'}">${desc}${date ? `<span class="item-date">${date}</span>` : ''}</button><div class="shopping-item-menu-container"><button class="shopping-item-menu-btn" data-tracking-code="${code}">⋮</button><div class="dropdown-menu shopping-item-dropdown-menu" id="menu-item-${code}"><a class="dropdown-item" data-action="edit">Editar</a><a class="dropdown-item" data-action="delete">Eliminar</a></div></div></li>`;
-      }
-      function attachShoppingListListeners() {
-          document.getElementById('add-article-toggle-btn').onclick = () => { document.getElementById('add-item-form-container').style.display = 'block'; };
-          document.getElementById('cancel-new-item-btn').onclick = () => { document.getElementById('add-item-form-container').style.display = 'none'; };
-          document.getElementById('save-new-item-btn').onclick = addShoppingItemFromForm;
-          mainContent.querySelectorAll('.shopping-list .dropdown-item').forEach(item => item.onclick = (e) => handleShoppingItemMenu(e.currentTarget));
-          mainContent.querySelectorAll('.shopping-item-toggle-btn').forEach(btn => btn.onclick = (e) => handleToggleItemStatus(e.currentTarget));
-          mainContent.querySelectorAll('.shopping-item-checkbox').forEach(chk => chk.onchange = updateMultiSelectButton);
-          document.getElementById('move-to-pending-btn').onclick = handleMoveMultipleToPending;
-      }
-      async function addShoppingItemFromForm() {
-          const desc = document.getElementById('new-item-description').value.trim();
-          if (desc) {
-              showSpinner();
-              try { await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'add_articulo', description: desc }) });
-              } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); initializeAppContent(); }
-          }
-      }
-      async function handleToggleItemStatus(button) {
-          showSpinner();
-          try { await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_item_status', tracking_code: button.dataset.code, new_status: button.dataset.newStatus }) });
-          } catch(err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); initializeAppContent(); }
-      }
-      function handleShoppingItemMenu(menuItem) {
-          const action = menuItem.dataset.action;
-          const itemLi = menuItem.closest('.shopping-item');
-          const code = itemLi.id.replace('item-','');
-          if (action === 'delete') {
-              tg.showConfirm('¿Seguro que quieres eliminar este artículo?', (ok) => ok && executeDeleteShoppingItem(code));
-          } else if (action === 'edit') {
-              const currentDescription = itemLi.querySelector('.shopping-item-toggle-btn').textContent.trim();
-              itemLi.innerHTML = shoppingItemHTML({'3': code, '1': currentDescription}, true);
-              itemLi.querySelector('[data-action="cancel-edit"]').onclick = renderShoppingList;
-              itemLi.querySelector('[data-action="save-edit"]').onclick = (e) => {
-                  const newDesc = e.currentTarget.previousElementSibling.value.trim();
-                  if (newDesc && newDesc !== currentDescription) executeEditShoppingItem(code, newDesc); else renderShoppingList();
-              };
-          }
-      }
-      async function executeDeleteShoppingItem(code) {
-          showSpinner();
-          try { await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_item_shopping_list', tracking_code: code }) });
-          } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); initializeAppContent(); }
-      }
-      async function executeEditShoppingItem(code, newDescription) {
-          showSpinner();
-          try { await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'edit_item_description', tracking_code: code, new_description: newDescription }) });
-          } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); renderShoppingList(); }
-      }
-      function updateMultiSelectButton() {
-          const btn = document.getElementById('move-to-pending-btn');
-          const hasCheckedBoughtItems = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).some(chk => chk.closest('.shopping-item')?.dataset.status === 'Comprado');
-          btn.classList.toggle('enabled', hasCheckedBoughtItems);
-      }
-      async function handleMoveMultipleToPending() {
-          const codes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(chk => chk.dataset.code);
-          if (codes.length === 0) return;
-          showSpinner();
-          try { await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_multiple_to_pending', tracking_codes: codes }) });
-          } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); initializeAppContent(); }
+      function setActiveTab(activeTabId) {
+          document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+          const activeTab = document.getElementById(activeTabId);
+          if (activeTab) activeTab.classList.add('active');
       }
       
       // ======================================================================
-      // --- NOTAS ---
+      // --- BLOQUE DE CÓDIGO PARA NUEVAS FUNCIONALIDADES ---
       // ======================================================================
-      function renderNoteForm(note = null) {
-        const isEditing = note !== null;
-        mainContent.innerHTML = `<div class="form-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? 'Editar' : 'Añadir'} Nota</h2></div><div class="form-card"><input type="hidden" id="note-id" value="${isEditing ? note.Nota_ID : ''}"><label for="note-title">Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}"><label for="note-description">Descripción</label><textarea id="note-description" rows="8">${isEditing ? note.Descripcion.replace(/\\n/g, '\n') : ''}</textarea><button id="save-btn">${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
-        mainContent.querySelector('.back-btn').onclick = renderNotesList;
-        const saveBtn = mainContent.querySelector('#save-btn');
-        const titleInput = mainContent.querySelector('#note-title');
-        const validate = () => saveBtn.classList.toggle('enabled', titleInput.value.trim() !== '');
-        titleInput.oninput = validate;
-        saveBtn.onclick = () => saveBtn.classList.contains('enabled') && saveNote(isEditing);
-        validate();
-      }
-      async function saveNote(isEditing) {
-        showSpinner();
-        const payload = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', title: document.getElementById('note-title').value, description: document.getElementById('note-description').value, note_id: document.getElementById('note-id').value };
-        try { await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) }); showToast(`Nota ${isEditing ? 'actualizada' : 'creada'}`); initializeAppContent(); } 
-        catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
-      }
+      // --- SECCIÓN DE NOTAS ---
       async function renderNotesList() {
         showSpinner();
         try {
           const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_notes_list' }) });
-          const notes = await res.json(); if(notes.error) throw new Error(notes.error);
-          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div><ul class="notes-list">${notes.length > 0 ? notes.map(n => `<li class="note-item" id="note-item-${n.Nota_ID}"><div class="note-header"><div class="note-header-interactive"><div class="note-title-section"><span class="note-title">${n.Titulo}</span><span class="note-date">${n.Fecha}</span></div><span class="expand-arrow">▼</span></div><button class="note-menu-btn" data-note-id="${n.Nota_ID}">⋮</button><div class="dropdown-menu" id="menu-note-${n.Nota_ID}"><a class="dropdown-item" data-action="edit">Editar</a><a class="dropdown-item" data-action="delete">Eliminar</a></div></div><div class="note-description">${n.Descripcion.replace(/\\n/g, '\n')}</div></li>`).join('') : '<li class="no-notes">No tienes notas.</li>'}</ul></div>`;
-          mainContent.querySelector('.back-btn').onclick = initializeAppContent;
-          mainContent.querySelectorAll('.note-header-interactive').forEach(h => h.onclick = (e) => e.currentTarget.closest('.note-item').classList.toggle('open'));
-          mainContent.querySelectorAll('.notes-list .dropdown-item').forEach(item => item.onclick = (e) => {
-              e.stopPropagation();
-              const note = notes.find(n => n.Nota_ID === e.currentTarget.closest('.dropdown-menu').id.replace('menu-note-', ''));
-              if(e.currentTarget.dataset.action === 'edit') renderNoteForm(note);
-              else if(e.currentTarget.dataset.action === 'delete') tg.showConfirm('¿Seguro que quieres eliminar esta nota?', (ok) => ok && executeDeleteNote(note.Nota_ID));
-          });
-        } catch(err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
+          if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+          const notes = await res.json();
+          if (notes.error) throw new Error(notes.error);
+          let listHtml = (notes.length > 0) ? notes.map(note => `
+            <li class="note-item" id="note-${note.Nota_ID}">
+              <div class="note-header">
+                <div class="note-header-interactive">
+                  <div class="note-title-section">
+                    <span class="note-title">${note.Titulo}</span>
+                    <span class="note-date">${note.Fecha}</span>
+                  </div>
+                  <span class="expand-arrow">▾</span>
+                </div>
+                <div style="position:relative">
+                  <button class="note-menu-btn" data-note-id="${note.Nota_ID}">⋮</button>
+                  <div class="note-dropdown-menu" id="menu-note-${note.Nota_ID}">
+                    <a class="dropdown-item" data-action="edit-note" data-note-id="${note.Nota_ID}">Editar</a>
+                    <a class="dropdown-item" data-action="delete-note" data-note-id="${note.Nota_ID}">Eliminar</a>
+                  </div>
+                </div>
+              </div>
+              <div class="note-description">${note.Descripcion}</div>
+            </li>`).join('') : '<div class="no-notes">📝<br>No tienes notas guardadas.</div>';
+          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Mis Notas</h2></div><ul class="notes-list" id="notes-list-ul">${listHtml}</ul></div>`;
+          document.getElementById('back-to-dashboard').onclick = initializeAppContent;
+          document.getElementById('notes-list-ul').addEventListener('click', handleNoteInteractions);
+        } catch (err) { mainContent.innerHTML = `<div class="no-notes">❌<br>Error al cargar las notas.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
       }
-      async function executeDeleteNote(noteId) {
-        showSpinner();
-        try { await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_note', note_id: noteId }) }); showToast('Nota eliminada.'); initializeAppContent(); } 
-        catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
+      function handleNoteInteractions(event) {
+        const interactiveHeader = event.target.closest('.note-header-interactive');
+        const actionItem = event.target.closest('.dropdown-item');
+        if (actionItem) {
+          event.stopPropagation();
+          const action = actionItem.dataset.action;
+          const noteId = actionItem.dataset.noteId;
+          if (action === 'edit-note') {
+            const noteItem = document.getElementById(`note-${noteId}`);
+            const title = noteItem.querySelector('.note-title').textContent;
+            const description = noteItem.querySelector('.note-description').textContent;
+            renderNoteForm({ Nota_ID: noteId, Titulo: title, Descripcion: description });
+          } else if (action === 'delete-note') {
+            executeDeleteNote(noteId);
+          }
+        } else if (interactiveHeader) {
+          interactiveHeader.closest('.note-item').classList.toggle('open');
+        }
       }
-      
-      // ======================================================================
-      // --- CALENDARIO ---
-      // ======================================================================
-      async function renderAgendaView() {
+      function renderNoteForm(note = null) {
+        const isEditing = note !== null;
+        mainContent.innerHTML = `
+          <div class="list-container">
+            <div class="list-header"><button class="back-btn" id="back-to-notes-list">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
+            <div class="form-card">
+              <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
+              <label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea>
+              <button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
+            </div>
+          </div>`;
+        document.getElementById('back-to-notes-list').onclick = renderNotesList;
+        const titleInput = document.getElementById('note-title');
+        const descriptionInput = document.getElementById('note-description');
+        const saveBtn = document.getElementById('save-note-btn');
+        function validateNoteForm() {
+          const isTitleValid = titleInput.value.trim() !== '';
+          const isDescriptionValid = descriptionInput.value.trim() !== '';
+          saveBtn.disabled = !(isTitleValid && isDescriptionValid);
+          saveBtn.classList.toggle('enabled', !saveBtn.disabled);
+        }
+        titleInput.addEventListener('input', validateNoteForm);
+        descriptionInput.addEventListener('input', validateNoteForm);
+        saveBtn.onclick = saveNote;
+        validateNoteForm();
+      }
+      async function saveNote() {
+        const btn = document.getElementById('save-note-btn');
+        const titleInput = document.getElementById('note-title');
+        const descriptionInput = document.getElementById('note-description');
+        titleInput.classList.remove('input-error'); descriptionInput.classList.remove('input-error');
+        const isTitleValid = titleInput.value.trim() !== '';
+        const isDescriptionValid = descriptionInput.value.trim() !== '';
+        if (!isTitleValid || !isDescriptionValid) {
+          if (!isTitleValid) titleInput.classList.add('input-error');
+          if (!isDescriptionValid) descriptionInput.classList.add('input-error');
+          showToast('Por favor, rellena todos los campos.', true);
+          return;
+        }
+        btn.disabled = true; btn.classList.remove('enabled');
+        const payload = { chat_ID: chatId, Type: btn.dataset.noteId ? 'edit_note' : 'add_note', note_id: btn.dataset.noteId, title: titleInput.value.trim(), description: descriptionInput.value.trim() };
         showSpinner();
         try {
-          const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
-          const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_calendar_events', startDate: startDate.toISOString(), endDate: endDate.toISOString() }) });
-          const events = await res.json(); if(events.error) throw new Error(events.error);
-          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><div class="agenda-view" id="agenda-container"></div></div>`;
-          mainContent.querySelector('.back-btn').onclick = initializeAppContent;
-          const container = document.getElementById('agenda-container');
-          if (events.length === 0) { container.innerHTML = '<div class="no-events">No hay eventos en los próximos 30 días.</div>'; return; }
-          const eventsByDay = events.reduce((acc, event) => { const day = new Date(event.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
-          container.innerHTML = Object.keys(eventsByDay).map(day => `<h3 class="day-header">${day}</h3>` + eventsByDay[day].map(event => {
-              const start = new Date(event.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-              const end = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-              return `<div class="event-item" id="event-item-${event.id}"><div class="event-details"><div class="event-time">${start} - ${end}</div><div class="event-summary">${event.summary}</div><div class="event-description" style="display:none;">${event.description || ''}</div></div><div style="position:relative;"><button class="event-menu-btn" data-event-id="${event.id}">⋮</button><div class="dropdown-menu" id="menu-event-${event.id}"><a class="dropdown-item" data-action="edit">Editar</a><a class="dropdown-item" data-action="delete">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></div>`;
-          }).join('')).join('');
-          container.addEventListener('click', (e) => {
-              if (e.target.closest('.event-details')) { const desc = e.target.closest('.event-details').querySelector('.event-description'); if (desc) desc.style.display = desc.style.display === 'none' ? 'block' : 'none'; }
-              if (e.target.closest('.dropdown-item')) {
-                  e.stopPropagation();
-                  const item = e.target.closest('.dropdown-item'); const action = item.dataset.action; const eventId = item.closest('.dropdown-menu').id.replace('menu-event-', ''); const eventData = events.find(ev => ev.id === eventId);
-                  if (action === 'edit') renderEventForm(eventData);
-                  else if (action === 'delete') tg.showConfirm(`¿Seguro que quieres eliminar "${eventData.summary}"?`, (ok) => ok && executeDeleteCalendarEvent(eventId));
-              }
-          });
-        } catch (err) { showToast(`Error al cargar agenda: ${err.message}`, true); } finally { hideSpinner(); }
+          const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) });
+          if (!res.ok) throw new Error(`Error: ${res.status}`);
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          showToast(`Nota ${btn.dataset.noteId ? 'actualizada' : 'creada'}`);
+          setTimeout(renderNotesList, 500);
+        } catch (err) { showToast(err.message, true); btn.disabled = false; btn.classList.add('enabled'); } finally { hideSpinner(); }
       }
-      function renderEventForm(event = null) {
-          const isEditing = event !== null;
-          const start = isEditing ? new Date(event.start) : new Date();
-          const end = isEditing ? new Date(event.end) : new Date(start.getTime() + 60*60*1000);
-          const toLocalISO = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-          mainContent.innerHTML = `<div class="form-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? 'Editar' : 'Nuevo'} Evento</h2></div><div class="form-card"><input type="hidden" id="event-id" value="${isEditing ? event.id : ''}"><label for="event-summary">Título</label><input type="text" id="event-summary" value="${isEditing ? event.summary : ''}"><label for="event-start">Inicio</label><input type="datetime-local" id="event-start" value="${toLocalISO(start)}"><label for="event-end">Fin</label><input type="datetime-local" id="event-end" value="${toLocalISO(end)}"><label for="event-description">Descripción</label><textarea id="event-description" rows="4">${isEditing ? event.description : ''}</textarea><label for="event-location">Ubicación</label><input type="text" id="event-location" value="${isEditing ? event.location : ''}"><button id="save-btn">${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button></div></div>`;
-          mainContent.querySelector('.back-btn').onclick = renderAgendaView;
-          const saveBtn = mainContent.querySelector('#save-btn');
-          const summaryInput = mainContent.querySelector('#event-summary');
-          const validate = () => saveBtn.classList.toggle('enabled', summaryInput.value.trim() !== '');
-          summaryInput.oninput = validate;
-          saveBtn.onclick = () => saveBtn.classList.contains('enabled') && saveCalendarEvent(isEditing);
-          validate();
-      }
-      async function saveCalendarEvent(isEditing) {
+      async function executeDeleteNote(noteId) {
+        if (!confirm('¿Estás seguro de que quieres eliminar esta nota?')) return;
         showSpinner();
-        const eventData = { summary: document.getElementById('event-summary').value, start: document.getElementById('event-start').value, end: document.getElementById('event-end').value, description: document.getElementById('event-description').value, location: document.getElementById('event-location').value };
-        const payload = { chat_ID: chatId, Type: isEditing ? 'edit_calendar_event' : 'add_calendar_event', eventId: document.getElementById('event-id').value, eventData };
-        try { await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) }); showToast(`Evento ${isEditing ? 'actualizado' : 'creado'}`); initializeAppContent(); }
-        catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
+        try {
+          const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_note', note_id: noteId }) });
+          if (!res.ok) throw new Error(`Error: ${res.status}`);
+          await res.json();
+          showToast('Nota eliminada');
+          initializeAppContent();
+          renderNotesList();
+        } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
       }
-      async function executeDeleteCalendarEvent(eventId) {
+
+      // --- CÓDIGO EXISTENTE Y FUNCIONAL (RECORDATORIOS Y LISTA DE LA COMPRA) ---
+      function renderReminderForm() { 
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>📝 Nuevo Recordatorio</h2></div><div class="form-card"><label>Descripción</label><textarea id="text" rows="3" required></textarea><label>Fecha y hora</label><input type="datetime-local" id="time" required/><label>Tipo</label><div class="radio-group" id="reminder-type-group"><label><input type="radio" name="category" value="Un solo uso"/> Único</label><label><input type="radio" name="category" value="Diario"/> Diario</label></div><button id="sendBtn" disabled>Crear Recordatorio</button></div></div>`;
+        document.getElementById('back-to-dashboard').onclick = initializeAppContent;
+        const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), radioGroup = document.getElementById('reminder-type-group');
+        function validateReminderForm() { 
+          const isTextValid = textInput.value.trim() !== ''; 
+          const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date(); 
+          const isRadioSelected = document.querySelector('input[name="category"]:checked') !== null;
+          sendBtn.disabled = !(isTextValid && isTimeValid && isRadioSelected); 
+          sendBtn.classList.toggle('enabled', !sendBtn.disabled); 
+        }
+        textInput.addEventListener('input', validateReminderForm);
+        timeInput.addEventListener('input', validateReminderForm);
+        radios.forEach(r => r.addEventListener('change', validateReminderForm));
+        sendBtn.onclick = sendReminder; 
+        validateReminderForm();
+      }
+      async function sendReminder() {
+        const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), radioSelected = document.querySelector('input[name="category"]:checked'), radioGroup = document.getElementById('reminder-type-group');
+        textInput.classList.remove('input-error'); timeInput.classList.remove('input-error'); radioGroup.classList.remove('input-error');
+        const isTextValid = textInput.value.trim() !== ''; const isTimeValid = !!timeInput.value; const isRadioSelected = radioSelected !== null;
+        if (!isTextValid || !isTimeValid || !isRadioSelected) {
+          if (!isTextValid) textInput.classList.add('input-error');
+          if (!isTimeValid) timeInput.classList.add('input-error');
+          if (!isRadioSelected) radioGroup.classList.add('input-error');
+          showToast('Por favor, rellena todos los campos marcados.', true);
+          return;
+        }
+        const sendBtn = document.getElementById('sendBtn'); sendBtn.disabled = true; sendBtn.classList.remove('enabled');
+        const payload = { chat_ID: chatId, Type: 'add_reminder', description: textInput.value.trim(), time: timeInput.value, category: radioSelected.value };
         showSpinner();
-        try { await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_calendar_event', eventId }) }); showToast('Evento eliminado'); initializeAppContent(); }
-        catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
+        try {
+          const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) });
+          if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          showToast('Recordatorio guardado');
+          setTimeout(initializeAppContent, 500);
+        } catch (err) { showToast(err.message || 'Error al enviar', true); sendBtn.disabled = false; sendBtn.classList.add('enabled'); } finally { hideSpinner(); }
+      }
+      async function renderRemindersList() {
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_reminders_list' }) });
+              if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+              const reminders = await res.json();
+              if (reminders.error) throw new Error(reminders.error);
+              let listHtml = (reminders.length > 0) ? reminders.map(item => `<li class="reminder-item" id="reminder-${item.tracking_code}"><div class="reminder-details"><span class="reminder-text">${item.Descripcion}</span><span class="reminder-date">${item.Fecha} - ${item.Categoria}</span></div><div class="reminder-actions"><button class="reminder-delete-btn" data-tracking-code="${item.tracking_code}">🗑️</button></div></li>`).join('') : '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>';
+              mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Recordatorios Activos</h2></div><ul class="reminder-list" id="reminders-list-ul">${listHtml}</ul></div>`;
+              document.getElementById('back-to-dashboard').onclick = initializeAppContent;
+              document.getElementById('reminders-list-ul').addEventListener('click', handleReminderActionClick);
+          } catch (err) { mainContent.innerHTML = `<div class="no-reminders">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`; showToast(`Error al cargar la lista: ${err.message}`, true); } finally { hideSpinner(); }
+      }
+      function handleReminderActionClick(event) {
+          const deleteButton = event.target.closest('.reminder-delete-btn');
+          if (deleteButton) {
+              event.stopPropagation();
+              const trackingCode = deleteButton.dataset.trackingCode;
+              deleteButton.style.display = 'none';
+              const confirmBtnYes = document.createElement('button'); confirmBtnYes.className = 'confirm-btn-yes'; confirmBtnYes.textContent = 'Sí'; confirmBtnYes.onclick = () => executeDeleteReminder(trackingCode);
+              const confirmBtnNo = document.createElement('button'); confirmBtnNo.className = 'confirm-btn-no'; confirmBtnNo.textContent = 'No'; confirmBtnNo.onclick = () => { deleteButton.style.display = 'block'; confirmBtnYes.remove(); confirmBtnNo.remove(); };
+              deleteButton.parentElement.appendChild(confirmBtnYes); deleteButton.parentElement.appendChild(confirmBtnNo);
+          }
+      }
+      async function executeDeleteReminder(trackingCode) {
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_reminder', tracking_code: trackingCode }) });
+              if (!res.ok) throw new Error(`Error al eliminar: ${res.status}`);
+              await res.json();
+              showToast('Recordatorio eliminado');
+              initializeAppContent();
+          } catch (err) { showToast(err.message || 'Error al eliminar', true); } finally { hideSpinner(); }
+      }
+      function renderShoppingListItems(items) {
+          const pendingItems = items.filter(item => item['2'] === 'Pendiente');
+          const boughtItems = items.filter(item => item['2'] === 'Comprado');
+          let listHtml = '';
+          if (pendingItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>'; listHtml += pendingItems.map(item => `<li class="shopping-item" id="shopping-item-${item['3']}"><div class="shopping-item-checkbox-wrapper" style="width: 28px;"></div><button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="${item['2']}"><span>${item['1']}</span></button><div class="shopping-item-menu-container"><button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button><div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}"><a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a><a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a></div></div></li>`).join(''); }
+          if (boughtItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>'; listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`; listHtml += boughtItems.map(item => `<li class="shopping-item" id="shopping-item-${item['3']}"><div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}" data-current-status="${item['2']}"></div><button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="${item['2']}"><span>${item['1']}</span>${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}</button><div class="shopping-item-menu-container"><button class="shopping-item-menu-btn" data-item-tracking-code="${item['3']}">⋮</button><div class="dropdown-menu shopping-item-dropdown-menu" id="menu-shopping-item-${item['3']}"><a class="dropdown-item edit-btn-item" data-tracking-code="${item['3']}" data-current-description="${item['1']}">Editar</a><a class="dropdown-item delete-btn-item" data-tracking-code="${item['3']}">Eliminar</a></div></div></li>`).join(''); }
+          if (items.length === 0) { listHtml = '<div class="no-shopping-items">🛒<br>Tu lista está vacía.</div>'; }
+          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Lista de Compras</h2></div><ul class="shopping-list" id="shopping-list-ul">${listHtml}</ul><div class="add-article-btn-container"><button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button><button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button></div></div>`;
+          document.getElementById('back-to-dashboard').onclick = initializeAppContent;
+          document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
+          document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
+          const selectAllCheckbox = document.getElementById('select-all-checkbox');
+          if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
+          document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
+          document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
+          updateMultiSelectButtonState(); 
+      }
+      async function renderShoppingList() { 
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_shopping_list' }) });
+              if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              renderShoppingListItems(items); 
+          } catch (err) { mainContent.innerHTML = `<div class="no-shopping-items">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
+      }
+      function updateMultiSelectButtonState() {
+          const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
+          const selectedBoughtCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
+          if (selectedBoughtCount > 0) { multiSelectToggleButton.classList.add('enabled'); multiSelectToggleButton.disabled = false; multiSelectToggleButton.textContent = `Marcar ${selectedBoughtCount} para comprar`; } else { multiSelectToggleButton.classList.remove('enabled'); multiSelectToggleButton.disabled = true; multiSelectToggleButton.textContent = 'Marcar para comprar'; }
+      }
+      async function toggleSelectedItemsToPending() {
+          const trackingCodesToUpdate = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
+          if (trackingCodesToUpdate.length === 0) return;
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_multiple_to_pending', tracking_codes: trackingCodesToUpdate }) });
+              if (!res.ok) throw new Error(`Error: ${res.statusText}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              renderShoppingListItems(items); initializeAppContent(); 
+          } catch (err) { showToast(err.message || 'Error al actualizar', true); } finally { hideSpinner(); }
+      }
+      function handleShoppingItemInteractions(event) {
+          const toggleButton = event.target.closest('.shopping-item-toggle-btn');
+          const editMenuItem = event.target.closest('.edit-btn-item');
+          const deleteMenuItem = event.target.closest('.delete-btn-item');
+          if (toggleButton) {
+              const itemElement = toggleButton.closest('.shopping-item');
+              const trackingCode = toggleButton.dataset.trackingCode;
+              const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+              updateShoppingItemUI(itemElement, newStatus);
+              toggleShoppingItemStatusOnServer(trackingCode, newStatus, itemElement);
+          } 
+          else if (editMenuItem) { event.stopPropagation(); document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); editShoppingItem(editMenuItem.dataset.trackingCode, editMenuItem.dataset.currentDescription); } 
+          else if (deleteMenuItem) { event.stopPropagation(); document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); executeDeleteShoppingItem(deleteMenuItem.dataset.trackingCode); }
+      }
+      function updateShoppingItemUI(itemElement, newStatus) {
+          const toggleButton = itemElement.querySelector('.shopping-item-toggle-btn');
+          if (newStatus === 'Comprado') {
+              toggleButton.classList.remove('pending');
+              toggleButton.classList.add('bought');
+              toggleButton.dataset.currentStatus = 'Comprado';
+              lastCount.shoppingPending--;
+              lastCount.shoppingBought++;
+          } else {
+              toggleButton.classList.remove('bought');
+              toggleButton.classList.add('pending');
+              toggleButton.dataset.currentStatus = 'Pendiente';
+              lastCount.shoppingPending++;
+              lastCount.shoppingBought--;
+          }
+          if(document.getElementById('card-shopping-list-wrapper')) {
+              document.querySelector('#card-shopping-list-wrapper .card-badge.green').textContent = lastCount.shoppingPending;
+              document.querySelector('#card-shopping-list-wrapper .card-badge.red').textContent = lastCount.shoppingBought;
+          }
+      }
+      async function toggleShoppingItemStatusOnServer(trackingCode, newStatus, itemElement) {
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_item_status', tracking_code: trackingCode, new_status: newStatus }) });
+              if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              console.log("Sincronización exitosa con el servidor.");
+          } catch (err) {
+              showToast(err.message || 'Error de sincronización', true);
+              const oldStatus = newStatus === 'Comprado' ? 'Pendiente' : 'Comprado';
+              updateShoppingItemUI(itemElement, oldStatus);
+          }
+      }
+      async function editShoppingItem(trackingCode, currentDescription) {
+          const newDescription = prompt('Editar descripción:', currentDescription);
+          if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== currentDescription) {
+              showSpinner();
+              try {
+                  const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'edit_item_description', tracking_code: trackingCode, new_description: newDescription.trim() }) });
+                  if (!res.ok) throw new Error(`Error: ${res.statusText}`);
+                  const items = await res.json();
+                  if (items.error) throw new Error(items.error);
+                  renderShoppingListItems(items); 
+              } catch (err) { showToast(err.message || 'Error al editar', true); } finally { hideSpinner(); }
+          }
+      }
+      async function executeDeleteShoppingItem(trackingCode) {
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ Type: 'delete_item_shopping_list', chat_ID: chatId, tracking_code: trackingCode }) });
+              if (!res.ok) throw new Error(`Error: ${res.status}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              renderShoppingListItems(items); initializeAppContent();
+          } catch (err) { showToast(err.message || 'Error al eliminar', true); } finally { hideSpinner(); }
+      }
+      function renderAddArticleForm() {
+          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-shopping-list">‹</button><h2>➕ Añadir Artículo</h2></div><div class="form-card"><label>Descripción</label><textarea id="article-description" rows="2" required></textarea><button id="add-article-send-btn" disabled>Añadir</button></div></div>`;
+          document.getElementById('back-to-shopping-list').onclick = renderShoppingList;
+          const sendBtn = document.getElementById('add-article-send-btn');
+          document.getElementById('article-description').oninput = (e) => { const isEnabled = e.target.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
+          sendBtn.onclick = addArticle;
+      }
+      async function addArticle() {
+          const description = document.getElementById('article-description').value.trim();
+          if (!description) return;
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'add_articulo', description: description }) });
+              if (!res.ok) throw new Error(`Error: ${res.statusText}`);
+              const items = await res.json();
+              if (items.error) throw new Error(items.error);
+              renderShoppingListItems(items); initializeAppContent();
+          } catch (err) { showToast(err.message || 'Error al añadir', true); } finally { hideSpinner(); }
       }
 
       document.getElementById('tab-home').onclick = initializeAppContent;
