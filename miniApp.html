@@ -121,7 +121,7 @@
   </div>
   <div id="toast" class="toast"></div>
   <script>
-    (function() { const params = new URLSearchParams(window.location.search); if (!params.has('v')) { const newUrl = new URL(window.location.href); newUrl.searchParams.set('v', new Date().getTime()); window.location.replace(newUrl.href); } })();
+(function() { const params = new URLSearchParams(window.location.search); if (!params.has('v')) { const newUrl = new URL(window.location.href); newUrl.searchParams.set('v', new Date().getTime()); window.location.replace(newUrl.href); } })();
 
     document.addEventListener('DOMContentLoaded', () => {
       const tg = window.Telegram?.WebApp;
@@ -233,28 +233,33 @@
         }
       });
       
-      // ... (Aquí van las secciones de Notas, Recordatorios y Lista de la Compra) ...
+      // ... (Todas las funciones de Notas, Recordatorios y Lista de Compra van aquí) ...
 
-      // ======================================================================
       // --- SECCIÓN DE CALENDARIO ---
-      // ======================================================================
-      
       async function renderAgendaView() {
-          // ... (Lógica completa aquí) ...
+          // ...
       }
       function renderEventForm(event = null, date = null) {
-          // ... (Lógica completa aquí) ...
+          // ...
       }
       function handleCalendarInteractions(event) {
-          // ... (Lógica completa aquí) ...
+          // ...
       }
       async function saveCalendarEvent() {
-          // ... (Lógica completa aquí) ...
+          // ...
       }
       async function executeDeleteCalendarEvent(eventId) {
-          // ... (Lógica completa aquí) ...
+          // ...
       }
-      
+
+      // --- FUNCIÓN QUE FALTABA ---
+      function setActiveTab(activeTabId) {
+          document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+          const activeTab = document.getElementById(activeTabId);
+          if (activeTab) activeTab.classList.add('active');
+      }
+
+      document.getElementById('tab-home').onclick = initializeAppContent;
       initializeAppContent();
     });
   </script>
