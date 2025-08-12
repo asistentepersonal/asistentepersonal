@@ -456,24 +456,73 @@
               renderShoppingListItems(items); initializeAppContent(); 
           } catch (err) { showToast(err.message || 'Error al actualizar', true); } finally { hideSpinner(); }
       }
-      function handleShoppingItemInteractions(event) {
+ function handleShoppingItemInteractions(event) {
           const toggleButton = event.target.closest('.shopping-item-toggle-btn');
           const editMenuItem = event.target.closest('.edit-btn-item');
           const deleteMenuItem = event.target.closest('.delete-btn-item');
-          if (toggleButton) { toggleShoppingItemStatus(toggleButton.dataset.trackingCode, toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente'); } 
-          else if (editMenuItem) { event.stopPropagation(); document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); editShoppingItem(editMenuItem.dataset.trackingCode, editMenuItem.dataset.currentDescription); } 
-          else if (deleteMenuItem) { event.stopPropagation(); document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); executeDeleteShoppingItem(deleteMenuItem.dataset.trackingCode); }
+
+          if (toggleButton) {
+              const itemElement = toggleButton.closest('.shopping-item');
+              const trackingCode = toggleButton.dataset.trackingCode;
+              const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+              
+              // --- INICIO DE LA ACTUALIZACIÓN OPTIMISTA ---
+              updateShoppingItemUI(itemElement, newStatus);
+              toggleShoppingItemStatusOnServer(trackingCode, newStatus, itemElement);
+              // --- FIN DE LA ACTUALIZACIÓN OPTIMISTA ---
+          } 
+          else if (editMenuItem) { 
+              event.stopPropagation(); 
+              document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
+              editShoppingItem(editMenuItem.dataset.trackingCode, editMenuItem.dataset.currentDescription); 
+          } 
+          else if (deleteMenuItem) { 
+              event.stopPropagation(); 
+              document.querySelectorAll('.shopping-item-dropdown-menu').forEach(m => m.classList.remove('show')); 
+              executeDeleteShoppingItem(deleteMenuItem.dataset.trackingCode); 
+          }
       }
-      async function toggleShoppingItemStatus(trackingCode, newStatus) {
-          showSpinner();
+
+      function updateShoppingItemUI(itemElement, newStatus) {
+          const toggleButton = itemElement.querySelector('.shopping-item-toggle-btn');
+          
+          if (newStatus === 'Comprado') {
+              toggleButton.classList.remove('pending');
+              toggleButton.classList.add('bought');
+              toggleButton.dataset.currentStatus = 'Comprado';
+              lastCount.shoppingPending--;
+              lastCount.shoppingBought++;
+          } else {
+              toggleButton.classList.remove('bought');
+              toggleButton.classList.add('pending');
+              toggleButton.dataset.currentStatus = 'Pendiente';
+              lastCount.shoppingPending++;
+              lastCount.shoppingBought--;
+          }
+          
+          // La reordenación visual se hará en la siguiente carga completa para mantener la simplicidad,
+          // pero el cambio de color y estado es instantáneo.
+          
+          if(document.getElementById('card-shopping-list-wrapper')) {
+              document.querySelector('#card-shopping-list-wrapper .card-badge.green').textContent = lastCount.shoppingPending;
+              document.querySelector('#card-shopping-list-wrapper .card-badge.red').textContent = lastCount.shoppingBought;
+          }
+      }
+
+      async function toggleShoppingItemStatusOnServer(trackingCode, newStatus, itemElement) {
           try {
               const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_item_status', tracking_code: trackingCode, new_status: newStatus }) });
-              if (!res.ok) throw new Error(`Error: ${res.statusText}`);
+              if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              renderShoppingListItems(items); initializeAppContent();
-          } catch (err) { showToast(err.message || 'Error al cambiar estado', true); } finally { hideSpinner(); }
+              console.log("Sincronización exitosa con el servidor.");
+          } catch (err) {
+              showToast(err.message || 'Error de sincronización', true);
+              const oldStatus = newStatus === 'Comprado' ? 'Pendiente' : 'Comprado';
+              updateShoppingItemUI(itemElement, oldStatus);
+          }
       }
+
       async function editShoppingItem(trackingCode, currentDescription) {
           const newDescription = prompt('Editar descripción:', currentDescription);
           if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== currentDescription) {
@@ -487,6 +536,7 @@
               } catch (err) { showToast(err.message || 'Error al editar', true); } finally { hideSpinner(); }
           }
       }
+
       async function executeDeleteShoppingItem(trackingCode) {
           showSpinner();
           try {
@@ -494,9 +544,11 @@
               if (!res.ok) throw new Error(`Error: ${res.status}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              renderShoppingListItems(items); initializeAppContent();
+              renderShoppingListItems(items); 
+              initializeAppContent();
           } catch (err) { showToast(err.message || 'Error al eliminar', true); } finally { hideSpinner(); }
       }
+
       function renderAddArticleForm() {
           mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-shopping-list">‹</button><h2>➕ Añadir Artículo</h2></div><div class="form-card"><label>Descripción</label><textarea id="article-description" rows="2" required></textarea><button id="add-article-send-btn" disabled>Añadir</button></div></div>`;
           document.getElementById('back-to-shopping-list').onclick = renderShoppingList;
@@ -504,6 +556,7 @@
           document.getElementById('article-description').oninput = (e) => { const isEnabled = e.target.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
           sendBtn.onclick = addArticle;
       }
+
       async function addArticle() {
           const description = document.getElementById('article-description').value.trim();
           if (!description) return;
@@ -513,9 +566,11 @@
               if (!res.ok) throw new Error(`Error: ${res.statusText}`);
               const items = await res.json();
               if (items.error) throw new Error(items.error);
-              renderShoppingListItems(items); initializeAppContent();
+              renderShoppingListItems(items); 
+              initializeAppContent();
           } catch (err) { showToast(err.message || 'Error al añadir', true); } finally { hideSpinner(); }
       }
+
       function setActiveTab(activeTabId) {
           document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
           const activeTab = document.getElementById(activeTabId);
