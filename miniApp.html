@@ -358,7 +358,7 @@
       async function sendReminder() {
         const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), radioSelected = document.querySelector('input[name="category"]:checked'), radioGroup = document.getElementById('reminder-type-group');
         textInput.classList.remove('input-error'); timeInput.classList.remove('input-error'); radioGroup.classList.remove('input-error');
-        const isTextValid = textInput.value.trim() !== ''; const isTimeValid = timeInput.value; const isRadioSelected = radioSelected !== null;
+        const isTextValid = textInput.value.trim() !== ''; const isTimeValid = !!timeInput.value; const isRadioSelected = radioSelected !== null;
         if (!isTextValid || !isTimeValid || !isRadioSelected) {
           if (!isTextValid) textInput.classList.add('input-error');
           if (!isTimeValid) timeInput.classList.add('input-error');
