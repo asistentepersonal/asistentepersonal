@@ -196,7 +196,7 @@
               <div class="card-badge-group"><div class="card-badge green">${lastCount.shoppingPending ?? '...'}</div><div class="card-badge red">${lastCount.shoppingBought ?? '...'}</div></div>
               <div class="card-icon">🛒</div><div class="card-title">Lista de Compras</div>
               <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
-              <div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div>
+              <div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div>
             </div>
             <div class="card" id="card-notes-wrapper">
               <div class="card-badge red" style="left:12px;">${lastCount.notes ?? '...'}</div>
@@ -214,32 +214,36 @@
         document.getElementById('add-reminder-link').onclick = renderReminderForm;
         document.getElementById('list-reminders-link').onclick = renderRemindersList;
         document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-        document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
         document.getElementById('add-note-link').onclick = () => renderNoteForm();
         document.getElementById('list-notes-link').onclick = renderNotesList;
         document.getElementById('add-event-link').onclick = () => renderEventForm();
         document.getElementById('view-agenda-link').onclick = renderAgendaView;
       }
       
+      // Manejador de clics global mejorado para menús
       document.body.addEventListener('click', (e) => {
         const menuBtn = e.target.closest('.card-menu-btn, .note-menu-btn, .event-menu-btn, .shopping-item-menu-btn');
-        document.querySelectorAll('.dropdown-menu, .note-dropdown-menu, .event-dropdown-menu, .shopping-item-dropdown-menu').forEach(m => {
-            if (!m.contains(e.target) && !menuBtn) {
-                 m.classList.remove('show');
+        const allMenus = document.querySelectorAll('.dropdown-menu, .note-dropdown-menu, .event-dropdown-menu, .shopping-item-dropdown-menu');
+
+        if (!menuBtn) {
+            if (!e.target.closest('.dropdown-menu, .note-dropdown-menu, .event-dropdown-menu, .shopping-item-dropdown-menu')) {
+                allMenus.forEach(m => m.classList.remove('show'));
             }
-        });
-        if (menuBtn) { 
-          e.stopPropagation(); 
-          let menu;
-          if (menuBtn.classList.contains('note-menu-btn')) menu = document.getElementById(`menu-note-${menuBtn.dataset.noteId}`);
-          else if (menuBtn.classList.contains('event-menu-btn')) menu = document.getElementById(`menu-event-${menuBtn.dataset.eventId}`);
-          else if (menuBtn.classList.contains('shopping-item-menu-btn')) menu = document.getElementById(`menu-item-${menuBtn.dataset.trackingCode}`);
-          else menu = document.getElementById(`menu-${menuBtn.dataset.menuFor}`);
-          
-          const isShown = menu.classList.contains('show');
-          document.querySelectorAll('.dropdown-menu, .note-dropdown-menu, .event-dropdown-menu, .shopping-item-dropdown-menu').forEach(m => m.classList.remove('show'));
-          if (menu && !isShown) menu.classList.add('show');
+            return;
         }
+
+        e.stopPropagation();
+        let menu;
+        if (menuBtn.classList.contains('note-menu-btn')) menu = document.getElementById(`menu-note-${menuBtn.dataset.noteId}`);
+        else if (menuBtn.classList.contains('event-menu-btn')) menu = document.getElementById(`menu-event-${menuBtn.dataset.eventId}`);
+        else if (menuBtn.classList.contains('shopping-item-menu-btn')) menu = document.getElementById(`menu-item-${menuBtn.dataset.trackingCode}`);
+        else menu = document.getElementById(`menu-${menuBtn.dataset.menuFor}`);
+        
+        if (!menu) return; // Salida segura si el menú no existe
+
+        const isShown = menu.classList.contains('show');
+        allMenus.forEach(m => m.classList.remove('show'));
+        if (!isShown) menu.classList.add('show');
       });
       
       function setActiveTab(activeTabId) {
@@ -249,7 +253,7 @@
       }
       
       // ======================================================================
-      // --- SECCIÓN DE RECORDATORIOS ---
+      // --- SECCIÓN DE RECORDATORIOS --- (SIN CAMBIOS)
       // ======================================================================
       function renderReminderForm() {
         mainContent.innerHTML = `
@@ -271,16 +275,11 @@
         const saveBtn = document.getElementById('save-reminder-btn');
         const descInput = document.getElementById('reminder-desc');
         const timeInput = document.getElementById('reminder-time');
-        
-        function validateReminderForm() {
-            const isValid = descInput.value.trim() !== '' && timeInput.value !== '';
-            saveBtn.classList.toggle('enabled', isValid);
-        }
+        function validateReminderForm() { const isValid = descInput.value.trim() !== '' && timeInput.value !== ''; saveBtn.classList.toggle('enabled', isValid); }
         descInput.addEventListener('input', validateReminderForm);
         timeInput.addEventListener('input', validateReminderForm);
         saveBtn.onclick = async () => { if (saveBtn.classList.contains('enabled')) await saveReminder(); };
       }
-
       async function saveReminder() {
         showSpinner();
         const description = document.getElementById('reminder-desc').value;
@@ -294,13 +293,8 @@
             lastCount.reminders++;
             showToast('Recordatorio añadido con éxito.');
             renderRemindersList(data);
-        } catch (err) {
-            showToast(`Error: ${err.message}`, true);
-        } finally {
-            hideSpinner();
-        }
+        } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
-
       async function renderRemindersList(remindersData = null) {
         showSpinner();
         try {
@@ -318,32 +312,21 @@
             </div>`;
             document.getElementById('back-to-dash-list').onclick = initializeAppContent;
             const listUl = document.getElementById('reminders-ul');
-            if (reminders.length === 0) {
-                listUl.innerHTML = '<li class="no-reminders">No tienes recordatorios.</li>';
-            } else {
-                listUl.innerHTML = reminders.map(r => `
+            if (reminders.length === 0) { listUl.innerHTML = '<li class="no-reminders">No tienes recordatorios.</li>'; }
+            else { listUl.innerHTML = reminders.map(r => `
                 <li class="reminder-item" id="reminder-${r.tracking_code}">
                     <div class="reminder-details"><span class="reminder-text">${r.Descripcion}</span><span class="reminder-date">${r.Fecha} (${r.Categoria})</span></div>
-                    <div class="reminder-actions" id="actions-${r.tracking_code}">
-                        <button class="reminder-delete-btn" data-code="${r.tracking_code}">🗑️</button>
-                    </div>
+                    <div class="reminder-actions"><button class="reminder-delete-btn" data-code="${r.tracking_code}">🗑️</button></div>
                 </li>`).join('');
             }
-        } catch(err) {
-            showToast(`Error: ${err.message}`, true);
-        } finally {
-            hideSpinner();
             document.querySelectorAll('.reminder-delete-btn').forEach(btn => btn.onclick = (e) => confirmDeleteReminder(e.currentTarget.dataset.code));
-        }
+        } catch(err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
-
       function confirmDeleteReminder(trackingCode) {
-        const actionsDiv = document.getElementById(`actions-${trackingCode}`);
-        actionsDiv.innerHTML = '¿Seguro? <button class="confirm-btn-yes" data-code="${trackingCode}">Sí</button><button class="confirm-btn-no" data-code="${trackingCode}">No</button>';
-        actionsDiv.querySelector('.confirm-btn-yes').onclick = () => executeDeleteReminder(trackingCode);
-        actionsDiv.querySelector('.confirm-btn-no').onclick = () => renderRemindersList();
+        tg.showConfirm("¿Seguro que quieres eliminar este recordatorio?", (ok) => {
+            if (ok) executeDeleteReminder(trackingCode);
+        });
       }
-
       async function executeDeleteReminder(trackingCode) {
         showSpinner();
         try {
@@ -354,20 +337,12 @@
             lastCount.reminders--;
             showToast('Recordatorio eliminado.');
             renderRemindersList(data);
-        } catch (err) {
-            showToast(`Error: ${err.message}`, true);
-        } finally {
-            hideSpinner();
-        }
+        } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
       
       // ======================================================================
-      // --- SECCIÓN DE LISTA DE LA COMPRA ---
+      // --- SECCIÓN DE LISTA DE LA COMPRA --- (REESCRITA)
       // ======================================================================
-      function renderAddArticleForm() {
-          renderShoppingList(); // Render the list first so the new item appears there
-      }
-      
       async function renderShoppingList(shoppingData = null) {
           showSpinner();
           try {
@@ -375,8 +350,7 @@
               if (!items) {
                   const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_shopping_list' }) });
                   if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
-                  items = await res.json();
-                  if (items.error) throw new Error(items.error);
+                  items = await res.json(); if (items.error) throw new Error(items.error);
               }
               const pendingItems = items.filter(i => i['2'] === 'Pendiente');
               const boughtItems = items.filter(i => i['2'] === 'Comprado');
@@ -385,47 +359,51 @@
               <div class="list-container">
                   <div class="list-header"><button class="back-btn" id="back-to-dash-shopping">‹</button><h2>Lista de Compras</h2></div>
                   <div class="add-article-btn-container">
-                    <button class="add-article-btn" id="add-article-prompt-btn">Añadir Artículo</button>
+                    <button class="add-article-btn" id="add-article-toggle-btn">Añadir Artículo</button>
                     <button class="multi-select-action-btn" id="move-to-pending-btn" disabled>Pasar a Pendiente</button>
                   </div>
-                  <ul class="shopping-list" id="shopping-ul">
+                  <div id="add-item-form-container" style="display: none; padding: 10px; margin-top: -10px;">
+                      <div class="form-card" style="padding: 15px; box-shadow: none; border: 1px solid #eee;">
+                          <input type="text" id="new-item-description" placeholder="Nombre del artículo..." style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                          <div style="display:flex; gap:10px; margin-top:10px;">
+                              <button id="save-new-item-btn" style="flex:2; padding:10px; background:var(--action-bg); color:var(--action-text); border:none; border-radius:8px; cursor:pointer;">Guardar</button>
+                              <button id="cancel-new-item-btn" style="flex:1; padding:10px; background:#aaa; color:var(--action-text); border:none; border-radius:8px; cursor:pointer;">Cancelar</button>
+                          </div>
+                      </div>
+                  </div>
+                  <ul class="shopping-list" id="shopping-ul"></ul>
+              </div>`;
+              
+              const shoppingUl = document.getElementById('shopping-ul');
+              if (items.length === 0) {
+                  shoppingUl.innerHTML = '<li class="no-shopping-items">La lista está vacía.</li>';
+              } else {
+                  shoppingUl.innerHTML = `
                       ${pendingItems.length > 0 ? `<h3 class="shopping-list-section-title">Pendientes (${pendingItems.length})</h3>` : ''}
                       ${pendingItems.map(item => shoppingItemHTML(item)).join('')}
                       ${boughtItems.length > 0 ? `<h3 class="shopping-list-section-title">Comprados (${boughtItems.length})</h3>` : ''}
-                      ${boughtItems.map(item => shoppingItemHTML(item)).join('')}
-                  </ul>
-              </div>`;
-              
-              if (items.length === 0) {
-                  document.getElementById('shopping-ul').innerHTML = '<li class="no-shopping-items">La lista está vacía.</li>';
+                      ${boughtItems.map(item => shoppingItemHTML(item)).join('')}`;
               }
-              
               document.getElementById('back-to-dash-shopping').onclick = initializeAppContent;
-              document.getElementById('add-article-prompt-btn').onclick = promptAndAddArticle;
               attachShoppingListListeners();
-
-          } catch (err) {
-              showToast(`Error cargando la lista: ${err.message}`, true);
-          } finally {
-              hideSpinner();
-          }
+          } catch (err) { showToast(`Error cargando la lista: ${err.message}`, true);
+          } finally { hideSpinner(); }
       }
-      
-      function shoppingItemHTML(item) {
-        const description = item['1'];
-        const status = item['2'];
-        const trackingCode = item['3'];
-        const date = item['4'];
+      function shoppingItemHTML(item, isEditing = false) {
+        const description = item['1']; const status = item['2']; const trackingCode = item['3']; const date = item['4'];
+        if (isEditing) {
+            return `
+            <div style="display:flex; align-items:center; gap:5px; width:100%;">
+                <input type="text" value="${description}" id="edit-desc-${trackingCode}" style="flex-grow:1; padding:10px; border:1px solid var(--primary); border-radius:8px;">
+                <button class="shopping-item-action-btn" data-action="save-edit" data-tracking-code="${trackingCode}" style="background:var(--action-bg); color:var(--action-text); border:none; border-radius:50%; width:36px; height:36px; font-size:1.2rem;">✔️</button>
+                <button class="shopping-item-action-btn" data-action="cancel-edit" data-tracking-code="${trackingCode}" style="background:#aaa; color:var(--action-text); border:none; border-radius:50%; width:36px; height:36px; font-size:1.2rem;">❌</button>
+            </div>`;
+        }
         const isPending = status === 'Pendiente';
-
         return `
-        <li class="shopping-item" id="item-${trackingCode}" data-status="${status}">
-            <div class="shopping-item-checkbox-wrapper">
-                <input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${trackingCode}" ${!isPending ? 'checked' : ''}>
-            </div>
+            <div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${trackingCode}" ${!isPending ? 'checked' : ''}></div>
             <button class="shopping-item-toggle-btn ${isPending ? 'pending' : 'bought'}" data-tracking-code="${trackingCode}" data-new-status="${isPending ? 'Comprado' : 'Pendiente'}">
-                ${description}
-                ${date ? `<span class="item-date">${date}</span>` : ''}
+                ${description} ${date ? `<span class="item-date">${date}</span>` : ''}
             </button>
             <div class="shopping-item-menu-container">
                 <button class="shopping-item-menu-btn" data-tracking-code="${trackingCode}">⋮</button>
@@ -433,146 +411,105 @@
                     <a class="shopping-item-dropdown-item" data-action="edit" data-tracking-code="${trackingCode}" data-description="${description}">Editar</a>
                     <a class="shopping-item-dropdown-item" data-action="delete" data-tracking-code="${trackingCode}">Eliminar</a>
                 </div>
-            </div>
-        </li>`;
+            </div>`;
       }
-      
       function attachShoppingListListeners() {
+          document.getElementById('add-article-toggle-btn').onclick = () => { document.getElementById('add-item-form-container').style.display = 'block'; };
+          document.getElementById('cancel-new-item-btn').onclick = () => { document.getElementById('add-item-form-container').style.display = 'none'; };
+          document.getElementById('save-new-item-btn').onclick = addShoppingItemFromForm;
           document.querySelectorAll('.shopping-item-toggle-btn').forEach(btn => btn.onclick = handleToggleItemStatus);
           document.querySelectorAll('.shopping-item-dropdown-item').forEach(item => item.onclick = handleShoppingItemMenu);
           document.querySelectorAll('.shopping-item-checkbox').forEach(chk => chk.onchange = updateMultiSelectButton);
           document.getElementById('move-to-pending-btn').onclick = handleMoveMultipleToPending;
       }
-      
-      async function handleToggleItemStatus(event) {
-          const button = event.currentTarget;
-          const trackingCode = button.dataset.trackingCode;
-          const newStatus = button.dataset.newStatus;
-          showSpinner();
-          try {
-              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_item_status', tracking_code: trackingCode, new_status: newStatus }) });
-              const data = await res.json();
-              if (data.error) throw new Error(data.error);
-              if (newStatus === 'Comprado') { lastCount.shoppingPending--; lastCount.shoppingBought++; } else { lastCount.shoppingPending++; lastCount.shoppingBought--; }
-              renderShoppingList(data);
-          } catch(err) {
-              showToast(`Error: ${err.message}`, true);
-          } finally {
-              hideSpinner();
-          }
-      }
-
-      function handleShoppingItemMenu(event) {
-          const action = event.currentTarget.dataset.action;
-          const trackingCode = event.currentTarget.dataset.trackingCode;
-          if (action === 'delete') {
-              if (confirm('¿Seguro que quieres eliminar este artículo?')) {
-                  executeDeleteShoppingItem(trackingCode);
-              }
-          } else if (action === 'edit') {
-              const currentDescription = event.currentTarget.dataset.description;
-              const newDescription = prompt('Edita la descripción del artículo:', currentDescription);
-              if (newDescription && newDescription.trim() !== '' && newDescription !== currentDescription) {
-                  executeEditShoppingItem(trackingCode, newDescription);
-              }
-          }
-      }
-      
-      async function executeDeleteShoppingItem(trackingCode) {
-          showSpinner();
-          try {
-              const itemElement = document.getElementById(`item-${trackingCode}`);
-              const status = itemElement.dataset.status;
-              
-              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_item_shopping_list', tracking_code: trackingCode }) });
-              const data = await res.json();
-              if (data.error) throw new Error(data.error);
-              
-              if(status === 'Pendiente') { lastCount.shoppingPending--; } else { lastCount.shoppingBought--; }
-
-              showToast('Artículo eliminado.');
-              renderShoppingList(data);
-          } catch (err) {
-              showToast(`Error: ${err.message}`, true);
-          } finally {
-              hideSpinner();
-          }
-      }
-
-      async function executeEditShoppingItem(trackingCode, newDescription) {
-          showSpinner();
-          try {
-              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'edit_item_description', tracking_code: trackingCode, new_description: newDescription }) });
-              const data = await res.json();
-              if (data.error) throw new Error(data.error);
-              showToast('Artículo actualizado.');
-              renderShoppingList(data);
-          } catch (err) {
-              showToast(`Error: ${err.message}`, true);
-          } finally {
-              hideSpinner();
-          }
-      }
-
-      async function promptAndAddArticle() {
-          const description = prompt("¿Qué artículo quieres añadir a la lista?");
-          if (description && description.trim() !== "") {
+      async function addShoppingItemFromForm() {
+          const descriptionInput = document.getElementById('new-item-description');
+          const description = descriptionInput.value.trim();
+          if (description) {
               showSpinner();
               try {
-                  const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'add_articulo', description: description.trim() }) });
+                  const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'add_articulo', description }) });
                   const data = await res.json();
                   if (data.error) throw new Error(data.error);
                   lastCount.shoppingPending++;
                   showToast('Artículo añadido.');
                   renderShoppingList(data);
-              } catch (err) {
-                  showToast(`Error: ${err.message}`, true);
-              } finally {
-                  hideSpinner();
-              }
+              } catch (err) { showToast(`Error: ${err.message}`, true);
+              } finally { hideSpinner(); }
           }
       }
-      
+      async function handleToggleItemStatus(event) {
+          const button = event.currentTarget;
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_item_status', tracking_code: button.dataset.trackingCode, new_status: button.dataset.newStatus }) });
+              const data = await res.json(); if (data.error) throw new Error(data.error);
+              if (button.dataset.newStatus === 'Comprado') { lastCount.shoppingPending--; lastCount.shoppingBought++; } else { lastCount.shoppingPending++; lastCount.shoppingBought--; }
+              renderShoppingList(data);
+          } catch(err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
+      }
+      function handleShoppingItemMenu(event) {
+          const action = event.currentTarget.dataset.action;
+          const trackingCode = event.currentTarget.dataset.trackingCode;
+          if (action === 'delete') {
+              tg.showConfirm('¿Seguro que quieres eliminar este artículo?', (ok) => { if (ok) executeDeleteShoppingItem(trackingCode); });
+          } else if (action === 'edit') {
+              const itemLi = document.getElementById(`item-${trackingCode}`);
+              const currentDescription = event.currentTarget.dataset.description;
+              itemLi.innerHTML = shoppingItemHTML({'1': currentDescription, '3': trackingCode}, true);
+              itemLi.querySelector('[data-action="cancel-edit"]').onclick = () => renderShoppingList();
+              itemLi.querySelector('[data-action="save-edit"]').onclick = () => {
+                  const newDescription = document.getElementById(`edit-desc-${trackingCode}`).value;
+                  if (newDescription && newDescription.trim() !== '' && newDescription !== currentDescription) {
+                      executeEditShoppingItem(trackingCode, newDescription);
+                  } else { renderShoppingList(); }
+              };
+          }
+      }
+      async function executeDeleteShoppingItem(trackingCode) {
+          showSpinner();
+          try {
+              const itemElement = document.getElementById(`item-${trackingCode}`);
+              const status = itemElement.dataset.status;
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_item_shopping_list', tracking_code: trackingCode }) });
+              const data = await res.json(); if (data.error) throw new Error(data.error);
+              if(status === 'Pendiente') { lastCount.shoppingPending--; } else { lastCount.shoppingBought--; }
+              showToast('Artículo eliminado.');
+              renderShoppingList(data);
+          } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
+      }
+      async function executeEditShoppingItem(trackingCode, newDescription) {
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'edit_item_description', tracking_code: trackingCode, new_description: newDescription }) });
+              const data = await res.json(); if (data.error) throw new Error(data.error);
+              showToast('Artículo actualizado.');
+              renderShoppingList(data);
+          } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
+      }
       function updateMultiSelectButton() {
           const checkedBoxes = document.querySelectorAll('.shopping-item-checkbox:checked');
           const moveToPendingBtn = document.getElementById('move-to-pending-btn');
-          const hasCheckedBoughtItems = Array.from(checkedBoxes).some(chk => {
-             const itemEl = chk.closest('.shopping-item');
-             return itemEl && itemEl.dataset.status === 'Comprado';
-          });
-          
+          const hasCheckedBoughtItems = Array.from(checkedBoxes).some(chk => chk.closest('.shopping-item')?.dataset.status === 'Comprado');
           moveToPendingBtn.disabled = !hasCheckedBoughtItems;
           moveToPendingBtn.classList.toggle('enabled', hasCheckedBoughtItems);
       }
-      
       async function handleMoveMultipleToPending() {
-          const checkedBoughtItems = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked'))
-              .map(chk => chk.closest('.shopping-item'))
-              .filter(item => item && item.dataset.status === 'Comprado')
-              .map(item => item.querySelector('.shopping-item-toggle-btn').dataset.trackingCode);
-          
+          const checkedBoughtItems = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(chk => chk.closest('.shopping-item')).filter(item => item?.dataset.status === 'Comprado').map(item => item.querySelector('.shopping-item-toggle-btn').dataset.trackingCode);
           if (checkedBoughtItems.length === 0) return;
-
           showSpinner();
           try {
               const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'toggle_multiple_to_pending', tracking_codes: checkedBoughtItems }) });
-              const data = await res.json();
-              if (data.error) throw new Error(data.error);
-              
+              const data = await res.json(); if (data.error) throw new Error(data.error);
               lastCount.shoppingPending += checkedBoughtItems.length;
               lastCount.shoppingBought -= checkedBoughtItems.length;
-
               showToast(`${checkedBoughtItems.length} artículo(s) movido(s) a pendientes.`);
               renderShoppingList(data);
-          } catch (err) {
-              showToast(`Error: ${err.message}`, true);
-          } finally {
-              hideSpinner();
-          }
+          } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
       
       // ======================================================================
-      // --- SECCIÓN DE NOTAS ---
+      // --- SECCIÓN DE NOTAS --- (ACTUALIZADA CON tg.showConfirm)
       // ======================================================================
       function renderNoteForm(note = null) {
         const isEditing = note !== null;
@@ -594,32 +531,18 @@
         saveBtn.onclick = async () => { if (saveBtn.classList.contains('enabled')) await saveNote(isEditing); };
         validateNoteForm();
       }
-
       async function saveNote(isEditing) {
         showSpinner();
-        const noteId = document.getElementById('note-id').value;
-        const title = document.getElementById('note-title').value;
-        const description = document.getElementById('note-description').value;
-        const requestBody = {
-          chat_ID: chatId,
-          Type: isEditing ? 'edit_note' : 'add_note',
-          title: title,
-          description: description,
-          note_id: noteId
-        };
+        const requestBody = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', title: document.getElementById('note-title').value, description: document.getElementById('note-description').value, note_id: document.getElementById('note-id').value };
         try {
           const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(requestBody) });
           if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
+          const data = await res.json(); if (data.error) throw new Error(data.error);
           if (!isEditing) lastCount.notes++;
           showToast(`Nota ${isEditing ? 'actualizada' : 'creada'} con éxito.`);
           renderNotesList(data);
-        } catch (err) {
-          showToast(`Error: ${err.message}`, true);
-        } finally { hideSpinner(); }
+        } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
-
       async function renderNotesList(notesData = null) {
         showSpinner();
         try {
@@ -627,8 +550,7 @@
           if (!notes) {
             const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_notes_list' }) });
             if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
-            notes = await res.json();
-            if (notes.error) throw new Error(notes.error);
+            notes = await res.json(); if (notes.error) throw new Error(notes.error);
           }
           mainContent.innerHTML = `
           <div class="list-container">
@@ -637,28 +559,21 @@
           </div>`;
           document.getElementById('back-to-dash-notes').onclick = initializeAppContent;
           const listUl = document.getElementById('notes-ul');
-          if (notes.length === 0) {
-            listUl.innerHTML = '<li class="no-notes">No tienes notas.</li>';
-          } else {
+          if (notes.length === 0) { listUl.innerHTML = '<li class="no-notes">No tienes notas.</li>'; }
+          else {
             listUl.innerHTML = notes.map(n => `
               <li class="note-item" id="note-item-${n.Nota_ID}">
                 <div class="note-header">
-                  <div class="note-header-interactive" data-note-id="${n.Nota_ID}">
-                    <div class="note-title-section"><span class="note-title">${n.Titulo}</span><span class="note-date">${n.Fecha}</span></div>
-                    <span class="expand-arrow">▼</span>
-                  </div>
+                  <div class="note-header-interactive"><div class="note-title-section"><span class="note-title">${n.Titulo}</span><span class="note-date">${n.Fecha}</span></div><span class="expand-arrow">▼</span></div>
                   <button class="note-menu-btn" data-note-id="${n.Nota_ID}">⋮</button>
                   <div class="note-dropdown-menu" id="menu-note-${n.Nota_ID}">
-                      <a class="dropdown-item" data-action="edit">Editar</a>
-                      <a class="dropdown-item" data-action="delete">Eliminar</a>
+                      <a class="dropdown-item" data-action="edit">Editar</a><a class="dropdown-item" data-action="delete">Eliminar</a>
                   </div>
                 </div>
                 <div class="note-description">${n.Descripcion.replace(/\\n/g, '\n')}</div>
               </li>`).join('');
           }
-          listUl.querySelectorAll('.note-header-interactive').forEach(header => {
-              header.onclick = (e) => e.currentTarget.closest('.note-item').classList.toggle('open');
-          });
+          listUl.querySelectorAll('.note-header-interactive').forEach(header => header.onclick = (e) => e.currentTarget.closest('.note-item').classList.toggle('open'));
           listUl.querySelectorAll('.note-dropdown-menu .dropdown-item').forEach(item => {
               item.onclick = (e) => {
                   e.stopPropagation();
@@ -667,45 +582,34 @@
                   const note = notes.find(n => n.Nota_ID === noteId);
                   if (action === 'edit') renderNoteForm(note);
                   else if (action === 'delete') {
-                      if(confirm('¿Seguro que quieres eliminar esta nota?')) executeDeleteNote(noteId);
+                      tg.showConfirm('¿Seguro que quieres eliminar esta nota?', (ok) => { if(ok) executeDeleteNote(noteId); });
                   }
               };
           });
-        } catch(err) {
-          showToast(`Error: ${err.message}`, true);
-        } finally { hideSpinner(); }
+        } catch(err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
-      
       async function executeDeleteNote(noteId) {
         showSpinner();
         try {
           const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_note', note_id: noteId }) });
           if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
+          const data = await res.json(); if (data.error) throw new Error(data.error);
           lastCount.notes--;
           showToast('Nota eliminada.');
           renderNotesList(data);
-        } catch (err) {
-          showToast(`Error: ${err.message}`, true);
-        } finally { hideSpinner(); }
+        } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
       
       // ======================================================================
-      // --- SECCIÓN DE CALENDARIO ---
+      // --- SECCIÓN DE CALENDARIO --- (ACTUALIZADA CON tg.showConfirm)
       // ======================================================================
       async function renderAgendaView() {
         showSpinner();
         try {
-          const startDate = new Date();
-          const endDate = new Date();
-          endDate.setDate(startDate.getDate() + 30); // Cargar eventos para los próximos 30 días
-          
+          const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
           const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_calendar_events', startDate: startDate.toISOString(), endDate: endDate.toISOString() }) });
           if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-          
+          const data = await res.json(); if (data.error) throw new Error(data.error);
           mainContent.innerHTML = `
           <div class="list-container">
               <div class="list-header"><button class="back-btn" id="back-to-dash-agenda">‹</button><h2>Agenda</h2></div>
@@ -713,20 +617,11 @@
           </div>`;
           document.getElementById('back-to-dash-agenda').onclick = initializeAppContent;
           const agendaContainer = document.getElementById('agenda-ul');
-          
-          if (data.length === 0) {
-              agendaContainer.innerHTML = '<div class="no-events">No hay eventos en los próximos 30 días.</div>';
-              return;
-          }
-
+          if (data.length === 0) { agendaContainer.innerHTML = '<div class="no-events">No hay eventos en los próximos 30 días.</div>'; return; }
           const eventsByDay = data.reduce((acc, event) => {
-              const eventDate = new Date(event.start);
-              const day = eventDate.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-              if (!acc[day]) acc[day] = [];
-              acc[day].push(event);
-              return acc;
+              const day = new Date(event.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+              if (!acc[day]) acc[day] = []; acc[day].push(event); return acc;
           }, {});
-
           let agendaHtml = '';
           for (const day in eventsByDay) {
               agendaHtml += `<h3 class="day-header">${day}</h3>`;
@@ -735,17 +630,11 @@
                   const endTime = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                   agendaHtml += `
                   <div class="event-item" id="event-item-${event.id}">
-                      <div class="event-details" data-event-id="${event.id}">
-                          <div class="event-time">${startTime} - ${endTime}</div>
-                          <div class="event-summary">${event.summary}</div>
-                          <div class="event-description" style="display: none;">${event.description || ''}</div>
-                      </div>
+                      <div class="event-details" data-event-id="${event.id}"><div class="event-time">${startTime} - ${endTime}</div><div class="event-summary">${event.summary}</div><div class="event-description" style="display: none;">${event.description || ''}</div></div>
                       <div style="position: relative;">
                           <button class="event-menu-btn" data-event-id="${event.id}">⋮</button>
                           <div class="event-dropdown-menu" id="menu-event-${event.id}">
-                              <a class="dropdown-item" data-action="edit">Editar</a>
-                              <a class="dropdown-item" data-action="delete">Eliminar</a>
-                              <a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a>
+                              <a class="dropdown-item" data-action="edit">Editar</a><a class="dropdown-item" data-action="delete">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a>
                           </div>
                       </div>
                   </div>`;
@@ -753,24 +642,13 @@
           }
           agendaContainer.innerHTML = agendaHtml;
           agendaContainer.addEventListener('click', (e) => handleCalendarInteractions(e, data));
-
-        } catch (err) {
-          showToast(`Error al cargar la agenda: ${err.message}`, true);
-        } finally {
-          hideSpinner();
-        }
+        } catch (err) { showToast(`Error al cargar la agenda: ${err.message}`, true); } finally { hideSpinner(); }
       }
-
       function renderEventForm(event = null, date = null) {
           const isEditing = event !== null;
           const start = isEditing ? new Date(event.start) : (date ? new Date(date) : new Date());
           const end = isEditing ? new Date(event.end) : new Date(start.getTime() + 60 * 60 * 1000);
-
-          const toLocalISOString = (d) => {
-              const z = n => ('0' + n).slice(-2);
-              return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
-          };
-        
+          const toLocalISOString = (d) => { const z = n => ('0' + n).slice(-2); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
           mainContent.innerHTML = `
           <div class="form-container">
               <div class="list-header"><button class="back-btn" id="back-to-agenda">‹</button><h2>${isEditing ? 'Editar' : 'Nuevo'} Evento</h2></div>
@@ -792,72 +670,41 @@
           saveBtn.onclick = () => { if (saveBtn.classList.contains('enabled')) saveCalendarEvent(isEditing); };
           validateEventForm();
       }
-
       function handleCalendarInteractions(e, events) {
-          const details = e.target.closest('.event-details');
-          if (details) {
-              const desc = details.querySelector('.event-description');
-              if (desc) desc.style.display = desc.style.display === 'none' ? 'block' : 'none';
-          }
-          const menuItem = e.target.closest('.dropdown-item');
-          if(menuItem) {
+          if (e.target.closest('.event-details')) { const desc = e.target.closest('.event-details').querySelector('.event-description'); if (desc) desc.style.display = desc.style.display === 'none' ? 'block' : 'none'; }
+          if (e.target.closest('.dropdown-item')) {
               e.stopPropagation();
+              const menuItem = e.target.closest('.dropdown-item');
               const action = menuItem.dataset.action;
               const eventId = menuItem.closest('.event-dropdown-menu').id.replace('menu-event-', '');
               const eventData = events.find(ev => ev.id === eventId);
-              
               if (action === 'edit') renderEventForm(eventData);
               else if (action === 'delete') {
-                  if (confirm(`¿Seguro que quieres eliminar el evento "${eventData.summary}"?`)) {
-                      executeDeleteCalendarEvent(eventId);
-                  }
+                  tg.showConfirm(`¿Seguro que quieres eliminar el evento "${eventData.summary}"?`, (ok) => { if (ok) executeDeleteCalendarEvent(eventId); });
               }
               document.querySelectorAll('.event-dropdown-menu').forEach(m => m.classList.remove('show'));
           }
       }
-
       async function saveCalendarEvent(isEditing) {
         showSpinner();
         const eventId = document.getElementById('event-id').value;
-        const eventData = {
-          summary: document.getElementById('event-summary').value,
-          start: document.getElementById('event-start').value,
-          end: document.getElementById('event-end').value,
-          description: document.getElementById('event-description').value,
-          location: document.getElementById('event-location').value,
-        };
-        const requestBody = {
-          chat_ID: chatId,
-          Type: isEditing ? 'edit_calendar_event' : 'add_calendar_event',
-          eventId: eventId,
-          eventData: eventData
-        };
+        const eventData = { summary: document.getElementById('event-summary').value, start: document.getElementById('event-start').value, end: document.getElementById('event-end').value, description: document.getElementById('event-description').value, location: document.getElementById('event-location').value };
+        const requestBody = { chat_ID: chatId, Type: isEditing ? 'edit_calendar_event' : 'add_calendar_event', eventId, eventData };
         try {
           const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(requestBody) });
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
+          const data = await res.json(); if (data.error) throw new Error(data.error);
           showToast(`Evento ${isEditing ? 'actualizado' : 'creado'} con éxito.`);
-          initializeAppContent(); // Volver al dashboard y recargar contadores
-        } catch (err) {
-          showToast(`Error: ${err.message}`, true);
-        } finally {
-          hideSpinner();
-        }
+          initializeAppContent();
+        } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
-
       async function executeDeleteCalendarEvent(eventId) {
         showSpinner();
         try {
           const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_calendar_event', eventId: eventId }) });
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
+          const data = await res.json(); if (data.error) throw new Error(data.error);
           showToast('Evento eliminado con éxito.');
-          initializeAppContent(); // Volver al dashboard y recargar contadores
-        } catch (err) {
-          showToast(`Error: ${err.message}`, true);
-        } finally {
-          hideSpinner();
-        }
+          initializeAppContent();
+        } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
       }
 
       document.getElementById('tab-home').onclick = initializeAppContent;
