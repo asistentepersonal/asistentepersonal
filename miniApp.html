@@ -90,8 +90,9 @@
     .shopping-list-section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px 10px; padding-top: 10px; border-top: 1px solid var(--muted); text-align: left; }
     .shopping-list-section-title:first-of-type { border-top: none; margin-top: 0; }
     .note-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; }
-    .note-header { display: flex; align-items: center; justify-content: space-between; padding: 15px; cursor: pointer; }
-    .note-title-section { display: flex; flex-direction: column; text-align: left; flex-grow: 1; padding-right: 10px; }
+    .note-header { display: flex; align-items: center; justify-content: space-between; padding: 15px; }
+    .note-header-interactive { flex-grow: 1; padding-right: 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+    .note-title-section { display: flex; flex-direction: column; text-align: left; }
     .note-title { font-size: 1.1rem; font-weight: 500; }
     .note-date { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
     .note-menu-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; z-index: 5; flex-shrink: 0; }
@@ -99,6 +100,8 @@
     .note-item.open .note-description { max-height: 500px; padding: 0 15px 15px; }
     .note-dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
     .note-dropdown-menu.show { display: block; }
+    .expand-arrow { font-size: 1.5rem; color: var(--muted); transition: transform 0.3s ease; }
+    .note-item.open .expand-arrow { transform: rotate(180deg); }
   </style>
 </head>
 <body>
@@ -216,6 +219,7 @@
       // ======================================================================
       // --- BLOQUE DE CÓDIGO PARA NUEVAS FUNCIONALIDADES ---
       // ======================================================================
+
       // --- SECCIÓN DE NOTAS ---
       async function renderNotesList() {
         showSpinner();
@@ -228,9 +232,12 @@
           let listHtml = (notes.length > 0) ? notes.map(note => `
             <li class="note-item" id="note-${note.Nota_ID}">
               <div class="note-header">
-                <div class="note-title-section" data-note-id="${note.Nota_ID}">
-                  <span class="note-title">${note.Titulo}</span>
-                  <span class="note-date">${note.Fecha}</span>
+                <div class="note-header-interactive">
+                  <div class="note-title-section">
+                    <span class="note-title">${note.Titulo}</span>
+                    <span class="note-date">${note.Fecha}</span>
+                  </div>
+                  <span class="expand-arrow">▾</span>
                 </div>
                 <div style="position:relative">
                   <button class="note-menu-btn" data-note-id="${note.Nota_ID}">⋮</button>
@@ -245,10 +252,7 @@
           
           mainContent.innerHTML = `
             <div class="list-container">
-              <div class="list-header">
-                  <button class="back-btn" id="back-to-dashboard">‹</button>
-                  <h2>Mis Notas</h2>
-              </div>
+              <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Mis Notas</h2></div>
               <ul class="notes-list" id="notes-list-ul">${listHtml}</ul>
             </div>`;
           document.getElementById('back-to-dashboard').onclick = initializeAppContent;
@@ -259,8 +263,9 @@
           hideSpinner();
         }
       }
+
       function handleNoteInteractions(event) {
-        const titleSection = event.target.closest('.note-title-section');
+        const interactiveHeader = event.target.closest('.note-header-interactive');
         const actionItem = event.target.closest('.dropdown-item');
 
         if (actionItem) {
@@ -275,10 +280,11 @@
           } else if (action === 'delete-note') {
             executeDeleteNote(noteId);
           }
-        } else if (titleSection) {
-          titleSection.closest('.note-item').classList.toggle('open');
+        } else if (interactiveHeader) {
+          interactiveHeader.closest('.note-item').classList.toggle('open');
         }
       }
+      
       function renderNoteForm(note = null) {
         const isEditing = note !== null;
         mainContent.innerHTML = `
@@ -309,8 +315,9 @@
         titleInput.addEventListener('input', validateNoteForm);
         descriptionInput.addEventListener('input', validateNoteForm);
         saveBtn.onclick = saveNote;
-        validateNoteForm(); // Validar al cargar por si es una edición
+        validateNoteForm();
       }
+      
       async function saveNote() {
         const btn = document.getElementById('save-note-btn');
         const noteId = btn.dataset.noteId;
@@ -322,9 +329,12 @@
         titleInput.classList.remove('input-error');
         descriptionInput.classList.remove('input-error');
         
-        if (titleInput.value.trim() === '' || descriptionInput.value.trim() === '') {
-          if (titleInput.value.trim() === '') titleInput.classList.add('input-error');
-          if (descriptionInput.value.trim() === '') descriptionInput.classList.add('input-error');
+        const isTitleValid = titleInput.value.trim() !== '';
+        const isDescriptionValid = descriptionInput.value.trim() !== '';
+
+        if (!isTitleValid || !isDescriptionValid) {
+          if (!isTitleValid) titleInput.classList.add('input-error');
+          if (!isDescriptionValid) descriptionInput.classList.add('input-error');
           showToast('Por favor, rellena todos los campos.', true);
           return;
         }
@@ -340,6 +350,7 @@
           setTimeout(renderNotesList, 500);
         } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
       }
+      
       async function executeDeleteNote(noteId) {
         if (!confirm('¿Estás seguro de que quieres eliminar esta nota?')) return;
         showSpinner();
@@ -351,7 +362,9 @@
           showToast('Nota eliminada');
           const itemToRemove = document.getElementById(`note-${noteId}`);
           if(itemToRemove) itemToRemove.remove();
-          if (document.querySelectorAll('.note-item').length === 0) { document.getElementById('notes-list-ul').innerHTML = '<div class="no-notes">📝<br>No tienes notas guardadas.</div>'; }
+          if (document.querySelectorAll('.note-item').length === 0) {
+            document.getElementById('notes-list-ul').innerHTML = '<div class="no-notes">📝<br>No tienes notas guardadas.</div>';
+          }
           initializeAppContent();
         } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
       }
@@ -362,7 +375,6 @@
         document.getElementById('back-to-dashboard').onclick = initializeAppContent;
         const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]');
         function validateReminderForm() { 
-          textInput.classList.remove('input-error'); timeInput.classList.remove('input-error');
           const isTextValid = textInput.value.trim() !== ''; 
           const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date(); 
           const isRadioSelected = document.querySelector('input[name="category"]:checked') !== null;
@@ -375,10 +387,12 @@
       }
       async function sendReminder() {
         const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), radioSelected = document.querySelector('input[name="category"]:checked');
+        textInput.classList.remove('input-error'); timeInput.classList.remove('input-error');
         if (textInput.value.trim() === '' || !timeInput.value || !radioSelected) {
           if (textInput.value.trim() === '') textInput.classList.add('input-error');
           if (!timeInput.value) timeInput.classList.add('input-error');
-          showToast('Por favor, rellena todos los campos.', true);
+          if (!radioSelected) showToast('Debes seleccionar un tipo de recordatorio.', true);
+          else showToast('Por favor, rellena todos los campos.', true);
           return;
         }
         const sendBtn = document.getElementById('sendBtn'); sendBtn.disabled = true; sendBtn.classList.remove('enabled');
