@@ -174,20 +174,24 @@
               <div class="card-badge red" style="left:12px;">${lastCount.reminders ?? '...'}</div>
               <button class="card-menu-btn" data-menu-for="recordatorios">⋮</button>
               <div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div>
-              <div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir recordatorio</a><a class="dropdown-item" id="list-reminders-link">Ver lista de activos</a></div>
+              <div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div>
             </div>
             <div class="card" id="card-shopping-list-wrapper">
               <div class="card-badge-group"><div class="card-badge green">${lastCount.shoppingPending ?? '...'}</div><div class="card-badge red">${lastCount.shoppingBought ?? '...'}</div></div>
               <div class="card-icon">🛒</div><div class="card-title">Lista de Compras</div>
               <button class="card-menu-btn" data-menu-for="shopping-list">⋮</button>
-              <div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="view-shopping-list-link">Ver lista</a><a class="dropdown-item" id="add-shopping-item-link">Añadir artículo</a></div>
+              <div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div>
             </div>
             <div class="card" id="card-notes-wrapper">
               <div class="card-badge red" style="left:12px;">${lastCount.notes ?? '...'}</div>
               <button class="card-menu-btn" data-menu-for="notes">⋮</button>
               <div class="card-icon">📝</div><div class="card-title">Notas</div>
-              <div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir nota</a><a class="dropdown-item" id="list-notes-link">Ver lista de notas</a></div>
+              <div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div>
             </div>
+            <!-- INICIO: FUTURA CARD DE CALENDARIO -->
+            <!-- FIN: FUTURA CARD DE CALENDARIO -->
+            <!-- INICIO: FUTURA CARD DE TIEMPO -->
+            <!-- FIN: FUTURA CARD DE TIEMPO -->
           </div>`;
         document.getElementById('add-reminder-link').onclick = renderReminderForm;
         document.getElementById('list-reminders-link').onclick = renderRemindersList;
@@ -209,7 +213,7 @@
       });
 
       // ======================================================================
-      // --- INICIO: CÓDIGO A AÑADIR PARA FUTURAS FUNCIONALIDADES ---
+      // --- BLOQUE DE CÓDIGO PARA NUEVAS FUNCIONALIDADES ---
       // ======================================================================
 
       // --- SECCIÓN DE NOTAS ---
@@ -342,22 +346,9 @@
         }
       }
 
-      // --- SECCIÓN DE RECORDATORIOS ---
+      // --- CÓDIGO EXISTENTE Y FUNCIONAL (RECORDATORIOS Y LISTA DE LA COMPRA) ---
       function renderReminderForm() { 
-        mainContent.innerHTML = `
-          <div class="list-container">
-            <div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
-            <div class="form-card">
-              <label>Descripción</label><textarea id="text" rows="3" required></textarea>
-              <label>Fecha y hora</label><input type="datetime-local" id="time" required/>
-              <label>Tipo</label>
-              <div class="radio-group">
-                <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
-                <label><input type="radio" name="category" value="Diario"/> Diario</label>
-              </div>
-              <button id="sendBtn" disabled>Crear Recordatorio</button>
-            </div>
-          </div>`;
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>📝 Nuevo Recordatorio</h2></div><div class="form-card"><label>Descripción</label><textarea id="text" rows="3" required></textarea><label>Fecha y hora</label><input type="datetime-local" id="time" required/><label>Tipo</label><div class="radio-group"><label><input type="radio" name="category" value="Un solo uso" checked/> Único</label><label><input type="radio" name="category" value="Diario"/> Diario</label></div><button id="sendBtn" disabled>Crear Recordatorio</button></div></div>`;
         document.getElementById('back-to-dashboard').onclick = initializeAppContent;
         const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn');
         function validateForm() { const isTextValid = textInput.value.trim() !== ''; const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date(); sendBtn.disabled = !(isTextValid && isTimeValid); sendBtn.classList.toggle('enabled', !sendBtn.disabled); }
@@ -374,10 +365,7 @@
           if (data.error) throw new Error(data.error);
           showToast('Recordatorio guardado');
           setTimeout(initializeAppContent, 500);
-        } catch (err) {
-          showToast(err.message || 'Error al enviar', true);
-          sendBtn.disabled = false; sendBtn.classList.add('enabled');
-        } finally { hideSpinner(); }
+        } catch (err) { showToast(err.message || 'Error al enviar', true); sendBtn.disabled = false; sendBtn.classList.add('enabled'); } finally { hideSpinner(); }
       }
       async function renderRemindersList() {
           showSpinner();
@@ -390,10 +378,7 @@
               mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Recordatorios Activos</h2></div><ul class="reminder-list" id="reminders-list-ul">${listHtml}</ul></div>`;
               document.getElementById('back-to-dashboard').onclick = initializeAppContent;
               document.getElementById('reminders-list-ul').addEventListener('click', handleReminderActionClick);
-          } catch (err) {
-              mainContent.innerHTML = `<div class="no-reminders">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`;
-              showToast(`Error al cargar la lista: ${err.message}`, true);
-          } finally { hideSpinner(); }
+          } catch (err) { mainContent.innerHTML = `<div class="no-reminders">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`; showToast(`Error al cargar la lista: ${err.message}`, true); } finally { hideSpinner(); }
       }
       function handleReminderActionClick(event) {
           const deleteButton = event.target.closest('.reminder-delete-btn');
@@ -416,12 +401,9 @@
               const itemToRemove = document.getElementById(`reminder-${trackingCode}`);
               if (itemToRemove) itemToRemove.remove();
               if (document.querySelectorAll('.reminder-item').length === 0) { document.getElementById('reminders-list-ul').innerHTML = '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>'; }
-              initializeAppContent();
-              showToast('Recordatorio eliminado');
+              initializeAppContent(); showToast('Recordatorio eliminado');
           } catch (err) { showToast(err.message || 'Error al eliminar', true); } finally { hideSpinner(); }
       }
-      
-      // --- SECCIÓN DE LISTA DE LA COMPRA ---
       function renderShoppingListItems(items) {
           const pendingItems = items.filter(item => item['2'] === 'Pendiente');
           const boughtItems = items.filter(item => item['2'] === 'Comprado');
@@ -531,10 +513,6 @@
           const activeTab = document.getElementById(activeTabId);
           if (activeTab) activeTab.classList.add('active');
       }
-      
-      // ======================================================================
-      // --- FIN: CÓDIGO A AÑADIR PARA FUTURAS FUNCIONALIDADES ---
-      // ======================================================================
 
       document.getElementById('tab-home').onclick = initializeAppContent;
       initializeAppContent();
