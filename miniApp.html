@@ -341,28 +341,48 @@
 
 async function saveEvent() {
     const btn = document.getElementById('save-event-btn');
+    if (btn.disabled) return; // Evitar doble clic
+
+    btn.disabled = true;
+    btn.classList.remove('enabled');
+
     const eventId = btn.dataset.eventId;
     const isEditing = !!eventId;
     
-    // Obtenemos los valores del formulario
-    const eventData = {
-        summary: document.getElementById('event-summary').value.trim(),
-        start: document.getElementById('event-start').value,
-        end: document.getElementById('event-end').value,
-        description: document.getElementById('event-description').value.trim(),
-        location: document.getElementById('event-location').value.trim()
-    };
-
-    // Creamos el payload para enviar al script
-    const payload = { 
-        chat_ID: chatId, 
-        Type: isEditing ? 'edit_calendar_event' : 'add_calendar_event', 
-        eventId: eventId, 
-        eventData: eventData 
-    };
-
-    showSpinner();
     try {
+        // Obtenemos los valores del formulario
+        const summary = document.getElementById('event-summary').value.trim();
+        const description = document.getElementById('event-description').value.trim();
+        const location = document.getElementById('event-location').value.trim();
+
+        // --- INICIO DE LA CORRECCIÓN CLAVE ---
+        // Leemos las fechas del formulario y las convertimos a objetos Date
+        const startDate = new Date(document.getElementById('event-start').value);
+        const endDate = new Date(document.getElementById('event-end').value);
+        
+        // Convertimos los objetos Date a formato ISO 8601 (el formato universal)
+        // Esto es lo que garantiza que Apps Script siempre lo entenderá.
+        const startISO = startDate.toISOString();
+        const endISO = endDate.toISOString();
+        // --- FIN DE LA CORRECCIÓN CLAVE ---
+
+        const eventData = {
+            summary: summary,
+            start: startISO, // Enviamos el formato ISO
+            end: endISO,     // Enviamos el formato ISO
+            description: description,
+            location: location
+        };
+
+        const payload = { 
+            chat_ID: chatId, 
+            Type: isEditing ? 'edit_calendar_event' : 'add_calendar_event', 
+            eventId: eventId, 
+            eventData: eventData 
+        };
+
+        showSpinner();
+
         const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) });
         if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
         
@@ -371,15 +391,18 @@ async function saveEvent() {
 
         showToast(`Evento ${isEditing ? 'actualizado' : 'creado'}`);
         
-        // ¡LÍNEA CLAVE! Forzamos la recarga del dashboard para actualizar el badge
         initializeAppContent(); 
     
     } catch (err) { 
         showToast(err.message, true); 
+        // Habilitamos el botón de nuevo si hay un error
+        btn.disabled = false;
+        btn.classList.add('enabled');
     } finally { 
-        hideSpinner(); 
+        hideSpinner();
     }
 }
+
       async function executeDeleteEvent(eventId) {
           if (!confirm('¿Estás seguro de que quieres eliminar este evento?')) return;
           showSpinner();
