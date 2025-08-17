@@ -181,7 +181,7 @@
               <div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div>
             </div>
             <div class="card" id="card-gastos-wrapper">
-              <div class="card-badge red" style="left:12px;">${lastCount.gastosMesActual.split(',')[0] ?? '0'}</div>
+              <div class="card-badge red" style="left:12px;">${(lastCount.gastosMesActual || '0,00').split(',')[0]}</div>
               <button class="card-menu-btn" data-menu-for="gastos">⋮</button>
               <div class="card-icon">💰</div><div class="card-title">Gastos</div>
               <div class="dropdown-menu" id="menu-gastos">
