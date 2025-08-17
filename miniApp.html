@@ -19,10 +19,10 @@
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
-    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items-center;justify-content:center;font-size:.9rem;}
+    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
     .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
-    .card-badge.green{background-color:#28a745;left:12px;}
-    .card-badge.red{background-color:#e74c3c;right:12px;}
+    .card-badge.green{background-color:#28a745;}
+    .card-badge.red{background-color:#e74c3c;}
     .card-badge-group .card-badge{position:static;}
     .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
     .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
@@ -76,10 +76,10 @@
     .gasto-chart-container { text-align: center; }
     .gasto-chart-container img { max-width: 100%; border-radius: 12px; margin-top: 15px; }
     .shopping-item { display: flex; align-items: center; gap: 10px; padding: 10px 15px;}
-    .shopping-item-toggle-btn { flex-grow: 1; text-align: left; background: none; border: none; font-size: 1rem; padding: 10px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
-    .shopping-item-toggle-btn.pending { color: var(--text); }
-    .shopping-item-toggle-btn.bought { color: var(--muted); text-decoration: line-through; }
-    .item-date { font-size: 0.8rem; color: var(--muted); }
+    .shopping-item-toggle-btn { flex-grow: 1; text-align: left; border: none; font-size: 1rem; padding: 10px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; color: var(--list-item-text); font-weight: 500; }
+    .shopping-item-toggle-btn.pending { background-color: var(--pending-bg); }
+    .shopping-item-toggle-btn.bought { background-color: var(--bought-bg); text-decoration: line-through; opacity: 0.85; }
+    .item-date { font-size: 0.8rem; opacity: 0.9; }
     .shopping-list-header-row { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 0 10px 10px; font-size: 0.9rem; }
     .shopping-list-section-title { font-size: 1rem; color: var(--muted); margin: 20px 10px 10px; }
     .add-article-btn-container { padding: 10px; display: flex; gap: 10px; }
@@ -169,7 +169,7 @@
               <div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div>
             </div>
             <div class="card">
-              <div class="card-badge red" style="left:12px;">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}€</div>
+              <div class="card-badge red" style="left:12px;">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}</div>
               <button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button>
               <div class="card-icon">💰</div><div class="card-title">Gastos</div>
               <div class="dropdown-menu" id="menu-gastos">
@@ -198,7 +198,6 @@
       document.body.addEventListener('click', (e) => {
         const menuBtn = e.target.closest('[data-menu-id]');
         
-        // Si no se hace clic en un botón de menú ni dentro de un menú, se cierran todos.
         if (!menuBtn && !e.target.closest('.dropdown-menu')) {
           document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
           return;
@@ -210,11 +209,9 @@
           const menu = document.getElementById(menuId);
           if (menu) {
             const isShown = menu.classList.contains('show');
-            // Primero, cierra todos los demás menús.
             document.querySelectorAll('.dropdown-menu.show').forEach(m => {
               if (m.id !== menuId) m.classList.remove('show');
             });
-            // Luego, abre o cierra el menú actual.
             menu.classList.toggle('show', !isShown);
           }
         }
@@ -229,7 +226,7 @@
       async function executeDeleteReminder(trackingCode) { showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_reminder', tracking_code: trackingCode }) }); if (!res.ok) throw new Error(`Error al eliminar: ${res.status}`); await res.json(); showToast('Recordatorio eliminado'); initializeAppContent(); } catch (err) { showToast(err.message || 'Error al eliminar', true); } finally { hideSpinner(); } }
       
       // ====================================================================
-      // --- LÓGICA DE LISTA DE COMPRAS (CORREGIDA) ---
+      // --- LÓGICA DE LISTA DE COMPRAS (CON ESTILOS CORREGIDOS) ---
       // ====================================================================
       function renderShoppingListItems(items) {
         const pendingItems = items.filter(item => item['2'] === 'Pendiente');
@@ -318,7 +315,7 @@
       async function executeDeleteEvent(eventId) { if (!confirm('¿Estás seguro de que quieres eliminar este evento?')) return; showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_calendar_event', eventId: eventId }) }); if (!res.ok) throw new Error(`Error: ${res.status}`); await res.json(); showToast('Evento eliminado'); initializeAppContent(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); } }
       
       // ======================================================================
-      // --- SECCIÓN COMPLETA DE GASTOS (SIN CAMBIOS, YA FUNCIONABA) ---
+      // --- SECCIÓN COMPLETA DE GASTOS ---
       // ======================================================================
       function renderGastoForm(gasto = null) { const isEditing = gasto !== null; mainContent.innerHTML = ` <div class="list-container"> <div class="list-header"><button class="back-btn" id="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Gasto' : '💰 Nuevo Gasto'}</h2></div> <div class="form-card"> <label>Fecha</label><input type="text" id="gasto-fecha" readonly="readonly"> <label>Establecimiento</label><input type="text" id="gasto-establecimiento" value="${isEditing ? (gasto.Establecimiento || '') : ''}" required /> <label>Importe</label><input type="number" id="gasto-importe" step="0.01" value="${isEditing ? (gasto.Importe || '') : ''}" placeholder="Ej: 12.50" required /> <label>Categoría</label><input type="text" id="gasto-categoria" value="${isEditing ? (gasto.categoria || '') : ''}" required /> <label>Sub-categoría (opcional)</label><input type="text" id="gasto-subcategoria" value="${isEditing ? (gasto.sub_categoria || '') : ''}" /> <button id="save-gasto-btn" data-id-unico="${isEditing ? gasto.ID_Unico : ''}">${isEditing ? 'Guardar Cambios' : 'Registrar Gasto'}</button> </div> </div>`; document.getElementById('back-btn').onclick = () => initializeAppContent(); flatpickr("#gasto-fecha", { defaultDate: isEditing ? new Date(gasto.Fecha) : new Date(), dateFormat: "Y-m-d H:i", enableTime: true, time_24hr: true, locale: "es" }); const saveBtn = document.getElementById('save-gasto-btn'); const inputs = ['gasto-establecimiento', 'gasto-importe', 'gasto-categoria']; function validateGastoForm() { const allValid = inputs.every(id => document.getElementById(id).value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); } inputs.forEach(id => document.getElementById(id).addEventListener('input', validateGastoForm)); saveBtn.onclick = saveGasto; validateGastoForm(); }
       async function saveGasto() { const saveBtn = document.getElementById('save-gasto-btn'); if (saveBtn.disabled) return; saveBtn.disabled = true; const idUnico = saveBtn.dataset.idUnico; const isEditing = !!idUnico; let payload; if (isEditing) { payload = { Type: 'edit_gasto', chat_ID: chatId, ID_Unico: idUnico, Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(), Establecimiento: document.getElementById('gasto-establecimiento').value.trim(), Importe: parseFloat(document.getElementById('gasto-importe').value), categoria: document.getElementById('gasto-categoria').value.trim(), sub_categoria: document.getElementById('gasto-subcategoria').value.trim() }; } else { payload = { make_action: 'add_gasto', chat_id: chatId, datos: { ID_Unico: 'A-' + Math.random().toString(36).substring(2, 8).toUpperCase(), Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(), Establecimiento: document.getElementById('gasto-establecimiento').value.trim(), Importe: parseFloat(document.getElementById('gasto-importe').value), categoria: document.getElementById('gasto-categoria').value.trim(), sub_categoria: document.getElementById('gasto-subcategoria').value.trim() } }; } showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) }); const data = await res.json(); if (data.error || (data.resultado && data.resultado.startsWith('Error'))) throw new Error(data.resultado || data.error); showToast(`Gasto ${isEditing ? 'actualizado' : 'registrado'}`); initializeAppContent(); } catch (err) { showToast(err.message, true); saveBtn.disabled = false; saveBtn.classList.toggle('enabled', true); } finally { hideSpinner(); } }
