@@ -176,34 +176,43 @@
         document.getElementById('view-gasto-chart-link').onclick = () => renderGastoChart();
       }
       
-      document.body.addEventListener('click', (e) => {
+document.body.addEventListener('click', (e) => {
         const menuBtn = e.target.closest('.card-menu-btn, .note-menu-btn, .shopping-item-menu-btn, .event-menu-btn, .gasto-menu-btn');
+        
+        // Cierra todos los menús si se hace clic fuera de un menú o de su botón
+        if (!menuBtn && !e.target.closest('.dropdown-menu')) {
+          document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+          return;
+        }
+
         if (menuBtn) {
           e.stopPropagation();
-          const getMenuId = (btn) => {
-            const dataAttrs = ['menuFor', 'noteId', 'itemTrackingCode', 'eventId', 'gastoId'];
-            for (const attr of dataAttrs) {
-              if (btn.dataset[attr]) {
-                const prefix = attr === 'itemTrackingCode' ? 'shopping-item' : attr.replace('Id', '');
-                return `menu-${prefix}-${btn.dataset[attr]}`;
-              }
-            }
-            return null;
-          };
-          const menuId = getMenuId(menuBtn);
+          // Construye el ID del menú a partir de los diferentes data-attributes posibles
+          let menuId;
+          if (menuBtn.dataset.menuFor) menuId = `menu-${menuBtn.dataset.menuFor}`;
+          else if (menuBtn.dataset.noteId) menuId = `menu-note-${menuBtn.dataset.noteId}`;
+          else if (menuBtn.dataset.itemTrackingCode) menuId = `menu-shopping-item-${menuBtn.dataset.itemTrackingCode}`;
+          else if (menuBtn.dataset.eventId) menuId = `menu-event-${menuBtn.dataset.eventId}`;
+          else if (menuBtn.dataset.gastoId) menuId = `menu-gasto-${menuBtn.dataset.gastoId}`;
+
           if (menuId) {
             const menu = document.getElementById(menuId);
             if (menu) {
               const isShown = menu.classList.contains('show');
-              document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
-              if (!isShown) menu.classList.add('show');
+              // Primero, cierra todos los demás menús
+              document.querySelectorAll('.dropdown-menu').forEach(m => {
+                if (m.id !== menuId) m.classList.remove('show');
+              });
+              // Luego, abre o cierra el menú actual
+              if (!isShown) {
+                menu.classList.add('show');
+              } else {
+                menu.classList.remove('show');
+              }
             }
           }
-        } else if (!e.target.closest('.dropdown-menu')) {
-          document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
         }
-      });
-      function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
+      });      function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
       
       function renderReminderForm() { mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>📝 Nuevo Recordatorio</h2></div><div class="form-card"><label>Descripción</label><textarea id="text" rows="3" required></textarea><label>Fecha y hora</label><input type="datetime-local" id="time" required/><label>Tipo</label><div class="radio-group" id="reminder-type-group"><label><input type="radio" name="category" value="un solo uso"/> Único</label><label><input type="radio" name="category" value="diario"/> Diario</label></div><button id="sendBtn" disabled>Crear Recordatorio</button></div></div>`; document.getElementById('back-to-dashboard').onclick = initializeAppContent; const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), radioGroup = document.getElementById('reminder-type-group'); function validateReminderForm() { const isTextValid = textInput.value.trim() !== ''; const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date(); const isRadioSelected = document.querySelector('input[name="category"]:checked') !== null; sendBtn.disabled = !(isTextValid && isTimeValid && isRadioSelected); sendBtn.classList.toggle('enabled', !sendBtn.disabled); } textInput.addEventListener('input', validateReminderForm); timeInput.addEventListener('input', validateReminderForm); radios.forEach(r => r.addEventListener('change', validateReminderForm)); sendBtn.onclick = sendReminder; validateReminderForm(); }
       async function sendReminder() { const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), radioSelected = document.querySelector('input[name="category"]:checked'), radioGroup = document.getElementById('reminder-type-group'); textInput.classList.remove('input-error'); timeInput.classList.remove('input-error'); radioGroup.classList.remove('input-error'); const isTextValid = textInput.value.trim() !== ''; const isTimeValid = !!timeInput.value; const isRadioSelected = radioSelected !== null; if (!isTextValid || !isTimeValid || !isRadioSelected) { if (!isTextValid) textInput.classList.add('input-error'); if (!isTimeValid) timeInput.classList.add('input-error'); if (!isRadioSelected) radioGroup.classList.add('input-error'); showToast('Por favor, rellena todos los campos marcados.', true); return; } const sendBtn = document.getElementById('sendBtn'); sendBtn.disabled = true; sendBtn.classList.remove('enabled'); const payload = { chat_ID: chatId, Type: 'add_reminder', description: textInput.value.trim(), time: timeInput.value, category: radioSelected.value }; showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) }); if (!res.ok) throw new Error(`Error del servidor: ${res.status}`); const data = await res.json(); if (data.error) throw new Error(data.error); showToast('Recordatorio guardado'); setTimeout(initializeAppContent, 500); } catch (err) { showToast(err.message || 'Error al enviar', true); sendBtn.disabled = false; sendBtn.classList.add('enabled'); } finally { hideSpinner(); } }
