@@ -109,7 +109,7 @@
 
       function showSpinner() { spinner.style.display = 'block'; }
       function hideSpinner() { spinner.style.display = 'none'; }
-      function showToast(msg, isError = false) { clearTimeout(toastimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
+      function showToast(msg, isError = false) { clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
       async function fetchWithTimeout(resource, options = {}, timeout = 30000) { const controller = new AbortController(); const id = setTimeout(() => controller.abort(), timeout); try { const modifiedOptions = { ...options, signal: controller.signal, method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: options.body }; const response = await fetch(resource, modifiedOptions); clearTimeout(id); return response; } catch (error) { clearTimeout(id); if (error.name === 'AbortError') throw new Error('Timeout: La solicitud tardó demasiado.'); throw error; } }
 
       async function initializeAppContent() {
@@ -176,17 +176,28 @@
         document.getElementById('view-gasto-chart-link').onclick = () => renderGastoChart();
       }
       
-      // CORRECCIÓN: Event listener de menús corregido para funcionar con todas las cards
       document.body.addEventListener('click', (e) => {
         const menuBtn = e.target.closest('.card-menu-btn, .note-menu-btn, .shopping-item-menu-btn, .event-menu-btn, .gasto-menu-btn');
         if (menuBtn) {
           e.stopPropagation();
-          const menuId = `menu-${menuBtn.dataset.menuFor || menuBtn.dataset.noteId || menuBtn.dataset.itemTrackingCode || menuBtn.dataset.eventId || menuBtn.dataset.gastoId}`;
-          const menu = document.getElementById(menuId);
-          if (menu) {
-            const isShown = menu.classList.contains('show');
-            document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
-            if (!isShown) menu.classList.add('show');
+          const getMenuId = (btn) => {
+            const dataAttrs = ['menuFor', 'noteId', 'itemTrackingCode', 'eventId', 'gastoId'];
+            for (const attr of dataAttrs) {
+              if (btn.dataset[attr]) {
+                const prefix = attr === 'itemTrackingCode' ? 'shopping-item' : attr.replace('Id', '');
+                return `menu-${prefix}-${btn.dataset[attr]}`;
+              }
+            }
+            return null;
+          };
+          const menuId = getMenuId(menuBtn);
+          if (menuId) {
+            const menu = document.getElementById(menuId);
+            if (menu) {
+              const isShown = menu.classList.contains('show');
+              document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+              if (!isShown) menu.classList.add('show');
+            }
           }
         } else if (!e.target.closest('.dropdown-menu')) {
           document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
@@ -194,10 +205,7 @@
       });
       function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
       
-      // ======================================================================
-      // --- SECCIONES EXISTENTES COMPLETAS ---
-      // ======================================================================
-      function renderReminderForm() { mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>📝 Nuevo Recordatorio</h2></div><div class="form-card"><label>Descripción</label><textarea id="text" rows="3" required></textarea><label>Fecha y hora</label><input type="datetime-local" id="time" required/><label>Tipo</label><div class="radio-group" id="reminder-type-group"><label><input type="radio" name="category" value="Un solo uso"/> Único</label><label><input type="radio" name="category" value="Diario"/> Diario</label></div><button id="sendBtn" disabled>Crear Recordatorio</button></div></div>`; document.getElementById('back-to-dashboard').onclick = initializeAppContent; const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), radioGroup = document.getElementById('reminder-type-group'); function validateReminderForm() { const isTextValid = textInput.value.trim() !== ''; const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date(); const isRadioSelected = document.querySelector('input[name="category"]:checked') !== null; sendBtn.disabled = !(isTextValid && isTimeValid && isRadioSelected); sendBtn.classList.toggle('enabled', !sendBtn.disabled); } textInput.addEventListener('input', validateReminderForm); timeInput.addEventListener('input', validateReminderForm); radios.forEach(r => r.addEventListener('change', validateReminderForm)); sendBtn.onclick = sendReminder; validateReminderForm(); }
+      function renderReminderForm() { mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>📝 Nuevo Recordatorio</h2></div><div class="form-card"><label>Descripción</label><textarea id="text" rows="3" required></textarea><label>Fecha y hora</label><input type="datetime-local" id="time" required/><label>Tipo</label><div class="radio-group" id="reminder-type-group"><label><input type="radio" name="category" value="un solo uso"/> Único</label><label><input type="radio" name="category" value="diario"/> Diario</label></div><button id="sendBtn" disabled>Crear Recordatorio</button></div></div>`; document.getElementById('back-to-dashboard').onclick = initializeAppContent; const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), radioGroup = document.getElementById('reminder-type-group'); function validateReminderForm() { const isTextValid = textInput.value.trim() !== ''; const isTimeValid = timeInput.value && new Date(timeInput.value) > new Date(); const isRadioSelected = document.querySelector('input[name="category"]:checked') !== null; sendBtn.disabled = !(isTextValid && isTimeValid && isRadioSelected); sendBtn.classList.toggle('enabled', !sendBtn.disabled); } textInput.addEventListener('input', validateReminderForm); timeInput.addEventListener('input', validateReminderForm); radios.forEach(r => r.addEventListener('change', validateReminderForm)); sendBtn.onclick = sendReminder; validateReminderForm(); }
       async function sendReminder() { const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), radioSelected = document.querySelector('input[name="category"]:checked'), radioGroup = document.getElementById('reminder-type-group'); textInput.classList.remove('input-error'); timeInput.classList.remove('input-error'); radioGroup.classList.remove('input-error'); const isTextValid = textInput.value.trim() !== ''; const isTimeValid = !!timeInput.value; const isRadioSelected = radioSelected !== null; if (!isTextValid || !isTimeValid || !isRadioSelected) { if (!isTextValid) textInput.classList.add('input-error'); if (!isTimeValid) timeInput.classList.add('input-error'); if (!isRadioSelected) radioGroup.classList.add('input-error'); showToast('Por favor, rellena todos los campos marcados.', true); return; } const sendBtn = document.getElementById('sendBtn'); sendBtn.disabled = true; sendBtn.classList.remove('enabled'); const payload = { chat_ID: chatId, Type: 'add_reminder', description: textInput.value.trim(), time: timeInput.value, category: radioSelected.value }; showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify(payload) }); if (!res.ok) throw new Error(`Error del servidor: ${res.status}`); const data = await res.json(); if (data.error) throw new Error(data.error); showToast('Recordatorio guardado'); setTimeout(initializeAppContent, 500); } catch (err) { showToast(err.message || 'Error al enviar', true); sendBtn.disabled = false; sendBtn.classList.add('enabled'); } finally { hideSpinner(); } }
       async function renderRemindersList() { showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'get_reminders_list' }) }); if (!res.ok) throw new Error(`Error del servidor: ${res.status}`); const reminders = await res.json(); if (reminders.error) throw new Error(reminders.error); let listHtml = (reminders.length > 0) ? reminders.map(item => `<li class="reminder-item" id="reminder-${item.tracking_code}"><div class="reminder-details"><span class="reminder-text">${item.Descripcion}</span><span class="reminder-date">${item.Fecha} - ${item.Categoria}</span></div><div class="reminder-actions"><button class="reminder-delete-btn" data-tracking-code="${item.tracking_code}">🗑️</button></div></li>`).join('') : '<div class="no-reminders">🎉<br>No tienes recordatorios pendientes.</div>'; mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" id="back-to-dashboard">‹</button><h2>Recordatorios Activos</h2></div><ul class="reminder-list" id="reminders-list-ul">${listHtml}</ul></div>`; document.getElementById('back-to-dashboard').onclick = initializeAppContent; document.getElementById('reminders-list-ul').addEventListener('click', handleReminderActionClick); } catch (err) { mainContent.innerHTML = `<div class="no-reminders">❌<br>Error al cargar la lista.<br><small>${err.message}</small></div>`; showToast(`Error al cargar la lista: ${err.message}`, true); } finally { hideSpinner(); } }
       function handleReminderActionClick(event) { const deleteButton = event.target.closest('.reminder-delete-btn'); if (deleteButton) { event.stopPropagation(); const trackingCode = deleteButton.dataset.trackingCode; deleteButton.style.display = 'none'; const confirmBtnYes = document.createElement('button'); confirmBtnYes.className = 'confirm-btn-yes'; confirmBtnYes.textContent = 'Sí'; confirmBtnYes.onclick = () => executeDeleteReminder(trackingCode); const confirmBtnNo = document.createElement('button'); confirmBtnNo.className = 'confirm-btn-no'; confirmBtnNo.textContent = 'No'; confirmBtnNo.onclick = () => { deleteButton.style.display = 'block'; confirmBtnYes.remove(); confirmBtnNo.remove(); }; deleteButton.parentElement.appendChild(confirmBtnYes); deleteButton.parentElement.appendChild(confirmBtnNo); } }
@@ -226,7 +234,7 @@
       async function executeDeleteEvent(eventId) { if (!confirm('¿Estás seguro de que quieres eliminar este evento?')) return; showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { body: JSON.stringify({ chat_ID: chatId, Type: 'delete_calendar_event', eventId: eventId }) }); if (!res.ok) throw new Error(`Error: ${res.status}`); await res.json(); showToast('Evento eliminado'); initializeAppContent(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); } }
       
       // ======================================================================
-      // --- INICIO: SECCIÓN COMPLETA DE GASTOS ---
+      // --- INICIO: SECCIÓN COMPLETA DE GASTOS (CORREGIDA Y OPTIMIZADA) ---
       // ======================================================================
       function renderGastoForm(gasto = null) {
         const isEditing = gasto !== null;
