@@ -8,8 +8,8 @@ import { NoteFormComponent } from '../components/NoteForm.js';
 import { AgendaViewComponent } from '../components/AgendaView.js';
 import { EventFormComponent } from '../components/EventForm.js';
 import { ExpensesListComponent } from '../components/ExpensesList.js';
-import { ExpenseFormComponent } from '../components/ExpenseForm.js';
-import { ExpenseChartComponent } from '../components/ExpenseChart.js';
+import { ExpenseFormComponent } from '../components/ExpenseFormComponent.js'; // <- CORRECCIÓN
+import { ExpenseChartComponent } from '../components/ExpenseChartComponent.js'; // <- CORRECCIÓN
 
 document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram?.WebApp;
