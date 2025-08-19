@@ -1,4 +1,4 @@
-function ShoppingItemFormComponent(itemData, router) {
+export function ShoppingItemFormComponent(itemData, router) {
     const element = document.createElement('div');
     element.className = 'list-container';
     
