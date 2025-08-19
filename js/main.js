@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.App = {
         router: {
             navigate(route, params = {}) {
-                UI.renderTabs(route.startsWith('dashboard') ? 'home' : '');
+                UI.renderTabs(route.includes('dashboard') ? 'home' : '');
                 switch (route) {
                     case 'dashboard': UI.render(DashboardComponent(AppState.data, this)); break;
                     case 'shoppingList': UI.render(ShoppingListComponent(AppState.data, this)); break;
@@ -56,13 +56,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'viewAgenda': UI.render(AgendaViewComponent(this)); break;
                     case 'addEvent': UI.render(EventFormComponent(this)); break;
                     case 'viewExpenses': UI.render(ExpensesListComponent(this)); break;
-                    case 'addExpense': UI.render(ExpenseFormComponent(this)); break;
+                    case 'addExpense': UI.render(ExpenseFormComponent(this)); break; // <-- LÍNEA AÑADIDA
                     case 'viewExpenseChart': UI.render(ExpenseChartComponent(AppState.data, this)); break;
                     default: tg.showAlert(`Ruta "${route}" no implementada.`);
                 }
             }
         },
         actions: {
+            showSpinner: UI.showSpinner,
+            hideSpinner: UI.hideSpinner,
+            showToast: UI.showToast,
             // Compras
             toggleShoppingItem: (trackingCode) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.shoppingList.findIndex(i => i['3'] === trackingCode); if (itemIndex === -1) return; const newStatus = AppState.data.shoppingList[itemIndex]['2'] === 'Pendiente' ? 'Comprado' : 'Pendiente'; AppState.data.shoppingList[itemIndex]['2'] = newStatus; if(newStatus === 'Comprado') { AppState.data.counts.shoppingPendingCount--; AppState.data.counts.shoppingBoughtCount++; } else { AppState.data.counts.shoppingPendingCount++; AppState.data.counts.shoppingBoughtCount--; } UI.render(ShoppingListComponent(AppState.data, App.router)); API.fetch({ Type: 'toggle_item_status', tracking_code: trackingCode }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(ShoppingListComponent(AppState.data, App.router)); }); },
             addShoppingItem: (description, cycle) => { UI.showSpinner(); API.fetch({ Type: 'add_articulo', description, cycle }).then(data => { AppState.update(data); App.router.navigate('shoppingList'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
@@ -74,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Notas
             saveNote: (payload) => { UI.showSpinner(); API.fetch(payload).then(data => { AppState.update(data); App.router.navigate('notesList'); UI.showToast('Nota guardada'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
             deleteNote: (noteId) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.notesList.findIndex(i => i.Nota_ID === noteId); if (itemIndex > -1) { AppState.data.notesList.splice(itemIndex, 1); AppState.data.counts.notesCount--; UI.render(NotesListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_note', note_id: noteId }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(NotesListComponent(AppState.data, App.router)); }); },
-            // Calendario y Gastos (usarán API directamente desde sus componentes)
+            // Calendario y Gastos
             fetchCalendarEvents: (startDate, endDate) => API.fetch({ Type: 'get_calendar_events', startDate, endDate }),
             addCalendarEvent: (eventData) => API.fetch({ Type: 'add_calendar_event', eventData }),
             deleteCalendarEvent: (eventId) => API.fetch({ Type: 'delete_calendar_event', eventId }),
