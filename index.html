@@ -8,7 +8,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Asistente Personal</title>
   
-  <!-- Estilos (CORREGIDOS Y AMPLIADOS) -->
   <style>
     :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -57,15 +56,20 @@
   </style>
 </head>
 <body>
+
   <div id="spinner" class="spinner"></div>
   <div id="app-root"></div>
   <div id="tabs-root"></div>
   <div id="toast" class="toast"></div>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="components/Dashboard.js"></script>
-  <script src="components/ShoppingList.js"></script>
-  <script src="components/ShoppingItemForm.js"></script>
-  <script src="js/main.js"></script>
+  
+  <!-- CORRECCIÓN: Rutas relativas a las carpetas -->
+  <script src="./components/Dashboard.js"></script>
+  <script src="./components/ShoppingList.js"></script>
+  <script src="./components/ShoppingItemForm.js"></script>
+
+  <script src="./js/main.js"></script>
+
 </body>
 </html>
