@@ -8,8 +8,8 @@ import { NoteFormComponent } from '../components/NoteForm.js';
 import { AgendaViewComponent } from '../components/AgendaView.js';
 import { EventFormComponent } from '../components/EventForm.js';
 import { ExpensesListComponent } from '../components/ExpensesList.js';
-import { ExpenseFormComponent } from '../components/ExpenseFormComponent.js'; // <- CORRECCIÓN
-import { ExpenseChartComponent } from '../components/ExpenseChartComponent.js'; // <- CORRECCIÓN
+import { ExpenseFormComponent } from '../components/ExpenseFormComponent.js';
+import { ExpenseChartComponent } from '../components/ExpenseChartComponent.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram?.WebApp;
@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'viewAgenda': UI.render(AgendaViewComponent(this)); break;
                     case 'addEvent': UI.render(EventFormComponent(this)); break;
                     case 'viewExpenses': UI.render(ExpensesListComponent(this)); break;
-                    case 'addExpense': UI.render(ExpenseFormComponent(this)); break; // <-- LÍNEA AÑADIDA
+                    case 'addExpense': UI.render(ExpenseFormComponent(this)); break;
                     case 'viewExpenseChart': UI.render(ExpenseChartComponent(AppState.data, this)); break;
                     default: tg.showAlert(`Ruta "${route}" no implementada.`);
                 }
@@ -77,9 +77,24 @@ document.addEventListener('DOMContentLoaded', () => {
             // Notas
             saveNote: (payload) => { UI.showSpinner(); API.fetch(payload).then(data => { AppState.update(data); App.router.navigate('notesList'); UI.showToast('Nota guardada'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
             deleteNote: (noteId) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.notesList.findIndex(i => i.Nota_ID === noteId); if (itemIndex > -1) { AppState.data.notesList.splice(itemIndex, 1); AppState.data.counts.notesCount--; UI.render(NotesListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_note', note_id: noteId }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(NotesListComponent(AppState.data, App.router)); }); },
+            
             // Calendario y Gastos
             fetchCalendarEvents: (startDate, endDate) => API.fetch({ Type: 'get_calendar_events', startDate, endDate }),
-            addCalendarEvent: (eventData) => API.fetch({ Type: 'add_calendar_event', eventData }),
+            addCalendarEvent: (eventData) => {
+                const startDate = new Date(eventData.start);
+                const today = new Date();
+                if (startDate.getFullYear() === today.getFullYear() && startDate.getMonth() === today.getMonth() && startDate.getDate() === today.getDate()) {
+                    AppState.data.counts.calendarTodayCount++;
+                }
+                API.fetch({ Type: 'add_calendar_event', eventData })
+                    .then(result => { if(result.error) throw new Error(result.error); })
+                    .catch(err => { 
+                        UI.showToast(`Error al crear evento: ${err.message}`, true);
+                        if (startDate.getFullYear() === today.getFullYear() && startDate.getMonth() === today.getMonth() && startDate.getDate() === today.getDate()) {
+                            AppState.data.counts.calendarTodayCount--;
+                        }
+                     });
+            },
             deleteCalendarEvent: (eventId) => API.fetch({ Type: 'delete_calendar_event', eventId }),
             fetchExpensesByDate: (fecha_start, fecha_end) => API.fetch({ make_action: 'get_gastos_fecha', datos: { fecha_start, fecha_end } }),
             addExpense: (expenseData) => API.fetch({ make_action: 'add_gasto', datos: expenseData }),
