@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
             saveNote: (payload) => { UI.showSpinner(); API.fetch(payload).then(data => { AppState.update(data); App.router.navigate('notesList'); UI.showToast('Nota guardada'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
             deleteNote: (noteId) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.notesList.findIndex(i => i.Nota_ID === noteId); if (itemIndex > -1) { AppState.data.notesList.splice(itemIndex, 1); AppState.data.counts.notesCount--; UI.render(NotesListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_note', note_id: noteId }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(NotesListComponent(AppState.data, App.router)); }); },
             
-            // Calendario y Gastos
+            // Calendario
             fetchCalendarEvents: (startDate, endDate) => API.fetch({ Type: 'get_calendar_events', startDate, endDate }),
             addCalendarEvent: (eventData) => {
                 const startDate = new Date(eventData.start);
@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      });
             },
             deleteCalendarEvent: (eventId) => API.fetch({ Type: 'delete_calendar_event', eventId }),
+            // Gastos
             fetchExpensesByDate: (fecha_start, fecha_end) => API.fetch({ make_action: 'get_gastos_fecha', datos: { fecha_start, fecha_end } }),
             addExpense: (expenseData) => API.fetch({ make_action: 'add_gasto', datos: expenseData }),
             fetchExpenseChart: (mes_anio) => API.fetch({ Type: 'get_gastos_chart', mes_anio }),
