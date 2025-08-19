@@ -30,5 +30,6 @@ export function ShoppingListComponent(appData, router) {
         updateMultiSelectButtonState();
     }
     render();
+    document.addEventListener('click', (e) => { if (!e.target.closest('.shopping-item')) { element.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show')); } }, { once: true });
     return element;
 }
