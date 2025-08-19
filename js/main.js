@@ -12,10 +12,14 @@ import { ExpenseFormComponent } from '../components/ExpenseFormComponent.js';
 import { ExpenseChartComponent } from '../components/ExpenseChartComponent.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- INICIO DEL CÓDIGO DE DEPURACIÓN ---
+    try { 
+    // --- FIN DEL CÓDIGO DE DEPURACIÓN ---
+
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
 
-    const config = { webhookURL: 'https://script.google.com/macros/s/AKfycbycoDNrOvMU3Mre2abaNW4YQ9tOuei8rLnTC8FyL-q4MkkWm3t8Fep88xYAJETHo3qGrA/exec', chatId: tg?.initDataUnsafe?.user?.id || prompt('MODO DESARROLLO\n\nIngresa tu chat_ID:', '') };
+    const config = { webhookURL: 'https://script.google.com/macros/s/AKfycbxMy9HJ33GJz2S2RvWIFTc6AxI1L2EFw_cyVstKbmvEXQl43sbrYv3QE0dc6OhIX6XBpw/exec', chatId: tg?.initDataUnsafe?.user?.id || prompt('MODO DESARROLLO\n\nIngresa tu chat_ID:', '') };
     const AppState = { data: { counts: {}, remindersList: [], shoppingList: [], notesList: [] }, update(newData) { if (newData.error) throw new Error(newData.error); this.data = newData; } };
     const root = document.getElementById('app-root'), tabsRoot = document.getElementById('tabs-root'), spinner = document.getElementById('spinner'), toast = document.getElementById('toast');
     let toastTimer;
@@ -29,24 +33,31 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const API = {
-        fetch: async (payload, timeout = 30000) => {
-            const controller = new AbortController(); const id = setTimeout(() => controller.abort(), timeout);
+        fetch: async (payload) => {
+            // --- INICIO DEL CÓDIGO DE DEPURACIÓN ---
+            console.log("Paso 1: Entrando en la función API.fetch.");
+            const fullPayload = { chat_ID: config.chatId, ...payload };
+            const options = {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(fullPayload),
+                mode: 'cors'
+            };
+            console.log("Paso 2: URL a la que se va a conectar:", config.webhookURL);
+            console.log("Paso 3: Opciones de la petición:", options);
+            // --- FIN DEL CÓDIGO DE DEPURACIÓN ---
+            
             try {
-                // --- INICIO DE LA MODIFICACIÓN ---
-                const response = await fetch(config.webhookURL, { 
-                    method: 'POST', 
-                    signal: controller.signal, 
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-                    body: JSON.stringify({ chat_ID: config.chatId, ...payload }),
-                    mode: 'cors',      // Directiva añadida
-                    cache: 'no-cache', // Directiva añadida
-                    redirect: 'follow' // Directiva añadida
-                });
-                // --- FIN DE LA MODIFICACIÓN ---
-
-                clearTimeout(id); if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
-                return await response.json();
-            } catch (error) { clearTimeout(id); if (error.name === 'AbortError') throw new Error('Timeout'); throw error; }
+                const response = await fetch(config.webhookURL, options);
+                console.log("Paso 4: La petición fetch se completó. Respuesta del servidor:", response);
+                if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+                const data = await response.json();
+                console.log("Paso 5: Datos JSON recibidos:", data);
+                return data;
+            } catch (error) {
+                console.error("Paso X: ERROR ATRAPADO DENTRO DE FETCH", error);
+                throw error;
+            }
         }
     };
 
@@ -77,37 +88,18 @@ document.addEventListener('DOMContentLoaded', () => {
             showSpinner: UI.showSpinner,
             hideSpinner: UI.hideSpinner,
             showToast: UI.showToast,
-            // Compras
+            // ... (el resto de las acciones no necesitan cambios)
             toggleShoppingItem: (trackingCode) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.shoppingList.findIndex(i => i['3'] === trackingCode); if (itemIndex === -1) return; const newStatus = AppState.data.shoppingList[itemIndex]['2'] === 'Pendiente' ? 'Comprado' : 'Pendiente'; AppState.data.shoppingList[itemIndex]['2'] = newStatus; if(newStatus === 'Comprado') { AppState.data.counts.shoppingPendingCount--; AppState.data.counts.shoppingBoughtCount++; } else { AppState.data.counts.shoppingPendingCount++; AppState.data.counts.shoppingBoughtCount--; } UI.render(ShoppingListComponent(AppState.data, App.router)); API.fetch({ Type: 'toggle_item_status', tracking_code: trackingCode }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(ShoppingListComponent(AppState.data, App.router)); }); },
             addShoppingItem: (description, cycle) => { UI.showSpinner(); API.fetch({ Type: 'add_articulo', description, cycle }).then(data => { AppState.update(data); App.router.navigate('shoppingList'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
             deleteShoppingItem: (trackingCode) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.shoppingList.findIndex(i => i['3'] === trackingCode); if (itemIndex > -1) { const item = AppState.data.shoppingList[itemIndex]; if(item['2'] === 'Pendiente') AppState.data.counts.shoppingPendingCount--; else AppState.data.counts.shoppingBoughtCount--; AppState.data.shoppingList.splice(itemIndex, 1); UI.render(ShoppingListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_item_shopping_list', tracking_code: trackingCode }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(ShoppingListComponent(AppState.data, App.router)); }); },
             toggleMultipleToPending: (codes) => { UI.showSpinner(); API.fetch({ Type: 'toggle_multiple_to_pending', tracking_codes: codes }).then(data => { AppState.update(data); UI.render(ShoppingListComponent(AppState.data, App.router)); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
-            // Recordatorios
             saveReminder: (payload) => { UI.showSpinner(); API.fetch(payload).then(data => { AppState.update(data); App.router.navigate('remindersList'); UI.showToast('Recordatorio guardado'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
             deleteReminder: (trackingCode) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.remindersList.findIndex(i => i.tracking_code === trackingCode); if (itemIndex > -1) { AppState.data.remindersList.splice(itemIndex, 1); AppState.data.counts.remindersCount--; UI.render(RemindersListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_reminder', tracking_code: trackingCode }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(RemindersListComponent(AppState.data, App.router)); }); },
-            // Notas
             saveNote: (payload) => { UI.showSpinner(); API.fetch(payload).then(data => { AppState.update(data); App.router.navigate('notesList'); UI.showToast('Nota guardada'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
             deleteNote: (noteId) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.notesList.findIndex(i => i.Nota_ID === noteId); if (itemIndex > -1) { AppState.data.notesList.splice(itemIndex, 1); AppState.data.counts.notesCount--; UI.render(NotesListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_note', note_id: noteId }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(NotesListComponent(AppState.data, App.router)); }); },
-            
-            // Calendario
             fetchCalendarEvents: (startDate, endDate) => API.fetch({ Type: 'get_calendar_events', startDate, endDate }),
-            addCalendarEvent: (eventData) => {
-                const startDate = new Date(eventData.start);
-                const today = new Date();
-                if (startDate.getFullYear() === today.getFullYear() && startDate.getMonth() === today.getMonth() && startDate.getDate() === today.getDate()) {
-                    AppState.data.counts.calendarTodayCount++;
-                }
-                API.fetch({ Type: 'add_calendar_event', eventData })
-                    .then(result => { if(result.error) throw new Error(result.error); })
-                    .catch(err => { 
-                        UI.showToast(`Error al crear evento: ${err.message}`, true);
-                        if (startDate.getFullYear() === today.getFullYear() && startDate.getMonth() === today.getMonth() && startDate.getDate() === today.getDate()) {
-                            AppState.data.counts.calendarTodayCount--;
-                        }
-                     });
-            },
+            addCalendarEvent: (eventData) => { const startDate = new Date(eventData.start); const today = new Date(); if (startDate.getFullYear() === today.getFullYear() && startDate.getMonth() === today.getMonth() && startDate.getDate() === today.getDate()) { AppState.data.counts.calendarTodayCount++; } API.fetch({ Type: 'add_calendar_event', eventData }).then(result => { if(result.error) throw new Error(result.error); }).catch(err => { UI.showToast(`Error al crear evento: ${err.message}`, true); if (startDate.getFullYear() === today.getFullYear() && startDate.getMonth() === today.getMonth() && startDate.getDate() === today.getDate()) { AppState.data.counts.calendarTodayCount--; } }); },
             deleteCalendarEvent: (eventId) => API.fetch({ Type: 'delete_calendar_event', eventId }),
-            // Gastos
             fetchExpensesByDate: (fecha_start, fecha_end) => API.fetch({ make_action: 'get_gastos_fecha', datos: { fecha_start, fecha_end } }),
             addExpense: (expenseData) => API.fetch({ make_action: 'add_gasto', datos: expenseData }),
             fetchExpenseChart: (mes_anio) => API.fetch({ Type: 'get_gastos_chart', mes_anio }),
@@ -116,10 +108,18 @@ document.addEventListener('DOMContentLoaded', () => {
             UI.showSpinner();
             API.fetch({ Type: 'get_full_dashboard' })
                 .then(data => { AppState.update(data); this.router.navigate('dashboard'); })
-                .catch(err => { console.error('Error en carga inicial:', err); UI.showToast(`Error al cargar datos: ${err.message}`, true); root.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="window.location.reload()">Reintentar</button></div>`})
+                .catch(err => { console.error('Error final en carga inicial:', err); UI.showToast(`Error al cargar datos: ${err.message}`, true); root.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="window.location.reload()">Reintentar</button></div>`})
                 .finally(() => UI.hideSpinner());
         }
     };
 
     App.init();
+
+    // --- INICIO DEL CÓDIGO DE DEPURACIÓN ---
+    } catch (e) {
+        // Si hay cualquier error al inicializar, lo veremos aquí.
+        console.error("ERROR CATASTRÓFICO DURANTE LA INICIALIZACIÓN:", e);
+        document.body.innerHTML = `<div style="padding: 20px;"><h1>Error Crítico</h1><p>Ha ocurrido un error antes de que la aplicación pudiera iniciarse. Revisa la consola para más detalles.</p><pre>${e.stack}</pre></div>`;
+    }
+    // --- FIN DEL CÓDIGO DE DEPURACIÓN ---
 });
