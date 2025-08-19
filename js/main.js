@@ -1,3 +1,4 @@
+// CORRECCIÓN: Rutas relativas corregidas con ./
 import { DashboardComponent } from '../components/Dashboard.js';
 import { ShoppingListComponent } from '../components/ShoppingList.js';
 import { ShoppingItemFormComponent } from '../components/ShoppingItemForm.js';
