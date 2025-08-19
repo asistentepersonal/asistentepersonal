@@ -1,6 +1,10 @@
 import { DashboardComponent } from '../components/Dashboard.js';
 import { ShoppingListComponent } from '../components/ShoppingList.js';
 import { ShoppingItemFormComponent } from '../components/ShoppingItemForm.js';
+import { RemindersListComponent } from '../components/RemindersList.js';
+import { ReminderFormComponent } from '../components/ReminderForm.js';
+import { NotesListComponent } from '../components/NotesList.js';
+import { NoteFormComponent } from '../components/NoteForm.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram?.WebApp;
@@ -33,54 +37,39 @@ document.addEventListener('DOMContentLoaded', () => {
     window.App = {
         router: {
             navigate(route, params = {}) {
-                UI.renderTabs(route === 'dashboard' ? 'home' : '');
+                UI.renderTabs(route.startsWith('dashboard') ? 'home' : '');
                 switch (route) {
                     case 'dashboard': UI.render(DashboardComponent(AppState.data, this)); break;
                     case 'shoppingList': UI.render(ShoppingListComponent(AppState.data, this)); break;
                     case 'addShoppingItem': UI.render(ShoppingItemFormComponent(null, this)); break;
+                    case 'remindersList': UI.render(RemindersListComponent(AppState.data, this)); break;
+                    case 'addReminder': UI.render(ReminderFormComponent(null, this)); break;
+                    case 'editReminder': UI.render(ReminderFormComponent(params.reminder, this)); break;
+                    case 'notesList': UI.render(NotesListComponent(AppState.data, this)); break;
+                    case 'addNote': UI.render(NoteFormComponent(null, this)); break;
+                    case 'editNote': UI.render(NoteFormComponent(params.note, this)); break;
+                    default: tg.showAlert(`Ruta "${route}" no implementada.`);
                 }
             }
         },
         actions: {
-            toggleShoppingItem: (trackingCode) => {
-                const originalData = JSON.parse(JSON.stringify(AppState.data));
-                const itemIndex = AppState.data.shoppingList.findIndex(i => i['3'] === trackingCode);
-                if (itemIndex === -1) return;
-                const newStatus = AppState.data.shoppingList[itemIndex]['2'] === 'Pendiente' ? 'Comprado' : 'Pendiente';
-                AppState.data.shoppingList[itemIndex]['2'] = newStatus;
-                UI.render(ShoppingListComponent(AppState.data, App.router));
-                API.fetch({ Type: 'toggle_item_status', tracking_code: trackingCode })
-                   .then(data => AppState.update(data))
-                   .catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(ShoppingListComponent(AppState.data, App.router)); });
-            },
-            addShoppingItem: (description, cycle) => {
-                UI.showSpinner();
-                API.fetch({ Type: 'add_articulo', description, cycle })
-                   .then(data => { AppState.update(data); App.router.navigate('shoppingList'); })
-                   .catch(err => UI.showToast(err.message, true))
-                   .finally(() => UI.hideSpinner());
-            },
-            deleteShoppingItem: (trackingCode) => {
-                const originalData = JSON.parse(JSON.stringify(AppState.data));
-                const itemIndex = AppState.data.shoppingList.findIndex(i => i['3'] === trackingCode);
-                if (itemIndex > -1) {
-                    AppState.data.shoppingList.splice(itemIndex, 1);
-                    UI.render(ShoppingListComponent(AppState.data, App.router));
-                }
-                API.fetch({ Type: 'delete_item_shopping_list', tracking_code: trackingCode })
-                   .then(data => AppState.update(data))
-                   .catch(() => {
-                       UI.showToast('Error de Sincronización', true);
-                       AppState.data = originalData;
-                       UI.render(ShoppingListComponent(AppState.data, App.router));
-                   });
-            }
+            // Shopping
+            toggleShoppingItem: (trackingCode) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.shoppingList.findIndex(i => i['3'] === trackingCode); if (itemIndex === -1) return; const newStatus = AppState.data.shoppingList[itemIndex]['2'] === 'Pendiente' ? 'Comprado' : 'Pendiente'; AppState.data.shoppingList[itemIndex]['2'] = newStatus; if(newStatus === 'Comprado') { AppState.data.counts.shoppingPendingCount--; AppState.data.counts.shoppingBoughtCount++; } else { AppState.data.counts.shoppingPendingCount++; AppState.data.counts.shoppingBoughtCount--; } UI.render(ShoppingListComponent(AppState.data, App.router)); API.fetch({ Type: 'toggle_item_status', tracking_code: trackingCode }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(ShoppingListComponent(AppState.data, App.router)); }); },
+            addShoppingItem: (description, cycle) => { UI.showSpinner(); API.fetch({ Type: 'add_articulo', description, cycle }).then(data => { AppState.update(data); App.router.navigate('shoppingList'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
+            deleteShoppingItem: (trackingCode) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.shoppingList.findIndex(i => i['3'] === trackingCode); if (itemIndex > -1) { AppState.data.shoppingList.splice(itemIndex, 1); UI.render(ShoppingListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_item_shopping_list', tracking_code: trackingCode }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(ShoppingListComponent(AppState.data, App.router)); }); },
+            toggleMultipleToPending: (codes) => { UI.showSpinner(); API.fetch({ Type: 'toggle_multiple_to_pending', tracking_codes: codes }).then(data => { AppState.update(data); UI.render(ShoppingListComponent(AppState.data, App.router)); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
+            // Reminders
+            saveReminder: (payload) => { UI.showSpinner(); API.fetch(payload).then(data => { AppState.update(data); App.router.navigate('remindersList'); UI.showToast('Recordatorio guardado'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
+            deleteReminder: (trackingCode) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.remindersList.findIndex(i => i.tracking_code === trackingCode); if (itemIndex > -1) { AppState.data.remindersList.splice(itemIndex, 1); UI.render(RemindersListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_reminder', tracking_code: trackingCode }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(RemindersListComponent(AppState.data, App.router)); }); },
+            // Notes
+            saveNote: (payload) => { UI.showSpinner(); API.fetch(payload).then(data => { AppState.update(data); App.router.navigate('notesList'); UI.showToast('Nota guardada'); }).catch(err => UI.showToast(err.message, true)).finally(() => UI.hideSpinner()); },
+            deleteNote: (noteId) => { const originalData = JSON.parse(JSON.stringify(AppState.data)); const itemIndex = AppState.data.notesList.findIndex(i => i.Nota_ID === noteId); if (itemIndex > -1) { AppState.data.notesList.splice(itemIndex, 1); UI.render(NotesListComponent(AppState.data, App.router)); } API.fetch({ Type: 'delete_note', note_id: noteId }).then(data => AppState.update(data)).catch(() => { UI.showToast('Error de Sincronización', true); AppState.data = originalData; UI.render(NotesListComponent(AppState.data, App.router)); }); },
         },
         init() {
             UI.showSpinner();
             API.fetch({ Type: 'get_full_dashboard' })
                 .then(data => { AppState.update(data); this.router.navigate('dashboard'); })
-                .catch(err => { console.error('Error en carga inicial:', err); UI.showToast(`Error al cargar datos: ${err.message}`, true); })
+                .catch(err => { console.error('Error en carga inicial:', err); UI.showToast(`Error al cargar datos: ${err.message}`, true); root.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="window.location.reload()">Reintentar</button></div>`})
                 .finally(() => UI.hideSpinner());
         }
     };
