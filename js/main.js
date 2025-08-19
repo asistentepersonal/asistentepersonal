@@ -32,7 +32,18 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch: async (payload, timeout = 30000) => {
             const controller = new AbortController(); const id = setTimeout(() => controller.abort(), timeout);
             try {
-                const response = await fetch(config.webhookURL, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ chat_ID: config.chatId, ...payload }) });
+                // --- INICIO DE LA MODIFICACIÓN ---
+                const response = await fetch(config.webhookURL, { 
+                    method: 'POST', 
+                    signal: controller.signal, 
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+                    body: JSON.stringify({ chat_ID: config.chatId, ...payload }),
+                    mode: 'cors',      // Directiva añadida
+                    cache: 'no-cache', // Directiva añadida
+                    redirect: 'follow' // Directiva añadida
+                });
+                // --- FIN DE LA MODIFICACIÓN ---
+
                 clearTimeout(id); if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
                 return await response.json();
             } catch (error) { clearTimeout(id); if (error.name === 'AbortError') throw new Error('Timeout'); throw error; }
