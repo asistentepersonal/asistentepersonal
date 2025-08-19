@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Asistente Personal</title>
   
-  <!-- Estilos (se mantendrán aquí por simplicidad) -->
+  <!-- Estilos (CORREGIDOS Y AMPLIADOS) -->
   <style>
     :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -19,8 +19,8 @@
     .card-title{font-size:1.2rem;margin-bottom:4px;}
     .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
     .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
-    .card-badge.green{background-color:#28a745;}
-    .card-badge.red{background-color:#e74c3c;}
+    .card-badge.green{background-color:#28a745; position: static;}
+    .card-badge.red{background-color:#e74c3c; position: static;}
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
     .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
     .tab.active{color:var(--badge-color);}
@@ -46,26 +46,26 @@
     .list-item-title { font-size: 1.1rem; font-weight: 500; }
     .list-item-subtitle { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
     .no-data-msg { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
+    .shopping-item { background: var(--card-bg); border-radius:10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 10px 15px; display: flex; align-items: center; gap: 10px; }
+    .shopping-item-toggle-btn { flex-grow: 1; text-align: left; border: none; font-size: 1rem; padding: 10px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; color: var(--list-item-text); font-weight: 500; cursor: pointer;}
+    .shopping-item-toggle-btn.pending { background-color: var(--pending-bg); }
+    .shopping-item-toggle-btn.bought { background-color: var(--bought-bg); text-decoration: line-through; opacity: 0.85; }
+    .item-date { font-size: 0.8rem; opacity: 0.9; }
+    .shopping-list-section-title { font-size: 1rem; color: var(--muted); margin: 20px 10px 10px; }
+    .add-article-btn-container { padding: 10px; }
+    .add-article-btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; background-color: var(--primary); color: var(--action-text); }
   </style>
 </head>
 <body>
-
-  <!-- Contenedores principales de la aplicación -->
   <div id="spinner" class="spinner"></div>
   <div id="app-root"></div>
   <div id="tabs-root"></div>
   <div id="toast" class="toast"></div>
 
-  <!-- Carga del Cerebro y los Componentes -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  
-  <!-- Bloques de LEGO -->
   <script src="components/Dashboard.js"></script>
   <script src="components/ShoppingList.js"></script>
-  <!-- Aquí añadiremos más componentes en el futuro -->
-
-  <!-- Cerebro de la App -->
+  <script src="components/ShoppingItemForm.js"></script>
   <script src="js/main.js"></script>
-
 </body>
 </html>
