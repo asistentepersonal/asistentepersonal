@@ -110,24 +110,19 @@
       function hideSpinner() { spinner.style.display = 'none'; }
       function showToast(msg, isError = false) { clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
       
-      // --- ¡MODIFICACIÓN CLAVE! Se envía como FormData ---
       async function fetchWithTimeout(resource, payloadObject) {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 30000);
         
-        // 1. Convertir el objeto de payload en FormData
         const formData = new FormData();
-        for (const key in payloadObject) {
-            // Se envía cada propiedad como un campo de texto
-            formData.append(key, JSON.stringify(payloadObject[key]));
-        }
+        // Clave del éxito: El servidor Apps Script espera un campo llamado "postData"
+        formData.append("postData", JSON.stringify(payloadObject));
 
         try {
           const response = await fetch(resource, {
             method: 'POST',
-            body: formData, // 2. Se envía el FormData
+            body: formData,
             signal: controller.signal
-            // 3. NO se especifica 'Content-Type', el navegador lo hará por nosotros
           });
           clearTimeout(id);
           if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
@@ -141,9 +136,6 @@
 
       async function initializeAppContent() { showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'get_full_dashboard' }); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; renderDashboard(); } catch (err) { console.error('Error en carga inicial:', err); showToast(`Error al cargar datos: ${err.message}`, true); mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; } finally { hideSpinner(); } }
       function updateLocalData(newData) { if (newData.error) throw new Error(newData.error); appData = newData; }
-
-      // ... EL RESTO DEL CÓDIGO HTML/JS SIGUE EXACTAMENTE IGUAL ...
-      // ... NO ES NECESARIO TOCARLO ...
 
       function renderDashboard() { setActiveTab('tab-home'); mainContent.innerHTML = `<div class="grid"><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.remindersCount}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div><div class="card"><div class="card-badge-group"><div class="card-badge green">${appData.counts.shoppingPendingCount}</div><div class="card-badge red">${appData.counts.shoppingBoughtCount}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.notesCount}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.calendarTodayCount}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div></div>`; document.getElementById('add-reminder-link').onclick = renderReminderForm; document.getElementById('list-reminders-link').onclick = renderRemindersList; document.getElementById('view-shopping-list-link').onclick = renderShoppingList; document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm; document.getElementById('add-note-link').onclick = renderNoteForm; document.getElementById('list-notes-link').onclick = renderNotesList; document.getElementById('add-event-link').onclick = renderEventForm; document.getElementById('view-agenda-link').onclick = renderAgendaView; document.getElementById('add-gasto-link').onclick = renderGastoForm; document.getElementById('list-gastos-link').onclick = renderGastosList; document.getElementById('view-gasto-chart-link').onclick = renderGastoChart; }
       document.body.addEventListener('click', (e) => { const menuBtn = e.target.closest('[data-menu-id]'); if (!menuBtn && !e.target.closest('.dropdown-menu')) { document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show')); return; } if (menuBtn) { e.stopPropagation(); const menuId = menuBtn.dataset.menuId; const menu = document.getElementById(menuId); if (menu) { const isShown = menu.classList.contains('show'); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m.id !== menuId) m.classList.remove('show'); }); menu.classList.toggle('show', !isShown); } } });
