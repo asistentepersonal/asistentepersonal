@@ -76,7 +76,11 @@
     .add-article-btn { background-color: var(--primary); color: var(--action-text); }
     .multi-select-action-btn { background-color: #f0f0f0; color: var(--text); cursor: not-allowed; opacity: 0.6; }
     .multi-select-action-btn.enabled { background-color: var(--action-bg); color: var(--action-text); opacity: 1; cursor: pointer; }
-    .gasto-chart-container img { max-width: 100%; border-radius: 12px; margin-top: 15px; }
+    .gasto-chart-container { text-align: center; margin-top: 15px; }
+    .gasto-chart-container img { max-width: 100%; border-radius: 12px; }
+    .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+    .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
+    .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
     .confirm-actions { display: none; align-items: center; }
     .confirm-actions.show { display: flex; }
     .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
@@ -113,17 +117,10 @@
       async function fetchWithTimeout(resource, payloadObject) {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 30000);
-        
         const formData = new FormData();
-        // Clave del éxito: El servidor Apps Script espera un campo llamado "postData"
         formData.append("postData", JSON.stringify(payloadObject));
-
         try {
-          const response = await fetch(resource, {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal
-          });
+          const response = await fetch(resource, { method: 'POST', body: formData, signal: controller.signal });
           clearTimeout(id);
           if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
           return response;
@@ -137,6 +134,7 @@
       async function initializeAppContent() { showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'get_full_dashboard' }); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; renderDashboard(); } catch (err) { console.error('Error en carga inicial:', err); showToast(`Error al cargar datos: ${err.message}`, true); mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; } finally { hideSpinner(); } }
       function updateLocalData(newData) { if (newData.error) throw new Error(newData.error); appData = newData; }
 
+      // ... El código de renderDashboard y otras funciones permanece igual ...
       function renderDashboard() { setActiveTab('tab-home'); mainContent.innerHTML = `<div class="grid"><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.remindersCount}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div><div class="card"><div class="card-badge-group"><div class="card-badge green">${appData.counts.shoppingPendingCount}</div><div class="card-badge red">${appData.counts.shoppingBoughtCount}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.notesCount}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.calendarTodayCount}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div></div>`; document.getElementById('add-reminder-link').onclick = renderReminderForm; document.getElementById('list-reminders-link').onclick = renderRemindersList; document.getElementById('view-shopping-list-link').onclick = renderShoppingList; document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm; document.getElementById('add-note-link').onclick = renderNoteForm; document.getElementById('list-notes-link').onclick = renderNotesList; document.getElementById('add-event-link').onclick = renderEventForm; document.getElementById('view-agenda-link').onclick = renderAgendaView; document.getElementById('add-gasto-link').onclick = renderGastoForm; document.getElementById('list-gastos-link').onclick = renderGastosList; document.getElementById('view-gasto-chart-link').onclick = renderGastoChart; }
       document.body.addEventListener('click', (e) => { const menuBtn = e.target.closest('[data-menu-id]'); if (!menuBtn && !e.target.closest('.dropdown-menu')) { document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show')); return; } if (menuBtn) { e.stopPropagation(); const menuId = menuBtn.dataset.menuId; const menu = document.getElementById(menuId); if (menu) { const isShown = menu.classList.contains('show'); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m.id !== menuId) m.classList.remove('show'); }); menu.classList.toggle('show', !isShown); } } });
       function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
@@ -167,10 +165,60 @@
       async function saveGasto() { showSpinner(); try { const payload = { make_action: 'add_gasto', chat_id: chatId, datos: { ID_Unico: 'A-' + Math.random().toString(36).substring(2, 9), Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(), Establecimiento: document.getElementById('gasto-establecimiento').value.trim(), Importe: parseFloat(document.getElementById('gasto-importe').value), categoria: document.getElementById('gasto-categoria').value.trim() } }; const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error || (data.resultado && data.resultado.startsWith('Error'))) throw new Error(data.resultado || data.error); showToast('Gasto registrado'); initializeAppContent(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); } }
       function renderGastosList() { mainContent.innerHTML = ` <div class="list-container"> <div class="list-header"><button class="back-btn">‹</button><h2>Historial de Gastos</h2></div> <div class="form-card" style="display:flex; gap:10px;"><input type="text" id="gasto-fecha-start" placeholder="Desde..." readonly="readonly"><input type="text" id="gasto-fecha-end" placeholder="...hasta" readonly="readonly"><button id="buscar-gastos-btn" style="margin-top:0;">Buscar</button> </div> <ul class="list-style-none" id="gastos-list-ul"><div class="no-data-msg">🔍<br>Selecciona un rango de fechas.</div></ul> </div>`; document.querySelector('.back-btn').onclick = renderDashboard; const startPicker = flatpickr("#gasto-fecha-start", { dateFormat: "d/m/Y", locale: "es" }); const endPicker = flatpickr("#gasto-fecha-end", { dateFormat: "d/m/Y", locale: "es" }); document.getElementById('buscar-gastos-btn').onclick = () => fetchAndDisplayGastos(startPicker.input.value, endPicker.input.value); }
       async function fetchAndDisplayGastos(fechaStart, fechaEnd) { if (!fechaStart || !fechaEnd) { showToast('Selecciona ambas fechas.', true); return; } showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { make_action: 'get_gastos_fecha', chat_id: chatId, datos: { fecha_start: fechaStart, fecha_end: fechaEnd } }); const data = await res.json(); if (data.error) throw new Error(data.error); if (data.Lista_de_gastos && data.Lista_de_gastos.includes("No existen registros")) { document.getElementById('gastos-list-ul').innerHTML = '<div class="no-data-msg">🤷<br>No se encontraron gastos.</div>'; } else { const lines = data.Lista_de_gastos.split('\n').filter(line => line.includes('🆔')); document.getElementById('gastos-list-ul').innerHTML = lines.map(line => `<li class="list-item" style="padding:10px 15px;">${line.replace(/\|/g, '<span style="margin:0 5px;">|</span>')}</li>`).join(''); } } catch (err) { document.getElementById('gastos-list-ul').innerHTML = `<div class="no-data-msg">❌<br>Error al buscar.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); } }
-      async function renderGastoChart() { mainContent.innerHTML = ` <div class="list-container"> <div class="list-header"><button class="back-btn">‹</button><h2>Gráfico de Gastos</h2></div> <div class="form-card"><select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${(appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('')}</select><div class="gasto-chart-container" id="chart-container"></div></div></div>`; document.querySelector('.back-btn').onclick = renderDashboard; document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart; }
-      async function fetchAndDisplayGastoChart(event) { const mesAnio = event.target.value; if (!mesAnio) return; showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio }); const data = await res.json(); if (data.error) throw new Error(data.error); let img = document.querySelector('#chart-container img'); if (!img) { img = document.createElement('img'); document.getElementById('chart-container').appendChild(img); } img.src = data.chartUrl; } catch (err) { showToast(err.message, true); } finally { hideSpinner(); } }
+      
+      // --- ¡FUNCIÓN MODIFICADA PARA MOSTRAR LOS DOS GRÁFICOS Y LA LEYENDA! ---
+      function renderGastoChart() {
+        const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+        mainContent.innerHTML = `
+          <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>Gráfico de Gastos</h2></div>
+            <div class="form-card">
+              <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
+              <div class="gasto-chart-container" id="chart-container-pie"></div>
+              <ul class="gasto-legend" id="gasto-legend-container"></ul>
+              <div class="gasto-chart-container" id="chart-container-line"></div>
+            </div>
+          </div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+        document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
+      }
 
-      // --- INICIO DE LA APP ---
+      async function fetchAndDisplayGastoChart(event) {
+        const mesAnio = event.target.value;
+        if (!mesAnio) return;
+        showSpinner();
+        const pieContainer = document.getElementById('chart-container-pie');
+        const lineContainer = document.getElementById('chart-container-line');
+        const legendContainer = document.getElementById('gasto-legend-container');
+        pieContainer.innerHTML = '';
+        lineContainer.innerHTML = '';
+        legendContainer.innerHTML = '';
+        try {
+          const res = await fetchWithTimeout(webhookURL, { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio });
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          
+          if(data.pieChartUrl) {
+            const imgPie = document.createElement('img');
+            imgPie.src = data.pieChartUrl;
+            pieContainer.appendChild(imgPie);
+          }
+          if(data.lineChartUrl) {
+            const imgLine = document.createElement('img');
+            imgLine.src = data.lineChartUrl;
+            lineContainer.appendChild(imgLine);
+          }
+          if(data.datosParaLeyenda) {
+            legendContainer.innerHTML = data.datosParaLeyenda.map(item => 
+              `<li class="gasto-legend-item">
+                 <span class="gasto-legend-color" style="background-color:${item.color};"></span>
+                 ${item.categoria}: <strong>${item.importe}€</strong>
+               </li>`
+            ).join('');
+          }
+        } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+      }
+
       document.getElementById('tab-home').onclick = () => initializeAppContent();
       initializeAppContent();
     });
