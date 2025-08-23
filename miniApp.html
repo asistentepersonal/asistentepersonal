@@ -52,7 +52,7 @@
     .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
     .list-header h2 { font-size: 1.4rem; margin: 0; }
     .list-style-none { list-style: none; padding: 0; margin: 0; }
-    .list-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: opacity 0.2s; }
+    .list-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .list-item-content { padding: 15px; display: flex; align-items: center; justify-content: space-between; }
     .list-item-details { display: flex; flex-direction: column; flex-grow: 1; text-align: left;}
     .list-item-title { font-size: 1.1rem; font-weight: 500; }
@@ -137,7 +137,6 @@
       document.body.addEventListener('click', (e) => { const menuBtn = e.target.closest('[data-menu-id]'); if (!menuBtn && !e.target.closest('.dropdown-menu')) { document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show')); return; } if (menuBtn) { e.stopPropagation(); const menuId = menuBtn.dataset.menuId; const menu = document.getElementById(menuId); if (menu) { const isShown = menu.classList.contains('show'); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m.id !== menuId) m.classList.remove('show'); }); menu.classList.toggle('show', !isShown); } } });
       function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
 
-      // --- RECORDATORIOS ---
       function renderReminderForm(reminder = null) {
         mainContent.innerHTML = `
           <div class="list-container">
@@ -184,17 +183,26 @@
           const res = await fetchWithTimeout(webhookURL, payload);
           const data = await res.json();
           if(data.error) throw new Error(data.error);
-          await initializeAppContent(); // Sincroniza con la fuente de la verdad
+          await initializeAppContent();
           showToast('Recordatorio guardado con éxito');
         } catch (err) {
           showToast(err.message || 'Error de sincronización', true);
-          await initializeAppContent(); // Revierte si hay error
+          await initializeAppContent();
         }
       }
 
       function renderRemindersList() {
         const reminders = appData.remindersList || [];
-        let listHtml = (reminders.length > 0) ? reminders.map(item => `<li class="list-item"><div class="list-item-content"><div class="list-item-details"><span class="list-item-title">${item.Descripcion}</span><span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span></div><button class="generic-menu-btn" onclick="executeDeleteReminder('${item.tracking_code}')">🗑️</button></div></li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+        let listHtml = (reminders.length > 0) ? reminders.map(item => `
+          <li class="list-item">
+            <div class="list-item-content">
+              <div class="list-item-details">
+                <span class="list-item-title">${item.Descripcion}</span>
+                <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+              </div>
+              <button class="generic-menu-btn" onclick="executeDeleteReminder('${item.tracking_code}')">🗑️</button>
+            </div>
+          </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
         mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
         document.querySelector('.back-btn').onclick = renderDashboard;
       }
@@ -254,7 +262,11 @@
         const monthlyContainer = document.getElementById('chart-container-monthly');
         const legendContainer = document.getElementById('gasto-legend-container');
         
-        if (mesAnio) { pieContainer.innerHTML = ''; dailyContainer.innerHTML = ''; legendContainer.innerHTML = ''; }
+        if (mesAnio) {
+            pieContainer.innerHTML = '';
+            dailyContainer.innerHTML = '';
+            legendContainer.innerHTML = '';
+        }
 
         try {
           const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
