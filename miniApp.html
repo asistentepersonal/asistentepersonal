@@ -5,248 +5,601 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard - Mini App Telegram</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Asistente Personal</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
   <style>
-    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
+    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#777; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; --badge-pending: #28a745; --badge-bought: #dc3545; --badge-notes: #3498db; --badge-reminders: #f39c12; --badge-calendar: #9b59b6; --badge-gastos: #1abc9c; --border-color: #eee; --header-bg: #fff; }
     *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px;}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px; -webkit-tap-highlight-color: transparent;}
     .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:20px;}
-    .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
+    .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative; cursor: pointer; transition: transform 0.2s;}
+    .card:active { transform: scale(0.96); }
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
-    .card-title{font-size:1.2rem;margin-bottom:4px;}
-    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
+    .card-title{font-size:1.1rem;font-weight:500;margin-bottom:4px;}
+    .card-badge{position:absolute;top:12px;left:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
     .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
-    .card-badge.green{background-color:#28a745;}
-    .card-badge.red{background-color:#e74c3c;}
+    .card-badge.green{background-color:var(--badge-pending);} .card-badge.red{background-color:var(--badge-bought);} .card-badge.blue{background-color:var(--badge-notes);} .card-badge.orange{background-color:var(--badge-reminders);} .card-badge.purple{background-color:var(--badge-calendar);} .card-badge.teal{background-color:var(--badge-gastos);}
     .card-badge-group .card-badge{position:static;}
-    .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
-    .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
-    .dropdown-menu.show { display: block; }
-    .dropdown-item { padding: 12px 20px; color: var(--text); cursor: pointer; display: block; text-align: left; }
-    .dropdown-item:hover { background-color: var(--bg); }
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
-    .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
-    .tab.active{color:var(--badge-color);}
-    .form-container, .list-container{max-width:480px;margin:20px auto;padding:10px;}
-    .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
-    .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
-    .form-card textarea,.form-card input, .form-card select, .form-card .radio-group{width:100%;margin-top:8px;}
-    .form-card textarea,.form-card input, .form-card select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
-    .form-card .input-error { border-color: var(--error-bg) !important; }
-    .radio-group{display:flex;gap:10px;align-items:center; flex-wrap: wrap;}
-    .radio-group label{font-weight:400;color:var(--text);margin-top:0;}
-    .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:not-allowed;opacity:.6;transition:opacity .2s,background .2s;}
-    .form-card button.enabled{cursor:pointer;opacity:1;}
-    .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1000;font-size:1rem;}
+    .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer; transition: color 0.2s;}
+    .tab.active{color:var(--primary); font-weight: bold;}
+    .page-container{max-width:500px;margin:0 auto;padding:10px;}
+    .page-header{display:flex;align-items:center;padding:10px;margin-bottom:10px;background: var(--header-bg);border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: sticky; top: 10px; z-index: 99;}
+    .back-btn{background:transparent;border:none;font-size:1.8rem;cursor:pointer;color:var(--muted);padding-right:15px;line-height: 1;}
+    .page-header h2{font-size:1.4rem;margin:0;}
+    .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px; margin-top: 15px;}
+    .form-card label{display:block;margin-top:16px;font-weight:600;color:var(--text);}
+    .form-card textarea,.form-card input, .form-card select{width:100%;margin-top:8px;padding:12px;border:1px solid var(--border-color);border-radius:8px;font-size:1rem;color:var(--text); background: var(--bg);}
+    .radio-group{display:flex;gap:15px;align-items:center; flex-wrap: wrap; margin-top: 8px;}
+    .form-card button{margin-top:20px;width:100%;padding:14px;background:var(--primary);color:var(--action-text);border:none;border-radius:8px;font-size:1.1rem;font-weight: 500;cursor:pointer;transition:opacity .2s,background .2s;}
+    .form-card button.delete{background: var(--delete-bg);}
+    .list-item{background:var(--card-bg);border-radius:10px;margin-bottom:10px;padding:15px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 6px rgba(0,0,0,0.04); cursor: pointer;}
+    .list-item-content{flex-grow:1;display:flex;flex-direction:column;}
+    .list-item-title{font-weight:500;color:var(--text);}
+    .list-item-subtitle{font-size:0.9rem;color:var(--muted);margin-top:4px;}
+    .list-item-actions button{background:transparent;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:5px;}
+    .shopping-list-item{padding: 5px 15px;} .shopping-list-item .list-item-content{flex-direction: row; align-items: center;}
+    .shopping-list-item input[type="checkbox"] { margin-right: 15px; width: 20px; height: 20px; }
+    .shopping-list-item.bought .list-item-title { text-decoration: line-through; color: var(--muted); }
+    .shopping-list-section-title { font-size: 1rem; color: var(--muted); padding: 15px 5px 5px; font-weight: bold; border-bottom: 1px solid var(--border-color); margin-bottom: 10px;}
+    .action-bar{padding:10px; position: sticky; bottom: 60px; z-index: 99;}
+    .action-bar button{width:100%;padding:14px;background:var(--primary);color:var(--action-text);border:none;border-radius:8px;font-size:1.1rem;font-weight: 500;cursor:pointer;}
+    .no-data-msg{text-align:center;padding:60px 20px;font-size:1.2rem;color:var(--muted);}.no-data-msg span{font-size: 3rem; display: block; margin-bottom: 15px;}
+    .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1001;font-size:1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2);}
     .toast.error{background:var(--error-bg);}
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
-    .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;z-index:1001;}
-    @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
-    @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
-    .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
-    .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
-    .list-header h2 { font-size: 1.4rem; margin: 0; }
-    #recurrent-hours-container { display: none; margin-top: 15px; }
-    .gasto-chart-container { text-align: center; margin-top: 15px; }
-    .gasto-chart-container img { max-width: 100%; border-radius: 12px; }
+    .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;z-index:1002;}
+    .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:1003;}
+    .modal-content{background:var(--card-bg);padding:25px;border-radius:12px;text-align:center;width:90%;max-width:320px;box-shadow:0 5px 20px rgba(0,0,0,0.2);}
+    .modal-content p{margin-bottom:20px;font-size:1.1rem;}
+    .modal-actions{display:flex;gap:10px;}
+    .modal-actions button{flex:1;padding:12px;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:500;}
+    #confirm-yes-btn{background:var(--confirm-yes-bg);color:var(--action-text);}
+    #confirm-no-btn{background:var(--confirm-no-bg);color:var(--text);}
+    .gasto-chart-container { text-align: center; margin: 20px 0; }
+    .gasto-chart-container img { max-width: 100%; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
     .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
+    .date-filter-container { display: flex; gap: 10px; margin-top: 15px; }
+    .date-filter-container input { flex: 1; }
+    @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
+    @keyframes fadein{from{opacity:0;bottom: 60px;}to{opacity:1;bottom: 80px;}}@keyframes fadeout{from{opacity:1;bottom:80px;}to{opacity:0;bottom:60px;}}
   </style>
 </head>
 <body>
   <div id="spinner" class="spinner"></div>
   <div id="main"></div>
-  <div class="tabs"> <div class="tab active" id="tab-home">Home</div> </div>
+  <div class="tabs">
+    <div class="tab active" id="tab-home">Home</div>
+  </div>
   <div id="toast" class="toast"></div>
+
+  <div id="confirmation-modal" class="modal-overlay">
+    <div class="modal-content">
+      <p id="confirmation-message">¿Estás seguro?</p>
+      <div class="modal-actions">
+        <button id="confirm-no-btn">No</button>
+        <button id="confirm-yes-btn">Sí, eliminar</button>
+      </div>
+    </div>
+  </div>
   
-  <script>
-    (function() { const params = new URLSearchParams(window.location.search); if (!params.has('v')) { const newUrl = new URL(window.location.href); newUrl.searchParams.set('v', new Date().getTime()); window.location.replace(newUrl.href); } })();
-
-    document.addEventListener('DOMContentLoaded', () => {
-      const tg = window.Telegram?.WebApp;
-      if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
-      
-      const webhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
-      let chatId = tg?.initDataUnsafe?.user?.id;
-      if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
-
-      let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [] };
-      const mainContent = document.getElementById('main');
-      const spinner = document.getElementById('spinner');
-
-      function showSpinner() { spinner.style.display = 'block'; }
-      function hideSpinner() { spinner.style.display = 'none'; }
-      function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
-      
-      async function fetchWithTimeout(resource, payloadObject) {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 30000);
-        const formData = new FormData();
-        formData.append("postData", JSON.stringify(payloadObject));
-        try {
-          const response = await fetch(resource, { method: 'POST', body: formData, signal: controller.signal });
-          clearTimeout(id);
-          if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
-          return response;
-        } catch (error) {
-          clearTimeout(id);
-          if (error.name === 'AbortError') throw new Error('Timeout: La solicitud tardó demasiado.');
-          throw error;
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- INICIALIZACIÓN Y CONFIGURACIÓN ---
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+        tg.expand();
+        tg.BackButton.hide();
+        tg.onEvent('backButtonClicked', () => navigateBack());
+        if (tg.themeParams) {
+            document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
+            document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
+            document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333');
+            document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555');
+            document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3');
+            document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
         }
-      }
+    }
 
-      async function initializeAppContent() { showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'get_full_dashboard' }); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; renderDashboard(); } catch (err) { console.error('Error en carga inicial:', err); showToast(`Error al cargar datos: ${err.message}`, true); mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; } finally { hideSpinner(); } }
-      
-      function renderDashboard() {
-        setActiveTab('tab-home');
-        mainContent.innerHTML = `
-          <div class="grid">
-            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.remindersCount}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
-            <div class="card"><div class="card-badge-group"><div class="card-badge green">${appData.counts.shoppingPendingCount}</div><div class="card-badge red">${appData.counts.shoppingBoughtCount}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
-            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.notesCount}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
-            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.calendarTodayCount}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div></div>
-            <div class="card"><div class="card-badge red" style="left:12px;">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
-          </div>`;
-        document.getElementById('add-reminder-link').onclick = renderReminderForm;
-        document.getElementById('list-reminders-link').onclick = renderRemindersList;
-        document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-        document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
-        document.getElementById('add-note-link').onclick = renderNoteForm;
-        document.getElementById('list-notes-link').onclick = renderNotesList;
-        document.getElementById('add-event-link').onclick = renderEventForm;
-        document.getElementById('view-agenda-link').onclick = renderAgendaView;
-        document.getElementById('add-gasto-link').onclick = renderGastoForm;
-        document.getElementById('list-gastos-link').onclick = renderGastosList;
-        document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-      }
-      
-      document.body.addEventListener('click', (e) => { const menuBtn = e.target.closest('[data-menu-id]'); if (!menuBtn && !e.target.closest('.dropdown-menu')) { document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show')); return; } if (menuBtn) { e.stopPropagation(); const menuId = menuBtn.dataset.menuId; const menu = document.getElementById(menuId); if (menu) { const isShown = menu.classList.contains('show'); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m.id !== menuId) m.classList.remove('show'); }); menu.classList.toggle('show', !isShown); } } });
-      function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
+    const webhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
+    let chatId = tg?.initDataUnsafe?.user?.id;
+    if (!chatId) {
+        chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330');
+    }
 
-      function renderReminderForm(reminder = null) {
-        mainContent.innerHTML = `
-          <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
-            <div class="form-card">
-              <label>Descripción</label><textarea id="text" rows="3" required></textarea>
-              <label>Fecha y hora de inicio</label><input type="text" id="time" required/>
-              <label>Tipo</label>
-              <div class="radio-group" id="reminder-type-group">
-                <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
-                <label><input type="radio" name="category" value="Diario"/> Diario</label>
-                <label><input type="radio" name="category" value="Recurrente"/> Recurrente</label>
-              </div>
-              <div id="recurrent-hours-container">
-                <label>Repetir cada...</label>
-                <select id="recurrent-hours">
-                  ${[...Array(11).keys()].map(i => `<option value="${i + 2}">${i + 2} horas</option>`).join('')}
-                </select>
-              </div>
-              <button id="sendBtn" disabled>Crear Recordatorio</button>
-            </div>
-          </div>`;
-        document.querySelector('.back-btn').onclick = renderDashboard;
-        const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
-        flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H:i", defaultDate: new Date(), locale: "es", minDate: "today" });
-        function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
-        function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
-        textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
-        sendBtn.onclick = saveReminder;
-        toggleRecurrentField(); validate();
-      }
+    let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [] };
+    const mainContent = document.getElementById('main');
+    const spinner = document.getElementById('spinner');
+    let navigationStack = []; // Para gestionar el botón de "Atrás"
 
-      async function saveReminder() {
-        const category = document.querySelector('input[name="category"]:checked').value;
-        const description = document.getElementById('text').value.trim();
-        const time = document.getElementById('time')._flatpickr.selectedDates[0];
-        const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null;
-        const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
+    // --- FUNCIONES UTILITARIAS ---
+    const showSpinner = () => spinner.style.display = 'block';
+    const hideSpinner = () => spinner.style.display = 'none';
+    let toastTimer;
+    function showToast(msg, isError = false) {
+        clearTimeout(toastTimer);
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast show' + (isError ? ' error' : '');
+        toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000);
+    }
+
+    function showConfirmation(message, confirmText = 'Sí, eliminar', onConfirm) {
+        document.getElementById('confirmation-message').textContent = message;
+        document.getElementById('confirm-yes-btn').textContent = confirmText;
+        const modal = document.getElementById('confirmation-modal');
+        modal.style.display = 'flex';
+
+        const yesBtn = document.getElementById('confirm-yes-btn');
+        const noBtn = document.getElementById('confirm-no-btn');
         
-        showToast('Guardando...');
-        renderDashboard();
-
-        try {
-          const res = await fetchWithTimeout(webhookURL, payload);
-          const data = await res.json();
-          if(data.error) throw new Error(data.error);
-          await initializeAppContent();
-          showToast('Recordatorio guardado con éxito');
-        } catch (err) {
-          showToast(err.message || 'Error de sincronización', true);
-          await initializeAppContent();
+        const confirmHandler = () => {
+            onConfirm();
+            cleanup();
+        };
+        const cancelHandler = () => cleanup();
+        
+        function cleanup() {
+            modal.style.display = 'none';
+            yesBtn.removeEventListener('click', confirmHandler);
+            noBtn.removeEventListener('click', cancelHandler);
         }
-      }
-
-      function renderRemindersList() {
-        const reminders = appData.remindersList || [];
-        let listHtml = (reminders.length > 0) ? reminders.map(item => `
-          <li class="list-item">
-            <div class="list-item-content">
-              <div class="list-item-details">
-                <span class="list-item-title">${item.Descripcion}</span>
-                <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
-              </div>
-              <button class="generic-menu-btn" onclick="executeDeleteReminder('${item.tracking_code}')">🗑️</button>
-            </div>
-          </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
-        document.querySelector('.back-btn').onclick = renderDashboard;
-      }
-
-      async function executeDeleteReminder(trackingCode) {
-        if (!confirm('¿Seguro que quieres eliminar este recordatorio?')) return;
+        
+        yesBtn.addEventListener('click', confirmHandler);
+        noBtn.addEventListener('click', cancelHandler);
+    }
+    
+    async function apiCall(payload) {
         showSpinner();
         try {
-          const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'delete_reminder', tracking_code: trackingCode });
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-          appData = data;
-          showToast('Recordatorio eliminado');
-          renderRemindersList();
+            const formData = new FormData();
+            formData.append("postData", JSON.stringify({ chat_ID: chatId, ...payload }));
+            const res = await fetch(webhookURL, { method: 'POST', body: formData });
+            if (!res.ok) throw new Error(`Error de red: ${res.status}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            appData = data; // Sincroniza con la respuesta completa del servidor
+            return data;
         } catch (err) {
-          showToast(err.message || 'Error al eliminar', true);
+            console.error('Error en apiCall:', err);
+            showToast(err.message || 'Error de conexión', true);
+            throw err; // Propaga el error para que el llamador pueda manejarlo
         } finally {
-          hideSpinner();
+            hideSpinner();
         }
-      }
-      
-      function renderShoppingList() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      function renderAddArticleForm() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      function renderNotesList() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      function renderNoteForm() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      function renderAgendaView() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      function renderEventForm() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      function renderGastoForm() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      function renderGastosList() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      
-      function renderGastoChart() {
+    }
+
+    // --- NAVEGACIÓN ---
+    function navigateTo(renderFunction, ...args) {
+        navigationStack.push({ func: renderFunction, args: args });
+        renderFunction(...args);
+        tg?.BackButton.show();
+    }
+
+    function navigateBack() {
+        navigationStack.pop(); // Quita la vista actual
+        if (navigationStack.length > 0) {
+            const previousView = navigationStack[navigationStack.length - 1];
+            previousView.func(...previousView.args);
+        } else {
+            renderDashboard();
+            tg?.BackButton.hide();
+        }
+    }
+
+    // --- VISTA PRINCIPAL: DASHBOARD ---
+    function renderDashboard() {
+        navigationStack = [{ func: renderDashboard, args: [] }];
+        tg?.BackButton.hide();
+        mainContent.innerHTML = `
+          <div class="grid">
+            <div class="card" id="card-reminders"><div class="card-badge orange">${appData.counts.remindersCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div></div>
+            <div class="card" id="card-shopping"><div class="card-badge-group"><div class="card-badge green">${appData.counts.shoppingPendingCount || 0}</div><div class="card-badge red">${appData.counts.shoppingBoughtCount || 0}</div></div><div class="card-icon">🛒</div><div class="card-title">Compras</div></div>
+            <div class="card" id="card-notes"><div class="card-badge blue">${appData.counts.notesCount || 0}</div><div class="card-icon">📝</div><div class="card-title">Notas</div></div>
+            <div class="card" id="card-calendar"><div class="card-badge purple">${appData.counts.calendarTodayCount || 0}</div><div class="card-icon">📅</div><div class="card-title">Calendario</div></div>
+            <div class="card" id="card-gastos"><div class="card-badge teal">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}€</div><div class="card-icon">💰</div><div class="card-title">Gastos</div></div>
+          </div>`;
+        document.getElementById('card-reminders').onclick = () => navigateTo(renderRemindersList);
+        document.getElementById('card-shopping').onclick = () => navigateTo(renderShoppingList);
+        document.getElementById('card-notes').onclick = () => navigateTo(renderNotesList);
+        document.getElementById('card-calendar').onclick = () => navigateTo(renderAgendaView);
+        document.getElementById('card-gastos').onclick = () => navigateTo(renderGastoChart);
+    }
+    
+    // --- MÓDULO: RECORDATORIOS ---
+    function renderRemindersList() {
+        const reminders = appData.remindersList || [];
+        let listHtml = (reminders.length > 0) ? reminders.map(item => `
+            <div class="list-item">
+                <div class="list-item-content">
+                    <span class="list-item-title">${item.Descripcion}</span>
+                    <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+                </div>
+                <div class="list-item-actions">
+                    <button onclick="deleteReminder('${item.tracking_code}')">🗑️</button>
+                </div>
+            </div>`).join('') : '<div class="no-data-msg"><span>🎉</span>No tienes recordatorios.</div>';
+        
+        mainContent.innerHTML = `
+            <div class="page-container">
+                <div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>Recordatorios</h2></div>
+                ${listHtml}
+            </div>
+            <div class="action-bar"><button onclick="navigateTo(renderReminderForm)">Añadir Recordatorio</button></div>`;
+    }
+
+    function deleteReminder(trackingCode) {
+        showConfirmation('¿Seguro que quieres eliminar este recordatorio?', 'Sí, eliminar', async () => {
+            const originalData = JSON.parse(JSON.stringify(appData));
+            // Optimistic UI update
+            appData.remindersList = appData.remindersList.filter(r => r.tracking_code !== trackingCode);
+            appData.counts.remindersCount--;
+            renderRemindersList();
+
+            try {
+                await apiCall({ Type: 'delete_reminder', tracking_code: trackingCode });
+                showToast('Recordatorio eliminado');
+            } catch (err) {
+                appData = originalData; // Rollback
+                renderRemindersList();
+                showToast('Error al eliminar', true);
+            }
+        });
+    }
+
+    // --- MÓDULO: LISTA DE LA COMPRA ---
+    function renderShoppingList() {
+        const items = appData.shoppingList || [];
+        const pending = items.filter(i => i['2'] === 'Pendiente');
+        const bought = items.filter(i => i['2'] === 'Comprado');
+        let html = '';
+
+        if (pending.length > 0) {
+            html += '<h3 class="shopping-list-section-title">Pendientes</h3>';
+            html += pending.map(item => `
+                <div class="list-item shopping-list-item" onclick="toggleShoppingItem('${item['3']}')">
+                    <div class="list-item-content"><span class="list-item-title">${item['1']}</span></div>
+                    <div class="list-item-actions"><button onclick="event.stopPropagation(); deleteShoppingItem('${item['3']}')">🗑️</button></div>
+                </div>`).join('');
+        }
+        if (bought.length > 0) {
+            html += '<h3 class="shopping-list-section-title">Comprados</h3>';
+            html += bought.map(item => `
+                <div class="list-item shopping-list-item bought">
+                    <div class="list-item-content">
+                        <input type="checkbox" class="bought-item-checkbox" data-id="${item['3']}" onclick="event.stopPropagation(); checkResetButtonState();">
+                        <span class="list-item-title" onclick="toggleShoppingItem('${item['3']}')">${item['1']}</span>
+                    </div>
+                    <div class="list-item-actions"><button onclick="event.stopPropagation(); deleteShoppingItem('${item['3']}')">🗑️</button></div>
+                </div>`).join('');
+        }
+        if (items.length === 0) {
+            html = '<div class="no-data-msg"><span>🛒</span>Tu lista está vacía.</div>';
+        }
+        
+        mainContent.innerHTML = `
+            <div class="page-container">
+                <div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>Lista de Compras</h2></div>
+                ${html}
+            </div>
+            <div class="action-bar" id="shopping-action-bar">
+                ${bought.length > 0 ? '<button id="reset-bought-btn" disabled>Pasar a Pendiente</button>' : ''}
+                <button onclick="navigateTo(renderAddArticleForm)" style="margin-top: 10px;">Añadir Artículo</button>
+            </div>`;
+        
+        if (bought.length > 0) {
+            document.getElementById('reset-bought-btn').onclick = resetSelectedBoughtItems;
+        }
+    }
+    
+    function checkResetButtonState() {
+        const checked = document.querySelectorAll('.bought-item-checkbox:checked').length > 0;
+        const btn = document.getElementById('reset-bought-btn');
+        if(btn) btn.disabled = !checked;
+    }
+
+    async function toggleShoppingItem(trackingCode) {
+        const originalData = JSON.parse(JSON.stringify(appData));
+        const item = appData.shoppingList.find(i => i['3'] === trackingCode);
+        const newStatus = item['2'] === 'Pendiente' ? 'Comprado' : 'Pendiente';
+        
+        item['2'] = newStatus;
+        if (newStatus === 'Comprado') {
+            appData.counts.shoppingPendingCount--;
+            appData.counts.shoppingBoughtCount++;
+        } else {
+            appData.counts.shoppingPendingCount++;
+            appData.counts.shoppingBoughtCount--;
+        }
+        renderShoppingList();
+        
+        try {
+            await apiCall({ Type: 'toggle_item_status', tracking_code: trackingCode, new_status: newStatus });
+        } catch (err) {
+            appData = originalData;
+            renderShoppingList();
+        }
+    }
+
+    async function resetSelectedBoughtItems() {
+        const selectedIds = Array.from(document.querySelectorAll('.bought-item-checkbox:checked')).map(cb => cb.dataset.id);
+        if (selectedIds.length === 0) return;
+        
+        const originalData = JSON.parse(JSON.stringify(appData));
+        let changedCount = 0;
+        appData.shoppingList.forEach(item => {
+            if (selectedIds.includes(item['3'])) {
+                item['2'] = 'Pendiente';
+                changedCount++;
+            }
+        });
+        appData.counts.shoppingPendingCount += changedCount;
+        appData.counts.shoppingBoughtCount -= changedCount;
+        renderShoppingList();
+
+        try {
+            await apiCall({ Type: 'toggle_multiple_to_pending', tracking_codes: selectedIds });
+            showToast(`${changedCount} artículo(s) movidos a pendiente`);
+        } catch(err) {
+            appData = originalData;
+            renderShoppingList();
+        }
+    }
+
+    function deleteShoppingItem(trackingCode) {
+        showConfirmation('¿Eliminar este artículo?', 'Sí, eliminar', async () => {
+            const originalData = JSON.parse(JSON.stringify(appData));
+            const item = appData.shoppingList.find(i => i['3'] === trackingCode);
+
+            if (item['2'] === 'Pendiente') appData.counts.shoppingPendingCount--;
+            else appData.counts.shoppingBoughtCount--;
+            appData.shoppingList = appData.shoppingList.filter(i => i['3'] !== trackingCode);
+            renderShoppingList();
+            
+            try {
+                await apiCall({ Type: 'delete_item_shopping_list', tracking_code: trackingCode });
+                showToast('Artículo eliminado');
+            } catch (err) {
+                appData = originalData;
+                renderShoppingList();
+            }
+        });
+    }
+
+    function renderAddArticleForm() {
+        mainContent.innerHTML = `
+            <div class="page-container">
+                <div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>Añadir Artículo</h2></div>
+                <div class="form-card">
+                    <label>Nombre del artículo</label>
+                    <textarea id="article-desc" rows="2"></textarea>
+                    <button onclick="addArticle()">Añadir a la Lista</button>
+                </div>
+            </div>`;
+    }
+
+    async function addArticle() {
+        const description = document.getElementById('article-desc').value.trim();
+        if (!description) return;
+        
+        navigateBack(); // Vuelve a la lista
+        showToast('Añadiendo...');
+        try {
+            await apiCall({ Type: 'add_articulo', description: description });
+            renderShoppingList();
+            showToast('Artículo añadido');
+        } catch (err) {
+            // El apiCall ya muestra el error, solo necesitamos recargar los datos viejos
+            await apiCall({ Type: 'get_full_dashboard' });
+            renderShoppingList();
+        }
+    }
+    
+    // --- MÓDULO: NOTAS ---
+    function renderNotesList() {
+        const notes = appData.notesList || [];
+        let listHtml = (notes.length > 0) ? notes.map(note => `
+            <div class="list-item" onclick="navigateTo(renderNoteForm, '${note.Nota_ID}')">
+                <div class="list-item-content">
+                    <span class="list-item-title">${note.Titulo}</span>
+                    <span class="list-item-subtitle">${note.Fecha}</span>
+                </div>
+                <div class="list-item-actions">
+                    <button onclick="event.stopPropagation(); deleteNote('${note.Nota_ID}')">🗑️</button>
+                </div>
+            </div>`).join('') : '<div class="no-data-msg"><span>📝</span>No tienes notas.</div>';
+
+        mainContent.innerHTML = `
+            <div class="page-container">
+                <div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>Mis Notas</h2></div>
+                ${listHtml}
+            </div>
+            <div class="action-bar"><button onclick="navigateTo(renderNoteForm)">Crear Nota</button></div>`;
+    }
+
+    function renderNoteForm(noteId = null) {
+        const isEditing = noteId !== null;
+        const note = isEditing ? appData.notesList.find(n => n.Nota_ID === noteId) : null;
+
+        mainContent.innerHTML = `
+            <div class="page-container">
+                <div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>${isEditing ? 'Editar Nota' : 'Nueva Nota'}</h2></div>
+                <div class="form-card">
+                    <label>Título</label>
+                    <input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}">
+                    <label>Descripción</label>
+                    <textarea id="note-description" rows="8">${isEditing ? note.Descripcion : ''}</textarea>
+                    <button onclick="saveNote('${noteId || ''}')">${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
+                </div>
+            </div>`;
+    }
+
+    async function saveNote(noteId) {
+        const isEditing = noteId !== '';
+        const title = document.getElementById('note-title').value.trim();
+        const description = document.getElementById('note-description').value.trim();
+        if(!title) return;
+
+        const originalData = JSON.parse(JSON.stringify(appData));
+        navigateBack(); // Vuelve a la lista
+        
+        if (isEditing) {
+            const note = appData.notesList.find(n => n.Nota_ID === noteId);
+            note.Titulo = title;
+            note.Descripcion = description;
+            renderNotesList();
+            try {
+                await apiCall({ Type: 'edit_note', note_id: noteId, title, description });
+                showToast('Nota actualizada');
+            } catch (err) {
+                appData = originalData;
+                renderNotesList();
+            }
+        } else {
+            showToast('Creando nota...');
+            try {
+                await apiCall({ Type: 'add_note', title, description });
+                renderNotesList();
+                showToast('Nota creada');
+            } catch (err) {
+                appData = originalData;
+                renderNotesList();
+            }
+        }
+    }
+    
+    function deleteNote(noteId) {
+        showConfirmation('¿Eliminar esta nota?', 'Sí, eliminar', async () => {
+            const originalData = JSON.parse(JSON.stringify(appData));
+            appData.notesList = appData.notesList.filter(n => n.Nota_ID !== noteId);
+            appData.counts.notesCount--;
+            renderNotesList();
+            
+            try {
+                await apiCall({ Type: 'delete_note', note_id: noteId });
+                showToast('Nota eliminada');
+            } catch (err) {
+                appData = originalData;
+                renderNotesList();
+            }
+        });
+    }
+
+    // --- MÓDULO: CALENDARIO ---
+    function renderAgendaView() {
+        mainContent.innerHTML = `
+            <div class="page-container">
+                <div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>Agenda</h2></div>
+                <div class="form-card">
+                    <label>Buscar eventos entre fechas:</label>
+                    <div class="date-filter-container">
+                        <input type="text" id="agenda-start-date" placeholder="Desde...">
+                        <input type="text" id="agenda-end-date" placeholder="Hasta...">
+                    </div>
+                </div>
+                <div id="agenda-list-container"></div>
+            </div>
+            <div class="action-bar"><button onclick="navigateTo(renderEventForm)">Añadir Evento</button></div>`;
+        
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+        const fpStart = flatpickr("#agenda-start-date", { defaultDate: startOfMonth, locale: "es", onChange: fetchAndRenderEvents });
+        const fpEnd = flatpickr("#agenda-end-date", { defaultDate: endOfMonth, locale: "es", onChange: fetchAndRenderEvents });
+
+        fetchAndRenderEvents();
+    }
+
+    async function fetchAndRenderEvents() {
+        const container = document.getElementById('agenda-list-container');
+        container.innerHTML = '<div class="spinner" style="display:block; position:relative; margin: 40px auto;"></div>';
+        
+        const startDate = document.getElementById('agenda-start-date')._flatpickr.selectedDates[0];
+        const endDate = document.getElementById('agenda-end-date')._flatpickr.selectedDates[0];
+        if (!startDate || !endDate) return;
+
+        try {
+            const payload = { Type: 'get_calendar_events', startDate: startDate.toISOString(), endDate: endDate.toISOString() };
+            // Este no es un apiCall que modifica datos, es solo una consulta.
+            const res = await fetch(webhookURL, { method: 'POST', body: new FormData().append('postData', JSON.stringify({chat_ID: chatId, ...payload})) });
+            const events = await res.json();
+            
+            let listHtml = (events.length > 0) ? events.map(event => {
+                const start = new Date(event.start);
+                const fecha = start.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+                const hora = event.start.includes('T') ? start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 'Todo el día';
+                return `
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <span class="list-item-title">${event.summary}</span>
+                        <span class="list-item-subtitle">${fecha} - ${hora}</span>
+                    </div>
+                    <div class="list-item-actions">
+                        <button onclick="deleteCalendarEvent('${event.id}')">🗑️</button>
+                    </div>
+                </div>`;
+            }).join('') : '<div class="no-data-msg"><span>🗓️</span>No hay eventos en estas fechas.</div>';
+            container.innerHTML = listHtml;
+        } catch(err) {
+            container.innerHTML = '<div class="no-data-msg"><span>❌</span>Error al cargar eventos.</div>';
+            showToast(err.message, true);
+        }
+    }
+
+    function renderEventForm() { /* Lógica para formulario de eventos */
+        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>Añadir Evento</h2></div><div class="no-data-msg"><span>🚧</span>Esta función está en construcción.</div></div>`;
+    }
+
+    function deleteCalendarEvent(eventId) {
+        showConfirmation('¿Eliminar este evento del calendario?', 'Sí, eliminar', async () => {
+            showSpinner();
+            try {
+                // No es optimista porque requiere recargar la lista
+                const res = await fetch(webhookURL, { method: 'POST', body: new FormData().append('postData', JSON.stringify({Type: 'delete_calendar_event', chat_ID: chatId, eventId: eventId}))});
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                showToast('Evento eliminado');
+                fetchAndRenderEvents(); // Recargar la lista
+            } catch (err) {
+                showToast(err.message, true);
+            } finally {
+                hideSpinner();
+            }
+        });
+    }
+
+    // --- MÓDULO: GASTOS ---
+    function renderGastoChart() {
         const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
         mainContent.innerHTML = `
-          <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
-            <div class="form-card">
-              <label>Detalle por Mes</label>
-              <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
-              <div class="gasto-chart-container" id="chart-container-pie"></div>
-              <ul class="gasto-legend" id="gasto-legend-container"></ul>
-              <hr style="margin: 25px 0; border-top: 1px solid #eee;">
-              <div class="gasto-chart-container" id="chart-container-daily"></div>
-              <hr style="margin: 25px 0; border-top: 1px solid #eee;">
-              <div class="gasto-chart-container" id="chart-container-monthly"></div>
+            <div class="page-container">
+                <div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>Análisis de Gastos</h2></div>
+                 <div class="form-card">
+                    <label>Ver detalle por Mes</label>
+                    <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
+                    <div class="gasto-chart-container" id="chart-container-pie"></div>
+                    <ul class="gasto-legend" id="gasto-legend-container"></ul>
+                    <hr style="margin: 25px 0; border: 0; border-top: 1px solid var(--border-color);">
+                    <div class="gasto-chart-container" id="chart-container-daily"></div>
+                </div>
+                <div class="form-card" style="margin-top:20px;">
+                    <label>Evolución General</label>
+                    <div class="gasto-chart-container" id="chart-container-monthly"></div>
+                </div>
             </div>
-          </div>`;
-        document.querySelector('.back-btn').onclick = renderDashboard;
+            <div class="action-bar"><button onclick="navigateTo(renderGastosList)">Buscar / Editar Gastos</button></div>`;
         document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
         fetchAndDisplayGastoChart({ target: { value: '' } }); 
-      }
+    }
 
-      async function fetchAndDisplayGastoChart(event) {
+    async function fetchAndDisplayGastoChart(event) {
         const mesAnio = event.target.value;
         showSpinner();
         const pieContainer = document.getElementById('chart-container-pie');
@@ -254,47 +607,48 @@
         const monthlyContainer = document.getElementById('chart-container-monthly');
         const legendContainer = document.getElementById('gasto-legend-container');
         
-        if (mesAnio) {
-            pieContainer.innerHTML = '';
-            dailyContainer.innerHTML = '';
-            legendContainer.innerHTML = '';
-        }
+        pieContainer.innerHTML = '';
+        dailyContainer.innerHTML = '';
+        legendContainer.innerHTML = '';
 
         try {
-          const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
-          const res = await fetchWithTimeout(webhookURL, payload);
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-          
-          if(data.pieChartUrl && mesAnio) {
-            const imgPie = document.createElement('img');
-            imgPie.src = data.pieChartUrl;
-            pieContainer.appendChild(imgPie);
-          }
-          if(data.dailyLineChartUrl && mesAnio) {
-            const imgDaily = document.createElement('img');
-            imgDaily.src = data.dailyLineChartUrl;
-            dailyContainer.appendChild(imgDaily);
-          }
-           if(data.monthlyBarChartUrl) {
-            monthlyContainer.innerHTML = '';
-            const imgMonthly = document.createElement('img');
-            imgMonthly.src = data.monthlyBarChartUrl;
-            monthlyContainer.appendChild(imgMonthly);
-          }
-          if(data.datosParaLeyenda && data.datosParaLeyenda.length > 0 && mesAnio) {
-            legendContainer.innerHTML = data.datosParaLeyenda.map(item => 
-              `<li class="gasto-legend-item">
-                 <span class="gasto-legend-color" style="background-color:${item.color};"></span>
-                 ${item.categoria}: <strong>${item.importe}</strong>
-               </li>`
-            ).join('');
-          }
+            const payload = { Type: 'get_gastos_chart', mes_anio: mesAnio };
+            const res = await fetch(webhookURL, { method: 'POST', body: new FormData().append('postData', JSON.stringify({chat_ID: chatId, ...payload})) });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            
+            if (mesAnio) {
+                if (data.pieChartUrl) pieContainer.innerHTML = `<img src="${data.pieChartUrl}">`;
+                if (data.dailyLineChartUrl) dailyContainer.innerHTML = `<img src="${data.dailyLineChartUrl}">`;
+                if (data.datosParaLeyenda && data.datosParaLeyenda.length > 0) {
+                    legendContainer.innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}€</strong></li>`).join('');
+                }
+            }
+            if (data.monthlyBarChartUrl) {
+                monthlyContainer.innerHTML = `<img src="${data.monthlyBarChartUrl}">`;
+            }
         } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
-      }
-      
-      initializeAppContent();
-    });
-  </script>
+    }
+    
+    function renderGastosList() {
+        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" onclick="navigateBack()">‹</button><h2>Buscar Gastos</h2></div><div class="no-data-msg"><span>🚧</span>Esta función está en construcción.</div></div>`;
+    }
+    
+    // --- INICIO DE LA APP ---
+    async function initializeApp() {
+        showSpinner();
+        try {
+            await apiCall({ Type: 'get_full_dashboard' });
+            renderDashboard();
+        } catch (err) {
+            mainContent.innerHTML = `<div class="no-data-msg"><span>❌</span>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`;
+        } finally {
+            hideSpinner();
+        }
+    }
+
+    initializeApp();
+});
+</script>
 </body>
 </html>
