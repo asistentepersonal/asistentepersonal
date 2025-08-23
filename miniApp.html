@@ -51,7 +51,20 @@
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
     .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
     .list-header h2 { font-size: 1.4rem; margin: 0; }
+    .list-style-none { list-style: none; padding: 0; margin: 0; }
+    .list-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .list-item-content { padding: 15px; display: flex; align-items: center; justify-content: space-between; }
+    .list-item-details { display: flex; flex-direction: column; flex-grow: 1; text-align: left;}
+    .list-item-title { font-size: 1.1rem; font-weight: 500; }
+    .list-item-subtitle { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+    .generic-menu-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; }
+    .no-data-msg { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
     #recurrent-hours-container { display: none; margin-top: 15px; }
+    .gasto-chart-container { text-align: center; margin-top: 15px; }
+    .gasto-chart-container img { max-width: 100%; border-radius: 12px; }
+    .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+    .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
+    .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
   </style>
 </head>
 <body>
@@ -77,7 +90,7 @@
 
       function showSpinner() { spinner.style.display = 'block'; }
       function hideSpinner() { spinner.style.display = 'none'; }
-      function showToast(msg, isError = false) { /* ...código sin cambios... */ }
+      function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
       
       async function fetchWithTimeout(resource, payloadObject) {
         const controller = new AbortController();
@@ -99,18 +112,36 @@
       async function initializeAppContent() { showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'get_full_dashboard' }); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; renderDashboard(); } catch (err) { console.error('Error en carga inicial:', err); showToast(`Error al cargar datos: ${err.message}`, true); mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; } finally { hideSpinner(); } }
       
       function renderDashboard() {
-        mainContent.innerHTML = `<div class="grid"><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.remindersCount}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div><div class="card"><div class="card-badge-group"><div class="card-badge green">${appData.counts.shoppingPendingCount}</div><div class="card-badge red">${appData.counts.shoppingBoughtCount}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.notesCount}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.calendarTodayCount}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div></div><div class="card"><div class="card-badge red" style="left:12px;">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div></div>`;
+        setActiveTab('tab-home');
+        mainContent.innerHTML = `
+          <div class="grid">
+            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.remindersCount}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+            <div class="card"><div class="card-badge-group"><div class="card-badge green">${appData.counts.shoppingPendingCount}</div><div class="card-badge red">${appData.counts.shoppingBoughtCount}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
+            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.notesCount}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
+            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.calendarTodayCount}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div></div>
+            <div class="card"><div class="card-badge red" style="left:12px;">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+          </div>`;
         document.getElementById('add-reminder-link').onclick = renderReminderForm;
-        // ... añadir aquí el resto de los .onclick si se borraron
+        document.getElementById('list-reminders-link').onclick = renderRemindersList;
+        document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+        document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+        document.getElementById('add-note-link').onclick = renderNoteForm;
+        document.getElementById('list-notes-link').onclick = renderNotesList;
+        document.getElementById('add-event-link').onclick = renderEventForm;
+        document.getElementById('view-agenda-link').onclick = renderAgendaView;
+        document.getElementById('add-gasto-link').onclick = renderGastoForm;
+        document.getElementById('list-gastos-link').onclick = renderGastosList;
+        document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
       }
       
-      document.body.addEventListener('click', (e) => { /* ...código sin cambios... */ });
-      
+      document.body.addEventListener('click', (e) => { const menuBtn = e.target.closest('[data-menu-id]'); if (!menuBtn && !e.target.closest('.dropdown-menu')) { document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show')); return; } if (menuBtn) { e.stopPropagation(); const menuId = menuBtn.dataset.menuId; const menu = document.getElementById(menuId); if (menu) { const isShown = menu.classList.contains('show'); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m.id !== menuId) m.classList.remove('show'); }); menu.classList.toggle('show', !isShown); } } });
+      function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
+
       function renderReminderForm(reminder = null) {
         const isEditing = !!reminder;
         mainContent.innerHTML = `
           <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar' : '📝 Nuevo'} Recordatorio</h2></div>
+            <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
             <div class="form-card">
               <label>Descripción</label><textarea id="text" rows="3" required></textarea>
               <label>Fecha y hora de inicio</label><input type="text" id="time" required/>
@@ -163,7 +194,93 @@
         }
       }
 
-      // Resto de funciones (renderShoppingList, renderNotesList, etc.) deben estar aquí
+      function renderRemindersList() {
+        const reminders = appData.remindersList || [];
+        let listHtml = (reminders.length > 0) ? reminders.map(item => `<li class="list-item"><div class="list-item-content"><div class="list-item-details"><span class="list-item-title">${item.Descripcion}</span><span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span></div><button class="generic-menu-btn" onclick="executeDeleteReminder('${item.tracking_code}')">🗑️</button></div></li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+      }
+
+      async function executeDeleteReminder(trackingCode) {
+        if (!confirm('¿Seguro que quieres eliminar este recordatorio?')) return;
+        showSpinner();
+        try {
+          const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'delete_reminder', tracking_code: trackingCode });
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          appData = data;
+          showToast('Recordatorio eliminado');
+          renderRemindersList();
+        } catch (err) {
+          showToast(err.message || 'Error al eliminar', true);
+        } finally {
+          hideSpinner();
+        }
+      }
+      
+      function renderShoppingList() { /* Implementar si es necesario */ }
+      function renderAddArticleForm() { /* Implementar si es necesario */ }
+      function renderNotesList() { /* Implementar si es necesario */ }
+      function renderNoteForm() { /* Implementar si es necesario */ }
+      function renderAgendaView() { /* Implementar si es necesario */ }
+      function renderEventForm() { /* Implementar si es necesario */ }
+      function renderGastoForm() { /* Implementar si es necesario */ }
+      function renderGastosList() { /* Implementar si es necesario */ }
+      
+      function renderGastoChart() {
+        const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+        mainContent.innerHTML = `
+          <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
+            <div class="form-card">
+              <label>Detalle por Mes</label>
+              <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
+              <div class="gasto-chart-container" id="chart-container-pie"></div>
+              <ul class="gasto-legend" id="gasto-legend-container"></ul>
+              <hr style="margin: 25px 0; border: 1px solid #eee;">
+              <div class="gasto-chart-container" id="chart-container-line"></div>
+            </div>
+          </div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+        document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
+        fetchAndDisplayGastoChart({ target: { value: '' } }); 
+      }
+
+      async function fetchAndDisplayGastoChart(event) {
+        const mesAnio = event.target.value;
+        showSpinner();
+        const pieContainer = document.getElementById('chart-container-pie');
+        const lineContainer = document.getElementById('chart-container-line');
+        const legendContainer = document.getElementById('gasto-legend-container');
+        if (mesAnio) { pieContainer.innerHTML = ''; legendContainer.innerHTML = ''; }
+
+        try {
+          const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
+          const res = await fetchWithTimeout(webhookURL, payload);
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          
+          if(data.pieChartUrl && mesAnio) {
+            const imgPie = document.createElement('img');
+            imgPie.src = data.pieChartUrl;
+            pieContainer.appendChild(imgPie);
+          }
+          if(data.lineChartUrl) {
+            lineContainer.innerHTML = '';
+            const imgLine = document.createElement('img');
+            imgLine.src = data.lineChartUrl;
+            lineContainer.appendChild(imgLine);
+          }
+          if(data.datosParaLeyenda && data.datosParaLeyenda.length > 0 && mesAnio) {
+            legendContainer.innerHTML = data.datosParaLeyenda.map(item => 
+              `<li class="gasto-legend-item">
+                 <span class="gasto-legend-color" style="background-color:${item.color};"></span>
+                 ${item.categoria}: <strong>${item.importe}</strong>
+               </li>`
+            ).join('');
+          }
+        } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+      }
       
       initializeAppContent();
     });
