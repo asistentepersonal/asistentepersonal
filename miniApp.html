@@ -51,14 +51,6 @@
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
     .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
     .list-header h2 { font-size: 1.4rem; margin: 0; }
-    .list-style-none { list-style: none; padding: 0; margin: 0; }
-    .list-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .list-item-content { padding: 15px; display: flex; align-items: center; justify-content: space-between; }
-    .list-item-details { display: flex; flex-direction: column; flex-grow: 1; text-align: left;}
-    .list-item-title { font-size: 1.1rem; font-weight: 500; }
-    .list-item-subtitle { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
-    .generic-menu-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; }
-    .no-data-msg { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; }
     #recurrent-hours-container { display: none; margin-top: 15px; }
     .gasto-chart-container { text-align: center; margin-top: 15px; }
     .gasto-chart-container img { max-width: 100%; border-radius: 12px; }
@@ -85,12 +77,13 @@
       if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
       let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [] };
+      let toastTimer;
       const mainContent = document.getElementById('main');
       const spinner = document.getElementById('spinner');
 
       function showSpinner() { spinner.style.display = 'block'; }
       function hideSpinner() { spinner.style.display = 'none'; }
-      function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
+      function showToast(msg, isError = false) { clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
       
       async function fetchWithTimeout(resource, payloadObject) {
         const controller = new AbortController();
@@ -136,7 +129,7 @@
       
       document.body.addEventListener('click', (e) => { const menuBtn = e.target.closest('[data-menu-id]'); if (!menuBtn && !e.target.closest('.dropdown-menu')) { document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show')); return; } if (menuBtn) { e.stopPropagation(); const menuId = menuBtn.dataset.menuId; const menu = document.getElementById(menuId); if (menu) { const isShown = menu.classList.contains('show'); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m.id !== menuId) m.classList.remove('show'); }); menu.classList.toggle('show', !isShown); } } });
       function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
-
+      
       function renderReminderForm(reminder = null) {
         const isEditing = !!reminder;
         mainContent.innerHTML = `
@@ -184,7 +177,7 @@
         try {
           const res = await fetchWithTimeout(webhookURL, payload);
           const data = await res.json();
-          if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+          if(data.error) throw new Error(data.error);
           showToast('Recordatorio guardado');
           initializeAppContent();
         } catch (err) {
@@ -218,14 +211,14 @@
         }
       }
       
-      function renderShoppingList() { /* Implementar si es necesario */ }
-      function renderAddArticleForm() { /* Implementar si es necesario */ }
-      function renderNotesList() { /* Implementar si es necesario */ }
-      function renderNoteForm() { /* Implementar si es necesario */ }
-      function renderAgendaView() { /* Implementar si es necesario */ }
-      function renderEventForm() { /* Implementar si es necesario */ }
-      function renderGastoForm() { /* Implementar si es necesario */ }
-      function renderGastosList() { /* Implementar si es necesario */ }
+      function renderShoppingList() { /* Implementar cuando sea necesario */ }
+      function renderAddArticleForm() { /* Implementar cuando sea necesario */ }
+      function renderNotesList() { /* Implementar cuando sea necesario */ }
+      function renderNoteForm() { /* Implementar cuando sea necesario */ }
+      function renderAgendaView() { /* Implementar cuando sea necesario */ }
+      function renderEventForm() { /* Implementar cuando sea necesario */ }
+      function renderGastoForm() { /* Implementar cuando sea necesario */ }
+      function renderGastosList() { /* Implementar cuando sea necesario */ }
       
       function renderGastoChart() {
         const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
@@ -237,8 +230,10 @@
               <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
               <div class="gasto-chart-container" id="chart-container-pie"></div>
               <ul class="gasto-legend" id="gasto-legend-container"></ul>
-              <hr style="margin: 25px 0; border: 1px solid #eee;">
-              <div class="gasto-chart-container" id="chart-container-line"></div>
+              <hr style="margin: 25px 0; border-top: 1px solid #eee;">
+              <div class="gasto-chart-container" id="chart-container-daily"></div>
+              <hr style="margin: 25px 0; border-top: 1px solid #eee;">
+              <div class="gasto-chart-container" id="chart-container-monthly"></div>
             </div>
           </div>`;
         document.querySelector('.back-btn').onclick = renderDashboard;
@@ -250,9 +245,15 @@
         const mesAnio = event.target.value;
         showSpinner();
         const pieContainer = document.getElementById('chart-container-pie');
-        const lineContainer = document.getElementById('chart-container-line');
+        const dailyContainer = document.getElementById('chart-container-daily');
+        const monthlyContainer = document.getElementById('chart-container-monthly');
         const legendContainer = document.getElementById('gasto-legend-container');
-        if (mesAnio) { pieContainer.innerHTML = ''; legendContainer.innerHTML = ''; }
+        
+        if (mesAnio) {
+            pieContainer.innerHTML = '';
+            dailyContainer.innerHTML = '';
+            legendContainer.innerHTML = '';
+        }
 
         try {
           const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
@@ -265,11 +266,16 @@
             imgPie.src = data.pieChartUrl;
             pieContainer.appendChild(imgPie);
           }
-          if(data.lineChartUrl) {
-            lineContainer.innerHTML = '';
-            const imgLine = document.createElement('img');
-            imgLine.src = data.lineChartUrl;
-            lineContainer.appendChild(imgLine);
+          if(data.dailyLineChartUrl && mesAnio) {
+            const imgDaily = document.createElement('img');
+            imgDaily.src = data.dailyLineChartUrl;
+            dailyContainer.appendChild(imgDaily);
+          }
+           if(data.monthlyBarChartUrl) {
+            monthlyContainer.innerHTML = '';
+            const imgMonthly = document.createElement('img');
+            imgMonthly.src = data.monthlyBarChartUrl;
+            monthlyContainer.appendChild(imgMonthly);
           }
           if(data.datosParaLeyenda && data.datosParaLeyenda.length > 0 && mesAnio) {
             legendContainer.innerHTML = data.datosParaLeyenda.map(item => 
