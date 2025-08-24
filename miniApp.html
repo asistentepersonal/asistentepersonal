@@ -5,437 +5,418 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Asistente Personal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - Mini App Telegram</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
   <style>
-    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#777; --primary:#4a76f3; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --menu-bg: #fff; --confirm-yes-bg: #28a745; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --badge-pending: #28a745; --badge-bought: #dc3545; --badge-notes: #3498db; --badge-reminders: #f39c12; --badge-calendar: #9b59b6; --badge-gastos: #1abc9c; --border-color: #eee; --header-bg: #fff; }
+    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; --edit-icon-color: #007bff; --checkbox-border: #ddd; --checkbox-checked-bg: var(--primary); }
     *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom:60px;-webkit-tap-highlight-color:transparent;}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px;}
     .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:20px;}
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
-    .card-title{font-size:1.1rem;font-weight:500;margin-bottom:4px;}
-    .card-badge{position:absolute;top:12px;left:12px;color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
+    .card-title{font-size:1.2rem;margin-bottom:4px;}
+    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
     .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
-    .card-badge.green{background-color:var(--badge-pending);} .card-badge.red{background-color:var(--badge-bought);} .card-badge.blue{background-color:var(--badge-notes);} .card-badge.orange{background-color:var(--badge-reminders);} .card-badge.purple{background-color:var(--badge-calendar);} .card-badge.teal{background-color:var(--badge-gastos);}
+    .card-badge.green{background-color:#28a745;}
+    .card-badge.red{background-color:#e74c3c;}
     .card-badge-group .card-badge{position:static;}
-    .card-menu-btn{position:absolute;top:8px;right:8px;background:transparent;border:none;font-size:1.5rem;color:var(--muted);cursor:pointer;padding:5px;line-height:1;z-index:10;}
-    .dropdown-menu{display:none;position:absolute;top:40px;right:10px;background-color:var(--menu-bg);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:50;overflow:hidden;min-width:150px;}
-    .dropdown-menu.show{display:block;}
-    .dropdown-item{padding:12px 20px;color:var(--text);cursor:pointer;display:block;text-align:left;}
-    .dropdown-item:hover{background-color:var(--bg);}
-    .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index:100;}
-    .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;transition:color 0.2s;}
-    .tab.active{color:var(--primary);font-weight:bold;}
-    .page-container{max-width:500px;margin:0 auto;padding:10px;}
-    .page-header{display:flex;align-items:center;padding:10px;margin-bottom:10px;background:var(--header-bg);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);position:sticky;top:10px;z-index:99;}
-    .back-btn{background:transparent;border:none;font-size:1.8rem;cursor:pointer;color:var(--muted);padding-right:15px;line-height:1;}
-    .page-header h2{font-size:1.4rem;margin:0;}
-    .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;margin-top:15px;}
-    .form-card label{display:block;margin-top:16px;font-weight:600;color:var(--text);}
-    .form-card textarea,.form-card input,.form-card select{width:100%;margin-top:8px;padding:12px;border:1px solid var(--border-color);border-radius:8px;font-size:1rem;color:var(--text);background:var(--bg);}
-    .radio-group{display:flex;gap:15px;align-items:center;flex-wrap:wrap;margin-top:8px;}
-    .form-card button{margin-top:20px;width:100%;padding:14px;background:var(--primary);color:var(--action-text);border:none;border-radius:8px;font-size:1.1rem;font-weight:500;cursor:pointer;transition:opacity .2s,background .2s;}
-    .form-card button:disabled{background-color:var(--confirm-no-bg);cursor:not-allowed;}
-    .list-item{background:var(--card-bg);border-radius:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 6px rgba(0,0,0,0.04);padding:15px;}
-    .list-item-content{flex-grow:1;display:flex;flex-direction:column;text-align:left;}
-    .list-item-title{font-weight:500;color:var(--text);}
-    .list-item-subtitle{font-size:0.9rem;color:var(--muted);margin-top:4px;}
-    .list-item-actions button{background:transparent;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:5px;}
-    .shopping-list-item{padding:10px;gap:10px;}
-    .shopping-item-checkbox{width:20px;height:20px;margin-right:5px;}
-    .shopping-item-details{flex-grow:1;text-align:left;}
-    .shopping-item-date{font-size:0.8rem;color:var(--muted);margin-top:4px;display:block;}
-    .shopping-list-section-title{font-size:1rem;color:var(--muted);padding:15px 5px 5px;font-weight:bold;border-bottom:1px solid var(--border-color);margin-bottom:10px;text-align:left;}
-    .action-bar{padding:10px;position:sticky;bottom:60px;z-index:99;background:rgba(245,247,250,0.8);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);border-radius:12px;}
-    .action-bar button{width:100%;padding:14px;background:var(--primary);color:var(--action-text);border:none;border-radius:8px;font-size:1.1rem;font-weight:500;cursor:pointer;transition:opacity .3s, background-color .3s;}
-    .action-bar button:disabled{background-color:var(--confirm-no-bg);cursor:not-allowed;}
-    .note-item{padding:0;flex-direction:column;align-items:stretch;cursor:pointer;}
-    .note-header{display:flex;align-items:center;justify-content:space-between;padding:15px;}
-    .note-description{padding:0 15px;max-height:0;overflow:hidden;transition:max-height 0.3s ease-out, padding 0.3s ease-out;white-space:pre-wrap;word-wrap:break-word;text-align:left;border-top:1px solid transparent;}
-    .note-item.open .note-description{max-height:500px;border-top:1px solid var(--border-color);padding-bottom:15px;}
-    .no-data-msg{text-align:center;padding:60px 20px;font-size:1.2rem;color:var(--muted);}.no-data-msg span{font-size:3rem;display:block;margin-bottom:15px;}
-    .gasto-chart-container{text-align:center;margin:20px 0;}
-    .gasto-chart-container img{max-width:100%;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
-    .gasto-legend{list-style:none;padding:15px 0 0 0;margin:0;display:flex;flex-wrap:wrap;justify-content:center;gap:15px;}
-    .gasto-legend-item{display:flex;align-items:center;font-size:0.9rem;}
-    .gasto-legend-color{width:12px;height:12px;border-radius:3px;margin-right:8px;}
-    .date-filter-container{display:flex;gap:10px;margin-top:15px;}
-    .day-header { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid var(--border-color); text-align: left;}
-    .event-item.open .event-description { display: block; }
-    .event-description { white-space: pre-wrap; word-wrap: break-word; text-align: left; color: var(--text); margin-top: 10px; display: none; }
-    .toast{visibility:hidden;width:90%;max-width:480px;background:#333;color:#fff;text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1001;font-size:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.2);}
+    .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
+    .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
+    .dropdown-menu.show { display: block; }
+    .dropdown-item { padding: 12px 20px; color: var(--text); cursor: pointer; display: block; text-align: left; }
+    .dropdown-item:hover { background-color: var(--bg); }
+    .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
+    .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
+    .tab.active{color:var(--badge-color);}
+    .form-container, .list-container{max-width:480px;margin:20px auto;padding:10px;}
+    .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
+    .form-card h2{margin-bottom:16px;font-size:1.4rem;}
+    .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
+    .form-card textarea,.form-card input, .form-card select, .form-card .radio-group{width:100%;margin-top:8px;}
+    .form-card textarea,.form-card input, .form-card select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
+    .form-card input.flatpickr-input { background-color: #fff !important; }
+    .form-card .input-error { border-color: var(--error-bg) !important; }
+    .radio-group{display:flex;gap:10px;align-items:center; flex-wrap: wrap;}
+    .radio-group label{font-weight:400;color:var(--text);margin-top:0;}
+    .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:not-allowed;opacity:.6;transition:opacity .2s,background .2s;}
+    .form-card button.enabled{cursor:pointer;opacity:1;}
+    .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1000;font-size:1rem;}
     .toast.error{background:var(--error-bg);}
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
-    .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;z-index:1002;}
-    .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:1003;}
-    .modal-content{background:var(--card-bg);padding:25px;border-radius:12px;text-align:center;width:90%;max-width:320px;box-shadow:0 5px 20px rgba(0,0,0,0.2);}
-    .modal-content p{margin-bottom:20px;font-size:1.1rem;}
-    .modal-actions{display:flex;gap:10px;}
-    .modal-actions button{flex:1;padding:12px;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:500;}
-    #confirm-yes-btn{background:var(--confirm-yes-bg);color:var(--action-text);}
-    #confirm-no-btn{background:var(--confirm-no-bg);color:var(--text);}
+    .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;z-index:1001;}
     @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
-    @keyframes fadein{from{opacity:0;bottom:60px;}to{opacity:1;bottom:80px;}}@keyframes fadeout{from{opacity:1;bottom:80px;}to{opacity:0;bottom:60px;}}
+    @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
+    .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
+    .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
+    .list-header h2 { font-size: 1.4rem; margin: 0; }
+    .list-style-none { list-style: none; padding: 0; margin: 0; }
+    .list-item { background: var(--card-bg); border-radius: 10px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between; }
+    .list-item-content { display: flex; flex-direction: column; flex-grow: 1; text-align: left;}
+    .list-item-title { font-size: 1.1rem; font-weight: 500; }
+    .list-item-subtitle { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+    .list-item-actions { display: flex; align-items: center; gap: 5px; position: relative; }
+    .generic-menu-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; }
+    .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
+    .confirm-btn-yes { background-color: var(--confirm-yes-bg); color: var(--delete-text); }
+    .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
+    .no-data-msg { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; font-size: 1.2rem; line-height: 1.5; }
+    #recurrent-hours-container { display: none; margin-top: 15px; }
+    .gasto-chart-container { text-align: center; margin-top: 15px; }
+    .gasto-chart-container img { max-width: 100%; border-radius: 12px; }
+    .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+    .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
+    .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
+    .note-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; }
+    .note-header { display: flex; align-items: center; justify-content: space-between; padding: 15px; }
+    .note-header-interactive { flex-grow: 1; padding-right: 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+    .note-title-section { display: flex; flex-direction: column; text-align: left; }
+    .note-title { font-size: 1.1rem; font-weight: 500; }
+    .note-date { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+    .note-description { padding: 0 15px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; white-space: pre-wrap; word-wrap: break-word; text-align: left; }
+    .note-item.open .note-description { max-height: 500px; padding: 0 15px 15px; }
+    .expand-arrow { font-size: 1.5rem; color: var(--muted); transition: transform 0.3s ease; }
+    .note-item.open .expand-arrow { transform: rotate(180deg); }
+    .day-header { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #eee; text-align: left;}
+    .event-description { white-space: pre-wrap; word-wrap: break-word; text-align: left; color: var(--text); margin-top: 10px; display: none; }
+    .list-item.open .event-description { display: block; }
   </style>
 </head>
 <body>
   <div id="spinner" class="spinner"></div>
   <div id="main"></div>
-  <div class="tabs"><div class="tab active" data-action="go-home">Home</div></div>
+  <div class="tabs"> <div class="tab active" id="tab-home">Home</div> </div>
   <div id="toast" class="toast"></div>
-  <div id="confirmation-modal" class="modal-overlay">
-    <div class="modal-content">
-      <p id="confirmation-message">¿Estás seguro?</p>
-      <div class="modal-actions"><button id="confirm-no-btn">No</button><button id="confirm-yes-btn">Sí</button></div>
-    </div>
-  </div>
   
-<script>
-// =========================================================================================
-// == APLICACIÓN COMPLETA - V5 (ARQUITECTURA ROBUSTA Y MÓDULOS COMPLETOS Y FUNCIONALES)
-// =========================================================================================
-document.addEventListener('DOMContentLoaded', () => {
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-        tg.expand(); tg.BackButton.hide();
-        tg.onEvent('backButtonClicked', () => handleAction({ action: 'navigate-back' }));
-        if (tg.themeParams) { Object.entries(tg.themeParams).forEach(([key, value]) => document.documentElement.style.setProperty(`--${key.replace(/_/g, '-')}`, value)); }
-    }
-    const webhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewpQJWBfGZpM04vHe/exec';
-    let chatId = tg?.initDataUnsafe?.user?.id || prompt('MODO DESARROLLO: Ingresa tu chat_ID:', '6840956330');
-    let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [] };
-    const mainContent = document.getElementById('main');
-    const spinner = document.getElementById('spinner');
-    let navigationStack = [];
+  <script>
+    (function() { const params = new URLSearchParams(window.location.search); if (!params.has('v')) { const newUrl = new URL(window.location.href); newUrl.searchParams.set('v', new Date().getTime()); window.location.replace(newUrl.href); } })();
 
-    const showSpinner = () => spinner.style.display = 'block';
-    const hideSpinner = () => spinner.style.display = 'none';
-    let toastTimer;
-    const showToast = (msg, isError = false) => { clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => t.className = 'toast', 3000); };
-    const showConfirmation = (message, confirmText, onConfirm) => {
-        document.getElementById('confirmation-message').textContent = message;
-        const yesBtn = document.getElementById('confirm-yes-btn');
-        yesBtn.textContent = confirmText;
-        const modal = document.getElementById('confirmation-modal');
-        modal.style.display = 'flex';
-        const noBtn = document.getElementById('confirm-no-btn');
-        const confirmHandler = () => { onConfirm(); cleanup(); };
-        const cancelHandler = () => cleanup();
-        const cleanup = () => { modal.style.display = 'none'; yesBtn.removeEventListener('click', confirmHandler); noBtn.removeEventListener('click', cancelHandler); };
-        yesBtn.addEventListener('click', confirmHandler); noBtn.addEventListener('click', cancelHandler);
-    };
-    const apiCall = async (payload) => {
-        showSpinner();
+    document.addEventListener('DOMContentLoaded', () => {
+      const tg = window.Telegram?.WebApp;
+      if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
+      
+      const webhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
+      let chatId = tg?.initDataUnsafe?.user?.id;
+      if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
+
+      let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [] };
+      const mainContent = document.getElementById('main');
+      const spinner = document.getElementById('spinner');
+
+      function showSpinner() { spinner.style.display = 'block'; }
+      function hideSpinner() { spinner.style.display = 'none'; }
+      function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
+      
+      async function fetchWithTimeout(resource, payloadObject) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 30000);
+        const formData = new FormData();
+        formData.append("postData", JSON.stringify(payloadObject));
         try {
-            const formData = new FormData();
-            formData.append("postData", JSON.stringify({ chat_ID: chatId, ...payload }));
-            const res = await fetch(webhookURL, { method: 'POST', body: formData });
-            if (!res.ok) throw new Error(`Error de red: ${res.status}`);
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            appData = data; return data;
-        } catch (err) { console.error('Error en apiCall:', err); showToast(err.message || 'Error de conexión', true); throw err; } finally { hideSpinner(); }
-    };
+          const response = await fetch(resource, { method: 'POST', body: formData, signal: controller.signal });
+          clearTimeout(id);
+          if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+          return response;
+        } catch (error) {
+          clearTimeout(id);
+          if (error.name === 'AbortError') throw new Error('Timeout: La solicitud tardó demasiado.');
+          throw error;
+        }
+      }
 
-    const dashboardConfig = [
-        { id: 'reminders', title: 'Recordatorios', icon: '🗓️', badge: { type: 'single', color: 'orange', value: () => appData.counts.remindersCount || 0 }, menuItems: [{ text: 'Ver Lista', action: 'navigate-to', target: 'renderRemindersList' }, { text: 'Añadir', action: 'navigate-to', target: 'renderReminderForm' }] },
-        { id: 'shopping', title: 'Compras', icon: '🛒', badge: { type: 'group', values: [{ color: 'green', value: () => appData.counts.shoppingPendingCount || 0 }, { color: 'red', value: () => appData.counts.shoppingBoughtCount || 0 }] }, menuItems: [{ text: 'Ver Lista', action: 'navigate-to', target: 'renderShoppingList' }, { text: 'Añadir Artículo', action: 'navigate-to', target: 'renderAddArticleForm' }] },
-        { id: 'notes', title: 'Notas', icon: '📝', badge: { type: 'single', color: 'blue', value: () => appData.counts.notesCount || 0 }, menuItems: [{ text: 'Ver Lista', action: 'navigate-to', target: 'renderNotesList' }, { text: 'Crear Nota', action: 'navigate-to', target: 'renderNoteForm' }] },
-        { id: 'calendar', title: 'Calendario', icon: '📅', badge: { type: 'single', color: 'purple', value: () => appData.counts.calendarTodayCount || 0 }, menuItems: [{ text: 'Ver Agenda', action: 'navigate-to', target: 'renderAgendaView' }, { text: 'Añadir Evento', action: 'navigate-to', target: 'renderEventForm' }] },
-        { id: 'gastos', title: 'Gastos', icon: '💰', badge: { type: 'single', color: 'teal', value: () => `${(appData.counts.gastosMesActual || '0,00').split(',')[0]}€` }, menuItems: [{ text: 'Ver Gráficos', action: 'navigate-to', target: 'renderGastoChart' }, { text: 'Buscar Gastos', action: 'navigate-to', target: 'renderGastosList' }, { text: 'Añadir Gasto', action: 'navigate-to', target: 'renderGastoForm' }] }
-    ];
+      async function initializeAppContent() { showSpinner(); try { const res = await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; renderDashboard(); } catch (err) { console.error('Error en carga inicial:', err); showToast(`Error al cargar datos: ${err.message}`, true); mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; } finally { hideSpinner(); } }
+      
+      function renderDashboard() {
+        setActiveTab('tab-home');
+        mainContent.innerHTML = `
+          <div class="grid">
+            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.remindersCount}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+            <div class="card"><div class="card-badge-group"><div class="card-badge green">${appData.counts.shoppingPendingCount}</div><div class="card-badge red">${appData.counts.shoppingBoughtCount}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
+            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.notesCount}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
+            <div class="card"><div class="card-badge red" style="left:12px;">${appData.counts.calendarTodayCount}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div></div>
+            <div class="card"><div class="card-badge red" style="left:12px;">${(appData.counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+          </div>`;
+        document.getElementById('add-reminder-link').onclick = renderReminderForm;
+        document.getElementById('list-reminders-link').onclick = renderRemindersList;
+        document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+        document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+        document.getElementById('add-note-link').onclick = () => renderNoteForm();
+        document.getElementById('list-notes-link').onclick = renderNotesList;
+        document.getElementById('add-event-link').onclick = () => renderEventForm();
+        document.getElementById('view-agenda-link').onclick = renderAgendaView;
+        document.getElementById('add-gasto-link').onclick = () => { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; };
+        document.getElementById('list-gastos-link').onclick = () => { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; };
+        document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
+      }
+      
+      document.body.addEventListener('click', (e) => { const menuBtn = e.target.closest('[data-menu-id]'); if (!menuBtn && !e.target.closest('.dropdown-menu')) { document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show')); return; } if (menuBtn) { e.stopPropagation(); const menuId = menuBtn.dataset.menuId; const menu = document.getElementById(menuId); if (menu) { const isShown = menu.classList.contains('show'); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m.id !== menuId) m.classList.remove('show'); }); menu.classList.toggle('show', !isShown); } } });
+      function setActiveTab(activeTabId) { document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); const activeTab = document.getElementById(activeTabId); if (activeTab) activeTab.classList.add('active'); }
 
-    const renderFunctions = { renderDashboard, renderRemindersList, renderReminderForm, renderShoppingList, renderAddArticleForm, renderNotesList, renderNoteForm, renderAgendaView, renderEventForm, renderGastoChart, renderGastosList, renderGastoForm };
+      // --- RECORDATORIOS ---
+      function renderReminderForm() {
+        mainContent.innerHTML = `
+          <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
+            <div class="form-card">
+              <label>Descripción</label><textarea id="text" rows="3" required></textarea>
+              <label>Fecha y hora</label><input type="text" id="time" required/>
+              <label>Tipo</label>
+              <div class="radio-group" id="reminder-type-group">
+                <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
+                <label><input type="radio" name="category" value="Diario"/> Diario</label>
+                <label><input type="radio" name="category" value="Recurrente"/> Recurrente</label>
+              </div>
+              <div id="recurrent-hours-container">
+                <label>Repetir cada...</label>
+                <select id="recurrent-hours">
+                  ${[...Array(11).keys()].map(i => `<option value="${i + 2}">${i + 2} horas</option>`).join('')}
+                </select>
+              </div>
+              <button id="sendBtn" disabled>Crear Recordatorio</button>
+            </div>
+          </div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+        const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
+        flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H:i", defaultDate: new Date(), locale: "es", minDate: "today" });
+        function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
+        function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
+        textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
+        sendBtn.onclick = saveReminder;
+        toggleRecurrentField(); validate();
+      }
 
-    document.body.addEventListener('click', (e) => {
-        const target = e.target.closest('[data-action]');
-        if (!target) return;
-        e.preventDefault(); e.stopPropagation();
-        handleAction(target.dataset);
-    });
-    
-    function handleAction(dataset) {
-        const { action, id, value, target, confirm, confirmText } = dataset;
-        const actionWithConfirmation = () => {
-            switch (action) {
-                case 'go-home': renderDashboard(); break;
-                case 'navigate-to': navigateTo(renderFunctions[target], id, value); break; 
-                case 'navigate-back': navigateBack(); break;
-                case 'open-menu': toggleMenu(id); break;
-                
-                // Recordatorios
-                case 'save-reminder': saveReminder(); break;
-                case 'delete-reminder': deleteReminder(id); break;
-                
-                // Lista de la Compra
-                case 'toggle-shopping-item': toggleShoppingItem(id); break;
-                case 'delete-shopping-item': deleteShoppingItem(id); break;
-                case 'check-reset-button': checkResetButtonState(); break;
-                case 'reset-selected-bought': resetSelectedBoughtItems(); break;
-                case 'add-article': addArticle(); break;
-                
-                // Notas
-                case 'toggle-note-expand': document.getElementById(`note-item-${id}`).classList.toggle('open'); break;
-                case 'save-note': saveNote(id); break;
-                case 'delete-note': deleteNote(id); break;
-                
-                // Calendario
-                case 'fetch-calendar-events': fetchAndRenderEvents(); break;
-                case 'add-calendar-event': saveCalendarEvent(); break;
-                case 'delete-calendar-event': deleteCalendarEvent(id); break;
-                case 'edit-calendar-event': navigateTo(renderFunctions['renderEventForm'], id, value); break;
+      async function saveReminder() {
+        const category = document.querySelector('input[name="category"]:checked').value;
+        const description = document.getElementById('text').value.trim();
+        const time = document.getElementById('time')._flatpickr.selectedDates[0];
+        const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null;
+        const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
+        showToast('Guardando...');
+        renderDashboard();
+        try { const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if(data.error) throw new Error(data.error); await initializeAppContent(); showToast('Recordatorio guardado'); } catch (err) { showToast(err.message || 'Error de sincronización', true); await initializeAppContent(); }
+      }
 
-                // Gastos
-                case 'fetch-gasto-chart': fetchAndDisplayGastoChart(document.getElementById('gasto-chart-mes-select').value); break;
-                case 'fetch-gastos-list': fetchAndRenderGastosList(); break;
-                case 'add-gasto': saveGasto(); break;
-                case 'edit-gasto': navigateTo(renderFunctions['renderGastoForm'], id, value); break;
-                case 'delete-gasto': deleteGasto(id); break;
-
-                case 'initializeApp': initializeApp(); break;
-            }
-        };
-        if (confirm) { showConfirmation(confirm, confirmText || 'Sí', actionWithConfirmation); } else { actionWithConfirmation(); }
-    }
-
-    function navigateTo(renderFunc, ...args) { if (typeof renderFunc !== 'function') return; navigationStack.push({ func: renderFunc, args }); renderFunc(...args); tg?.BackButton.show(); }
-    function navigateBack() { navigationStack.pop(); if (navigationStack.length > 0) { const { func, args } = navigationStack[navigationStack.length - 1]; func(...args); } else { renderDashboard(); tg?.BackButton.hide(); } }
-    function toggleMenu(menuId) { const menu = document.getElementById(menuId); if (!menu) return; const isShown = menu.classList.contains('show'); document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show')); if (!isShown) menu.classList.add('show'); }
-    
-    function renderDashboard() {
-        navigationStack = [{ func: renderDashboard, args: [] }]; tg?.BackButton.hide();
-        const dashboardHtml = dashboardConfig.map(card => {
-            const badgeHtml = card.badge.type === 'single' ? `<div class="card-badge ${card.badge.color}">${card.badge.value()}</div>` : `<div class="card-badge-group">${card.badge.values.map(b => `<div class="card-badge ${b.color}">${b.value()}</div>`).join('')}</div>`;
-            const menuItemsHtml = card.menuItems.map(item => `<a class="dropdown-item" data-action="${item.action}" data-target="${item.target}" ${item.id ? `data-id="${item.id}"` : ''} ${item.value ? `data-value="${item.value}"` : ''}>${item.text}</a>`).join('');
-            return `<div class="card">${badgeHtml}<button class="card-menu-btn" data-action="open-menu" data-id="menu-${card.id}">⋮</button><div class="card-icon">${card.icon}</div><div class="card-title">${card.title}</div><div class="dropdown-menu" id="menu-${card.id}">${menuItemsHtml}</div></div>`;
-        }).join('');
-        mainContent.innerHTML = `<div class="grid">${dashboardHtml}</div>`;
-    }
-
-    // --- MÓDULO: RECORDATORIOS ---
-    function renderRemindersList() {
+      function renderRemindersList() {
         const reminders = appData.remindersList || [];
-        const listHtml = (reminders.length > 0) ? reminders.map(item => `<div class="list-item"><div class="list-item-content"><span class="list-item-title">${item.Descripcion}</span><span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span></div><div class="list-item-actions"><button data-action="delete-reminder" data-id="${item.tracking_code}" data-confirm="¿Eliminar recordatorio?" data-confirm-text="Sí, eliminar">🗑️</button></div></div>`).join('') : '<div class="no-data-msg"><span>🎉</span>No tienes recordatorios.</div>';
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>Recordatorios</h2></div>${listHtml}</div><div class="action-bar"><button data-action="navigate-to" data-target="renderReminderForm">Añadir Recordatorio</button></div>`;
-    }
-    function renderReminderForm() {
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>Nuevo Recordatorio</h2></div><div class="form-card"><label>Descripción</label><textarea id="reminder-desc" rows="3"></textarea><label>Fecha y hora</label><input type="text" id="reminder-time" placeholder="Selecciona fecha y hora..."><label>Tipo</label><div class="radio-group" id="reminder-type-group"><label><input type="radio" name="category" value="Un solo uso" checked> Único</label><label><input type="radio" name="category" value="Diario"> Diario</label><label><input type="radio" name="category" value="Recurrente"> Recurrente</label></div><div id="recurrent-hours-container" style="display:none;"><label>Repetir cada...</label><select id="recurrent-hours">${[...Array(11)].map((_, i) => `<option value="${i + 2}">${i + 2} horas</option>`).join('')}</select></div><button id="save-reminder-btn" data-action="save-reminder" disabled>Crear Recordatorio</button></div></div>`;
-        const descInput = document.getElementById('reminder-desc'); const saveBtn = document.getElementById('save-reminder-btn');
-        const fp = flatpickr("#reminder-time", { enableTime: true, dateFormat: "Y-m-d H:i", locale: "es", minDate: "today", onChange: validateReminderForm });
-        document.querySelectorAll('input[name="category"]').forEach(radio => radio.onchange = () => { document.getElementById('recurrent-hours-container').style.display = document.querySelector('input[name="category"]:checked').value === 'Recurrente' ? 'block' : 'none'; validateReminderForm(); });
-        descInput.oninput = validateReminderForm;
-        function validateReminderForm() { saveBtn.disabled = !(descInput.value.trim() && fp.selectedDates.length > 0); }
-    }
-    async function saveReminder() {
-        const payload = { Type: 'add_reminder', description: document.getElementById('reminder-desc').value.trim(), time: document.getElementById('reminder-time')._flatpickr.selectedDates[0].toISOString(), category: document.querySelector('input[name="category"]:checked').value, horas_recurrentes: document.getElementById('recurrent-hours').value };
-        handleAction({action: 'navigate-back'}); showToast('Guardando...');
-        try { await apiCall(payload); renderRemindersList(); showToast('Recordatorio guardado'); } catch (err) { await apiCall({ Type: 'get_full_dashboard' }); renderRemindersList(); }
-    }
-    async function deleteReminder(trackingCode) { const originalData = JSON.parse(JSON.stringify(appData)); appData.remindersList = appData.remindersList.filter(r => r.tracking_code !== trackingCode); appData.counts.remindersCount--; renderRemindersList(); try { await apiCall({ Type: 'delete_reminder', tracking_code: trackingCode }); showToast('Recordatorio eliminado'); } catch (err) { appData = originalData; renderRemindersList(); } }
+        let listHtml = (reminders.length > 0) ? reminders.map(item => `
+          <li class="list-item" id="item-${item.tracking_code}">
+            <div class="list-item-content">
+              <span class="list-item-title">${item.Descripcion}</span>
+              <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+            </div>
+            <div class="list-item-actions">
+              <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
+              <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
+                <a class="dropdown-item" onclick="confirmDelete('reminder', '${item.tracking_code}')">Eliminar</a>
+              </div>
+            </div>
+          </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+      }
 
-    // --- MÓDULO: LISTA DE LA COMPRA ---
-    function renderShoppingList() {
-        const items = appData.shoppingList || []; const pending = items.filter(i => i['2'] === 'Pendiente'); const bought = items.filter(i => i['2'] === 'Comprado'); let html = '';
-        if (pending.length > 0) { html += '<div class="shopping-list-section-title">Pendientes</div>'; html += pending.map(item => `<div class="list-item shopping-list-item" data-action="toggle-shopping-item" data-id="${item['3']}"><div class="shopping-item-details"><button style="background:var(--pending-bg);color:white;border:none;padding:10px;border-radius:8px;width:100%;text-align:left;">${item['1']}</button></div><div class="list-item-actions"><button data-action="delete-shopping-item" data-id="${item['3']}" data-confirm="¿Eliminar este artículo?" data-confirm-text="Sí, eliminar">🗑️</button></div></div>`).join(''); }
-        if (bought.length > 0) { html += '<div class="shopping-list-section-title">Comprados</div>'; html += bought.map(item => `<div class="list-item shopping-list-item"><input type="checkbox" class="shopping-item-checkbox" data-action="check-reset-button" data-id="${item['3']}"><div class="shopping-item-details" data-action="toggle-shopping-item" data-id="${item['3']}"><button style="background:var(--bought-bg);color:white;border:none;padding:10px;border-radius:8px;width:100%;text-align:left;text-decoration:line-through">${item['1']}<span class="shopping-item-date">${item['4']}</span></button></div><div class="list-item-actions"><button data-action="delete-shopping-item" data-id="${item['3']}" data-confirm="¿Eliminar este artículo?" data-confirm-text="Sí, eliminar">🗑️</button></div></div>`).join(''); }
-        if (items.length === 0) { html = '<div class="no-data-msg"><span>🛒</span>Tu lista está vacía.</div>'; }
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>Lista de Compras</h2></div>${html}</div><div class="action-bar">${bought.length > 0 ? '<button id="reset-bought-btn" data-action="reset-selected-bought" disabled>Pasar a Pendiente</button>' : ''}<button data-action="navigate-to" data-target="renderAddArticleForm" style="margin-top:10px;">Añadir Artículo</button></div>`;
-    }
-    function checkResetButtonState() { const btn = document.getElementById('reset-bought-btn'); if(btn) btn.disabled = document.querySelectorAll('.shopping-item-checkbox:checked').length === 0; }
-    async function toggleShoppingItem(trackingCode) { const originalData = JSON.parse(JSON.stringify(appData)); const item = appData.shoppingList.find(i => i['3'] === trackingCode); const newStatus = item['2'] === 'Pendiente' ? 'Comprado' : 'Pendiente'; item['2'] = newStatus; if (newStatus === 'Comprado') { appData.counts.shoppingPendingCount--; appData.counts.shoppingBoughtCount++; } else { appData.counts.shoppingPendingCount++; appData.counts.shoppingBoughtCount--; } renderShoppingList(); try { await apiCall({ Type: 'toggle_item_status', tracking_code: trackingCode, new_status: newStatus }); } catch (err) { appData = originalData; renderShoppingList(); } }
-    async function resetSelectedBoughtItems() { const selectedIds = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.id); if (selectedIds.length === 0) return; const originalData = JSON.parse(JSON.stringify(appData)); let changedCount = 0; appData.shoppingList.forEach(item => { if (selectedIds.includes(item['3'])) { item['2'] = 'Pendiente'; changedCount++; } }); appData.counts.shoppingPendingCount += changedCount; appData.counts.shoppingBoughtCount -= changedCount; renderShoppingList(); try { await apiCall({ Type: 'toggle_multiple_to_pending', tracking_codes: selectedIds }); showToast(`${changedCount} artículo(s) movidos`); } catch(err) { appData = originalData; renderShoppingList(); } }
-    function renderAddArticleForm() { mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>Añadir Artículo</h2></div><div class="form-card"><label>Nombre del artículo</label><textarea id="article-desc" rows="2"></textarea><button data-action="add-article">Añadir a la Lista</button></div></div>`; }
-    async function addArticle() { const description = document.getElementById('article-desc').value.trim(); if (!description) return; handleAction({action: 'navigate-back'}); showToast('Añadiendo...'); try { await apiCall({ Type: 'add_articulo', description }); renderShoppingList(); showToast('Artículo añadido'); } catch (err) { await apiCall({ Type: 'get_full_dashboard' }); renderShoppingList(); } }
-    async function deleteShoppingItem(trackingCode) { const originalData = JSON.parse(JSON.stringify(appData)); const item = appData.shoppingList.find(i => i['3'] === trackingCode); if (item['2'] === 'Pendiente') appData.counts.shoppingPendingCount--; else appData.counts.shoppingBoughtCount--; appData.shoppingList = appData.shoppingList.filter(i => i['3'] !== trackingCode); renderShoppingList(); try { await apiCall({ Type: 'delete_item_shopping_list', tracking_code: trackingCode }); showToast('Artículo eliminado'); } catch (err) { appData = originalData; renderShoppingList(); } }
+      // --- COMPRAS ---
+      function renderShoppingList() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
+      function renderAddArticleForm() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
 
-    // --- MÓDULO: NOTAS ---
-    function renderNotesList() {
-        const notes = appData.notesList || [];
-        const listHtml = (notes.length > 0) ? notes.map(note => `<div class="list-item note-item" id="note-item-${note.Nota_ID}" data-action="toggle-note-expand" data-id="${note.Nota_ID}"><div class="note-header"><div class="list-item-content"><span class="list-item-title">${note.Titulo}</span><span class="list-item-subtitle">${note.Fecha}</span></div><div class="list-item-actions"><button data-action="navigate-to" data-target="renderNoteForm" data-id="${note.Nota_ID}">✏️</button><button data-action="delete-note" data-id="${note.Nota_ID}" data-confirm="¿Eliminar esta nota?" data-confirm-text="Sí, eliminar">🗑️</button></div></div><div class="note-description">${note.Descripcion}</div></div>`).join('') : '<div class="no-data-msg"><span>📝</span>No tienes notas.</div>';
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>Mis Notas</h2></div>${listHtml}</div><div class="action-bar"><button data-action="navigate-to" data-target="renderNoteForm">Crear Nota</button></div>`;
-    }
-    function renderNoteForm(noteId) {
-        const isEditing = !!noteId; const note = isEditing ? appData.notesList.find(n => n.Nota_ID === noteId) : { Titulo: '', Descripcion: ''};
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>${isEditing ? 'Editar Nota' : 'Nueva Nota'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="note-title" value="${note.Titulo}"><label>Descripción</label><textarea id="note-description" rows="8">${note.Descripcion}</textarea><button id="save-note-btn" data-action="save-note" data-id="${noteId || ''}" ${!isEditing && !note.Titulo.trim() ? 'disabled' : ''}>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
-        const titleInput = document.getElementById('note-title'); const saveBtn = document.getElementById('save-note-btn');
-        titleInput.oninput = () => { saveBtn.disabled = titleInput.value.trim() === ''; };
-    }
-    async function saveNote(noteId) {
-        const isEditing = !!noteId; const title = document.getElementById('note-title').value.trim(); const description = document.getElementById('note-description').value.trim(); if(!title) return;
-        const payload = { Type: isEditing ? 'edit_note' : 'add_note', note_id: noteId, title, description };
-        handleAction({action: 'navigate-back'}); showToast('Guardando...');
-        try { await apiCall(payload); renderNotesList(); showToast(`Nota ${isEditing ? 'actualizada' : 'creada'}`); } catch (err) { await apiCall({ Type: 'get_full_dashboard' }); renderNotesList(); }
-    }
-    async function deleteNote(noteId) { const originalData = JSON.parse(JSON.stringify(appData)); appData.notesList = appData.notesList.filter(n => n.Nota_ID !== noteId); appData.counts.notesCount--; renderNotesList(); try { await apiCall({ Type: 'delete_note', note_id: noteId }); showToast('Nota eliminada'); } catch (err) { appData = originalData; renderNotesList(); } }
-    
-    // --- MÓDULO: CALENDARIO ---
-    function renderAgendaView() {
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>Agenda</h2></div><div class="form-card"><label>Buscar eventos entre fechas:</label><div class="date-filter-container"><input type="text" id="agenda-start-date" placeholder="Desde..."><input type="text" id="agenda-end-date" placeholder="Hasta..."><button data-action="fetch-calendar-events">Buscar</button></div></div><div id="agenda-list-container"></div></div><div class="action-bar"><button data-action="navigate-to" data-target="renderEventForm">Añadir Evento</button></div>`;
-        const today = new Date();
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        flatpickr("#agenda-start-date", { defaultDate: startOfMonth, locale: "es", onChange: () => document.querySelector('[data-action="fetch-calendar-events"]').click() });
-        flatpickr("#agenda-end-date", { defaultDate: endOfMonth, locale: "es", onChange: () => document.querySelector('[data-action="fetch-calendar-events"]').click() });
-        fetchAndRenderEvents();
-    }
-    async function fetchAndRenderEvents() {
-        const container = document.getElementById('agenda-list-container');
-        container.innerHTML = '<div class="no-data-msg"><span>Buscando...</span></div>';
-        const startDate = document.getElementById('agenda-start-date')._flatpickr.selectedDates[0];
-        const endDate = document.getElementById('agenda-end-date')._flatpickr.selectedDates[0];
-        if (!startDate || !endDate) { container.innerHTML = '<div class="no-data-msg"><span>🗓️</span>Selecciona un rango de fechas.</div>'; return; }
-        try {
-            const payload = { Type: 'get_calendar_events', startDate: startDate.toISOString(), endDate: endDate.toISOString() };
-            const events = await apiCall(payload);
-            const groupedEvents = events.reduce((acc, event) => {
-                const dayKey = new Date(event.start).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                if (!acc[dayKey]) acc[dayKey] = [];
-                acc[dayKey].push(event);
-                return acc;
-            }, {});
-            let listHtml = '';
-            if (Object.keys(groupedEvents).length > 0) {
-                for (const day in groupedEvents) {
-                    listHtml += `<h3 class="day-header">${day}</h3>`;
-                    listHtml += groupedEvents[day].map(event => {
-                        const startTime = new Date(event.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                        const endTime = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                        return `<div class="list-item note-item" id="event-item-${event.id}" data-action="toggle-note-expand" data-id="${event.id}"><div class="note-header"><div class="list-item-content"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime} - ${endTime}</span></div><div class="list-item-actions"><button data-action="edit-calendar-event" data-id="${event.id}">✏️</button><button data-action="delete-calendar-event" data-id="${event.id}" data-confirm="¿Eliminar evento?" data-confirm-text="Sí, eliminar">🗑️</button><a href="${event.htmlLink}" target="_blank" style="margin-left: 5px;">🔗</a></div></div><div class="event-description">${event.description || 'No hay descripción.'}</div></div>`;
-                    }).join('');
-                }
-            } else { listHtml = '<div class="no-data-msg"><span>🗓️</span>No hay eventos en este rango.</div>'; }
-            container.innerHTML = listHtml;
-        } catch(err) { container.innerHTML = '<div class="no-data-msg"><span>❌</span>Error al cargar eventos.</div>'; showToast(err.message, true); }
-    }
-    function renderEventForm(eventId = null) {
-        const isEditing = !!eventId; const event = isEditing ? appData.calendarEvents.find(e => e.id === eventId) : {};
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>${isEditing ? 'Editar Evento' : 'Nuevo Evento'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="event-summary" value="${event.summary || ''}"><label>Inicio</label><input type="text" id="event-start" placeholder="Fecha y hora de inicio"><label>Fin</label><input type="text" id="event-end" placeholder="Fecha y hora de fin"><label>Descripción</label><textarea id="event-description" rows="4">${event.description || ''}</textarea><label>Ubicación</label><input type="text" id="event-location" value="${event.location || ''}"><label>Recordatorio (minutos antes)</label><select id="event-reminder-minutes"><option value="0">Ninguno</option><option value="5">5 min antes</option><option value="15" selected>15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="1440">1 día antes</option></select><button id="save-event-btn" data-action="add-calendar-event" data-id="${eventId || ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button></div></div>`;
-        const summaryInput = document.getElementById('event-summary'); const saveBtn = document.getElementById('save-event-btn');
-        const fpStart = flatpickr("#event-start", { enableTime: true, dateFormat: "Y-m-d H:i", locale: "es", defaultDate: isEditing ? event.start : new Date(), onChange: validateEventForm });
-        const fpEnd = flatpickr("#event-end", { enableTime: true, dateFormat: "Y-m-d H:i", locale: "es", defaultDate: isEditing ? event.end : new Date(new Date().getTime() + 3600000), onChange: validateEventForm }); // +1hr by default
-        summaryInput.oninput = validateEventForm;
-        if (isEditing && event.reminders && event.reminders.overrides && event.reminders.overrides.length > 0) { document.getElementById('event-reminder-minutes').value = event.reminders.overrides[0].minutes; }
-        function validateEventForm() { saveBtn.disabled = !(summaryInput.value.trim() && fpStart.selectedDates.length > 0 && fpEnd.selectedDates.length > 0 && fpEnd.selectedDates[0] > fpStart.selectedDates[0]); }
-    }
-    async function saveCalendarEvent() {
-        const eventId = document.getElementById('save-event-btn').dataset.id; const isEditing = !!eventId;
-        const payload = {
-            Type: isEditing ? 'edit_calendar_event' : 'add_calendar_event',
-            eventId: eventId,
-            eventData: {
-                summary: document.getElementById('event-summary').value,
-                start: document.getElementById('event-start')._flatpickr.selectedDates[0].toISOString(),
-                end: document.getElementById('event-end')._flatpickr.selectedDates[0].toISOString(),
-                description: document.getElementById('event-description').value,
-                location: document.getElementById('event-location').value,
-                reminderMinutes: parseInt(document.getElementById('event-reminder-minutes').value)
-            }
-        };
-        handleAction({action: 'navigate-back'}); showToast('Guardando...');
-        try { await apiCall(payload); await apiCall({ Type: 'get_full_dashboard' }); renderAgendaView(); showToast(`Evento ${isEditing ? 'actualizado' : 'creado'}`); } catch (err) { await apiCall({ Type: 'get_full_dashboard' }); renderAgendaView(); }
-    }
-    async function deleteCalendarEvent(eventId) { try { await apiCall({ Type: 'delete_calendar_event', eventId: eventId }); showToast('Evento eliminado'); await apiCall({ Type: 'get_full_dashboard' }); renderAgendaView(); } catch (err) { showToast(err.message, true); await apiCall({ Type: 'get_full_dashboard' }); renderAgendaView(); } }
+      // --- NOTAS ---
+      function renderNotesList() {
+          const notes = appData.notesList || [];
+          let listHtml = (notes.length > 0) ? notes.map(note => `
+              <li class="note-item" id="note-${note.Nota_ID}">
+                  <div class="note-header">
+                      <div class="note-header-interactive">
+                          <div class="note-title-section">
+                              <span class="note-title">${note.Titulo}</span>
+                              <span class="note-date">${note.Fecha}</span>
+                          </div>
+                          <span class="expand-arrow">▾</span>
+                      </div>
+                      <div class="list-item-actions">
+                          <button class="generic-menu-btn" data-menu-id="menu-note-${note.Nota_ID}">⋮</button>
+                          <div class="dropdown-menu" id="menu-note-${note.Nota_ID}">
+                              <a class="dropdown-item" onclick="renderNoteForm({Nota_ID: '${note.Nota_ID}', Titulo: '${note.Titulo}', Descripcion: \`${note.Descripcion}\`})">Editar</a>
+                              <a class="dropdown-item" onclick="confirmDelete('note', '${note.Nota_ID}')">Eliminar</a>
+                          </div>
+                      </div>
+                  </div>
+                  <div class="note-description">${note.Descripcion}</div>
+              </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+          document.querySelector('.back-btn').onclick = renderDashboard;
+          document.querySelector('.list-style-none').addEventListener('click', e => { const interactiveHeader = e.target.closest('.note-header-interactive'); if (interactiveHeader) { interactiveHeader.closest('.note-item').classList.toggle('open'); } });
+      }
 
-    // --- MÓDULO: GASTOS ---
-    function renderGastoChart() {
-        const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).sort((a,b) => b.localeCompare(a)).join(''); // Ordenar de más reciente a más antiguo
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>Análisis de Gastos</h2></div><div class="form-card"><label>Ver detalle por Mes</label><select id="gasto-chart-mes-select" data-action="fetch-gasto-chart">${mesesOptions ? `<option value="">Selecciona un mes...</option>${mesesOptions}` : '<option value="">No hay datos</option>'}</select><div id="chart-content"><div class="no-data-msg"><span>📊</span>Selecciona un mes para ver los gráficos.</div></div></div><div class="form-card" style="margin-top:20px;"><label>Evolución General</label><div class="gasto-chart-container" id="chart-container-monthly"></div></div></div>`;
-        fetchAndDisplayGastoChart(); // Fetch general chart on load
-    }
-    async function fetchAndDisplayGastoChart(mesAnio = '') {
-        const chartContent = document.getElementById('chart-content');
-        const monthlyContainer = document.getElementById('chart-container-monthly');
+      function renderNoteForm(note = null) {
+          const isEditing = note !== null;
+          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required /><label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea><button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
+          document.querySelector('.back-btn').onclick = renderNotesList;
+          const titleInput = document.getElementById('note-title'), descriptionInput = document.getElementById('note-description'), saveBtn = document.getElementById('save-note-btn');
+          function validate() { saveBtn.disabled = !(titleInput.value.trim() !== '' && descriptionInput.value.trim() !== ''); saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
+          titleInput.oninput = validate; descriptionInput.oninput = validate;
+          saveBtn.onclick = async () => {
+              const payload = { chat_ID: chatId, Type: saveBtn.dataset.noteId ? 'edit_note' : 'add_note', note_id: saveBtn.dataset.noteId, title: titleInput.value.trim(), description: descriptionInput.value.trim() };
+              showSpinner(); try { const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; showToast(`Nota ${saveBtn.dataset.noteId ? 'actualizada' : 'creada'}`); renderNotesList(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+          };
+          validate();
+      }
+
+      // --- CALENDARIO ---
+      function renderAgendaView() {
+          const events = appData.calendarEvents || [];
+          const groupAndRenderEvents = (evs) => {
+              const eventsByDay = evs.reduce((acc, event) => { const day = new Date(event.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
+              let html = '';
+              for (const day in eventsByDay) {
+                  html += `<h3 class="day-header">${day}</h3>`;
+                  html += evs.filter(e => new Date(e.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) === day).map(event => {
+                      const startTime = new Date(event.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                      const endTime = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                      return `<li class="list-item" id="item-${event.id}"><div class="list-item-content" onclick="this.parentElement.classList.toggle('open')"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime} - ${endTime}</span><div class="event-description">${event.description || ''}</div></div><div class="list-item-actions"><button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button><div class="dropdown-menu" id="menu-item-${event.id}"><a class="dropdown-item" onclick="confirmDelete('calendar_event', '${event.id}')">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></li>`;
+                  }).join('');
+              }
+              return html;
+          };
+          let listHtml = (events.length > 0) ? groupAndRenderEvents(events) : '<div class="no-data-msg">🗓️<br>No tienes eventos próximos.</div>';
+          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+          document.querySelector('.back-btn').onclick = renderDashboard;
+      }
+
+      function renderEventForm(event = null) {
+          const isEditing = event !== null;
+          mainContent.innerHTML = `
+            <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
+            <div class="form-card">
+                <label>Título</label><input type="text" id="event-summary" value="${isEditing ? event.summary : ''}" required />
+                <label>Inicio</label><input type="text" id="event-start" readonly="readonly">
+                <label>Fin</label><input type="text" id="event-end" readonly="readonly">
+                <label>Descripción</label><textarea id="event-description" rows="4">${isEditing && event.description ? event.description : ''}</textarea>
+                <button id="save-event-btn" data-event-id="${isEditing ? event.id : ''}" disabled>${isEditing ? 'Guardar' : 'Crear'}</button>
+            </div></div>`;
+          document.querySelector('.back-btn').onclick = isEditing ? renderAgendaView : renderDashboard;
+          const startDate = isEditing ? new Date(event.start) : new Date();
+          const endDate = isEditing ? new Date(event.end) : new Date(Date.now() + 3600000);
+          const fpOptions = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
+          const startPicker = flatpickr("#event-start", { ...fpOptions, defaultDate: startDate });
+          const endPicker = flatpickr("#event-end", { ...fpOptions, defaultDate: endDate });
+          const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
+          function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
+          summaryInput.oninput = validate;
+          saveBtn.onclick = async () => {
+              const eventData = { summary: summaryInput.value, start: startPicker.selectedDates[0].toISOString(), end: endPicker.selectedDates[0].toISOString(), description: document.getElementById('event-description').value };
+              const payload = { chat_ID: chatId, Type: 'add_calendar_event', eventData };
+              showSpinner(); try { const res = await fetchWithTimeout(webhookURL, payload); const result = await res.json(); if (result.error) throw new Error(result.error); showToast('Evento creado'); initializeAppContent(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+          };
+          validate();
+      }
+
+      // --- GASTOS ---
+      function renderGastoChart() {
+        const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+        mainContent.innerHTML = `
+          <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
+            <div class="form-card">
+              <label>Detalle por Mes</label>
+              <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
+              <div class="gasto-chart-container" id="chart-container-pie"></div>
+              <ul class="gasto-legend" id="gasto-legend-container"></ul>
+              <hr style="margin: 25px 0; border-top: 1px solid #eee;">
+              <div class="gasto-chart-container" id="chart-container-daily"></div>
+              <hr style="margin: 25px 0; border-top: 1px solid #eee;">
+              <div class="gasto-chart-container" id="chart-container-monthly"></div>
+            </div>
+          </div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+        document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
+        fetchAndDisplayGastoChart({ target: { value: '' } }); 
+      }
+
+      async function fetchAndDisplayGastoChart(event) {
+        const mesAnio = event.target.value;
         showSpinner();
+        const pieContainer = document.getElementById('chart-container-pie'), dailyContainer = document.getElementById('chart-container-daily'), monthlyContainer = document.getElementById('chart-container-monthly'), legendContainer = document.getElementById('gasto-legend-container');
+        if (mesAnio) { pieContainer.innerHTML = ''; dailyContainer.innerHTML = ''; legendContainer.innerHTML = ''; }
         try {
-            const payload = { Type: 'get_gastos_chart', mes_anio: mesAnio };
-            const data = await apiCall(payload);
-            
-            if (mesAnio) {
-                const legendHtml = (data.datosParaLeyenda?.length > 0) ? `<ul class="gasto-legend">${data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}€</strong></li>`).join('')}</ul>` : '';
-                chartContent.innerHTML = `<div class="gasto-chart-container">${data.pieChartUrl ? `<img src="${data.pieChartUrl}">` : ''}</div>${legendHtml}<hr style="margin:25px 0;border:0;border-top:1px solid var(--border-color);"><div class="gasto-chart-container">${data.dailyLineChartUrl ? `<img src="${data.dailyLineChartUrl}">` : ''}</div>`;
-            } else {
-                chartContent.innerHTML = `<div class="no-data-msg"><span>📊</span>Selecciona un mes para ver los gráficos.</div>`;
-            }
-            if (data.monthlyBarChartUrl) { monthlyContainer.innerHTML = `<img src="${data.monthlyBarChartUrl}">`; }
-        } catch (err) { showToast(err.message, true); chartContent.innerHTML = `<div class="no-data-msg"><span>❌</span>Error al cargar gráficos.</div>`; } finally { hideSpinner(); }
-    }
-    function renderGastosList() {
-        mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>Buscar Gastos</h2></div><div class="form-card"><label>Rango de Fechas:</label><div class="date-filter-container"><input type="text" id="gastos-start-date" placeholder="Desde..."><input type="text" id="gastos-end-date" placeholder="Hasta..."><button data-action="fetch-gastos-list">Buscar</button></div></div><div id="gastos-list-container"></div></div>`;
-        const today = new Date();
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        flatpickr("#gastos-start-date", { defaultDate: startOfMonth, locale: "es" });
-        flatpickr("#gastos-end-date", { defaultDate: endOfMonth, locale: "es" });
-        fetchAndRenderGastosList();
-    }
-    async function fetchAndRenderGastosList() {
-        const container = document.getElementById('gastos-list-container');
-        container.innerHTML = '<div class="no-data-msg"><span>Buscando...</span></div>';
-        const startDate = document.getElementById('gastos-start-date')._flatpickr.selectedDates[0];
-        const endDate = document.getElementById('gastos-end-date')._flatpickr.selectedDates[0];
-        if (!startDate || !endDate) { container.innerHTML = '<div class="no-data-msg"><span>🔍</span>Selecciona un rango de fechas.</div>'; return; }
-        try {
-            const payload = { Type: 'get_gastos_por_fecha', fecha_start: startDate.toLocaleDateString('es-ES'), fecha_end: endDate.toLocaleDateString('es-ES') };
-            const data = await apiCall(payload);
-            let listHtml = '';
-            if (data.Lista_de_gastos && data.Lista_de_gastos !== "No existen registros para este periodo.") {
-                const gastosArray = data.Lista_de_gastos.split('\n\n')[1].split('\n').map(gasto => {
-                    const parts = gasto.match(/🗓 (.+?) \| 🛍 (.+?) \| 💵 (.+?)€ \| 🛒 (.+?) \| 🆔 (.+)/);
-                    return parts ? { fecha: parts[1], establecimiento: parts[2], importe: parts[3], categoria: parts[4], id_unico: parts[5] } : null;
-                }).filter(Boolean);
-                listHtml += gastosArray.map(g => `<div class="list-item" id="gasto-item-${g.id_unico}"><div class="list-item-content"><span class="list-item-title">${g.establecimiento} (${g.importe}€)</span><span class="list-item-subtitle">${g.fecha} | ${g.categoria}</span></div><div class="list-item-actions"><button data-action="edit-gasto" data-id="${g.id_unico}">✏️</button><button data-action="delete-gasto" data-id="${g.id_unico}" data-confirm="¿Eliminar gasto?" data-confirm-text="Sí, eliminar">🗑️</button></div></div>`).join('');
-            } else { listHtml = '<div class="no-data-msg"><span>🔎</span>No existen gastos para este periodo.</div>'; }
-            container.innerHTML = listHtml;
-        } catch(err) { container.innerHTML = '<div class="no-data-msg"><span>❌</span>Error al buscar gastos.</div>'; showToast(err.message, true); }
-    }
-    function renderGastoForm(gastoId = null) {
-        const isEditing = !!gastoId; let gasto = {};
-        if (isEditing) {
-            // Fetch single expense for editing
-            showSpinner();
-            apiCall({ Type: 'get_gasto_by_id', ID_Unico: gastoId }).then(data => {
-                gasto = data;
-                if (gasto.error) { showToast(gasto.error, true); handleAction({action: 'navigate-back'}); return; }
-                renderGastoFormHTML(gasto, isEditing);
-            }).catch(err => { showToast(err.message, true); handleAction({action: 'navigate-back'}); }).finally(hideSpinner);
-        } else {
-            renderGastoFormHTML(gasto, isEditing);
-        }
-        function renderGastoFormHTML(currentGasto, isEdit) {
-            mainContent.innerHTML = `<div class="page-container"><div class="page-header"><button class="back-btn" data-action="navigate-back">‹</button><h2>${isEdit ? 'Editar Gasto' : 'Nuevo Gasto'}</h2></div><div class="form-card"><label>Fecha</label><input type="text" id="gasto-fecha" placeholder="Selecciona fecha"><label>Establecimiento</label><input type="text" id="gasto-establecimiento" value="${currentGasto.Establecimiento || ''}"><label>Importe (€)</label><input type="number" step="0.01" id="gasto-importe" value="${currentGasto.Importe || ''}"><label>Categoría</label><input type="text" id="gasto-categoria" value="${currentGasto.categoria || ''}"><label>Sub-Categoría</label><input type="text" id="gasto-subcategoria" value="${currentGasto.sub_categoria || ''}"><button id="save-gasto-btn" data-action="add-gasto" data-id="${gastoId || ''}" disabled>${isEdit ? 'Guardar Cambios' : 'Registrar Gasto'}</button></div></div>`;
-            const fechaInput = document.getElementById('gasto-fecha'); const establecimientoInput = document.getElementById('gasto-establecimiento'); const importeInput = document.getElementById('gasto-importe'); const saveBtn = document.getElementById('save-gasto-btn');
-            const fp = flatpickr(fechaInput, { dateFormat: "Y-m-d", locale: "es", defaultDate: isEdit ? currentGasto.Fecha : new Date(), onChange: validateGastoForm });
-            establecimientoInput.oninput = validateGastoForm; importeInput.oninput = validateGastoForm;
-            function validateGastoForm() { saveBtn.disabled = !(establecimientoInput.value.trim() && parseFloat(importeInput.value) > 0 && fp.selectedDates.length > 0); }
-        }
-    }
-    async function saveGasto() {
-        const gastoId = document.getElementById('save-gasto-btn').dataset.id; const isEditing = !!gastoId;
-        const payload = {
-            Type: isEditing ? 'edit_gasto' : 'add_gasto',
-            ID_Unico: gastoId || `G-${Math.random().toString(36).substring(2, 9).toUpperCase()}`, // Generate new ID if creating
-            Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(),
-            Establecimiento: document.getElementById('gasto-establecimiento').value.trim(),
-            Importe: parseFloat(document.getElementById('gasto-importe').value),
-            categoria: document.getElementById('gasto-categoria').value.trim(),
-            sub_categoria: document.getElementById('gasto-subcategoria').value.trim()
-        };
-        handleAction({action: 'navigate-back'}); showToast('Guardando...');
-        try { await apiCall(payload); await apiCall({ Type: 'get_full_dashboard' }); renderGastosList(); showToast(`Gasto ${isEditing ? 'actualizado' : 'registrado'}`); } catch (err) { await apiCall({ Type: 'get_full_dashboard' }); renderGastosList(); }
-    }
-    async function deleteGasto(gastoId) { try { await apiCall({ Type: 'delete_gasto_id', ID_Unico: gastoId }); showToast('Gasto eliminado'); await apiCall({ Type: 'get_full_dashboard' }); renderGastosList(); } catch (err) { showToast(err.message, true); await apiCall({ Type: 'get_full_dashboard' }); renderGastosList(); } }
+          const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
+          const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
+          if(data.pieChartUrl && mesAnio) { const imgPie = document.createElement('img'); imgPie.src = data.pieChartUrl; pieContainer.appendChild(imgPie); }
+          if(data.dailyLineChartUrl && mesAnio) { const imgDaily = document.createElement('img'); imgDaily.src = data.dailyLineChartUrl; dailyContainer.appendChild(imgDaily); }
+          if(data.monthlyBarChartUrl) { monthlyContainer.innerHTML = ''; const imgMonthly = document.createElement('img'); imgMonthly.src = data.monthlyBarChartUrl; monthlyContainer.appendChild(imgMonthly); }
+          if(data.datosParaLeyenda && data.datosParaLeyenda.length > 0 && mesAnio) { legendContainer.innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join(''); }
+        } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+      }
 
-    async function initializeApp() {
-        showSpinner();
-        try { await apiCall({ Type: 'get_full_dashboard' }); renderDashboard(); } catch (err) { mainContent.innerHTML = `<div class="no-data-msg"><span>❌</span>Error al cargar.<br><small>${err.message}</small><br><br><button data-action="initializeApp">Reintentar</button></div>`; } finally { hideSpinner(); }
-    }
-    initializeApp();
-});
-</script>
+      // --- LÓGICA GENÉRICA DE BORRADO CON CONFIRMACIÓN ---
+      window.confirmDelete = function(type, id) {
+          const itemElement = document.getElementById(`item-${id}`) || document.getElementById(`note-${id}`);
+          if (!itemElement) return;
+          const actionsContainer = itemElement.querySelector('.list-item-actions');
+          const originalButton = actionsContainer.querySelector('.generic-menu-btn');
+          originalButton.style.display = 'none';
+          
+          const confirmBtnYes = document.createElement('button');
+          confirmBtnYes.className = 'confirm-btn-yes';
+          confirmBtnYes.textContent = 'Sí';
+          confirmBtnYes.onclick = (e) => { e.stopPropagation(); executeDelete(type, id); };
+
+          const confirmBtnNo = document.createElement('button');
+          confirmBtnNo.className = 'confirm-btn-no';
+          confirmBtnNo.textContent = 'No';
+          confirmBtnNo.onclick = (e) => { e.stopPropagation(); originalButton.style.display = 'block'; confirmBtnYes.remove(); confirmBtnNo.remove(); };
+          
+          actionsContainer.appendChild(confirmBtnYes);
+          actionsContainer.appendChild(confirmBtnNo);
+      }
+
+      async function executeDelete(type, id) {
+          let payload = { chat_ID: chatId };
+          let successMessage = '';
+          let renderFunction = null;
+
+          switch(type) {
+              case 'reminder':
+                  payload.Type = 'delete_reminder';
+                  payload.tracking_code = id;
+                  successMessage = 'Recordatorio eliminado';
+                  renderFunction = renderRemindersList;
+                  break;
+              case 'note':
+                  payload.Type = 'delete_note';
+                  payload.note_id = id;
+                  successMessage = 'Nota eliminada';
+                  renderFunction = renderNotesList;
+                  break;
+              case 'calendar_event':
+                  payload.Type = 'delete_calendar_event';
+                  payload.eventId = id;
+                  successMessage = 'Evento eliminado';
+                  renderFunction = renderAgendaView;
+                  break;
+              default:
+                  return;
+          }
+          
+          showSpinner();
+          try {
+              const res = await fetchWithTimeout(webhookURL, payload);
+              const data = await res.json();
+              if (data.error) throw new Error(data.error);
+              appData = data;
+              showToast(successMessage);
+              if (renderFunction) renderFunction(); else initializeAppContent();
+          } catch (err) {
+              showToast(err.message || 'Error al eliminar', true);
+          } finally {
+              hideSpinner();
+          }
+      }
+      
+      initializeAppContent();
+    });
+  </script>
 </body>
 </html>
