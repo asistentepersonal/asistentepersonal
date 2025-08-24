@@ -109,113 +109,144 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       // ==================================================
-      // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
-      // ==================================================
-      const tg = window.Telegram?.WebApp;
-      if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
-      
-      const webhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
-      let chatId = tg?.initDataUnsafe?.user?.id;
-      if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
+// ==================================================
+// --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
+// ==================================================
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
 
-      let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [] };
-      const mainContent = document.getElementById('main');
-      const spinner = document.getElementById('spinner');
+const webhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
+let chatId = tg?.initDataUnsafe?.user?.id;
+if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
-      function showSpinner() { spinner.style.display = 'block'; }
-      function hideSpinner() { spinner.style.display = 'none'; }
-      function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
-      
-      async function fetchWithTimeout(resource, payloadObject) {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 30000);
-        const formData = new FormData();
-        formData.append("postData", JSON.stringify(payloadObject));
-        try {
-          const response = await fetch(resource, { method: 'POST', body: formData, signal: controller.signal });
-          clearTimeout(id);
-          if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
-          return response;
-        } catch (error) {
-          clearTimeout(id);
-          if (error.name === 'AbortError') throw new Error('Timeout: La solicitud tardó demasiado.');
-          throw error;
+let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [] };
+const mainContent = document.getElementById('main');
+const spinner = document.getElementById('spinner');
+
+function showSpinner() { spinner.style.display = 'block'; }
+function hideSpinner() { spinner.style.display = 'none'; }
+function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
+
+async function fetchWithTimeout(resource, payloadObject) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), 30000);
+  const formData = new FormData();
+  formData.append("postData", JSON.stringify(payloadObject));
+  try {
+    const response = await fetch(resource, { method: 'POST', body: formData, signal: controller.signal });
+    clearTimeout(id);
+    if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') throw new Error('Timeout: La solicitud tardó demasiado.');
+    throw error;
+  }
+}
+
+async function initializeAppContent() { 
+  showSpinner(); 
+  try { 
+    const res = await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
+    const data = await res.json(); 
+    if (data.error) throw new Error(data.error); 
+    appData = data; 
+    renderDashboard(); 
+  } catch (err) { 
+    console.error('Error en carga inicial:', err); 
+    showToast(`Error al cargar datos: ${err.message}`, true); 
+    mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; 
+  } finally { 
+    hideSpinner(); 
+  } 
+}
+
+function setActiveTab(activeTabId) { 
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); 
+  const activeTab = document.getElementById(activeTabId); 
+  if (activeTab) activeTab.classList.add('active'); 
+}
+
+// --- [INICIO] CÓDIGO AÑADIDO PARA SOLUCIONAR EL PROBLEMA ---
+// GESTOR GLOBAL DE MENÚS DESPLEGABLES (⋮)
+document.body.addEventListener('click', (e) => {
+    const menuBtn = e.target.closest('.card-menu-btn, .generic-menu-btn');
+    
+    // Si se hace clic fuera de un menú o su botón, ciérralos todos
+    if (!menuBtn && !e.target.closest('.dropdown-menu')) {
+        document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+        return;
+    }
+
+    // Si se hace clic en un botón de menú
+    if (menuBtn) {
+        e.stopPropagation();
+        const menuId = menuBtn.dataset.menuId;
+        const menu = document.getElementById(menuId);
+        if (menu) {
+            const isShown = menu.classList.contains('show');
+            // Primero, cierra todos los demás menús para evitar superposiciones
+            document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                if (m.id !== menuId) m.classList.remove('show');
+            });
+            // Luego, alterna el estado del menú actual
+            menu.classList.toggle('show', !isShown);
         }
-      }
+    }
+});
+// --- [FIN] CÓDIGO AÑADIDO ---
 
-      async function initializeAppContent() { 
-        showSpinner(); 
-        try { 
-          const res = await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
-          const data = await res.json(); 
-          if (data.error) throw new Error(data.error); 
-          appData = data; 
-          renderDashboard(); 
-        } catch (err) { 
-          console.error('Error en carga inicial:', err); 
-          showToast(`Error al cargar datos: ${err.message}`, true); 
-          mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; 
-        } finally { 
-          hideSpinner(); 
-        } 
-      }
 
-      function setActiveTab(activeTabId) { 
-        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); 
-        const activeTab = document.getElementById(activeTabId); 
-        if (activeTab) activeTab.classList.add('active'); 
-      }
+window.confirmDelete = function(type, id) {
+    const itemElement = document.getElementById(`item-${id}`);
+    if (!itemElement) return;
+    const actionsContainer = itemElement.querySelector('.list-item-actions');
+    const menuButton = actionsContainer.querySelector('.generic-menu-btn');
+    const dropdown = actionsContainer.querySelector('.dropdown-menu');
+    if (dropdown) dropdown.classList.remove('show');
+    if (menuButton) menuButton.style.display = 'none';
+    
+    const confirmBtnYes = document.createElement('button');
+    confirmBtnYes.className = 'confirm-btn-yes';
+    confirmBtnYes.textContent = 'Sí';
+    confirmBtnYes.onclick = (e) => { e.stopPropagation(); executeDelete(type, id); };
 
-      window.confirmDelete = function(type, id) {
-          const itemElement = document.getElementById(`item-${id}`);
-          if (!itemElement) return;
-          const actionsContainer = itemElement.querySelector('.list-item-actions');
-          const menuButton = actionsContainer.querySelector('.generic-menu-btn');
-          const dropdown = actionsContainer.querySelector('.dropdown-menu');
-          if (dropdown) dropdown.classList.remove('show');
-          if (menuButton) menuButton.style.display = 'none';
-          
-          const confirmBtnYes = document.createElement('button');
-          confirmBtnYes.className = 'confirm-btn-yes';
-          confirmBtnYes.textContent = 'Sí';
-          confirmBtnYes.onclick = (e) => { e.stopPropagation(); executeDelete(type, id); };
+    const confirmBtnNo = document.createElement('button');
+    confirmBtnNo.className = 'confirm-btn-no';
+    confirmBtnNo.textContent = 'No';
+    confirmBtnNo.onclick = (e) => { e.stopPropagation(); if(menuButton) menuButton.style.display = 'block'; confirmBtnYes.remove(); confirmBtnNo.remove(); };
+    
+    actionsContainer.appendChild(confirmBtnYes);
+    actionsContainer.appendChild(confirmBtnNo);
+}
 
-          const confirmBtnNo = document.createElement('button');
-          confirmBtnNo.className = 'confirm-btn-no';
-          confirmBtnNo.textContent = 'No';
-          confirmBtnNo.onclick = (e) => { e.stopPropagation(); if(menuButton) menuButton.style.display = 'block'; confirmBtnYes.remove(); confirmBtnNo.remove(); };
-          
-          actionsContainer.appendChild(confirmBtnYes);
-          actionsContainer.appendChild(confirmBtnNo);
-      }
-
-      async function executeDelete(type, id) {
-          let payload = { chat_ID: chatId };
-          let successMessage = '';
-          
-          switch(type) {
-              case 'reminder': payload.Type = 'delete_reminder'; payload.tracking_code = id; successMessage = 'Recordatorio eliminado'; break;
-              case 'shopping_item': payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado'; break;
-              case 'note': payload.Type = 'delete_note'; payload.note_id = id; successMessage = 'Nota eliminada'; break;
-              case 'calendar_event': payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado'; break;
-              default: return;
-          }
-          
-          showSpinner();
-          try {
-              const res = await fetchWithTimeout(webhookURL, payload);
-              const data = await res.json();
-              if (data.error) throw new Error(data.error);
-              appData = data;
-              showToast(successMessage);
-              initializeAppContent();
-          } catch (err) {
-              showToast(err.message || 'Error al eliminar', true);
-              initializeAppContent();
-          } finally {
-              hideSpinner();
-          }
-      }
+async function executeDelete(type, id) {
+    let payload = { chat_ID: chatId };
+    let successMessage = '';
+    
+    switch(type) {
+        case 'reminder': payload.Type = 'delete_reminder'; payload.tracking_code = id; successMessage = 'Recordatorio eliminado'; break;
+        case 'shopping_item': payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado'; break;
+        case 'note': payload.Type = 'delete_note'; payload.note_id = id; successMessage = 'Nota eliminada'; break;
+        case 'calendar_event': payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado'; break;
+        default: return;
+    }
+    
+    showSpinner();
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        appData = data;
+        showToast(successMessage);
+        initializeAppContent();
+    } catch (err) {
+        showToast(err.message || 'Error al eliminar', true);
+        initializeAppContent();
+    } finally {
+        hideSpinner();
+    }
+}
 
       // ==================================================
       // --- MÓDULO: RECORDATORIOS ---
