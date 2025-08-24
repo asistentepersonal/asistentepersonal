@@ -509,12 +509,17 @@ async function addArticle() {
   
   appData.counts.shoppingPendingCount++;
   renderShoppingList();
+  showToast('Artículo añadido');
 
   try {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      initializeAppContent();
+      // No es necesario recargar, pero sí obtener los nuevos datos para tener los tracking_codes
+      const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
+      if(freshData.error) throw new Error(freshData.error);
+      appData = freshData;
+      renderShoppingList();
   } catch (err) { showToast(`Error: ${err.message}. No se añadió.`, true); initializeAppContent(); }
 }
 
@@ -658,6 +663,7 @@ async function saveNote() {
         appData.notesList[itemIndex].Titulo = title;
         appData.notesList[itemIndex].Descripcion = description;
         renderNotesList();
+        showToast('Nota guardada');
 
         try {
             const res = await fetchWithTimeout(webhookURL, payload);
@@ -672,18 +678,23 @@ async function saveNote() {
         appData.counts.notesCount++;
         appData.notesList.unshift({ Nota_ID: 'temp-' + Date.now(), Titulo: title, Descripcion: description, Fecha: new Date().toLocaleDateString('es-ES') });
         renderNotesList();
+        showToast('Nota creada');
 
         try {
             const res = await fetchWithTimeout(webhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-            initializeAppContent(); // Recarga para obtener el ID real de la nota
+            const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
+            if(freshData.error) throw new Error(freshData.error);
+            appData = freshData;
+            renderNotesList();
         } catch (err) {
             showToast(`Error: ${err.message}. No se pudo crear la nota.`, true);
             initializeAppContent();
         }
     }
 }
+
 
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
@@ -1004,15 +1015,16 @@ async function saveEditedGasto(idUnico) {
         Type: 'edit_gasto', chat_ID: chatId,
         datos: { ID_Unico: idUnico, Importe: document.getElementById('gasto-importe').value, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString() }
     };
-    showSpinner();
+    
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
-        executeSearchGastos();
-    } catch (err) { showToast(`Error: ${err.message}. No se guardó.`, true); } 
-    finally { hideSpinner(); }
+        renderDashboard(); // <-- REDIRECCIÓN A HOME
+    } catch (err) { 
+        showToast(`Error: ${err.message}. No se guardó.`, true); 
+    }
 }
 
 // ==================================================
