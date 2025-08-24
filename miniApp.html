@@ -311,9 +311,7 @@ async function saveReminder() {
 
 function renderRemindersList() {
   const reminders = appData.remindersList || [];
-  let listHtml = (reminders.length > 0) ? reminders.map(item => {
-    const itemString = JSON.stringify(item).replace(/"/g, '&quot;');
-    return `
+  let listHtml = (reminders.length > 0) ? reminders.map(item => `
     <li class="list-item" id="item-${item.tracking_code}">
       <div class="list-item-content">
         <span class="list-item-title">${item.Descripcion}</span>
@@ -322,40 +320,12 @@ function renderRemindersList() {
       <div class="list-item-actions">
         <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
         <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-          <a class="dropdown-item" onclick='editReminderDescription(${itemString})'>Editar Texto</a>
           <a class="dropdown-item" onclick="confirmDelete('reminder', '${item.tracking_code}')">Eliminar</a>
         </div>
       </div>
-    </li>`}).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+    </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
   mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
   document.querySelector('.back-btn').onclick = renderDashboard;
-}
-
-async function editReminderDescription(item) {
-  const newDescription = prompt('Editar descripción del recordatorio:', item.Descripcion);
-  if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item.Descripcion) {
-    showSpinner();
-    try {
-      // NOTA: El backend no tiene una función para editar solo el texto.
-      // Solución: Eliminamos el viejo y creamos uno nuevo con los mismos datos y el texto nuevo.
-      // Esto es seguro porque el backend ya maneja la creación de triggers.
-      await fetchWithTimeout(webhookURL, { Type: 'delete_reminder', chat_ID: chatId, tracking_code: item.tracking_code });
-      
-      // Recreamos el recordatorio. Necesitamos convertir la fecha local de vuelta a un formato que el backend entienda.
-      // Esta es una simplificación; una implementación robusta requeriría parsear la fecha local.
-      // Por ahora, asumimos que el usuario querría mantener la misma hora.
-      // Esta parte es compleja y la dejaremos pendiente si la solución actual no es suficiente.
-      // Por ahora, vamos a simular que tenemos una función de edición directa.
-      showToast('Función de edición de recordatorios aún no implementada en backend.', true);
-      // const payload = { ... };
-      // await fetchWithTimeout(webhookURL, payload);
-      // initializeAppContent();
-    } catch (err) {
-      showToast(err.message || 'Error al editar', true);
-    } finally {
-      hideSpinner();
-    }
-  }
 }
 
 // ==================================================
@@ -368,7 +338,6 @@ function renderShoppingList() {
   let listHtml = '';
 
   const createItemHTML = (item) => {
-    const itemString = JSON.stringify(item).replace(/"/g, '&quot;');
     const isPending = item['2'] === 'Pendiente';
     
     if (isPending) {
@@ -378,7 +347,6 @@ function renderShoppingList() {
             <div class="list-item-actions">
                 <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item['3']}">
-                    <a class="dropdown-item" onclick='editShoppingItem(${itemString})'>Editar Nombre</a>
                     <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
                 </div>
             </div>
@@ -394,7 +362,6 @@ function renderShoppingList() {
             <div class="list-item-actions">
                 <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item['3']}">
-                    <a class="dropdown-item" onclick='editShoppingItem(${itemString})'>Editar Nombre</a>
                     <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
                 </div>
             </div>
@@ -414,7 +381,7 @@ function renderShoppingList() {
   if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
   mainContent.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2>Lista de Compras</h2></div>
+          <div class="list-header"><button class="back-btn">‹</button><h2>Lista de las Compras</h2></div>
           <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
           <div class="add-article-btn-container">
               <button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button>
@@ -440,23 +407,6 @@ function handleShoppingItemInteractions(event) {
   }
 }
 
-async function editShoppingItem(item) {
-    const newDescription = prompt('Editar nombre del artículo:', item['1']);
-    if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item['1']) {
-        showSpinner();
-        try {
-            // El backend no tiene una función de edición, así que simulamos: borrar y crear.
-            // Esto es más complejo de lo que parece por el `tracking_code`.
-            // Por ahora, mostraremos un mensaje.
-            showToast('Función de edición de artículos no implementada en backend.', true);
-        } catch (err) {
-            showToast(err.message || 'Error al editar', true);
-        } finally {
-            hideSpinner();
-        }
-    }
-}
-
 function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
   const originalStatus = newStatus === 'Comprado' ? 'Pendiente' : 'Comprado';
   const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
@@ -476,10 +426,7 @@ function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
 
   fetchWithTimeout(webhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
       .then(res => res.json())
-      .then(data => {
-          if (data.error) throw new Error(data.error);
-          appData = data;
-      })
+      .then(data => { if (data.error) throw new Error(data.error); appData = data; })
       .catch(err => {
           showToast(err.message || 'Error de sincronización', true);
           appData.shoppingList[itemIndex]['2'] = originalStatus;
@@ -502,17 +449,30 @@ function updateMultiSelectButtonState() {
   multiSelectToggleButton.textContent = selectedCount > 0 ? `Marcar ${selectedCount} para comprar` : 'Marcar para comprar';
 }
 
-async function toggleSelectedItemsToPending() {
+function toggleSelectedItemsToPending() {
   const trackingCodes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
   if (trackingCodes.length === 0) return;
-  showSpinner();
-  try {
-      const res = await fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      appData = data;
-      renderShoppingList();
-  } catch (err) { showToast(err.message || 'Error al actualizar', true); } finally { hideSpinner(); }
+
+  // UI Optimista
+  trackingCodes.forEach(code => {
+    const itemIndex = appData.shoppingList.findIndex(item => item['3'] === code);
+    if (itemIndex !== -1) {
+      appData.shoppingList[itemIndex]['2'] = 'Pendiente';
+      appData.shoppingList[itemIndex]['4'] = '';
+    }
+  });
+  appData.counts.shoppingPendingCount += trackingCodes.length;
+  appData.counts.shoppingBoughtCount -= trackingCodes.length;
+  renderShoppingList();
+  showToast(`${trackingCodes.length} artículo(s) movido(s) a pendientes.`);
+
+  fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes })
+    .then(res => res.json())
+    .then(data => { if (data.error) throw new Error(data.error); appData = data; })
+    .catch(err => {
+        showToast(err.message || 'Error de sincronización', true);
+        initializeAppContent(); // Re-sincroniza todo si falla
+    });
 }
 
 function renderAddArticleForm() {
@@ -543,12 +503,7 @@ async function addArticle() {
   const cycle = document.getElementById('article-cycle').value || 0;
   if (!description) return;
   
-  const payload = { 
-    Type: 'add_articulo', 
-    chat_ID: chatId, 
-    description: description,
-    cycle: parseInt(cycle)
-  };
+  const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
 
   appData.counts.shoppingPendingCount++;
   renderShoppingList();
@@ -768,6 +723,54 @@ async function saveGasto() {
     }
 }
 
+function renderSearchGastosForm() {
+    mainContent.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar Gastos</h2></div>
+            <div class="form-card">
+                <label>Fecha de Inicio</label>
+                <input type="text" id="gasto-fecha-inicio" required />
+                <label>Fecha de Fin</label>
+                <input type="text" id="gasto-fecha-fin" required />
+                <button id="search-gasto-btn">Buscar</button>
+            </div>
+            <div id="gastos-search-results" class="form-card" style="margin-top: 20px; display: none; white-space: pre-wrap; word-wrap: break-word;"></div>
+        </div>`;
+    document.querySelector('.back-btn').onclick = renderDashboard;
+    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
+    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
+    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
+    document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
+}
+
+async function executeSearchGastos() {
+    const startDate = document.getElementById('gasto-fecha-inicio').value;
+    const endDate = document.getElementById('gasto-fecha-fin').value;
+    if (!startDate || !endDate) {
+        showToast('Debes seleccionar ambas fechas.', true);
+        return;
+    }
+    const payload = {
+        Type: 'get_gastos_fecha',
+        chat_ID: chatId,
+        datos: { fecha_start: startDate, fecha_end: endDate }
+    };
+    showSpinner();
+    const resultsContainer = document.getElementById('gastos-search-results');
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        resultsContainer.textContent = data.Lista_de_gastos || 'No se encontraron resultados.';
+        resultsContainer.style.display = 'block';
+    } catch (err) {
+        showToast(err.message, true);
+        resultsContainer.style.display = 'none';
+    } finally {
+        hideSpinner();
+    }
+}
+
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
@@ -792,7 +795,7 @@ function renderDashboard() {
   document.getElementById('add-event-link').onclick = () => renderEventForm();
   document.getElementById('view-agenda-link').onclick = renderAgendaView;
   document.getElementById('add-gasto-link').onclick = renderAddGastoForm;
-  document.getElementById('list-gastos-link').onclick = () => { showToast('Función de búsqueda de gastos no implementada.', true); };
+  document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
   document.getElementById('tab-home').onclick = renderDashboard;
 }
