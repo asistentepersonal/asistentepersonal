@@ -732,9 +732,9 @@ function renderSearchGastosForm() {
                 <input type="text" id="gasto-fecha-inicio" required />
                 <label>Fecha de Fin</label>
                 <input type="text" id="gasto-fecha-fin" required />
-                <button id="search-gasto-btn">Buscar</button>
+                <button id="search-gasto-btn" class="enabled">Buscar</button>
             </div>
-            <div id="gastos-search-results" class="form-card" style="margin-top: 20px; display: none; white-space: pre-wrap; word-wrap: break-word;"></div>
+            <div id="gastos-search-results" class="form-card" style="margin-top: 20px; display: none; white-space: pre-wrap; word-wrap: break-word; text-align: left; font-size: 0.9rem; line-height: 1.6;"></div>
         </div>`;
     document.querySelector('.back-btn').onclick = renderDashboard;
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
