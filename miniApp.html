@@ -273,7 +273,7 @@ function renderReminderForm() {
     </div>`;
   document.querySelector('.back-btn').onclick = renderDashboard;
   const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
-  flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H:i", defaultDate: new Date(), locale: "es", minDate: "today" });
+  flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H-i", defaultDate: new Date(), locale: "es", minDate: "today" });
   function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
   function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
   textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
@@ -345,9 +345,9 @@ async function editReminderDescription(item) {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      appData = data; // Sincroniza con la data completa del servidor
+      appData = data;
       showToast('Recordatorio actualizado');
-      renderRemindersList(); // Re-renderiza la lista
+      renderRemindersList();
     } catch (err) {
       showToast(err.message || 'Error al editar', true);
     } finally {
@@ -762,7 +762,7 @@ function renderSearchGastosForm() {
                 <input type="text" id="gasto-fecha-fin" required />
                 <button id="search-gasto-btn" class="enabled">Buscar</button>
             </div>
-            <div id="gastos-search-results" class="form-card" style="margin-top: 20px; display: none; white-space: pre-wrap; word-wrap: break-word; text-align: left; font-size: 0.9rem; line-height: 1.6;"></div>
+            <div id="gastos-search-results" style="margin-top: 20px;"></div>
         </div>`;
     document.querySelector('.back-btn').onclick = renderDashboard;
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
@@ -789,11 +789,81 @@ async function executeSearchGastos() {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        resultsContainer.textContent = data.Lista_de_gastos || 'No se encontraron resultados.';
-        resultsContainer.style.display = 'block';
+        
+        if (data.gastos && data.gastos.length > 0) {
+            let listHtml = data.gastos.map(gasto => {
+                const gastoString = JSON.stringify(gasto).replace(/"/g, '&quot;');
+                const fechaFormateada = new Date(gasto.Fecha).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'});
+                return `
+                <li class="list-item" id="item-${gasto.ID_Unico}">
+                    <div class="list-item-content">
+                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe}€</span>
+                        <span class="list-item-subtitle">${gasto.Categoria} - ${fechaFormateada}</span>
+                    </div>
+                    <div class="list-item-actions">
+                        <button class="generic-menu-btn" data-menu-id="menu-item-${gasto.ID_Unico}">⋮</button>
+                        <div class="dropdown-menu" id="menu-item-${gasto.ID_Unico}">
+                            <a class="dropdown-item" onclick='renderEditGastoForm(${gastoString})'>Editar</a>
+                            <a class="dropdown-item" onclick="confirmDelete('gasto', '${gasto.ID_Unico}')">Eliminar</a>
+                        </div>
+                    </div>
+                </li>`;
+            }).join('');
+            resultsContainer.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
+        } else {
+            resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos en este período.</div>`;
+        }
     } catch (err) {
         showToast(err.message, true);
-        resultsContainer.style.display = 'none';
+        resultsContainer.innerHTML = '';
+    } finally {
+        hideSpinner();
+    }
+}
+
+function renderEditGastoForm(gasto) {
+    mainContent.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
+            <div class="form-card">
+                <label>Importe (€)</label>
+                <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
+                <label>Establecimiento</label>
+                <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
+                <label>Categoría</label>
+                <input type="text" id="gasto-categoria" value="${gasto.Categoria}" required />
+                <label>Fecha</label>
+                <input type="text" id="gasto-fecha" required />
+                <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
+            </div>
+        </div>`;
+    document.querySelector('.back-btn').onclick = renderSearchGastosForm;
+    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
+
+    document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
+}
+
+async function saveEditedGasto(idUnico) {
+    const payload = {
+        Type: 'edit_gasto',
+        chat_ID: chatId,
+        datos: {
+            ID_Unico: idUnico,
+            Importe: document.getElementById('gasto-importe').value,
+            Establecimiento: document.getElementById('gasto-establecimiento').value,
+            categoria: document.getElementById('gasto-categoria').value,
+            Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString()
+        }
+    };
+    showSpinner();
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error || (data.resultado && data.resultado.startsWith('Error'))) throw new Error(data.error || data.resultado);
+        showToast(data.resultado || 'Gasto actualizado');
+        initializeAppContent();
+    } catch (err) {
+        showToast(err.message, true);
     } finally {
         hideSpinner();
     }
