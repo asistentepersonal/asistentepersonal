@@ -200,6 +200,7 @@ async function executeDelete(type, id) {
     let successMessage = '';
     let viewToRender = null;
 
+    // --- 1. OPTIMISTIC UI UPDATE ---
     try {
         switch(type) {
             case 'reminder':
@@ -248,6 +249,7 @@ async function executeDelete(type, id) {
         if (viewToRender) viewToRender();
     } catch(e) { showToast('Error local al procesar.', true); return; }
 
+    // --- 2. BACKEND REQUEST ---
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
@@ -703,6 +705,7 @@ async function saveNote() {
     }
 }
 
+
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
 // ==================================================
@@ -925,7 +928,13 @@ function renderAddGastoForm() {
 async function saveGasto() {
     const payload = {
         Type: 'add_gasto', chat_ID: chatId,
-        datos: { Importe: document.getElementById('gasto-importe').value, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(), ID_Unico: 'G-' + Date.now() }
+        datos: { 
+            Importe: document.getElementById('gasto-importe').value, 
+            Establecimiento: document.getElementById('gasto-establecimiento').value, 
+            categoria: document.getElementById('gasto-categoria').value, 
+            Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(),
+            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+        }
     };
     renderDashboard();
     try {
