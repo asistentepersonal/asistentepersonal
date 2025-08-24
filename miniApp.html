@@ -251,7 +251,17 @@ async function executeDelete(type, id) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
-        if (type === 'gasto' || type === 'calendar_event') { initializeAppContent(); }
+        
+        // Recarga completa SOLO si es necesario (ej: calendario, o si la eliminación de gastos debe recalcular totales)
+        if (type === 'calendar_event') { 
+            initializeAppContent(); 
+        } else if (type === 'gasto') {
+            // Para gastos, una recarga ligera es mejor para actualizar el total del mes.
+            const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
+            if(freshData.error) throw new Error(freshData.error);
+            appData.counts = freshData.counts;
+        }
+
     } catch (err) {
         showToast(`Error: ${err.message}. Restaurando...`, true);
         initializeAppContent();
