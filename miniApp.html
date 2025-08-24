@@ -311,9 +311,7 @@ async function saveReminder() {
 
 function renderRemindersList() {
   const reminders = appData.remindersList || [];
-  let listHtml = (reminders.length > 0) ? reminders.map(item => {
-    const itemString = JSON.stringify(item).replace(/"/g, '&quot;');
-    return `
+  let listHtml = (reminders.length > 0) ? reminders.map(item => `
     <li class="list-item" id="item-${item.tracking_code}">
       <div class="list-item-content">
         <span class="list-item-title">${item.Descripcion}</span>
@@ -322,13 +320,29 @@ function renderRemindersList() {
       <div class="list-item-actions">
         <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
         <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-          <a class="dropdown-item" onclick='editReminderDescription(${itemString})'>Editar Texto</a>
-          <a class="dropdown-item" onclick="confirmDelete('reminder', '${item.tracking_code}')">Eliminar</a>
+          <a class="dropdown-item" data-action="edit-reminder" data-tracking-code="${item.tracking_code}">Editar Texto</a>
+          <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
         </div>
       </div>
-    </li>`}).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-  mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+    </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+  mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
   document.querySelector('.back-btn').onclick = renderDashboard;
+
+  // "Vigilante" de eventos para la lista de recordatorios
+  document.getElementById('reminders-list').addEventListener('click', (e) => {
+    const target = e.target.closest('.dropdown-item');
+    if (!target) return;
+
+    const action = target.dataset.action;
+    const trackingCode = target.dataset.trackingCode;
+
+    if (action === 'edit-reminder') {
+      const item = appData.remindersList.find(r => r.tracking_code === trackingCode);
+      if (item) editReminderDescription(item);
+    } else if (action === 'delete-reminder') {
+      confirmDelete('reminder', trackingCode);
+    }
+  });
 }
 
 async function editReminderDescription(item) {
@@ -556,9 +570,7 @@ async function addArticle() {
 // ==================================================
 function renderNotesList() {
     const notes = appData.notesList || [];
-    let listHtml = (notes.length > 0) ? notes.map(note => {
-        const noteString = JSON.stringify(note).replace(/"/g, '&quot;');
-        return `
+    let listHtml = (notes.length > 0) ? notes.map(note => `
             <li class="note-item" id="item-${note.Nota_ID}">
                 <div class="note-header">
                     <div class="note-header-interactive">
@@ -571,17 +583,38 @@ function renderNotesList() {
                     <div class="list-item-actions">
                         <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
                         <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
-                            <a class="dropdown-item" onclick='renderNoteForm(${noteString})'>Editar</a>
-                            <a class="dropdown-item" onclick="confirmDelete('note', '${note.Nota_ID}')">Eliminar</a>
+                            <a class="dropdown-item" data-action="edit-note" data-note-id="${note.Nota_ID}">Editar</a>
+                            <a class="dropdown-item" data-action="delete-note" data-note-id="${note.Nota_ID}">Eliminar</a>
                         </div>
                     </div>
                 </div>
                 <div class="note-description">${note.Descripcion}</div>
-            </li>`;
-    }).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+            </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div><ul class="list-style-none" id="notes-list">${listHtml}</ul></div>`;
     document.querySelector('.back-btn').onclick = renderDashboard;
-    document.querySelector('.list-style-none').addEventListener('click', e => { const interactiveHeader = e.target.closest('.note-header-interactive'); if (interactiveHeader) { interactiveHeader.closest('.note-item').classList.toggle('open'); } });
+    
+    // "Vigilante" de eventos para la lista de notas
+    const notesList = document.getElementById('notes-list');
+    notesList.addEventListener('click', e => {
+        const interactiveHeader = e.target.closest('.note-header-interactive');
+        if (interactiveHeader) {
+            interactiveHeader.closest('.note-item').classList.toggle('open');
+            return;
+        }
+        
+        const target = e.target.closest('.dropdown-item');
+        if (!target) return;
+
+        const action = target.dataset.action;
+        const noteId = target.dataset.noteId;
+
+        if (action === 'edit-note') {
+            const note = appData.notesList.find(n => n.Nota_ID === noteId);
+            if (note) renderNoteForm(note);
+        } else if (action === 'delete-note') {
+            confirmDelete('note', noteId);
+        }
+    });
 }
 
 function renderNoteForm(note = null) {
@@ -660,6 +693,8 @@ function renderEventForm(event = null) {
 // ==================================================
 // --- MÓDULO: GASTOS ---
 // ==================================================
+let gastosEncontrados = []; // Variable para guardar los resultados de la búsqueda
+
 function renderGastoChart() {
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
   mainContent.innerHTML = `
@@ -769,6 +804,22 @@ function renderSearchGastosForm() {
     flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
     flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
     document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
+
+    // "Vigilante" de eventos para los resultados de búsqueda de gastos
+    document.getElementById('gastos-search-results').addEventListener('click', (e) => {
+        const target = e.target.closest('.dropdown-item');
+        if (!target) return;
+
+        const action = target.dataset.action;
+        const idUnico = target.dataset.idUnico;
+
+        if (action === 'edit-gasto') {
+            const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
+            if (gasto) renderEditGastoForm(gasto);
+        } else if (action === 'delete-gasto') {
+            confirmDelete('gasto', idUnico);
+        }
+    });
 }
 
 async function executeSearchGastos() {
@@ -790,9 +841,10 @@ async function executeSearchGastos() {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
-        if (data.gastos && data.gastos.length > 0) {
-            let listHtml = data.gastos.map(gasto => {
-                const gastoString = JSON.stringify(gasto).replace(/"/g, '&quot;');
+        gastosEncontrados = data.gastos || []; // Guardar resultados para la edición
+
+        if (gastosEncontrados.length > 0) {
+            let listHtml = gastosEncontrados.map(gasto => {
                 const fechaFormateada = new Date(gasto.Fecha).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'});
                 return `
                 <li class="list-item" id="item-${gasto.ID_Unico}">
@@ -803,8 +855,8 @@ async function executeSearchGastos() {
                     <div class="list-item-actions">
                         <button class="generic-menu-btn" data-menu-id="menu-item-${gasto.ID_Unico}">⋮</button>
                         <div class="dropdown-menu" id="menu-item-${gasto.ID_Unico}">
-                            <a class="dropdown-item" onclick='renderEditGastoForm(${gastoString})'>Editar</a>
-                            <a class="dropdown-item" onclick="confirmDelete('gasto', '${gasto.ID_Unico}')">Eliminar</a>
+                            <a class="dropdown-item" data-action="edit-gasto" data-id-unico="${gasto.ID_Unico}">Editar</a>
+                            <a class="dropdown-item" data-action="delete-gasto" data-id-unico="${gasto.ID_Unico}">Eliminar</a>
                         </div>
                     </div>
                 </li>`;
