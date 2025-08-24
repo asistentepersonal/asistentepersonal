@@ -199,9 +199,7 @@ async function executeDelete(type, id) {
     let payload = { chat_ID: chatId };
     let successMessage = '';
     let viewToRender = null;
-    let originalAppData = null; // Lazy load only if needed
 
-    // --- 1. OPTIMISTIC UI UPDATE ---
     try {
         switch(type) {
             case 'reminder':
@@ -209,7 +207,6 @@ async function executeDelete(type, id) {
                 const reminderIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
                 if (reminderIndex > -1) { appData.remindersList.splice(reminderIndex, 1); appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1); viewToRender = renderRemindersList; }
                 break;
-
             case 'shopping_item':
                 payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado';
                 const itemIndex = appData.shoppingList.findIndex(i => i['3'] === id);
@@ -221,45 +218,40 @@ async function executeDelete(type, id) {
                     viewToRender = renderShoppingList;
                 }
                 break;
-
             case 'note':
                 payload.Type = 'delete_note'; payload.note_id = id; successMessage = 'Nota eliminada';
                 const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === id);
                 if (noteIndex > -1) { appData.notesList.splice(noteIndex, 1); appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1); viewToRender = renderNotesList; }
                 break;
-
             case 'calendar_event':
                 payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado';
                 const eventIndex = appData.calendarEvents.findIndex(e => e.id === id);
                 if (eventIndex > -1) {
                     const event = appData.calendarEvents[eventIndex];
-                    const eventDate = new Date(event.start.date || event.start.dateTime).toISOString().split('T')[0];
+                    const eventDate = new Date(event.start.dateTime || event.start.date).toISOString().split('T')[0];
                     if (eventDate === new Date().toISOString().split('T')[0]) { appData.counts.calendarTodayCount = Math.max(0, appData.counts.calendarTodayCount - 1); }
                     appData.calendarEvents.splice(eventIndex, 1);
-                    renderAgendaView(appData.calendarEvents);
+                    viewToRender = () => renderCalendarView(appData.calendarEvents);
                 }
                 break;
-            
             case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
                 document.getElementById(`item-${id}`)?.remove();
                 break;
-
             default: return;
         }
         if (viewToRender) viewToRender();
-    } catch(e) { /* Should not happen, but safeguard */ showToast('Error local al procesar.', true); return; }
+    } catch(e) { showToast('Error local al procesar.', true); return; }
 
-    // --- 2. BACKEND REQUEST ---
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
-        if (type === 'gasto') { initializeAppContent(); } // Resync for correct total
+        if (type === 'gasto' || type === 'calendar_event') { initializeAppContent(); }
     } catch (err) {
         showToast(`Error: ${err.message}. Restaurando...`, true);
-        initializeAppContent(); // Full resync on any error
+        initializeAppContent();
     }
 }
 
@@ -269,7 +261,7 @@ async function executeDelete(type, id) {
 function renderReminderForm() {
   mainContent.innerHTML = `
     <div class="list-container">
-      <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
+      <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
       <div class="form-card">
         <label>Descripción</label><textarea id="text" rows="3" required></textarea>
         <label>Fecha y hora</label><input type="text" id="time" required/>
@@ -286,7 +278,6 @@ function renderReminderForm() {
         <button id="sendBtn" disabled>Crear Recordatorio</button>
       </div>
     </div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
   const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
   flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H-i", defaultDate: new Date(), locale: "es", minDate: "today" });
   function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
@@ -311,7 +302,7 @@ async function saveReminder() {
     const res = await fetchWithTimeout(webhookURL, payload); 
     const data = await res.json(); 
     if(data.error) throw new Error(data.error); 
-    initializeAppContent(); // Resync to get correct tracking code
+    initializeAppContent();
   } catch (err) { 
     showToast(`Error: ${err.message}. No se guardó.`, true); 
     initializeAppContent();
@@ -334,9 +325,8 @@ function renderRemindersList() {
         </div>
       </div>
     </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-  mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
-
+  mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
+  
   document.getElementById('reminders-list').addEventListener('click', (e) => {
     const target = e.target.closest('.dropdown-item');
     if (!target) return;
@@ -420,16 +410,14 @@ function renderShoppingList() {
   if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
   mainContent.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2>Lista de las Compras</h2></div>
+          <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Lista de las Compras</h2></div>
           <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
           <div class="add-article-btn-container">
-              <button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button>
+              <button class="add-article-btn" onclick="renderAddArticleForm()">Añadir Artículo</button>
               <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
           </div>
       </div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
   document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
-  document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
   const selectAllCheckbox = document.getElementById('select-all-checkbox');
   if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
   document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
@@ -492,14 +480,13 @@ function toggleSelectedItemsToPending() {
 function renderAddArticleForm() {
   mainContent.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2>➕ Añadir Artículo</h2></div>
+          <div class="list-header"><button class="back-btn" onclick="renderShoppingList()">‹</button><h2>➕ Añadir Artículo</h2></div>
           <div class="form-card">
               <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required></textarea>
               <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="0" min="0" step="1" required />
               <button id="add-article-send-btn" disabled>Añadir</button>
           </div>
       </div>`;
-  document.querySelector('.back-btn').onclick = renderShoppingList;
   const sendBtn = document.getElementById('add-article-send-btn');
   const descriptionInput = document.getElementById('article-description');
   descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
@@ -526,14 +513,13 @@ async function addArticle() {
 function renderEditShoppingItemForm(item) {
     mainContent.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Artículo</h2></div>
+          <div class="list-header"><button class="back-btn" onclick="renderShoppingList()">‹</button><h2>✏️ Editar Artículo</h2></div>
           <div class="form-card">
               <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
               <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
               <button id="edit-article-send-btn" class="enabled">Guardar Cambios</button>
           </div>
       </div>`;
-    document.querySelector('.back-btn').onclick = renderShoppingList;
     document.getElementById('edit-article-send-btn').onclick = () => saveEditedShoppingItem(item['3']);
 }
 
@@ -587,8 +573,7 @@ function renderNotesList() {
                 </div>
                 <div class="note-description">${note.Descripcion}</div>
             </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div><div class="add-article-btn-container"><button class="add-article-btn" onclick="renderNoteForm()">Crear Nueva Nota</button></div><ul class="list-style-none" id="notes-list">${listHtml}</ul></div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
+    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Mis Notas</h2></div><div class="add-article-btn-container"><button class="add-article-btn" onclick="renderNoteForm()">Crear Nueva Nota</button></div><ul class="list-style-none" id="notes-list">${listHtml}</ul></div>`;
     
     const notesList = document.getElementById('notes-list');
     notesList.addEventListener('click', e => {
@@ -610,8 +595,7 @@ function renderNotesList() {
 
 function renderNoteForm(note = null) {
     const isEditing = note !== null;
-    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required /><label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea><button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
-    document.querySelector('.back-btn').onclick = renderNotesList;
+    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderNotesList()">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required /><label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea><button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
     const titleInput = document.getElementById('note-title'), descriptionInput = document.getElementById('note-description'), saveBtn = document.getElementById('save-note-btn');
     function validate() { saveBtn.disabled = !(titleInput.value.trim() !== '' && descriptionInput.value.trim() !== ''); saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
     titleInput.oninput = validate; descriptionInput.oninput = validate;
@@ -665,7 +649,7 @@ async function saveNote() {
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
 // ==================================================
-async function renderAgendaView(eventsToShow = null) {
+async function renderCalendarView(eventsToShow = null) {
     showSpinner();
     try {
         let events = eventsToShow;
@@ -680,36 +664,56 @@ async function renderAgendaView(eventsToShow = null) {
 
         const groupAndRenderEvents = (evs) => {
             if (!evs || evs.length === 0) return '<div class="no-data-msg">🗓️<br>No se encontraron eventos.</div>';
-            const eventsByDay = evs.reduce((acc, event) => { const day = new Date(event.start.date || event.start.dateTime).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
+            const eventsByDay = evs.reduce((acc, event) => { 
+                const dateKey = event.start.dateTime || event.start.date;
+                const day = new Date(dateKey).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); 
+                if (!acc[day]) acc[day] = []; 
+                acc[day].push(event); 
+                return acc; 
+            }, {});
             let html = '';
             for (const day in eventsByDay) {
                 html += `<h3 class="day-header">${day}</h3>`;
                 html += Object.values(eventsByDay[day]).map(event => {
-                    const startTime = event.start.date ? 'Todo el día' : new Date(event.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                    const endTime = event.start.date ? '' : ' - ' + new Date(event.end.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                    return `<li class="list-item" id="item-${event.id}"><div class="list-item-content" onclick="this.parentElement.classList.toggle('open')"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime}${endTime}</span><div class="event-description">${event.description || ''}</div></div><div class="list-item-actions"><button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button><div class="dropdown-menu" id="menu-item-${event.id}"><a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></li>`;
+                    const isAllDay = !event.start.dateTime;
+                    const startTime = isAllDay ? 'Todo el día' : new Date(event.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    const endTime = isAllDay ? '' : ' - ' + new Date(event.end.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    return `<li class="list-item" id="item-${event.id}">
+                              <div class="list-item-content" onclick="this.parentElement.classList.toggle('open')">
+                                <span class="list-item-title">${event.summary}</span>
+                                <span class="list-item-subtitle">${startTime}${endTime}</span>
+                                <div class="event-description">${event.description || ''}</div>
+                              </div>
+                              <div class="list-item-actions">
+                                <button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button>
+                                <div class="dropdown-menu" id="menu-item-${event.id}">
+                                  <a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a>
+                                  ${event.htmlLink ? `<a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a>` : ''}
+                                </div>
+                              </div>
+                            </li>`;
                 }).join('');
             }
             return html;
         };
         let listHtml = groupAndRenderEvents(events);
-        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><div class="add-article-btn-container"><button class="add-article-btn" onclick="renderEventForm()">Añadir Evento</button><button class="add-article-btn" onclick="renderSearchCalendarForm()">Buscar</button></div><ul class="list-style-none" id="calendar-list">${listHtml}</ul></div>`;
-        document.querySelector('.back-btn').onclick = renderDashboard;
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Calendario</h2></div><div class="add-article-btn-container"><button class="add-article-btn" onclick="renderEventForm()">Añadir Evento</button><button class="add-article-btn" onclick="renderSearchCalendarForm()">Buscar</button></div><ul class="list-style-none" id="calendar-list">${listHtml}</ul></div>`;
+        
         document.getElementById('calendar-list').addEventListener('click', (e) => {
             const target = e.target.closest('.dropdown-item');
-            if (!target) return;
+            if (!target || target.href) return; // Ignorar si es un link
             const action = target.dataset.action;
             const eventId = target.dataset.eventId;
             if (action === 'delete-calendar-event') {
                 confirmDelete('calendar_event', eventId);
             }
         });
-    } catch (err) { mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la agenda.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
+    } catch (err) { mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
 }
 
 function renderEventForm() {
     mainContent.innerHTML = `
-      <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>➕ Nuevo Evento</h2></div>
+      <div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderCalendarView()">‹</button><h2>➕ Nuevo Evento</h2></div>
       <div class="form-card">
           <label>Título</label><input type="text" id="event-summary" required />
           <label><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;"> Todo el día</label>
@@ -723,7 +727,6 @@ function renderEventForm() {
           <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
           <button id="save-event-btn" disabled>Crear Evento</button>
       </div></div>`;
-    document.querySelector('.back-btn').onclick = renderAgendaView;
     
     let startPicker, endPicker;
     const fpConfig = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
@@ -755,6 +758,7 @@ async function saveEvent() {
         const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'add_calendar_event', eventData });
         const result = await res.json();
         if (result.error) throw new Error(result.error);
+        initializeAppContent();
     } catch (err) {
         showToast(`Error: ${err.message}. No se guardó.`, true);
         initializeAppContent();
@@ -764,15 +768,13 @@ async function saveEvent() {
 function renderSearchCalendarForm() {
     mainContent.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar en Calendario</h2></div>
+            <div class="list-header"><button class="back-btn" onclick="renderCalendarView()">‹</button><h2>🔎 Buscar en Calendario</h2></div>
             <div class="form-card">
                 <label>Término de búsqueda</label>
                 <input type="text" id="calendar-search-query" placeholder="Ej: Reunión, Dentista..." required />
                 <button id="search-calendar-btn" class="enabled">Buscar</button>
             </div>
-            <div id="calendar-search-results" style="margin-top: 20px;"></div>
         </div>`;
-    document.querySelector('.back-btn').onclick = renderAgendaView;
     document.getElementById('search-calendar-btn').onclick = executeSearchCalendar;
 }
 
@@ -784,7 +786,7 @@ async function executeSearchCalendar() {
         const res = await fetchWithTimeout(webhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: query });
         const events = await res.json();
         if (events.error) throw new Error(events.error);
-        renderAgendaView(events);
+        renderCalendarView(events);
     } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
 }
 
@@ -797,7 +799,7 @@ function renderGastoChart() {
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
   mainContent.innerHTML = `
     <div class="list-container">
-      <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
+      <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Análisis de Gastos</h2></div>
       <div class="form-card">
         <label>Detalle por Mes</label>
         <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
@@ -809,7 +811,6 @@ function renderGastoChart() {
         <div class="gasto-chart-container" id="chart-container-monthly"></div>
       </div>
     </div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
   document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
   fetchAndDisplayGastoChart({ target: { value: '' } }); 
 }
@@ -825,28 +826,29 @@ async function fetchAndDisplayGastoChart(event) {
     if(data.pieChartUrl && mesAnio) { const imgPie = document.createElement('img'); imgPie.src = data.pieChartUrl; pieContainer.appendChild(imgPie); }
     if(data.dailyLineChartUrl && mesAnio) { const imgDaily = document.createElement('img'); imgDaily.src = data.dailyLineChartUrl; dailyContainer.appendChild(imgDaily); }
     if(data.monthlyBarChartUrl) { monthlyContainer.innerHTML = ''; const imgMonthly = document.createElement('img'); imgMonthly.src = data.monthlyBarChartUrl; monthlyContainer.appendChild(imgMonthly); }
-    if(data.datosParaLeyenda && data.datosParaLeyenda.length > 0 && mesAnio) { legendContainer.innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}€</strong></li>`).join(''); }
+    if(data.datosParaLeyenda && data.datosParaLeyenda.length > 0 && mesAnio) { legendContainer.innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join(''); }
   } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
 }
 
 function renderAddGastoForm() {
     mainContent.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
+            <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>💰 Nuevo Gasto</h2></div>
             <div class="form-card">
-                <label>Importe (€)</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" required />
+                <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" required />
                 <label>Categoría</label> <input type="text" id="gasto-categoria" placeholder="Ej: Alimentación" required />
                 <label>Fecha</label> <input type="text" id="gasto-fecha" required />
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
     flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es" });
     const saveBtn = document.getElementById('save-gasto-btn');
-    const inputs = ['gasto-importe', 'gasto-establecimiento', 'gasto-categoria'];
-    inputs.forEach(id => document.getElementById(id).oninput = () => { const allValid = inputs.every(i => document.getElementById(i).value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', !allValid); });
+    const inputs = ['gasto-importe', 'gasto-establecimiento', 'gasto-categoria', 'gasto-fecha'];
+    function validateGastoForm() { const allValid = inputs.every(i => document.getElementById(i).value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', !allValid); }
+    inputs.forEach(id => document.getElementById(id).oninput = validateGastoForm);
     saveBtn.onclick = saveGasto;
+    validateGastoForm();
 }
 
 async function saveGasto() {
@@ -854,29 +856,20 @@ async function saveGasto() {
         Type: 'add_gasto', chat_ID: chatId,
         datos: { Importe: document.getElementById('gasto-importe').value, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(), ID_Unico: 'G-' + Date.now() }
     };
-    
-    try {
-        const importeActual = parseFloat(String(appData.counts.gastosMesActual || '0,00').replace(/\./g, '').replace(',', '.'));
-        const nuevoImporte = parseFloat(payload.datos.Importe);
-        const fechaGasto = new Date(payload.datos.Fecha), fechaActual = new Date();
-        if (fechaGasto.getMonth() === fechaActual.getMonth() && fechaGasto.getFullYear() === fechaActual.getFullYear()) {
-            appData.counts.gastosMesActual = (importeActual + nuevoImporte).toFixed(2).replace('.', ',');
-        }
-    } catch(e){}
     renderDashboard();
-
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
+        showToast('Gasto añadido con éxito');
         initializeAppContent();
-    } catch (err) { showToast(err.message, true); initializeAppContent(); }
+    } catch (err) { showToast(`Error: ${err.message}. No se guardó.`, true); initializeAppContent(); }
 }
 
 function renderSearchGastosForm() {
     mainContent.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar Gastos</h2></div>
+            <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>🔎 Buscar Gastos</h2></div>
             <div class="form-card">
                 <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
                 <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
@@ -884,7 +877,6 @@ function renderSearchGastosForm() {
             </div>
             <div id="gastos-search-results" style="margin-top: 20px;"></div>
         </div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
     flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
@@ -918,7 +910,7 @@ async function executeSearchGastos() {
             let listHtml = gastosEncontrados.map(gasto => `
                 <li class="list-item" id="item-${gasto.ID_Unico}">
                     <div class="list-item-content">
-                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}€</span>
+                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
                         <span class="list-item-subtitle">${gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleDateString('es-ES')}</span>
                     </div>
                     <div class="list-item-actions">
@@ -939,16 +931,15 @@ async function executeSearchGastos() {
 function renderEditGastoForm(gasto) {
     mainContent.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
+            <div class="list-header"><button class="back-btn" onclick="executeSearchGastos()">‹</button><h2>✏️ Editar Gasto</h2></div>
             <div class="form-card">
-                <label>Importe (€)</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
+                <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
                 <label>Categoría</label> <input type="text" id="gasto-categoria" value="${gasto.Categoria}" required />
                 <label>Fecha</label> <input type="text" id="gasto-fecha" required />
                 <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
             </div>
         </div>`;
-    document.querySelector('.back-btn').onclick = executeSearchGastos; // Go back to search results
     flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
     document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
 }
@@ -958,14 +949,15 @@ async function saveEditedGasto(idUnico) {
         Type: 'edit_gasto', chat_ID: chatId,
         datos: { ID_Unico: idUnico, Importe: document.getElementById('gasto-importe').value, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString() }
     };
-    renderDashboard();
+    showSpinner();
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
-        initializeAppContent();
-    } catch (err) { showToast(err.message, true); initializeAppContent(); }
+        executeSearchGastos(); // Go back to the search results with updated data
+    } catch (err) { showToast(`Error: ${err.message}. No se guardó.`, true); } 
+    finally { hideSpinner(); }
 }
 
 // ==================================================
@@ -976,24 +968,13 @@ function renderDashboard() {
   const counts = appData.counts;
   mainContent.innerHTML = `
     <div class="grid">
-      <div class="card"><div class="card-badge red" style="left:12px;">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
-      <div class="card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
-      <div class="card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
-      <div class="card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-agenda-link">Ver Agenda</a></div></div>
-      <div class="card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}€</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+      <div class="card"><div class="card-badge red" style="left:12px;">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" onclick="renderReminderForm()">Añadir</a><a class="dropdown-item" onclick="renderRemindersList()">Ver Lista</a></div></div>
+      <div class="card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" onclick="renderAddArticleForm()">Añadir</a><a class="dropdown-item" onclick="renderShoppingList()">Ver Lista</a></div></div>
+      <div class="card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" onclick="renderNoteForm()">Añadir</a><a class="dropdown-item" onclick="renderNotesList()">Ver Lista</a></div></div>
+      <div class="card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" onclick="renderEventForm()">Añadir Evento</a><a class="dropdown-item" onclick="renderCalendarView()">Ver Calendario</a></div></div>
+      <div class="card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" onclick="renderAddGastoForm()">Añadir</a><a class="dropdown-item" onclick="renderSearchGastosForm()">Buscar</a><a class="dropdown-item" onclick="renderGastoChart()">Ver Gráfico</a></div></div>
     </div>`;
   
-  document.getElementById('add-reminder-link').onclick = renderReminderForm;
-  document.getElementById('list-reminders-link').onclick = renderRemindersList;
-  document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-  document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
-  document.getElementById('add-note-link').onclick = () => renderNoteForm();
-  document.getElementById('list-notes-link').onclick = renderNotesList;
-  document.getElementById('add-event-link').onclick = () => renderEventForm();
-  document.getElementById('view-agenda-link').onclick = () => renderAgendaView();
-  document.getElementById('add-gasto-link').onclick = renderAddGastoForm;
-  document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
-  document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
   document.getElementById('tab-home').onclick = renderDashboard;
 }
 
