@@ -573,15 +573,27 @@ function renderNotesList() {
                 </div>
                 <div class="note-description">${note.Descripcion}</div>
             </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Mis Notas</h2></div><div class="add-article-btn-container"><button class="add-article-btn" onclick="renderNoteForm()">Crear Nueva Nota</button></div><ul class="list-style-none" id="notes-list">${listHtml}</ul></div>`;
+    
+    mainContent.innerHTML = `<div class="list-container">
+                                <div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div>
+                                <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
+                                <ul class="list-style-none" id="notes-list">${listHtml}</ul>
+                             </div>`;
+
+    document.querySelector('.back-btn').onclick = renderDashboard;
+    document.getElementById('create-new-note-btn').onclick = () => renderNoteForm();
     
     const notesList = document.getElementById('notes-list');
     notesList.addEventListener('click', e => {
         const interactiveHeader = e.target.closest('.note-header-interactive');
-        if (interactiveHeader) { interactiveHeader.closest('.note-item').classList.toggle('open'); return; }
+        if (interactiveHeader) {
+            interactiveHeader.closest('.note-item').classList.toggle('open');
+            return;
+        }
         
         const target = e.target.closest('.dropdown-item');
         if (!target) return;
+
         const action = target.dataset.action;
         const noteId = target.dataset.noteId;
         if (action === 'edit-note') {
@@ -595,10 +607,28 @@ function renderNotesList() {
 
 function renderNoteForm(note = null) {
     const isEditing = note !== null;
-    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderNotesList()">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required /><label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea><button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
-    const titleInput = document.getElementById('note-title'), descriptionInput = document.getElementById('note-description'), saveBtn = document.getElementById('save-note-btn');
-    function validate() { saveBtn.disabled = !(titleInput.value.trim() !== '' && descriptionInput.value.trim() !== ''); saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
-    titleInput.oninput = validate; descriptionInput.oninput = validate;
+    mainContent.innerHTML = `<div class="list-container">
+                                <div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
+                                <div class="form-card">
+                                    <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
+                                    <label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea>
+                                    <button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
+                                </div>
+                             </div>`;
+
+    document.querySelector('.back-btn').onclick = renderNotesList;
+    const titleInput = document.getElementById('note-title');
+    const descriptionInput = document.getElementById('note-description');
+    const saveBtn = document.getElementById('save-note-btn');
+
+    function validate() {
+        const isEnabled = titleInput.value.trim() !== '' && descriptionInput.value.trim() !== '';
+        saveBtn.disabled = !isEnabled;
+        saveBtn.classList.toggle('enabled', isEnabled);
+    }
+
+    titleInput.oninput = validate;
+    descriptionInput.oninput = validate;
     saveBtn.onclick = saveNote;
     validate();
 }
@@ -625,22 +655,22 @@ async function saveNote() {
             const data = await res.json();
             if (data.error) throw new Error(data.error);
         } catch (err) {
-            showToast(`Error: ${err.message}. No se guardó.`, true);
-            appData.notesList[itemIndex] = originalNote;
+            showToast(`Error: ${err.message}. No se pudo guardar.`, true);
+            appData.notesList[itemIndex] = originalNote; // Revertir
             renderNotesList();
         }
     } else {
         appData.counts.notesCount++;
-        appData.notesList.unshift({ Nota_ID: 'temp', Titulo: title, Descripcion: description, Fecha: new Date().toLocaleDateString('es-ES') });
+        appData.notesList.unshift({ Nota_ID: 'temp-' + Date.now(), Titulo: title, Descripcion: description, Fecha: new Date().toLocaleDateString('es-ES') });
         renderNotesList();
 
         try {
             const res = await fetchWithTimeout(webhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-            initializeAppContent();
+            initializeAppContent(); // Recarga para obtener el ID real de la nota
         } catch (err) {
-            showToast(`Error: ${err.message}. No se creó la nota.`, true);
+            showToast(`Error: ${err.message}. No se pudo crear la nota.`, true);
             initializeAppContent();
         }
     }
