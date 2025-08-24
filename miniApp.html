@@ -311,7 +311,9 @@ async function saveReminder() {
 
 function renderRemindersList() {
   const reminders = appData.remindersList || [];
-  let listHtml = (reminders.length > 0) ? reminders.map(item => `
+  let listHtml = (reminders.length > 0) ? reminders.map(item => {
+    const itemString = JSON.stringify(item).replace(/"/g, '&quot;');
+    return `
     <li class="list-item" id="item-${item.tracking_code}">
       <div class="list-item-content">
         <span class="list-item-title">${item.Descripcion}</span>
@@ -320,12 +322,38 @@ function renderRemindersList() {
       <div class="list-item-actions">
         <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
         <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
+          <a class="dropdown-item" onclick='editReminderDescription(${itemString})'>Editar Texto</a>
           <a class="dropdown-item" onclick="confirmDelete('reminder', '${item.tracking_code}')">Eliminar</a>
         </div>
       </div>
-    </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+    </li>`}).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
   mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
   document.querySelector('.back-btn').onclick = renderDashboard;
+}
+
+async function editReminderDescription(item) {
+  const newDescription = prompt('Editar descripción del recordatorio:', item.Descripcion);
+  if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item.Descripcion) {
+    showSpinner();
+    try {
+      const payload = {
+        Type: 'edit_reminder_description',
+        chat_ID: chatId,
+        tracking_code: item.tracking_code,
+        new_description: newDescription.trim()
+      };
+      const res = await fetchWithTimeout(webhookURL, payload);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      appData = data; // Sincroniza con la data completa del servidor
+      showToast('Recordatorio actualizado');
+      renderRemindersList(); // Re-renderiza la lista
+    } catch (err) {
+      showToast(err.message || 'Error al editar', true);
+    } finally {
+      hideSpinner();
+    }
+  }
 }
 
 // ==================================================
