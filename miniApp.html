@@ -12,7 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
   <style>
-    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; --edit-icon-color: #007bff; --checkbox-border: #ddd; --checkbox-checked-bg: var(--primary); }
+    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px;}
     .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:20px;}
@@ -24,7 +24,7 @@
     .card-badge.green{background-color:#28a745;}
     .card-badge.red{background-color:#e74c3c;}
     .card-badge-group .card-badge{position:static;}
-    .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
+    .generic-menu-btn, .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
     .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
     .dropdown-menu.show { display: block; }
     .dropdown-item { padding: 12px 20px; color: var(--text); cursor: pointer; display: block; text-align: left; }
@@ -34,11 +34,9 @@
     .tab.active{color:var(--badge-color);}
     .form-container, .list-container{max-width:480px;margin:20px auto;padding:10px;}
     .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
-    .form-card h2{margin-bottom:16px;font-size:1.4rem;}
     .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
     .form-card textarea,.form-card input, .form-card select, .form-card .radio-group{width:100%;margin-top:8px;}
     .form-card textarea,.form-card input, .form-card select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
-    .form-card input.flatpickr-input { background-color: #fff !important; }
     .form-card .input-error { border-color: var(--error-bg) !important; }
     .radio-group{display:flex;gap:10px;align-items:center; flex-wrap: wrap;}
     .radio-group label{font-weight:400;color:var(--text);margin-top:0;}
@@ -59,17 +57,27 @@
     .list-item-title { font-size: 1.1rem; font-weight: 500; }
     .list-item-subtitle { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
     .list-item-actions { display: flex; align-items: center; gap: 5px; position: relative; }
-    .generic-menu-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; }
+    .generic-menu-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; position: static; }
     .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
     .confirm-btn-yes { background-color: var(--confirm-yes-bg); color: var(--delete-text); }
     .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
     .no-data-msg { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; font-size: 1.2rem; line-height: 1.5; }
     #recurrent-hours-container { display: none; margin-top: 15px; }
-    .gasto-chart-container { text-align: center; margin-top: 15px; }
-    .gasto-chart-container img { max-width: 100%; border-radius: 12px; }
-    .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
-    .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
-    .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
+    .shopping-list-header-row { display: flex; align-items: center; justify-content: flex-end; padding: 0 10px 10px 10px; color: var(--muted); font-size: 0.9rem; }
+    .shopping-list-header-row input[type="checkbox"] { margin-left: 5px; }
+    .shopping-item { gap: 5px; padding: 10px; }
+    .shopping-item-checkbox-wrapper { flex-shrink: 0; margin-right: 8px; }
+    .shopping-item input[type="checkbox"] { width: 20px; height: 20px; }
+    .shopping-item-toggle-btn { flex-grow: 1; padding: 10px 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; color: var(--list-item-text); cursor: pointer; text-align: left; }
+    .shopping-item-toggle-btn.pending { background-color: var(--pending-bg); }
+    .shopping-item-toggle-btn.bought { background-color: var(--bought-bg); }
+    .shopping-item-toggle-btn .item-date { font-size: 0.75rem; opacity: 0.8; margin-top: 5px; display:block; }
+    .shopping-item-menu-container { position: relative; flex-shrink: 0; margin-left: auto; }
+    .add-article-btn-container { padding: 10px; text-align: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .add-article-btn, .multi-select-action-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; }
+    .multi-select-action-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+    .shopping-list-section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px 10px; padding-top: 10px; border-top: 1px solid #eee; text-align: left; }
+    .shopping-list-section-title:first-of-type { border-top: none; margin-top: 0; }
     .note-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; }
     .note-header { display: flex; align-items: center; justify-content: space-between; padding: 15px; }
     .note-header-interactive { flex-grow: 1; padding-right: 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
@@ -83,6 +91,11 @@
     .day-header { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #eee; text-align: left;}
     .event-description { white-space: pre-wrap; word-wrap: break-word; text-align: left; color: var(--text); margin-top: 10px; display: none; }
     .list-item.open .event-description { display: block; }
+    .gasto-chart-container { text-align: center; margin-top: 15px; }
+    .gasto-chart-container img { max-width: 100%; border-radius: 12px; }
+    .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+    .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
+    .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
   </style>
 </head>
 <body>
@@ -102,7 +115,7 @@
       let chatId = tg?.initDataUnsafe?.user?.id;
       if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
-      let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [] };
+      let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [] };
       const mainContent = document.getElementById('main');
       const spinner = document.getElementById('spinner');
 
@@ -218,15 +231,152 @@
         document.querySelector('.back-btn').onclick = renderDashboard;
       }
 
-      // --- COMPRAS ---
-      function renderShoppingList() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
-      function renderAddArticleForm() { mainContent.innerHTML = `<div class="no-data-msg">Función no implementada</div>`; }
+      // --- COMPRAS (VERSIÓN AVANZADA) ---
+      function renderShoppingList() {
+        const items = appData.shoppingList || [];
+        const pendingItems = items.filter(item => item['2'] === 'Pendiente');
+        const boughtItems = items.filter(item => item['2'] === 'Comprado');
+        let listHtml = '';
+        if (pendingItems.length > 0) {
+            listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>';
+            listHtml += pendingItems.map(item => `
+                <li class="shopping-item" id="item-${item['3']}">
+                    <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="Pendiente"><span>${item['1']}</span></button>
+                    <div class="list-item-actions">
+                        <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
+                        <div class="dropdown-menu" id="menu-item-${item['3']}">
+                            <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
+                        </div>
+                    </div>
+                </li>`).join('');
+        }
+        if (boughtItems.length > 0) {
+            listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>';
+            listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
+            listHtml += boughtItems.map(item => `
+                <li class="shopping-item" id="item-${item['3']}">
+                    <div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}"></div>
+                    <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="Comprado">
+                        <span>${item['1']}</span>
+                        ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
+                    </button>
+                    <div class="list-item-actions">
+                        <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
+                        <div class="dropdown-menu" id="menu-item-${item['3']}">
+                            <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
+                        </div>
+                    </div>
+                </li>`).join('');
+        }
+        if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
+        mainContent.innerHTML = `
+            <div class="list-container">
+                <div class="list-header"><button class="back-btn">‹</button><h2>Lista de Compras</h2></div>
+                <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
+                <div class="add-article-btn-container">
+                    <button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button>
+                    <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
+                </div>
+            </div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+        document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
+        document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
+        const selectAllCheckbox = document.getElementById('select-all-checkbox');
+        if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
+        document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
+        document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
+        updateMultiSelectButtonState();
+      }
 
-      // --- NOTAS ---
+      function handleShoppingItemInteractions(event) {
+        const toggleButton = event.target.closest('.shopping-item-toggle-btn');
+        if (toggleButton) {
+            const trackingCode = toggleButton.dataset.trackingCode;
+            const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+            toggleShoppingItemStatus(trackingCode, newStatus);
+        }
+      }
+
+      async function toggleShoppingItemStatus(trackingCode, newStatus) {
+        showSpinner();
+        try {
+            const res = await fetchWithTimeout(webhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            appData = data;
+            renderShoppingList();
+        } catch (err) {
+            showToast(err.message || 'Error de sincronización', true);
+        } finally {
+            hideSpinner();
+        }
+      }
+      
+      function updateMultiSelectButtonState() {
+        const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
+        const selectedCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
+        multiSelectToggleButton.disabled = selectedCount === 0;
+        multiSelectToggleButton.textContent = selectedCount > 0 ? `Marcar ${selectedCount} para comprar` : 'Marcar para comprar';
+      }
+
+      async function toggleSelectedItemsToPending() {
+        const trackingCodes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
+        if (trackingCodes.length === 0) return;
+        showSpinner();
+        try {
+            const res = await fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            appData = data;
+            renderShoppingList();
+        } catch (err) {
+            showToast(err.message || 'Error al actualizar', true);
+        } finally {
+            hideSpinner();
+        }
+      }
+
+      function renderAddArticleForm() {
+        mainContent.innerHTML = `
+            <div class="list-container">
+                <div class="list-header"><button class="back-btn">‹</button><h2>➕ Añadir Artículo</h2></div>
+                <div class="form-card">
+                    <label>Descripción</label><textarea id="article-description" rows="2" required></textarea>
+                    <button id="add-article-send-btn" disabled>Añadir</button>
+                </div>
+            </div>`;
+        document.querySelector('.back-btn').onclick = renderShoppingList;
+        const sendBtn = document.getElementById('add-article-send-btn');
+        document.getElementById('article-description').oninput = (e) => {
+            const isEnabled = e.target.value.trim() !== '';
+            sendBtn.disabled = !isEnabled;
+            sendBtn.classList.toggle('enabled', isEnabled);
+        };
+        sendBtn.onclick = addArticle;
+      }
+
+      async function addArticle() {
+        const description = document.getElementById('article-description').value.trim();
+        if (!description) return;
+        showSpinner();
+        try {
+            const res = await fetchWithTimeout(webhookURL, { Type: 'add_articulo', chat_ID: chatId, description: description });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            appData = data;
+            renderShoppingList();
+        } catch (err) {
+            showToast(err.message || 'Error al añadir', true);
+        } finally {
+            hideSpinner();
+        }
+      }
+
+      // --- NOTAS (VERSIÓN AVANZADA) ---
       function renderNotesList() {
           const notes = appData.notesList || [];
           let listHtml = (notes.length > 0) ? notes.map(note => `
-              <li class="note-item" id="note-${note.Nota_ID}">
+              <li class="note-item" id="item-${note.Nota_ID}">
                   <div class="note-header">
                       <div class="note-header-interactive">
                           <div class="note-title-section">
@@ -236,9 +386,9 @@
                           <span class="expand-arrow">▾</span>
                       </div>
                       <div class="list-item-actions">
-                          <button class="generic-menu-btn" data-menu-id="menu-note-${note.Nota_ID}">⋮</button>
-                          <div class="dropdown-menu" id="menu-note-${note.Nota_ID}">
-                              <a class="dropdown-item" onclick="renderNoteForm({Nota_ID: '${note.Nota_ID}', Titulo: '${note.Titulo}', Descripcion: \`${note.Descripcion}\`})">Editar</a>
+                          <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
+                          <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
+                              <a class="dropdown-item" onclick='renderNoteForm(${JSON.stringify(note)})'>Editar</a>
                               <a class="dropdown-item" onclick="confirmDelete('note', '${note.Nota_ID}')">Eliminar</a>
                           </div>
                       </div>
@@ -252,6 +402,7 @@
 
       function renderNoteForm(note = null) {
           const isEditing = note !== null;
+          const descriptionText = isEditing ? note.Descripcion.replace(/`/g, '\\`') : '';
           mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required /><label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea><button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
           document.querySelector('.back-btn').onclick = renderNotesList;
           const titleInput = document.getElementById('note-title'), descriptionInput = document.getElementById('note-description'), saveBtn = document.getElementById('save-note-btn');
@@ -265,24 +416,36 @@
       }
 
       // --- CALENDARIO ---
-      function renderAgendaView() {
-          const events = appData.calendarEvents || [];
-          const groupAndRenderEvents = (evs) => {
-              const eventsByDay = evs.reduce((acc, event) => { const day = new Date(event.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
-              let html = '';
-              for (const day in eventsByDay) {
-                  html += `<h3 class="day-header">${day}</h3>`;
-                  html += evs.filter(e => new Date(e.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) === day).map(event => {
-                      const startTime = new Date(event.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                      const endTime = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                      return `<li class="list-item" id="item-${event.id}"><div class="list-item-content" onclick="this.parentElement.classList.toggle('open')"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime} - ${endTime}</span><div class="event-description">${event.description || ''}</div></div><div class="list-item-actions"><button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button><div class="dropdown-menu" id="menu-item-${event.id}"><a class="dropdown-item" onclick="confirmDelete('calendar_event', '${event.id}')">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></li>`;
-                  }).join('');
-              }
-              return html;
-          };
-          let listHtml = (events.length > 0) ? groupAndRenderEvents(events) : '<div class="no-data-msg">🗓️<br>No tienes eventos próximos.</div>';
-          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
-          document.querySelector('.back-btn').onclick = renderDashboard;
+      async function renderAgendaView() {
+          showSpinner();
+          try {
+              const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
+              const res = await fetchWithTimeout(webhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+              const events = await res.json();
+              if (events.error) throw new Error(events.error);
+              appData.calendarEvents = events;
+
+              const groupAndRenderEvents = (evs) => {
+                  const eventsByDay = evs.reduce((acc, event) => { const day = new Date(event.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
+                  let html = '';
+                  for (const day in eventsByDay) {
+                      html += `<h3 class="day-header">${day}</h3>`;
+                      html += evs.filter(e => new Date(e.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) === day).map(event => {
+                          const startTime = new Date(event.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                          const endTime = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                          return `<li class="list-item" id="item-${event.id}"><div class="list-item-content" onclick="this.parentElement.classList.toggle('open')"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime} - ${endTime}</span><div class="event-description">${event.description || ''}</div></div><div class="list-item-actions"><button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button><div class="dropdown-menu" id="menu-item-${event.id}"><a class="dropdown-item" onclick="confirmDelete('calendar_event', '${event.id}')">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></li>`;
+                      }).join('');
+                  }
+                  return html;
+              };
+              let listHtml = (events.length > 0) ? groupAndRenderEvents(events) : '<div class="no-data-msg">🗓️<br>No tienes eventos próximos.</div>';
+              mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+              document.querySelector('.back-btn').onclick = renderDashboard;
+          } catch (err) {
+              mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la agenda.<br><small>${err.message}</small></div>`;
+          } finally {
+              hideSpinner();
+          }
       }
 
       function renderEventForm(event = null) {
@@ -352,11 +515,13 @@
 
       // --- LÓGICA GENÉRICA DE BORRADO CON CONFIRMACIÓN ---
       window.confirmDelete = function(type, id) {
-          const itemElement = document.getElementById(`item-${id}`) || document.getElementById(`note-${id}`);
+          const itemElement = document.getElementById(`item-${id}`);
           if (!itemElement) return;
           const actionsContainer = itemElement.querySelector('.list-item-actions');
-          const originalButton = actionsContainer.querySelector('.generic-menu-btn');
-          originalButton.style.display = 'none';
+          const menuButton = actionsContainer.querySelector('.generic-menu-btn');
+          const dropdown = actionsContainer.querySelector('.dropdown-menu');
+          if (dropdown) dropdown.classList.remove('show');
+          menuButton.style.display = 'none';
           
           const confirmBtnYes = document.createElement('button');
           confirmBtnYes.className = 'confirm-btn-yes';
@@ -366,7 +531,7 @@
           const confirmBtnNo = document.createElement('button');
           confirmBtnNo.className = 'confirm-btn-no';
           confirmBtnNo.textContent = 'No';
-          confirmBtnNo.onclick = (e) => { e.stopPropagation(); originalButton.style.display = 'block'; confirmBtnYes.remove(); confirmBtnNo.remove(); };
+          confirmBtnNo.onclick = (e) => { e.stopPropagation(); menuButton.style.display = 'block'; confirmBtnYes.remove(); confirmBtnNo.remove(); };
           
           actionsContainer.appendChild(confirmBtnYes);
           actionsContainer.appendChild(confirmBtnNo);
@@ -375,29 +540,17 @@
       async function executeDelete(type, id) {
           let payload = { chat_ID: chatId };
           let successMessage = '';
-          let renderFunction = null;
-
+          
           switch(type) {
               case 'reminder':
-                  payload.Type = 'delete_reminder';
-                  payload.tracking_code = id;
-                  successMessage = 'Recordatorio eliminado';
-                  renderFunction = renderRemindersList;
-                  break;
+                  payload.Type = 'delete_reminder'; payload.tracking_code = id; successMessage = 'Recordatorio eliminado'; break;
+              case 'shopping_item':
+                  payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado'; break;
               case 'note':
-                  payload.Type = 'delete_note';
-                  payload.note_id = id;
-                  successMessage = 'Nota eliminada';
-                  renderFunction = renderNotesList;
-                  break;
+                  payload.Type = 'delete_note'; payload.note_id = id; successMessage = 'Nota eliminada'; break;
               case 'calendar_event':
-                  payload.Type = 'delete_calendar_event';
-                  payload.eventId = id;
-                  successMessage = 'Evento eliminado';
-                  renderFunction = renderAgendaView;
-                  break;
-              default:
-                  return;
+                  payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado'; break;
+              default: return;
           }
           
           showSpinner();
@@ -407,9 +560,10 @@
               if (data.error) throw new Error(data.error);
               appData = data;
               showToast(successMessage);
-              if (renderFunction) renderFunction(); else initializeAppContent();
+              initializeAppContent(); // Recarga todo el dashboard para asegurar consistencia
           } catch (err) {
               showToast(err.message || 'Error al eliminar', true);
+              initializeAppContent(); // Recarga igual para re-sincronizar
           } finally {
               hideSpinner();
           }
