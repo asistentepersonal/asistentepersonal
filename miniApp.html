@@ -968,13 +968,25 @@ function renderDashboard() {
   const counts = appData.counts;
   mainContent.innerHTML = `
     <div class="grid">
-      <div class="card"><div class="card-badge red" style="left:12px;">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" onclick="renderReminderForm()">Añadir</a><a class="dropdown-item" onclick="renderRemindersList()">Ver Lista</a></div></div>
-      <div class="card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" onclick="renderAddArticleForm()">Añadir</a><a class="dropdown-item" onclick="renderShoppingList()">Ver Lista</a></div></div>
-      <div class="card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" onclick="renderNoteForm()">Añadir</a><a class="dropdown-item" onclick="renderNotesList()">Ver Lista</a></div></div>
-      <div class="card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" onclick="renderEventForm()">Añadir Evento</a><a class="dropdown-item" onclick="renderCalendarView()">Ver Calendario</a></div></div>
-      <div class="card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" onclick="renderAddGastoForm()">Añadir</a><a class="dropdown-item" onclick="renderSearchGastosForm()">Buscar</a><a class="dropdown-item" onclick="renderGastoChart()">Ver Gráfico</a></div></div>
+      <div class="card"><div class="card-badge red" style="left:12px;">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+      <div class="card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
+      <div class="card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
+      <div class="card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
+      <div class="card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
     </div>`;
   
+  // --- RECONEXIÓN DE EVENTOS ---
+  document.getElementById('add-reminder-link').onclick = renderReminderForm;
+  document.getElementById('list-reminders-link').onclick = renderRemindersList;
+  document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+  document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+  document.getElementById('add-note-link').onclick = () => renderNoteForm();
+  document.getElementById('list-notes-link').onclick = renderNotesList;
+  document.getElementById('add-event-link').onclick = renderEventForm;
+  document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
+  document.getElementById('add-gasto-link').onclick = renderAddGastoForm;
+  document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
+  document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
   document.getElementById('tab-home').onclick = renderDashboard;
 }
 
