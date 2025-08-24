@@ -228,8 +228,11 @@ async function executeDelete(type, id) {
                 const eventIndex = appData.calendarEvents.findIndex(e => e.id === id);
                 if (eventIndex > -1) {
                     const event = appData.calendarEvents[eventIndex];
-                    const eventDate = new Date(event.start.dateTime || event.start.date).toISOString().split('T')[0];
-                    if (eventDate === new Date().toISOString().split('T')[0]) { appData.counts.calendarTodayCount = Math.max(0, appData.counts.calendarTodayCount - 1); }
+                    const eventDateStr = event.start.dateTime || event.start.date;
+                    if (eventDateStr) {
+                      const eventDate = new Date(eventDateStr).toISOString().split('T')[0];
+                      if (eventDate === new Date().toISOString().split('T')[0]) { appData.counts.calendarTodayCount = Math.max(0, appData.counts.calendarTodayCount - 1); }
+                    }
                     appData.calendarEvents.splice(eventIndex, 1);
                     viewToRender = () => renderCalendarView(appData.calendarEvents);
                 }
@@ -261,7 +264,7 @@ async function executeDelete(type, id) {
 function renderReminderForm() {
   mainContent.innerHTML = `
     <div class="list-container">
-      <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
+      <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
       <div class="form-card">
         <label>Descripción</label><textarea id="text" rows="3" required></textarea>
         <label>Fecha y hora</label><input type="text" id="time" required/>
@@ -278,6 +281,7 @@ function renderReminderForm() {
         <button id="sendBtn" disabled>Crear Recordatorio</button>
       </div>
     </div>`;
+  document.querySelector('.back-btn').onclick = renderDashboard;
   const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
   flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H-i", defaultDate: new Date(), locale: "es", minDate: "today" });
   function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
@@ -325,7 +329,8 @@ function renderRemindersList() {
         </div>
       </div>
     </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-  mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
+  mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
+  document.querySelector('.back-btn').onclick = renderDashboard;
   
   document.getElementById('reminders-list').addEventListener('click', (e) => {
     const target = e.target.closest('.dropdown-item');
@@ -410,14 +415,16 @@ function renderShoppingList() {
   if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
   mainContent.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Lista de las Compras</h2></div>
+          <div class="list-header"><button class="back-btn">‹</button><h2>Lista de las Compras</h2></div>
           <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
           <div class="add-article-btn-container">
-              <button class="add-article-btn" onclick="renderAddArticleForm()">Añadir Artículo</button>
+              <button class="add-article-btn" id="add-shopping-item-btn">Añadir Artículo</button>
               <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
           </div>
       </div>`;
+  document.querySelector('.back-btn').onclick = renderDashboard;
   document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
+  document.getElementById('add-shopping-item-btn').onclick = renderAddArticleForm;
   const selectAllCheckbox = document.getElementById('select-all-checkbox');
   if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
   document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
@@ -480,13 +487,14 @@ function toggleSelectedItemsToPending() {
 function renderAddArticleForm() {
   mainContent.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn" onclick="renderShoppingList()">‹</button><h2>➕ Añadir Artículo</h2></div>
+          <div class="list-header"><button class="back-btn">‹</button><h2>➕ Añadir Artículo</h2></div>
           <div class="form-card">
               <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required></textarea>
               <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="0" min="0" step="1" required />
               <button id="add-article-send-btn" disabled>Añadir</button>
           </div>
       </div>`;
+  document.querySelector('.back-btn').onclick = renderShoppingList;
   const sendBtn = document.getElementById('add-article-send-btn');
   const descriptionInput = document.getElementById('article-description');
   descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
@@ -513,13 +521,14 @@ async function addArticle() {
 function renderEditShoppingItemForm(item) {
     mainContent.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn" onclick="renderShoppingList()">‹</button><h2>✏️ Editar Artículo</h2></div>
+          <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Artículo</h2></div>
           <div class="form-card">
               <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
               <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
               <button id="edit-article-send-btn" class="enabled">Guardar Cambios</button>
           </div>
       </div>`;
+    document.querySelector('.back-btn').onclick = renderShoppingList;
     document.getElementById('edit-article-send-btn').onclick = () => saveEditedShoppingItem(item['3']);
 }
 
@@ -696,6 +705,7 @@ async function renderCalendarView(eventsToShow = null) {
             if (!evs || evs.length === 0) return '<div class="no-data-msg">🗓️<br>No se encontraron eventos.</div>';
             const eventsByDay = evs.reduce((acc, event) => { 
                 const dateKey = event.start.dateTime || event.start.date;
+                if (!dateKey) return acc;
                 const day = new Date(dateKey).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); 
                 if (!acc[day]) acc[day] = []; 
                 acc[day].push(event); 
@@ -727,11 +737,21 @@ async function renderCalendarView(eventsToShow = null) {
             return html;
         };
         let listHtml = groupAndRenderEvents(events);
-        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Calendario</h2></div><div class="add-article-btn-container"><button class="add-article-btn" onclick="renderEventForm()">Añadir Evento</button><button class="add-article-btn" onclick="renderSearchCalendarForm()">Buscar</button></div><ul class="list-style-none" id="calendar-list">${listHtml}</ul></div>`;
+        mainContent.innerHTML = `<div class="list-container">
+                                  <div class="list-header"><button class="back-btn">‹</button><h2>Calendario</h2></div>
+                                  <div class="add-article-btn-container">
+                                    <button class="add-article-btn" id="add-event-btn">Añadir Evento</button>
+                                    <button class="add-article-btn" id="search-event-btn">Buscar</button>
+                                  </div>
+                                  <ul class="list-style-none" id="calendar-list">${listHtml}</ul>
+                                </div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+        document.getElementById('add-event-btn').onclick = renderEventForm;
+        document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
         
         document.getElementById('calendar-list').addEventListener('click', (e) => {
             const target = e.target.closest('.dropdown-item');
-            if (!target || target.href) return; // Ignorar si es un link
+            if (!target || target.href) return;
             const action = target.dataset.action;
             const eventId = target.dataset.eventId;
             if (action === 'delete-calendar-event') {
@@ -743,7 +763,7 @@ async function renderCalendarView(eventsToShow = null) {
 
 function renderEventForm() {
     mainContent.innerHTML = `
-      <div class="list-container"><div class="list-header"><button class="back-btn" onclick="renderCalendarView()">‹</button><h2>➕ Nuevo Evento</h2></div>
+      <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>➕ Nuevo Evento</h2></div>
       <div class="form-card">
           <label>Título</label><input type="text" id="event-summary" required />
           <label><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;"> Todo el día</label>
@@ -757,6 +777,7 @@ function renderEventForm() {
           <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
           <button id="save-event-btn" disabled>Crear Evento</button>
       </div></div>`;
+    document.querySelector('.back-btn').onclick = () => renderCalendarView();
     
     let startPicker, endPicker;
     const fpConfig = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
@@ -797,14 +818,14 @@ async function saveEvent() {
 
 function renderSearchCalendarForm() {
     mainContent.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><button class="back-btn" onclick="renderCalendarView()">‹</button><h2>🔎 Buscar en Calendario</h2></div>
-            <div class="form-card">
-                <label>Término de búsqueda</label>
-                <input type="text" id="calendar-search-query" placeholder="Ej: Reunión, Dentista..." required />
-                <button id="search-calendar-btn" class="enabled">Buscar</button>
-            </div>
+        <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar en Calendario</h2></div>
+        <div class="form-card">
+            <label>Término de búsqueda</label>
+            <input type="text" id="calendar-search-query" placeholder="Ej: Reunión, Dentista..." required />
+            <button id="search-calendar-btn" class="enabled">Buscar</button>
+        </div>
         </div>`;
+    document.querySelector('.back-btn').onclick = () => renderCalendarView();
     document.getElementById('search-calendar-btn').onclick = executeSearchCalendar;
 }
 
@@ -829,7 +850,7 @@ function renderGastoChart() {
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
   mainContent.innerHTML = `
     <div class="list-container">
-      <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>Análisis de Gastos</h2></div>
+      <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
       <div class="form-card">
         <label>Detalle por Mes</label>
         <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
@@ -841,6 +862,7 @@ function renderGastoChart() {
         <div class="gasto-chart-container" id="chart-container-monthly"></div>
       </div>
     </div>`;
+  document.querySelector('.back-btn').onclick = renderDashboard;
   document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
   fetchAndDisplayGastoChart({ target: { value: '' } }); 
 }
@@ -863,7 +885,7 @@ async function fetchAndDisplayGastoChart(event) {
 function renderAddGastoForm() {
     mainContent.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>💰 Nuevo Gasto</h2></div>
+            <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
             <div class="form-card">
                 <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" required />
@@ -872,6 +894,7 @@ function renderAddGastoForm() {
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
+    document.querySelector('.back-btn').onclick = renderDashboard;
     flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es" });
     const saveBtn = document.getElementById('save-gasto-btn');
     const inputs = ['gasto-importe', 'gasto-establecimiento', 'gasto-categoria', 'gasto-fecha'];
@@ -899,7 +922,7 @@ async function saveGasto() {
 function renderSearchGastosForm() {
     mainContent.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn" onclick="renderDashboard()">‹</button><h2>🔎 Buscar Gastos</h2></div>
+            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar Gastos</h2></div>
             <div class="form-card">
                 <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
                 <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
@@ -907,6 +930,7 @@ function renderSearchGastosForm() {
             </div>
             <div id="gastos-search-results" style="margin-top: 20px;"></div>
         </div>`;
+    document.querySelector('.back-btn').onclick = renderDashboard;
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
     flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
@@ -961,7 +985,7 @@ async function executeSearchGastos() {
 function renderEditGastoForm(gasto) {
     mainContent.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn" onclick="executeSearchGastos()">‹</button><h2>✏️ Editar Gasto</h2></div>
+            <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
             <div class="form-card">
                 <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
@@ -970,6 +994,7 @@ function renderEditGastoForm(gasto) {
                 <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
             </div>
         </div>`;
+    document.querySelector('.back-btn').onclick = executeSearchGastos;
     flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
     document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
 }
@@ -985,7 +1010,7 @@ async function saveEditedGasto(idUnico) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
-        executeSearchGastos(); // Go back to the search results with updated data
+        executeSearchGastos();
     } catch (err) { showToast(`Error: ${err.message}. No se guardó.`, true); } 
     finally { hideSpinner(); }
 }
@@ -1005,7 +1030,6 @@ function renderDashboard() {
       <div class="card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
     </div>`;
   
-  // --- RECONEXIÓN DE EVENTOS ---
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
   document.getElementById('list-reminders-link').onclick = renderRemindersList;
   document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
