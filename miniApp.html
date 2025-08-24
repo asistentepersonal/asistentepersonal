@@ -249,323 +249,375 @@ async function executeDelete(type, id) {
 }
 
       // ==================================================
-      // --- MÓDULO: RECORDATORIOS ---
-      // ==================================================
-      function renderReminderForm() {
-        mainContent.innerHTML = `
-          <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
-            <div class="form-card">
-              <label>Descripción</label><textarea id="text" rows="3" required></textarea>
-              <label>Fecha y hora</label><input type="text" id="time" required/>
-              <label>Tipo</label>
-              <div class="radio-group" id="reminder-type-group">
-                <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
-                <label><input type="radio" name="category" value="Diario"/> Diario</label>
-                <label><input type="radio" name="category" value="Recurrente"/> Recurrente</label>
-              </div>
-              <div id="recurrent-hours-container">
-                <label>Repetir cada...</label>
-                <select id="recurrent-hours">${[...Array(11).keys()].map(i => `<option value="${i + 2}">${i + 2} horas</option>`).join('')}</select>
-              </div>
-              <button id="sendBtn" disabled>Crear Recordatorio</button>
-            </div>
-          </div>`;
-        document.querySelector('.back-btn').onclick = renderDashboard;
-        const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
-        flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H:i", defaultDate: new Date(), locale: "es", minDate: "today" });
-        function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
-        function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
-        textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
-        sendBtn.onclick = saveReminder;
-        toggleRecurrentField(); validate();
-      }
+// ==================================================
+// --- MÓDULO: RECORDATORIOS ---
+// ==================================================
+function renderReminderForm() {
+  mainContent.innerHTML = `
+    <div class="list-container">
+      <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
+      <div class="form-card">
+        <label>Descripción</label><textarea id="text" rows="3" required></textarea>
+        <label>Fecha y hora</label><input type="text" id="time" required/>
+        <label>Tipo</label>
+        <div class="radio-group" id="reminder-type-group">
+          <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
+          <label><input type="radio" name="category" value="Diario"/> Diario</label>
+          <label><input type="radio" name="category" value="Recurrente"/> Recurrente</label>
+        </div>
+        <div id="recurrent-hours-container">
+          <label>Repetir cada...</label>
+          <select id="recurrent-hours">${[...Array(11).keys()].map(i => `<option value="${i + 2}">${i + 2} horas</option>`).join('')}</select>
+        </div>
+        <button id="sendBtn" disabled>Crear Recordatorio</button>
+      </div>
+    </div>`;
+  document.querySelector('.back-btn').onclick = renderDashboard;
+  const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
+  flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H:i", defaultDate: new Date(), locale: "es", minDate: "today" });
+  function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
+  function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
+  textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
+  sendBtn.onclick = saveReminder;
+  toggleRecurrentField(); validate();
+}
 
-      async function saveReminder() {
-        const category = document.querySelector('input[name="category"]:checked').value;
-        const description = document.getElementById('text').value.trim();
-        const time = document.getElementById('time')._flatpickr.selectedDates[0];
-        const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null;
-        const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
-        showSpinner();
-        try { const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if(data.error) throw new Error(data.error); appData = data; showToast('Recordatorio guardado'); renderDashboard(); } catch (err) { showToast(err.message || 'Error de sincronización', true); } finally { hideSpinner(); }
-      }
+async function saveReminder() {
+  const category = document.querySelector('input[name="category"]:checked').value;
+  const description = document.getElementById('text').value.trim();
+  const time = document.getElementById('time')._flatpickr.selectedDates[0];
+  const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null;
+  const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
+  
+  // UI Optimista
+  appData.counts.remindersCount++;
+  renderDashboard(); // Vuelve al dashboard inmediatamente
+  showToast('Guardando recordatorio...');
 
-      function renderRemindersList() {
-        const reminders = appData.remindersList || [];
-        let listHtml = (reminders.length > 0) ? reminders.map(item => `
-          <li class="list-item" id="item-${item.tracking_code}">
-            <div class="list-item-content">
-              <span class="list-item-title">${item.Descripcion}</span>
-              <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
-            </div>
-            <div class="list-item-actions">
-              <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
-              <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                <a class="dropdown-item" onclick="confirmDelete('reminder', '${item.tracking_code}')">Eliminar</a>
-              </div>
-            </div>
-          </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
-        document.querySelector('.back-btn').onclick = renderDashboard;
-      }
+  try { 
+    const res = await fetchWithTimeout(webhookURL, payload); 
+    const data = await res.json(); 
+    if(data.error) throw new Error(data.error); 
+    // Sincroniza los datos completos en segundo plano
+    const fullDataRes = await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId });
+    const fullData = await fullDataRes.json();
+    if (fullData.error) throw new Error(fullData.error);
+    appData = fullData;
+    showToast('Recordatorio guardado con éxito');
+    renderDashboard(); // Re-renderiza con los datos frescos
+  } catch (err) { 
+    showToast(err.message || 'Error de sincronización', true); 
+    // Si falla, revierte el contador y refresca
+    appData.counts.remindersCount--;
+    renderDashboard();
+  }
+}
 
-      // ==================================================
-      // --- MÓDULO: COMPRAS ---
-      // ==================================================
-      function renderShoppingList() {
-        const items = appData.shoppingList || [];
-        const pendingItems = items.filter(item => item['2'] === 'Pendiente');
-        const boughtItems = items.filter(item => item['2'] === 'Comprado');
-        let listHtml = '';
-        if (pendingItems.length > 0) {
-            listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>';
-            listHtml += pendingItems.map(item => `
-                <li class="shopping-item" id="item-${item['3']}">
-                    <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="Pendiente"><span>${item['1']}</span></button>
-                    <div class="list-item-actions">
-                        <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
-                        <div class="dropdown-menu" id="menu-item-${item['3']}">
-                            <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
-                        </div>
-                    </div>
-                </li>`).join('');
-        }
-        if (boughtItems.length > 0) {
-            listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>';
-            listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
-            listHtml += boughtItems.map(item => `
-                <li class="shopping-item" id="item-${item['3']}">
-                    <div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}"></div>
-                    <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="Comprado">
-                        <span>${item['1']}</span>
-                        ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
-                    </button>
-                    <div class="list-item-actions">
-                        <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
-                        <div class="dropdown-menu" id="menu-item-${item['3']}">
-                            <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
-                        </div>
-                    </div>
-                </li>`).join('');
-        }
-        if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
-        mainContent.innerHTML = `
-            <div class="list-container">
-                <div class="list-header"><button class="back-btn">‹</button><h2>Lista de Compras</h2></div>
-                <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
-                <div class="add-article-btn-container">
-                    <button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button>
-                    <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
-                </div>
-            </div>`;
-        document.querySelector('.back-btn').onclick = renderDashboard;
-        document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
-        document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
-        const selectAllCheckbox = document.getElementById('select-all-checkbox');
-        if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
-        document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
-        document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
-        updateMultiSelectButtonState();
-      }
+function renderRemindersList() {
+  const reminders = appData.remindersList || [];
+  let listHtml = (reminders.length > 0) ? reminders.map(item => `
+    <li class="list-item" id="item-${item.tracking_code}">
+      <div class="list-item-content">
+        <span class="list-item-title">${item.Descripcion}</span>
+        <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+      </div>
+      <div class="list-item-actions">
+        <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
+        <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
+          <a class="dropdown-item" onclick="confirmDelete('reminder', '${item.tracking_code}')">Eliminar</a>
+        </div>
+      </div>
+    </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+  mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+  document.querySelector('.back-btn').onclick = renderDashboard;
+}
 
-      function handleShoppingItemInteractions(event) {
-        const toggleButton = event.target.closest('.shopping-item-toggle-btn');
-        if (toggleButton) {
-            const trackingCode = toggleButton.dataset.trackingCode;
-            const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
-            optimisticToggleShoppingItemStatus(trackingCode, newStatus);
-        }
-      }
-
-      function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
-        const originalStatus = newStatus === 'Comprado' ? 'Pendiente' : 'Comprado';
-        const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
-        if (itemIndex === -1) return;
-
-        appData.shoppingList[itemIndex]['2'] = newStatus;
-        if (newStatus === 'Comprado') {
-            appData.shoppingList[itemIndex]['4'] = new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-            appData.counts.shoppingPendingCount--;
-            appData.counts.shoppingBoughtCount++;
-        } else {
-            appData.shoppingList[itemIndex]['4'] = '';
-            appData.counts.shoppingPendingCount++;
-            appData.counts.shoppingBoughtCount--;
-        }
-        renderShoppingList();
-
-        fetchWithTimeout(webhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) throw new Error(data.error);
-                appData = data; // Re-sincroniza con la data del servidor
-            })
-            .catch(err => {
-                showToast(err.message || 'Error de sincronización', true);
-                appData.shoppingList[itemIndex]['2'] = originalStatus; // Revertir
-                 if (originalStatus === 'Comprado') {
-                    appData.counts.shoppingPendingCount--;
-                    appData.counts.shoppingBoughtCount++;
-                } else {
-                    appData.counts.shoppingPendingCount++;
-                    appData.counts.shoppingBoughtCount--;
-                }
-                renderShoppingList();
-            });
-      }
-      
-      function updateMultiSelectButtonState() {
-        const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
-        if (!multiSelectToggleButton) return;
-        const selectedCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
-        multiSelectToggleButton.disabled = selectedCount === 0;
-        multiSelectToggleButton.textContent = selectedCount > 0 ? `Marcar ${selectedCount} para comprar` : 'Marcar para comprar';
-      }
-
-      async function toggleSelectedItemsToPending() {
-        const trackingCodes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
-        if (trackingCodes.length === 0) return;
-        showSpinner();
-        try {
-            const res = await fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            appData = data;
-            renderShoppingList();
-        } catch (err) { showToast(err.message || 'Error al actualizar', true); } finally { hideSpinner(); }
-      }
-
-      function renderAddArticleForm() {
-        mainContent.innerHTML = `
-            <div class="list-container">
-                <div class="list-header"><button class="back-btn">‹</button><h2>➕ Añadir Artículo</h2></div>
-                <div class="form-card">
-                    <label>Descripción</label><textarea id="article-description" rows="2" required></textarea>
-                    <button id="add-article-send-btn" disabled>Añadir</button>
-                </div>
-            </div>`;
-        document.querySelector('.back-btn').onclick = renderShoppingList;
-        const sendBtn = document.getElementById('add-article-send-btn');
-        document.getElementById('article-description').oninput = (e) => { const isEnabled = e.target.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
-        sendBtn.onclick = addArticle;
-      }
-
-      async function addArticle() {
-        const description = document.getElementById('article-description').value.trim();
-        if (!description) return;
-        showSpinner();
-        try {
-            const res = await fetchWithTimeout(webhookURL, { Type: 'add_articulo', chat_ID: chatId, description: description });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            appData = data;
-            renderShoppingList();
-        } catch (err) { showToast(err.message || 'Error al añadir', true); } finally { hideSpinner(); }
-      }
-
-      // ==================================================
-      // --- MÓDULO: NOTAS ---
-      // ==================================================
-      function renderNotesList() {
-          const notes = appData.notesList || [];
-          let listHtml = (notes.length > 0) ? notes.map(note => `
-              <li class="note-item" id="item-${note.Nota_ID}">
-                  <div class="note-header">
-                      <div class="note-header-interactive">
-                          <div class="note-title-section">
-                              <span class="note-title">${note.Titulo}</span>
-                              <span class="note-date">${note.Fecha}</span>
-                          </div>
-                          <span class="expand-arrow">▾</span>
-                      </div>
-                      <div class="list-item-actions">
-                          <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
-                          <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
-                              <a class="dropdown-item" onclick='renderNoteForm(${JSON.stringify(note)})'>Editar</a>
-                              <a class="dropdown-item" onclick="confirmDelete('note', '${note.Nota_ID}')">Eliminar</a>
-                          </div>
-                      </div>
+// ==================================================
+// --- MÓDULO: COMPRAS ---
+// ==================================================
+function renderShoppingList() {
+  const items = appData.shoppingList || [];
+  const pendingItems = items.filter(item => item['2'] === 'Pendiente');
+  const boughtItems = items.filter(item => item['2'] === 'Comprado');
+  let listHtml = '';
+  if (pendingItems.length > 0) {
+      listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>';
+      listHtml += pendingItems.map(item => `
+          <li class="shopping-item" id="item-${item['3']}">
+              <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="Pendiente"><span>${item['1']}</span></button>
+              <div class="list-item-actions">
+                  <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
+                  <div class="dropdown-menu" id="menu-item-${item['3']}">
+                      <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
                   </div>
-                  <div class="note-description">${note.Descripcion}</div>
-              </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
-          document.querySelector('.back-btn').onclick = renderDashboard;
-          document.querySelector('.list-style-none').addEventListener('click', e => { const interactiveHeader = e.target.closest('.note-header-interactive'); if (interactiveHeader) { interactiveHeader.closest('.note-item').classList.toggle('open'); } });
-      }
+              </div>
+          </li>`).join('');
+  }
+  if (boughtItems.length > 0) {
+      listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>';
+      listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
+      listHtml += boughtItems.map(item => `
+          <li class="shopping-item" id="item-${item['3']}">
+              <div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}"></div>
+              <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="Comprado">
+                  <span>${item['1']}</span>
+                  ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
+              </button>
+              <div class="list-item-actions">
+                  <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
+                  <div class="dropdown-menu" id="menu-item-${item['3']}">
+                      <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
+                  </div>
+              </div>
+          </li>`).join('');
+  }
+  if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
+  mainContent.innerHTML = `
+      <div class="list-container">
+          <div class="list-header"><button class="back-btn">‹</button><h2>Lista de Compras</h2></div>
+          <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
+          <div class="add-article-btn-container">
+              <button class="add-article-btn" id="add-shopping-item-bottom-btn">Añadir Artículo</button>
+              <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
+          </div>
+      </div>`;
+  document.querySelector('.back-btn').onclick = renderDashboard;
+  document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
+  document.getElementById('add-shopping-item-bottom-btn').onclick = renderAddArticleForm;
+  const selectAllCheckbox = document.getElementById('select-all-checkbox');
+  if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
+  document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
+  document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
+  updateMultiSelectButtonState();
+}
 
-      function renderNoteForm(note = null) {
-          const isEditing = note !== null;
-          mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required /><label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea><button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
-          document.querySelector('.back-btn').onclick = renderNotesList;
-          const titleInput = document.getElementById('note-title'), descriptionInput = document.getElementById('note-description'), saveBtn = document.getElementById('save-note-btn');
-          function validate() { saveBtn.disabled = !(titleInput.value.trim() !== '' && descriptionInput.value.trim() !== ''); saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
-          titleInput.oninput = validate; descriptionInput.oninput = validate;
-          saveBtn.onclick = async () => {
-              const payload = { chat_ID: chatId, Type: saveBtn.dataset.noteId ? 'edit_note' : 'add_note', note_id: saveBtn.dataset.noteId, title: titleInput.value.trim(), description: descriptionInput.value.trim() };
-              showSpinner(); try { const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; showToast(`Nota ${saveBtn.dataset.noteId ? 'actualizada' : 'creada'}`); renderNotesList(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
-          };
-          validate();
-      }
+function handleShoppingItemInteractions(event) {
+  const toggleButton = event.target.closest('.shopping-item-toggle-btn');
+  if (toggleButton) {
+      const trackingCode = toggleButton.dataset.trackingCode;
+      const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+      optimisticToggleShoppingItemStatus(trackingCode, newStatus);
+  }
+}
 
-      // ==================================================
-      // --- MÓDULO: CALENDARIO ---
-      // ==================================================
-      async function renderAgendaView() {
-          showSpinner();
-          try {
-              const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
-              const res = await fetchWithTimeout(webhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
-              const events = await res.json();
-              if (events.error) throw new Error(events.error);
-              appData.calendarEvents = events;
+function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
+  const originalStatus = newStatus === 'Comprado' ? 'Pendiente' : 'Comprado';
+  const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
+  if (itemIndex === -1) return;
 
-              const groupAndRenderEvents = (evs) => {
-                  const eventsByDay = evs.reduce((acc, event) => { const day = new Date(event.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
-                  let html = '';
-                  for (const day in eventsByDay) {
-                      html += `<h3 class="day-header">${day}</h3>`;
-                      html += evs.filter(e => new Date(e.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) === day).map(event => {
-                          const startTime = new Date(event.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                          const endTime = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                          return `<li class="list-item" id="item-${event.id}"><div class="list-item-content" onclick="this.parentElement.classList.toggle('open')"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime} - ${endTime}</span><div class="event-description">${event.description || ''}</div></div><div class="list-item-actions"><button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button><div class="dropdown-menu" id="menu-item-${event.id}"><a class="dropdown-item" onclick="confirmDelete('calendar_event', '${event.id}')">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></li>`;
-                      }).join('');
-                  }
-                  return html;
-              };
-              let listHtml = (events.length > 0) ? groupAndRenderEvents(events) : '<div class="no-data-msg">🗓️<br>No tienes eventos próximos.</div>';
-              mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
-              document.querySelector('.back-btn').onclick = renderDashboard;
-          } catch (err) { mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la agenda.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
-      }
+  appData.shoppingList[itemIndex]['2'] = newStatus;
+  if (newStatus === 'Comprado') {
+      appData.shoppingList[itemIndex]['4'] = new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+      appData.counts.shoppingPendingCount--;
+      appData.counts.shoppingBoughtCount++;
+  } else {
+      appData.shoppingList[itemIndex]['4'] = '';
+      appData.counts.shoppingPendingCount++;
+      appData.counts.shoppingBoughtCount--;
+  }
+  renderShoppingList();
 
-      function renderEventForm(event = null) {
-          const isEditing = event !== null;
-          mainContent.innerHTML = `
-            <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
-            <div class="form-card">
-                <label>Título</label><input type="text" id="event-summary" value="${isEditing ? event.summary : ''}" required />
-                <label>Inicio</label><input type="text" id="event-start" readonly="readonly">
-                <label>Fin</label><input type="text" id="event-end" readonly="readonly">
-                <label>Descripción</label><textarea id="event-description" rows="4">${isEditing && event.description ? event.description : ''}</textarea>
-                <button id="save-event-btn" data-event-id="${isEditing ? event.id : ''}" disabled>${isEditing ? 'Guardar' : 'Crear'}</button>
-            </div></div>`;
-          document.querySelector('.back-btn').onclick = isEditing ? renderAgendaView : renderDashboard;
-          const startDate = isEditing ? new Date(event.start) : new Date();
-          const endDate = isEditing ? new Date(event.end) : new Date(Date.now() + 3600000);
-          const fpOptions = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
-          const startPicker = flatpickr("#event-start", { ...fpOptions, defaultDate: startDate });
-          const endPicker = flatpickr("#event-end", { ...fpOptions, defaultDate: endDate });
-          const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
-          function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
-          summaryInput.oninput = validate;
-          saveBtn.onclick = async () => {
-              const eventData = { summary: summaryInput.value, start: startPicker.selectedDates[0].toISOString(), end: endPicker.selectedDates[0].toISOString(), description: document.getElementById('event-description').value };
-              const payload = { chat_ID: chatId, Type: 'add_calendar_event', eventData };
-              showSpinner(); try { const res = await fetchWithTimeout(webhookURL, payload); const result = await res.json(); if (result.error) throw new Error(result.error); showToast('Evento creado'); initializeAppContent(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
-          };
-          validate();
-      }
+  fetchWithTimeout(webhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
+      .then(res => res.json())
+      .then(data => {
+          if (data.error) throw new Error(data.error);
+          appData = data;
+      })
+      .catch(err => {
+          showToast(err.message || 'Error de sincronización', true);
+          appData.shoppingList[itemIndex]['2'] = originalStatus;
+           if (originalStatus === 'Comprado') {
+              appData.counts.shoppingPendingCount--;
+              appData.counts.shoppingBoughtCount++;
+          } else {
+              appData.counts.shoppingPendingCount++;
+              appData.counts.shoppingBoughtCount--;
+          }
+          renderShoppingList();
+      });
+}
+
+function updateMultiSelectButtonState() {
+  const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
+  if (!multiSelectToggleButton) return;
+  const selectedCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
+  multiSelectToggleButton.disabled = selectedCount === 0;
+  multiSelectToggleButton.textContent = selectedCount > 0 ? `Marcar ${selectedCount} para comprar` : 'Marcar para comprar';
+}
+
+async function toggleSelectedItemsToPending() {
+  const trackingCodes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
+  if (trackingCodes.length === 0) return;
+  showSpinner();
+  try {
+      const res = await fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      appData = data;
+      renderShoppingList();
+  } catch (err) { showToast(err.message || 'Error al actualizar', true); } finally { hideSpinner(); }
+}
+
+function renderAddArticleForm() {
+  mainContent.innerHTML = `
+      <div class="list-container">
+          <div class="list-header"><button class="back-btn">‹</button><h2>➕ Añadir Artículo</h2></div>
+          <div class="form-card">
+              <label>Descripción del artículo</label>
+              <textarea id="article-description" rows="2" required></textarea>
+              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label>
+              <input type="number" id="article-cycle" value="0" min="0" step="1" required />
+              <button id="add-article-send-btn" disabled>Añadir</button>
+          </div>
+      </div>`;
+  document.querySelector('.back-btn').onclick = renderShoppingList;
+  const sendBtn = document.getElementById('add-article-send-btn');
+  const descriptionInput = document.getElementById('article-description');
+  descriptionInput.oninput = () => {
+      const isEnabled = descriptionInput.value.trim() !== '';
+      sendBtn.disabled = !isEnabled;
+      sendBtn.classList.toggle('enabled', isEnabled);
+  };
+  sendBtn.onclick = addArticle;
+}
+
+async function addArticle() {
+  const description = document.getElementById('article-description').value.trim();
+  const cycle = document.getElementById('article-cycle').value || 0;
+  if (!description) return;
+  
+  const payload = { 
+    Type: 'add_articulo', 
+    chat_ID: chatId, 
+    description: description,
+    cycle: parseInt(cycle)
+  };
+
+  // UI Optimista
+  appData.counts.shoppingPendingCount++;
+  renderShoppingList();
+  showToast('Añadiendo artículo...');
+
+  try {
+      const res = await fetchWithTimeout(webhookURL, payload);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      appData = data; // Sincroniza con la respuesta completa
+      showToast('Artículo añadido');
+      renderShoppingList(); // Re-renderiza con la lista actualizada
+  } catch (err) { 
+      showToast(err.message || 'Error al añadir', true);
+      appData.counts.shoppingPendingCount--; // Revierte el contador si falla
+      renderShoppingList();
+  }
+}
+
+// ==================================================
+// --- MÓDULO: NOTAS ---
+// ==================================================
+function renderNotesList() {
+    const notes = appData.notesList || [];
+    let listHtml = (notes.length > 0) ? notes.map(note => {
+        // Prepara el objeto nota para pasarlo de forma segura a la función onclick
+        const noteString = JSON.stringify(note).replace(/"/g, '&quot;');
+        return `
+            <li class="note-item" id="item-${note.Nota_ID}">
+                <div class="note-header">
+                    <div class="note-header-interactive">
+                        <div class="note-title-section">
+                            <span class="note-title">${note.Titulo}</span>
+                            <span class="note-date">${note.Fecha}</span>
+                        </div>
+                        <span class="expand-arrow">▾</span>
+                    </div>
+                    <div class="list-item-actions">
+                        <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
+                        <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
+                            <a class="dropdown-item" onclick='renderNoteForm(${noteString})'>Editar</a>
+                            <a class="dropdown-item" onclick="confirmDelete('note', '${note.Nota_ID}')">Eliminar</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="note-description">${note.Descripcion}</div>
+            </li>`;
+    }).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+    document.querySelector('.back-btn').onclick = renderDashboard;
+    document.querySelector('.list-style-none').addEventListener('click', e => { const interactiveHeader = e.target.closest('.note-header-interactive'); if (interactiveHeader) { interactiveHeader.closest('.note-item').classList.toggle('open'); } });
+}
+
+function renderNoteForm(note = null) {
+    const isEditing = note !== null;
+    mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div><div class="form-card"><label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required /><label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea><button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button></div></div>`;
+    document.querySelector('.back-btn').onclick = renderNotesList;
+    const titleInput = document.getElementById('note-title'), descriptionInput = document.getElementById('note-description'), saveBtn = document.getElementById('save-note-btn');
+    function validate() { saveBtn.disabled = !(titleInput.value.trim() !== '' && descriptionInput.value.trim() !== ''); saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
+    titleInput.oninput = validate; descriptionInput.oninput = validate;
+    saveBtn.onclick = async () => {
+        const payload = { chat_ID: chatId, Type: saveBtn.dataset.noteId ? 'edit_note' : 'add_note', note_id: saveBtn.dataset.noteId, title: titleInput.value.trim(), description: descriptionInput.value.trim() };
+        showSpinner(); try { const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; showToast(`Nota ${saveBtn.dataset.noteId ? 'actualizada' : 'creada'}`); renderNotesList(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+    };
+    validate();
+}
+
+// ==================================================
+// --- MÓDULO: CALENDARIO ---
+// ==================================================
+async function renderAgendaView() {
+    showSpinner();
+    try {
+        const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
+        const res = await fetchWithTimeout(webhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+        const events = await res.json();
+        if (events.error) throw new Error(events.error);
+        appData.calendarEvents = events;
+
+        const groupAndRenderEvents = (evs) => {
+            const eventsByDay = evs.reduce((acc, event) => { const day = new Date(event.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
+            let html = '';
+            for (const day in eventsByDay) {
+                html += `<h3 class="day-header">${day}</h3>`;
+                html += evs.filter(e => new Date(e.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) === day).map(event => {
+                    const startTime = new Date(event.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    const endTime = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    return `<li class="list-item" id="item-${event.id}"><div class="list-item-content" onclick="this.parentElement.classList.toggle('open')"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime} - ${endTime}</span><div class="event-description">${event.description || ''}</div></div><div class="list-item-actions"><button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button><div class="dropdown-menu" id="menu-item-${event.id}"><a class="dropdown-item" onclick="confirmDelete('calendar_event', '${event.id}')">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></li>`;
+                }).join('');
+            }
+            return html;
+        };
+        let listHtml = (events.length > 0) ? groupAndRenderEvents(events) : '<div class="no-data-msg">🗓️<br>No tienes eventos próximos.</div>';
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+        document.querySelector('.back-btn').onclick = renderDashboard;
+    } catch (err) { mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la agenda.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
+}
+
+function renderEventForm(event = null) {
+    const isEditing = event !== null;
+    mainContent.innerHTML = `
+      <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
+      <div class="form-card">
+          <label>Título</label><input type="text" id="event-summary" value="${isEditing ? event.summary : ''}" required />
+          <label>Inicio</label><input type="text" id="event-start" readonly="readonly">
+          <label>Fin</label><input type="text" id="event-end" readonly="readonly">
+          <label>Descripción</label><textarea id="event-description" rows="4">${isEditing && event.description ? event.description : ''}</textarea>
+          <button id="save-event-btn" data-event-id="${isEditing ? event.id : ''}" disabled>${isEditing ? 'Guardar' : 'Crear'}</button>
+      </div></div>`;
+    document.querySelector('.back-btn').onclick = isEditing ? renderAgendaView : renderDashboard;
+    const startDate = isEditing ? new Date(event.start) : new Date();
+    const endDate = isEditing ? new Date(event.end) : new Date(Date.now() + 3600000);
+    const fpOptions = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
+    const startPicker = flatpickr("#event-start", { ...fpOptions, defaultDate: startDate });
+    const endPicker = flatpickr("#event-end", { ...fpOptions, defaultDate: endDate });
+    const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
+    function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
+    summaryInput.oninput = validate;
+    saveBtn.onclick = async () => {
+        const eventData = { summary: summaryInput.value, start: startPicker.selectedDates[0].toISOString(), end: endPicker.selectedDates[0].toISOString(), description: document.getElementById('event-description').value };
+        const payload = { chat_ID: chatId, Type: 'add_calendar_event', eventData };
+        showSpinner(); try { const res = await fetchWithTimeout(webhookURL, payload); const result = await res.json(); if (result.error) throw new Error(result.error); showToast('Evento creado'); initializeAppContent(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+    };
+    validate();
+}
 
       // ==================================================
       // --- MÓDULO: GASTOS ---
