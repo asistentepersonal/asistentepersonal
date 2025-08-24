@@ -239,6 +239,8 @@ async function executeDelete(type, id) {
                 break;
             case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
+                const gastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === id);
+                if (gastoIndex > -1) gastosEncontrados.splice(gastoIndex, 1);
                 document.getElementById(`item-${id}`)?.remove();
                 break;
             default: return;
@@ -252,14 +254,11 @@ async function executeDelete(type, id) {
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
         
-        // Recarga completa SOLO si es necesario (ej: calendario, o si la eliminación de gastos debe recalcular totales)
-        if (type === 'calendar_event') { 
-            initializeAppContent(); 
-        } else if (type === 'gasto') {
-            // Para gastos, una recarga ligera es mejor para actualizar el total del mes.
+        if (type === 'gasto') {
             const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
-            if(freshData.error) throw new Error(freshData.error);
-            appData.counts = freshData.counts;
+            if(!freshData.error) appData.counts = freshData.counts;
+        } else if (type === 'calendar_event') { 
+            initializeAppContent();
         }
 
     } catch (err) {
@@ -525,7 +524,6 @@ async function addArticle() {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      // No es necesario recargar, pero sí obtener los nuevos datos para tener los tracking_codes
       const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
       if(freshData.error) throw new Error(freshData.error);
       appData = freshData;
@@ -704,7 +702,6 @@ async function saveNote() {
         }
     }
 }
-
 
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
@@ -1031,7 +1028,7 @@ async function saveEditedGasto(idUnico) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
-        renderDashboard(); // <-- REDIRECCIÓN A HOME
+        renderDashboard();
     } catch (err) { 
         showToast(`Error: ${err.message}. No se guardó.`, true); 
     }
