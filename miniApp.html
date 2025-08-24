@@ -290,21 +290,15 @@ async function saveReminder() {
   
   appData.counts.remindersCount++;
   renderDashboard();
-  showToast('Guardando recordatorio...');
 
   try { 
     const res = await fetchWithTimeout(webhookURL, payload); 
     const data = await res.json(); 
     if(data.error) throw new Error(data.error); 
-    const fullDataRes = await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId });
-    const fullData = await fullDataRes.json();
-    if (fullData.error) throw new Error(fullData.error);
-    appData = fullData;
-    showToast('Recordatorio guardado con éxito');
-    renderDashboard();
+    // No es necesario recargar todo, el servidor ya actualizó. Solo confirmamos.
   } catch (err) { 
-    showToast(err.message || 'Error de sincronización', true); 
-    initializeAppContent();
+    showToast(`Error: ${err.message}. No se pudo guardar el recordatorio.`, true); 
+    initializeAppContent(); // Re-sincroniza si hay error
   }
 }
 
@@ -344,7 +338,15 @@ function renderRemindersList() {
 async function editReminderDescription(item) {
   const newDescription = prompt('Editar descripción del recordatorio:', item.Descripcion);
   if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item.Descripcion) {
-    showSpinner();
+    
+    const originalDescription = item.Descripcion;
+    const itemIndex = appData.remindersList.findIndex(r => r.tracking_code === item.tracking_code);
+    if (itemIndex === -1) return;
+
+    // UI Optimista
+    appData.remindersList[itemIndex].Descripcion = newDescription.trim();
+    renderRemindersList();
+
     try {
       const payload = {
         Type: 'edit_reminder_description',
@@ -355,13 +357,10 @@ async function editReminderDescription(item) {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      appData = data;
-      showToast('Recordatorio actualizado');
-      renderRemindersList();
     } catch (err) {
-      showToast(err.message || 'Error al editar', true);
-    } finally {
-      hideSpinner();
+      showToast(`Error: ${err.message}. No se pudo actualizar.`, true);
+      appData.remindersList[itemIndex].Descripcion = originalDescription; // Revertir
+      renderRemindersList();
     }
   }
 }
@@ -460,8 +459,8 @@ function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
   if (newStatus === 'Comprado') { appData.shoppingList[itemIndex]['4'] = new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); appData.counts.shoppingPendingCount--; appData.counts.shoppingBoughtCount++; } else { appData.shoppingList[itemIndex]['4'] = ''; appData.counts.shoppingPendingCount++; appData.counts.shoppingBoughtCount--; }
   renderShoppingList();
   fetchWithTimeout(webhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
-      .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); appData = data; })
-      .catch(err => { showToast(err.message || 'Error de sincronización', true); initializeAppContent(); });
+      .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
+      .catch(err => { showToast(`Error: ${err.message}. No se pudo sincronizar.`, true); initializeAppContent(); });
 }
 
 function updateMultiSelectButtonState() {
@@ -479,10 +478,9 @@ function toggleSelectedItemsToPending() {
   appData.counts.shoppingPendingCount += trackingCodes.length;
   appData.counts.shoppingBoughtCount -= trackingCodes.length;
   renderShoppingList();
-  showToast(`${trackingCodes.length} artículo(s) movido(s) a pendientes.`);
   fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes })
-    .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); appData = data; })
-    .catch(err => { showToast(err.message || 'Error de sincronización', true); initializeAppContent(); });
+    .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
+    .catch(err => { showToast(`Error: ${err.message}. No se pudo sincronizar.`, true); initializeAppContent(); });
 }
 
 function renderAddArticleForm() {
@@ -507,17 +505,16 @@ async function addArticle() {
   const cycle = document.getElementById('article-cycle').value || 0;
   if (!description) return;
   const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
+  
   appData.counts.shoppingPendingCount++;
   renderShoppingList();
-  showToast('Añadiendo artículo...');
+
   try {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      appData = data;
-      showToast('Artículo añadido');
-      renderShoppingList();
-  } catch (err) { showToast(err.message || 'Error al añadir', true); initializeAppContent(); }
+      initializeAppContent(); // Recarga todo para obtener el nuevo tracking_code
+  } catch (err) { showToast(`Error: ${err.message}. No se pudo añadir.`, true); initializeAppContent(); }
 }
 
 function renderEditShoppingItemForm(item) {
@@ -538,19 +535,26 @@ async function saveEditedShoppingItem(trackingCode) {
     const newDescription = document.getElementById('article-description').value.trim();
     const newCycle = document.getElementById('article-cycle').value || 0;
     if (!newDescription) return;
+
+    const itemIndex = appData.shoppingList.findIndex(i => i['3'] === trackingCode);
+    if (itemIndex === -1) return;
+    const originalItem = { ...appData.shoppingList[itemIndex] };
+
+    // UI Optimista
+    appData.shoppingList[itemIndex]['1'] = newDescription;
+    appData.shoppingList[itemIndex]['5'] = newCycle;
+    renderShoppingList();
+
     const payload = { Type: 'edit_shopping_item', chat_ID: chatId, tracking_code: trackingCode, new_description: newDescription, new_cycle: parseInt(newCycle) };
-    showSpinner();
+    
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        appData = data;
-        showToast('Artículo actualizado');
-        renderShoppingList();
     } catch (err) {
-        showToast(err.message || 'Error al guardar', true);
-    } finally {
-        hideSpinner();
+        showToast(`Error: ${err.message}. No se pudo guardar.`, true);
+        appData.shoppingList[itemIndex] = originalItem; // Revertir
+        renderShoppingList();
     }
 }
 
@@ -620,20 +624,43 @@ async function saveNote() {
 
     const payload = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', note_id: noteId, title: title, description: description };
     
-    if (!isEditing) appData.counts.notesCount++;
-    renderNotesList();
-    showToast(isEditing ? 'Actualizando nota...' : 'Creando nota...');
-
-    try {
-        const res = await fetchWithTimeout(webhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        appData = data;
-        showToast(`Nota ${isEditing ? 'actualizada' : 'creada'}`);
+    if (isEditing) {
+        const itemIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
+        if (itemIndex === -1) return;
+        const originalNote = { ...appData.notesList[itemIndex] };
+        appData.notesList[itemIndex].Titulo = title;
+        appData.notesList[itemIndex].Descripcion = description;
         renderNotesList();
-    } catch (err) {
-        showToast(err.message, true);
-        initializeAppContent();
+
+        try {
+            const res = await fetchWithTimeout(webhookURL, payload);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+        } catch (err) {
+            showToast(`Error: ${err.message}. No se pudo guardar.`, true);
+            appData.notesList[itemIndex] = originalNote; // Revertir
+            renderNotesList();
+        }
+    } else {
+        appData.counts.notesCount++;
+        const tempNote = {
+            Nota_ID: 'temp-' + Date.now(),
+            Titulo: title,
+            Descripcion: description,
+            Fecha: new Date().toLocaleDateString('es-ES')
+        };
+        appData.notesList.unshift(tempNote);
+        renderNotesList();
+
+        try {
+            const res = await fetchWithTimeout(webhookURL, payload);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            initializeAppContent(); // Recarga para obtener el ID real de la nota
+        } catch (err) {
+            showToast(`Error: ${err.message}. No se pudo crear la nota.`, true);
+            initializeAppContent();
+        }
     }
 }
 
@@ -748,17 +775,13 @@ async function saveEvent() {
         appData.counts.calendarTodayCount++;
     }
     renderDashboard();
-    showToast('Guardando evento...');
 
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const result = await res.json();
         if (result.error) throw new Error(result.error);
-        appData = result;
-        showToast('Evento creado con éxito');
-        renderDashboard();
     } catch (err) {
-        showToast(err.message, true);
+        showToast(`Error: ${err.message}. No se pudo guardar el evento.`, true);
         initializeAppContent();
     }
 }
