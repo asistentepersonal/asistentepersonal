@@ -304,8 +304,7 @@ async function saveReminder() {
     renderDashboard();
   } catch (err) { 
     showToast(err.message || 'Error de sincronización', true); 
-    appData.counts.remindersCount--;
-    renderDashboard();
+    initializeAppContent();
   }
 }
 
@@ -328,14 +327,11 @@ function renderRemindersList() {
   mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
   document.querySelector('.back-btn').onclick = renderDashboard;
 
-  // "Vigilante" de eventos para la lista de recordatorios
   document.getElementById('reminders-list').addEventListener('click', (e) => {
     const target = e.target.closest('.dropdown-item');
     if (!target) return;
-
     const action = target.dataset.action;
     const trackingCode = target.dataset.trackingCode;
-
     if (action === 'edit-reminder') {
       const item = appData.remindersList.find(r => r.tracking_code === trackingCode);
       if (item) editReminderDescription(item);
@@ -389,7 +385,8 @@ function renderShoppingList() {
             <div class="list-item-actions">
                 <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item['3']}">
-                    <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
+                    <a class="dropdown-item" data-action="edit-shopping-item" data-tracking-code="${item['3']}">Editar</a>
+                    <a class="dropdown-item" data-action="delete-shopping-item" data-tracking-code="${item['3']}">Eliminar</a>
                 </div>
             </div>
         </li>`;
@@ -404,22 +401,16 @@ function renderShoppingList() {
             <div class="list-item-actions">
                 <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item['3']}">
-                    <a class="dropdown-item" onclick="confirmDelete('shopping_item', '${item['3']}')">Eliminar</a>
+                    <a class="dropdown-item" data-action="edit-shopping-item" data-tracking-code="${item['3']}">Editar</a>
+                    <a class="dropdown-item" data-action="delete-shopping-item" data-tracking-code="${item['3']}">Eliminar</a>
                 </div>
             </div>
         </li>`;
     }
   };
 
-  if (pendingItems.length > 0) {
-      listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>';
-      listHtml += pendingItems.map(createItemHTML).join('');
-  }
-  if (boughtItems.length > 0) {
-      listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>';
-      listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
-      listHtml += boughtItems.map(createItemHTML).join('');
-  }
+  if (pendingItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>'; listHtml += pendingItems.map(createItemHTML).join(''); }
+  if (boughtItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>'; listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`; listHtml += boughtItems.map(createItemHTML).join(''); }
   if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
   mainContent.innerHTML = `
       <div class="list-container">
@@ -446,6 +437,18 @@ function handleShoppingItemInteractions(event) {
       const trackingCode = toggleButton.dataset.trackingCode;
       const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
       optimisticToggleShoppingItemStatus(trackingCode, newStatus);
+      return;
+  }
+  const menuItem = event.target.closest('.dropdown-item');
+  if(menuItem) {
+    const action = menuItem.dataset.action;
+    const trackingCode = menuItem.dataset.trackingCode;
+    if (action === 'edit-shopping-item') {
+      const item = appData.shoppingList.find(i => i['3'] === trackingCode);
+      if(item) renderEditShoppingItemForm(item);
+    } else if (action === 'delete-shopping-item') {
+      confirmDelete('shopping_item', trackingCode);
+    }
   }
 }
 
@@ -453,34 +456,12 @@ function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
   const originalStatus = newStatus === 'Comprado' ? 'Pendiente' : 'Comprado';
   const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
   if (itemIndex === -1) return;
-
   appData.shoppingList[itemIndex]['2'] = newStatus;
-  if (newStatus === 'Comprado') {
-      appData.shoppingList[itemIndex]['4'] = new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-      appData.counts.shoppingPendingCount--;
-      appData.counts.shoppingBoughtCount++;
-  } else {
-      appData.shoppingList[itemIndex]['4'] = '';
-      appData.counts.shoppingPendingCount++;
-      appData.counts.shoppingBoughtCount--;
-  }
+  if (newStatus === 'Comprado') { appData.shoppingList[itemIndex]['4'] = new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); appData.counts.shoppingPendingCount--; appData.counts.shoppingBoughtCount++; } else { appData.shoppingList[itemIndex]['4'] = ''; appData.counts.shoppingPendingCount++; appData.counts.shoppingBoughtCount--; }
   renderShoppingList();
-
   fetchWithTimeout(webhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
-      .then(res => res.json())
-      .then(data => { if (data.error) throw new Error(data.error); appData = data; })
-      .catch(err => {
-          showToast(err.message || 'Error de sincronización', true);
-          appData.shoppingList[itemIndex]['2'] = originalStatus;
-           if (originalStatus === 'Comprado') {
-              appData.counts.shoppingPendingCount--;
-              appData.counts.shoppingBoughtCount++;
-          } else {
-              appData.counts.shoppingPendingCount++;
-              appData.counts.shoppingBoughtCount--;
-          }
-          renderShoppingList();
-      });
+      .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); appData = data; })
+      .catch(err => { showToast(err.message || 'Error de sincronización', true); initializeAppContent(); });
 }
 
 function updateMultiSelectButtonState() {
@@ -494,27 +475,14 @@ function updateMultiSelectButtonState() {
 function toggleSelectedItemsToPending() {
   const trackingCodes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
   if (trackingCodes.length === 0) return;
-
-  // UI Optimista
-  trackingCodes.forEach(code => {
-    const itemIndex = appData.shoppingList.findIndex(item => item['3'] === code);
-    if (itemIndex !== -1) {
-      appData.shoppingList[itemIndex]['2'] = 'Pendiente';
-      appData.shoppingList[itemIndex]['4'] = '';
-    }
-  });
+  trackingCodes.forEach(code => { const itemIndex = appData.shoppingList.findIndex(item => item['3'] === code); if (itemIndex !== -1) { appData.shoppingList[itemIndex]['2'] = 'Pendiente'; appData.shoppingList[itemIndex]['4'] = ''; } });
   appData.counts.shoppingPendingCount += trackingCodes.length;
   appData.counts.shoppingBoughtCount -= trackingCodes.length;
   renderShoppingList();
   showToast(`${trackingCodes.length} artículo(s) movido(s) a pendientes.`);
-
   fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes })
-    .then(res => res.json())
-    .then(data => { if (data.error) throw new Error(data.error); appData = data; })
-    .catch(err => {
-        showToast(err.message || 'Error de sincronización', true);
-        initializeAppContent(); // Re-sincroniza todo si falla
-    });
+    .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); appData = data; })
+    .catch(err => { showToast(err.message || 'Error de sincronización', true); initializeAppContent(); });
 }
 
 function renderAddArticleForm() {
@@ -522,21 +490,15 @@ function renderAddArticleForm() {
       <div class="list-container">
           <div class="list-header"><button class="back-btn">‹</button><h2>➕ Añadir Artículo</h2></div>
           <div class="form-card">
-              <label>Descripción del artículo</label>
-              <textarea id="article-description" rows="2" required></textarea>
-              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label>
-              <input type="number" id="article-cycle" value="0" min="0" step="1" required />
+              <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required></textarea>
+              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="0" min="0" step="1" required />
               <button id="add-article-send-btn" disabled>Añadir</button>
           </div>
       </div>`;
   document.querySelector('.back-btn').onclick = renderShoppingList;
   const sendBtn = document.getElementById('add-article-send-btn');
   const descriptionInput = document.getElementById('article-description');
-  descriptionInput.oninput = () => {
-      const isEnabled = descriptionInput.value.trim() !== '';
-      sendBtn.disabled = !isEnabled;
-      sendBtn.classList.toggle('enabled', isEnabled);
-  };
+  descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
   sendBtn.onclick = addArticle;
 }
 
@@ -544,13 +506,10 @@ async function addArticle() {
   const description = document.getElementById('article-description').value.trim();
   const cycle = document.getElementById('article-cycle').value || 0;
   if (!description) return;
-  
   const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
-
   appData.counts.shoppingPendingCount++;
   renderShoppingList();
   showToast('Añadiendo artículo...');
-
   try {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
@@ -558,11 +517,41 @@ async function addArticle() {
       appData = data;
       showToast('Artículo añadido');
       renderShoppingList();
-  } catch (err) { 
-      showToast(err.message || 'Error al añadir', true);
-      appData.counts.shoppingPendingCount--;
-      renderShoppingList();
-  }
+  } catch (err) { showToast(err.message || 'Error al añadir', true); initializeAppContent(); }
+}
+
+function renderEditShoppingItemForm(item) {
+    mainContent.innerHTML = `
+      <div class="list-container">
+          <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Artículo</h2></div>
+          <div class="form-card">
+              <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
+              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
+              <button id="edit-article-send-btn" class="enabled">Guardar Cambios</button>
+          </div>
+      </div>`;
+    document.querySelector('.back-btn').onclick = renderShoppingList;
+    document.getElementById('edit-article-send-btn').onclick = () => saveEditedShoppingItem(item['3']);
+}
+
+async function saveEditedShoppingItem(trackingCode) {
+    const newDescription = document.getElementById('article-description').value.trim();
+    const newCycle = document.getElementById('article-cycle').value || 0;
+    if (!newDescription) return;
+    const payload = { Type: 'edit_shopping_item', chat_ID: chatId, tracking_code: trackingCode, new_description: newDescription, new_cycle: parseInt(newCycle) };
+    showSpinner();
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        appData = data;
+        showToast('Artículo actualizado');
+        renderShoppingList();
+    } catch (err) {
+        showToast(err.message || 'Error al guardar', true);
+    } finally {
+        hideSpinner();
+    }
 }
 
 // ==================================================
@@ -593,21 +582,15 @@ function renderNotesList() {
     mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div><ul class="list-style-none" id="notes-list">${listHtml}</ul></div>`;
     document.querySelector('.back-btn').onclick = renderDashboard;
     
-    // "Vigilante" de eventos para la lista de notas
     const notesList = document.getElementById('notes-list');
     notesList.addEventListener('click', e => {
         const interactiveHeader = e.target.closest('.note-header-interactive');
-        if (interactiveHeader) {
-            interactiveHeader.closest('.note-item').classList.toggle('open');
-            return;
-        }
+        if (interactiveHeader) { interactiveHeader.closest('.note-item').classList.toggle('open'); return; }
         
         const target = e.target.closest('.dropdown-item');
         if (!target) return;
-
         const action = target.dataset.action;
         const noteId = target.dataset.noteId;
-
         if (action === 'edit-note') {
             const note = appData.notesList.find(n => n.Nota_ID === noteId);
             if (note) renderNoteForm(note);
@@ -624,70 +607,192 @@ function renderNoteForm(note = null) {
     const titleInput = document.getElementById('note-title'), descriptionInput = document.getElementById('note-description'), saveBtn = document.getElementById('save-note-btn');
     function validate() { saveBtn.disabled = !(titleInput.value.trim() !== '' && descriptionInput.value.trim() !== ''); saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
     titleInput.oninput = validate; descriptionInput.oninput = validate;
-    saveBtn.onclick = async () => {
-        const payload = { chat_ID: chatId, Type: saveBtn.dataset.noteId ? 'edit_note' : 'add_note', note_id: saveBtn.dataset.noteId, title: titleInput.value.trim(), description: descriptionInput.value.trim() };
-        showSpinner(); try { const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error); appData = data; showToast(`Nota ${saveBtn.dataset.noteId ? 'actualizada' : 'creada'}`); renderNotesList(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
-    };
+    saveBtn.onclick = saveNote;
     validate();
+}
+
+async function saveNote() {
+    const saveBtn = document.getElementById('save-note-btn');
+    const title = document.getElementById('note-title').value.trim();
+    const description = document.getElementById('note-description').value.trim();
+    const noteId = saveBtn.dataset.noteId;
+    const isEditing = !!noteId;
+
+    const payload = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', note_id: noteId, title: title, description: description };
+    
+    if (!isEditing) appData.counts.notesCount++;
+    renderNotesList();
+    showToast(isEditing ? 'Actualizando nota...' : 'Creando nota...');
+
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        appData = data;
+        showToast(`Nota ${isEditing ? 'actualizada' : 'creada'}`);
+        renderNotesList();
+    } catch (err) {
+        showToast(err.message, true);
+        initializeAppContent();
+    }
 }
 
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
 // ==================================================
-async function renderAgendaView() {
+async function renderAgendaView(eventsToShow = null) {
     showSpinner();
     try {
-        const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
-        const res = await fetchWithTimeout(webhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
-        const events = await res.json();
-        if (events.error) throw new Error(events.error);
-        appData.calendarEvents = events;
+        let events = eventsToShow;
+        if (!events) {
+            const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
+            const res = await fetchWithTimeout(webhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            events = data;
+            appData.calendarEvents = events;
+        }
 
         const groupAndRenderEvents = (evs) => {
-            const eventsByDay = evs.reduce((acc, event) => { const day = new Date(event.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
+            if (!evs || evs.length === 0) return '<div class="no-data-msg">🗓️<br>No se encontraron eventos.</div>';
+            const eventsByDay = evs.reduce((acc, event) => { const day = new Date(event.start.date || event.start.dateTime).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); if (!acc[day]) acc[day] = []; acc[day].push(event); return acc; }, {});
             let html = '';
             for (const day in eventsByDay) {
                 html += `<h3 class="day-header">${day}</h3>`;
-                html += evs.filter(e => new Date(e.start).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) === day).map(event => {
-                    const startTime = new Date(event.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                    const endTime = new Date(event.end).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                    return `<li class="list-item" id="item-${event.id}"><div class="list-item-content" onclick="this.parentElement.classList.toggle('open')"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime} - ${endTime}</span><div class="event-description">${event.description || ''}</div></div><div class="list-item-actions"><button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button><div class="dropdown-menu" id="menu-item-${event.id}"><a class="dropdown-item" onclick="confirmDelete('calendar_event', '${event.id}')">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></li>`;
+                html += Object.values(eventsByDay[day]).map(event => {
+                    const startTime = event.start.date ? 'Todo el día' : new Date(event.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    const endTime = event.start.date ? '' : ' - ' + new Date(event.end.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    return `<li class="list-item" id="item-${event.id}"><div class="list-item-content" onclick="this.parentElement.classList.toggle('open')"><span class="list-item-title">${event.summary}</span><span class="list-item-subtitle">${startTime}${endTime}</span><div class="event-description">${event.description || ''}</div></div><div class="list-item-actions"><button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button><div class="dropdown-menu" id="menu-item-${event.id}"><a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a><a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a></div></div></li>`;
                 }).join('');
             }
             return html;
         };
-        let listHtml = (events.length > 0) ? groupAndRenderEvents(events) : '<div class="no-data-msg">🗓️<br>No tienes eventos próximos.</div>';
-        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><ul class="list-style-none">${listHtml}</ul></div>`;
+        let listHtml = groupAndRenderEvents(events);
+        mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Agenda</h2></div><ul class="list-style-none" id="calendar-list">${listHtml}</ul></div>`;
         document.querySelector('.back-btn').onclick = renderDashboard;
+        document.getElementById('calendar-list').addEventListener('click', (e) => {
+            const target = e.target.closest('.dropdown-item');
+            if (!target) return;
+            const action = target.dataset.action;
+            const eventId = target.dataset.eventId;
+            if (action === 'delete-calendar-event') {
+                confirmDelete('calendar_event', eventId);
+            }
+        });
     } catch (err) { mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la agenda.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
 }
 
-function renderEventForm(event = null) {
-    const isEditing = event !== null;
+function renderEventForm() {
     mainContent.innerHTML = `
-      <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
+      <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>➕ Nuevo Evento</h2></div>
       <div class="form-card">
-          <label>Título</label><input type="text" id="event-summary" value="${isEditing ? event.summary : ''}" required />
+          <label>Título</label><input type="text" id="event-summary" required />
+          <label><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;"> Todo el día</label>
           <label>Inicio</label><input type="text" id="event-start" readonly="readonly">
           <label>Fin</label><input type="text" id="event-end" readonly="readonly">
-          <label>Descripción</label><textarea id="event-description" rows="4">${isEditing && event.description ? event.description : ''}</textarea>
-          <button id="save-event-btn" data-event-id="${isEditing ? event.id : ''}" disabled>${isEditing ? 'Guardar' : 'Crear'}</button>
+          <label>Notificación</label>
+          <div style="display: flex; gap: 10px;">
+            <select id="event-reminder-method" style="flex: 1;"><option value="popup">Notificación</option><option value="email">Email</option></select>
+            <input type="number" id="event-reminder-minutes" placeholder="Minutos antes" style="flex: 1;" min="0" />
+          </div>
+          <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
+          <button id="save-event-btn" disabled>Crear Evento</button>
       </div></div>`;
-    document.querySelector('.back-btn').onclick = isEditing ? renderAgendaView : renderDashboard;
-    const startDate = isEditing ? new Date(event.start) : new Date();
-    const endDate = isEditing ? new Date(event.end) : new Date(Date.now() + 3600000);
-    const fpOptions = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
-    const startPicker = flatpickr("#event-start", { ...fpOptions, defaultDate: startDate });
-    const endPicker = flatpickr("#event-end", { ...fpOptions, defaultDate: endDate });
+    document.querySelector('.back-btn').onclick = renderDashboard;
+    
+    let startPicker, endPicker;
+    const fpConfig = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
+    
+    startPicker = flatpickr("#event-start", { ...fpConfig, defaultDate: new Date(),
+        onChange: function(selectedDates) {
+            if (selectedDates[0] && !document.getElementById('event-all-day').checked) {
+                const newEndDate = new Date(selectedDates[0].getTime() + 60 * 60 * 1000);
+                endPicker.setDate(newEndDate);
+            }
+        }
+    });
+    endPicker = flatpickr("#event-end", { ...fpConfig, defaultDate: new Date(Date.now() + 3600000) });
+
+    document.getElementById('event-all-day').addEventListener('change', (e) => {
+        const isAllDay = e.target.checked;
+        const newConfig = { enableTime: !isAllDay, dateFormat: isAllDay ? "Y-m-d" : "Y-m-d H:i" };
+        startPicker.set(newConfig);
+        endPicker.set(newConfig);
+        if (isAllDay) {
+            const startDate = startPicker.selectedDates[0] || new Date();
+            endPicker.setDate(startDate);
+        }
+    });
+
     const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
     function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
     summaryInput.oninput = validate;
-    saveBtn.onclick = async () => {
-        const eventData = { summary: summaryInput.value, start: startPicker.selectedDates[0].toISOString(), end: endPicker.selectedDates[0].toISOString(), description: document.getElementById('event-description').value };
-        const payload = { chat_ID: chatId, Type: 'add_calendar_event', eventData };
-        showSpinner(); try { const res = await fetchWithTimeout(webhookURL, payload); const result = await res.json(); if (result.error) throw new Error(result.error); showToast('Evento creado'); initializeAppContent(); } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
-    };
+    saveBtn.onclick = saveEvent;
     validate();
+}
+
+async function saveEvent() {
+    const eventData = {
+        summary: document.getElementById('event-summary').value.trim(),
+        start: document.getElementById('event-start')._flatpickr.selectedDates[0].toISOString(),
+        end: document.getElementById('event-end')._flatpickr.selectedDates[0].toISOString(),
+        description: document.getElementById('event-description').value,
+        isAllDay: document.getElementById('event-all-day').checked,
+        reminderMethod: document.getElementById('event-reminder-method').value,
+        reminderMinutes: document.getElementById('event-reminder-minutes').value || 0
+    };
+    const payload = { chat_ID: chatId, Type: 'add_calendar_event', eventData };
+    
+    const today = new Date().toISOString().split('T')[0];
+    if (eventData.start.startsWith(today)) {
+        appData.counts.calendarTodayCount++;
+    }
+    renderDashboard();
+    showToast('Guardando evento...');
+
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const result = await res.json();
+        if (result.error) throw new Error(result.error);
+        appData = result;
+        showToast('Evento creado con éxito');
+        renderDashboard();
+    } catch (err) {
+        showToast(err.message, true);
+        initializeAppContent();
+    }
+}
+
+function renderSearchCalendarForm() {
+    mainContent.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar en Calendario</h2></div>
+            <div class="form-card">
+                <label>Término de búsqueda</label>
+                <input type="text" id="calendar-search-query" placeholder="Ej: Reunión, Dentista..." required />
+                <button id="search-calendar-btn" class="enabled">Buscar</button>
+            </div>
+            <div id="calendar-search-results" style="margin-top: 20px;"></div>
+        </div>`;
+    document.querySelector('.back-btn').onclick = renderDashboard;
+    document.getElementById('search-calendar-btn').onclick = executeSearchCalendar;
+}
+
+async function executeSearchCalendar() {
+    const query = document.getElementById('calendar-search-query').value.trim();
+    if (!query) { showToast('Introduce un término para buscar.', true); return; }
+    showSpinner();
+    try {
+        const payload = { Type: 'search_calendar_events', chat_ID: chatId, query: query };
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const events = await res.json();
+        if (events.error) throw new Error(events.error);
+        renderAgendaView(events);
+    } catch (err) {
+        showToast(err.message, true);
+    } finally {
+        hideSpinner();
+    }
 }
 
 // ==================================================
