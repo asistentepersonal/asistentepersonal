@@ -93,13 +93,14 @@
     .event-description { white-space: pre-wrap; word-wrap: break-word; text-align: left; color: var(--text); margin-top: 10px; display: none; }
     .list-item.open .event-description { display: block; }
     .gasto-chart-container { text-align: center; margin-top: 15px; }
-    .gasto-chart-container img { max-width: 100%; border-radius: 12px; }
+    .gasto-chart-container canvas { max-width: 100%; }
     .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
     .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
-	/* --- CÓDIGO A AÑADIR AL FINAL DE TUS ESTILOS --- */
     .notification-row select, .notification-row input {
-        width: auto !important; /* Permite que el flexbox controle el ancho */}
+        width: 100%;
+        margin-top: 0 !important;
+    }
   </style>
 </head>
 <body>
@@ -273,7 +274,7 @@ async function executeDelete(type, id) {
         showToast(successMessage);
         
         if (isOptimisticOnly) {
-           return; // No hacer nada más si la acción fue solo optimista
+           return;
         }
 
     } catch (err) {
@@ -805,11 +806,12 @@ function renderEventForm() {
     const createNotificationRow = () => {
         const container = document.getElementById('notifications-container');
         const row = document.createElement('div');
+        row.className = 'notification-row'; 
         row.style.display = 'flex';
         row.style.gap = '8px';
         row.style.alignItems = 'center';
         row.style.marginBottom = '8px';
-
+        
         row.innerHTML = `
             <select class="event-reminder-method" style="flex: 2;"><option value="popup">Notificación</option><option value="email">Email</option></select>
             <input type="number" class="event-reminder-quantity" value="10" style="flex: 1; text-align: right;" min="1" />
