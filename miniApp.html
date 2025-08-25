@@ -871,7 +871,7 @@ function renderGastoChart() {
       <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
       <div class="form-card">
         <label>Detalle por Mes</label>
-        <select id="gasto-chart-mes-select"><option value="">Selecciona un mes...</option>${mesesOptions}</select>
+        <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
         <div class="gasto-chart-container" id="chart-container-pie"></div>
         <ul class="gasto-legend" id="gasto-legend-container"></ul>
         <hr style="margin: 25px 0; border-top: 1px solid #eee;">
@@ -882,11 +882,20 @@ function renderGastoChart() {
     </div>`;
   document.querySelector('.back-btn').onclick = renderDashboard;
   document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
-  fetchAndDisplayGastoChart({ target: { value: '' } }); 
+  // CORRECCIÓN: Se elimina la llamada automática que causaba el bug.
+  // La función fetchAndDisplayGastoChart ahora solo se llama cuando el usuario selecciona un mes.
 }
 
 async function fetchAndDisplayGastoChart(event) {
   const mesAnio = event.target.value;
+  // Si el usuario vuelve a la opción por defecto, limpiar los gráficos
+  if (!mesAnio) {
+    document.getElementById('chart-container-pie').innerHTML = '';
+    document.getElementById('gasto-legend-container').innerHTML = '';
+    document.getElementById('chart-container-daily').innerHTML = '';
+    document.getElementById('chart-container-monthly').innerHTML = '';
+    return;
+  }
   showSpinner();
   const pieContainer = document.getElementById('chart-container-pie'), dailyContainer = document.getElementById('chart-container-daily'), monthlyContainer = document.getElementById('chart-container-monthly'), legendContainer = document.getElementById('gasto-legend-container');
   if (mesAnio) { pieContainer.innerHTML = ''; dailyContainer.innerHTML = ''; legendContainer.innerHTML = ''; }
@@ -1037,7 +1046,6 @@ async function executeSearchGastos() {
             let listHtml = gastosEncontrados.map(gasto => `
                 <li class="list-item" id="item-${gasto.ID_Unico}">
                     <div class="list-item-content">
-                        <!-- 1. CORRECCIÓN: Se elimina el símbolo '€' de aquí -->
                         <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
                         <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleDateString('es-ES')}</span>
                     </div>
@@ -1129,7 +1137,6 @@ async function saveEditedGasto(idUnico) {
     } catch (err) { 
         showToast(`Error: ${err.message}. No se guardó.`, true); 
     } finally {
-        // 2. CORRECCIÓN: Se asegura que el spinner siempre se oculte
         hideSpinner();
     }
 }
