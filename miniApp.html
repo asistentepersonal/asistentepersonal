@@ -789,24 +789,41 @@ function renderEventForm() {
           <label>Inicio</label><input type="text" id="event-start" readonly="readonly">
           <label>Fin</label><input type="text" id="event-end" readonly="readonly">
           
-          <!-- FORMULARIO DE NOTIFICACIÓN FLEXIBLE -->
-          <label>Notificación</label>
-          <div id="reminder-controls" style="display: flex; gap: 8px; align-items: center;">
-            <select id="event-reminder-method" style="flex: 2;"><option value="popup">Notificación</option><option value="email">Email</option></select>
-            <input type="number" id="event-reminder-quantity" value="10" style="flex: 1; text-align: right;" min="1" />
-            <select id="event-reminder-unit" style="flex: 2;">
+          <label>Notificaciones</label>
+          <div id="notifications-container"></div>
+          <a href="#" id="add-notification-link" style="font-size: 0.9rem; color: var(--primary); text-decoration: none; display: block; margin-top: 8px;">Añadir notificación</a>
+          
+          <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
+          <button id="save-event-btn" disabled>Crear Evento</button>
+      </div></div>`;
+
+    document.querySelector('.back-btn').onclick = () => renderCalendarView();
+
+    const createNotificationRow = () => {
+        const container = document.getElementById('notifications-container');
+        const row = document.createElement('div');
+        row.className = 'notification-row';
+        row.style.display = 'flex';
+        row.style.gap = '8px';
+        row.style.alignItems = 'center';
+        row.style.marginBottom = '8px';
+        row.innerHTML = `
+            <select class="event-reminder-method" style="flex: 2;"><option value="popup">Notificación</option><option value="email">Email</option></select>
+            <input type="number" class="event-reminder-quantity" value="10" style="flex: 1; text-align: right;" min="1" />
+            <select class="event-reminder-unit" style="flex: 2;">
               <option value="minutes" selected>minutos antes</option>
               <option value="hours">horas antes</option>
               <option value="days">días antes</option>
               <option value="weeks">semanas antes</option>
             </select>
-          </div>
-          <a href="#" id="notification-toggle-link" style="font-size: 0.9rem; color: var(--muted); text-decoration: none; display: block; margin-top: 8px;">Quitar notificación</a>
-          
-          <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
-          <button id="save-event-btn" disabled>Crear Evento</button>
-      </div></div>`;
-    document.querySelector('.back-btn').onclick = () => renderCalendarView();
+            <button class="remove-notification-btn" style="background:transparent; border:none; font-size:1.5rem; color:var(--muted); cursor:pointer; padding:0 5px;">&times;</button>
+        `;
+        container.appendChild(row);
+        row.querySelector('.remove-notification-btn').onclick = () => row.remove();
+    };
+
+    createNotificationRow(); // Añadir la primera fila por defecto
+    document.getElementById('add-notification-link').onclick = (e) => { e.preventDefault(); createNotificationRow(); };
     
     let startPicker, endPicker;
     const fpConfig = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
@@ -818,37 +835,26 @@ function renderEventForm() {
     function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
     summaryInput.oninput = validate;
     saveBtn.onclick = saveEvent;
-    
-    // Lógica para el botón de "Quitar/Añadir notificación"
-    const reminderControls = document.getElementById('reminder-controls');
-    const toggleLink = document.getElementById('notification-toggle-link');
-    let notificationEnabled = true;
-    toggleLink.onclick = (e) => {
-        e.preventDefault();
-        notificationEnabled = !notificationEnabled;
-        reminderControls.style.display = notificationEnabled ? 'flex' : 'none';
-        toggleLink.textContent = notificationEnabled ? 'Quitar notificación' : 'Añadir notificación';
-    };
     validate();
 }
 
 async function saveEvent() {
-    let reminderMinutes = 0;
-    const reminderControls = document.getElementById('reminder-controls');
-
-    // Solo calcular si el contenedor de controles es visible
-    if (reminderControls.style.display !== 'none') {
-        const quantity = parseInt(document.getElementById('event-reminder-quantity').value, 10);
-        const unit = document.getElementById('event-reminder-unit').value;
+    const reminders = [];
+    document.querySelectorAll('.notification-row').forEach(row => {
+        const quantity = parseInt(row.querySelector('.event-reminder-quantity').value, 10);
+        const unit = row.querySelector('.event-reminder-unit').value;
+        const method = row.querySelector('.event-reminder-method').value;
+        let minutes = 0;
         if (quantity > 0) {
             switch(unit) {
-                case 'minutes': reminderMinutes = quantity; break;
-                case 'hours':   reminderMinutes = quantity * 60; break;
-                case 'days':    reminderMinutes = quantity * 24 * 60; break;
-                case 'weeks':   reminderMinutes = quantity * 7 * 24 * 60; break;
+                case 'minutes': minutes = quantity; break;
+                case 'hours':   minutes = quantity * 60; break;
+                case 'days':    minutes = quantity * 24 * 60; break;
+                case 'weeks':   minutes = quantity * 7 * 24 * 60; break;
             }
+            reminders.push({ method: method, minutes: minutes });
         }
-    }
+    });
 
     const eventData = {
         summary: document.getElementById('event-summary').value.trim(),
@@ -856,8 +862,7 @@ async function saveEvent() {
         end: document.getElementById('event-end')._flatpickr.selectedDates[0].toISOString(),
         description: document.getElementById('event-description').value,
         isAllDay: document.getElementById('event-all-day').checked,
-        reminderMethod: document.getElementById('event-reminder-method').value,
-        reminderMinutes: reminderMinutes
+        reminders: reminders // Enviar el array de recordatorios
     };
     
     if (new Date(eventData.start).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) {
