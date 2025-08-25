@@ -242,7 +242,7 @@ async function executeDelete(type, id) {
                     }
                     appData.calendarEvents.splice(eventIndex, 1);
                     viewToRender = () => renderCalendarView(appData.calendarEvents);
-                    isOptimisticOnly = true; // --- CORRECCIÓN: Se marca como optimista ---
+                    isOptimisticOnly = true; 
                 }
                 break;
             case 'gasto':
@@ -257,7 +257,7 @@ async function executeDelete(type, id) {
                     
                     gastosEncontrados.splice(gastoIndex, 1);
                     document.getElementById(`item-${id}`)?.remove();
-                    renderDashboard();
+                    renderDashboard(); 
                 }
                 break;
             default: return;
@@ -272,9 +272,8 @@ async function executeDelete(type, id) {
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
         
-        // --- CORRECCIÓN: No se recarga si la acción fue solo optimista ---
-        if (!isOptimisticOnly) {
-           initializeAppContent();
+        if (isOptimisticOnly) {
+           return; // No hacer nada más si la acción fue solo optimista
         }
 
     } catch (err) {
@@ -790,8 +789,8 @@ function renderEventForm() {
       <div class="form-card">
           <label>Título</label><input type="text" id="event-summary" required />
           <label><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;"> Todo el día</label>
-          <label>Inicio</label><input type="text" id="event-start" readonly="readonly">
-          <label>Fin</label><input type="text" id="event-end" readonly="readonly">
+          <label>Inicio</label><input type="text" id="event-start">
+          <label>Fin</label><input type="text" id="event-end">
           
           <label>Notificaciones</label>
           <div id="notifications-container"></div>
@@ -806,21 +805,19 @@ function renderEventForm() {
     const createNotificationRow = () => {
         const container = document.getElementById('notifications-container');
         const row = document.createElement('div');
-        row.className = 'notification-row'; // Asignamos la clase para que el CSS funcione
         row.style.display = 'flex';
         row.style.gap = '8px';
         row.style.alignItems = 'center';
         row.style.marginBottom = '8px';
-        
-        // --- CÓDIGO LIMPIO SIN ESTILOS INCRUSTADOS ---
+
         row.innerHTML = `
             <select class="event-reminder-method" style="flex: 2;"><option value="popup">Notificación</option><option value="email">Email</option></select>
             <input type="number" class="event-reminder-quantity" value="10" style="flex: 1; text-align: right;" min="1" />
             <select class="event-reminder-unit" style="flex: 2;">
-              <option value="minutes" selected>minutos antes</option>
-              <option value="hours">horas antes</option>
-              <option value="days">días antes</option>
-              <option value="weeks">semanas antes</option>
+              <option value="minutes" selected>minutos</option>
+              <option value="hours">horas</option>
+              <option value="days">días</option>
+              <option value="weeks">semanas</option>
             </select>
             <button class="remove-notification-btn" style="background:transparent; border:none; font-size:1.5rem; color:var(--muted); cursor:pointer; padding:0 5px;">&times;</button>
         `;
@@ -868,7 +865,7 @@ async function saveEvent() {
         end: document.getElementById('event-end')._flatpickr.selectedDates[0].toISOString(),
         description: document.getElementById('event-description').value,
         isAllDay: document.getElementById('event-all-day').checked,
-        reminders: reminders // Enviar el array de recordatorios
+        reminders: reminders
     };
     
     if (new Date(eventData.start).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) {
