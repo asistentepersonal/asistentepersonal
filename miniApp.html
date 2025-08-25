@@ -101,7 +101,7 @@
     .notification-row .event-reminder-method { flex-grow: 2; flex-basis: 0; }
     .notification-row .event-reminder-quantity { flex-grow: 1; flex-basis: 0; text-align: right; }
     .notification-row .event-reminder-unit { flex-grow: 2; flex-basis: 0; }
-    .notification-row .remove-notification-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 0 5px; flex-shrink: 0; }
+    .notification-row .remove-notification-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 0 5px; flex-shrink: 0; line-height: 1; }
     .notification-row select, .notification-row input { margin-top: 0 !important; width: 100%; }
   </style>
 </head>
@@ -112,9 +112,6 @@
   <div id="toast" class="toast"></div>
   
   <script>
-    // Forzar la recarga para evitar caché en desarrollo
-    (function() { const params = new URLSearchParams(window.location.search); if (!params.has('v')) { const newUrl = new URL(window.location.href); newUrl.searchParams.set('v', new Date().getTime()); window.location.replace(newUrl.href); } })();
-
     document.addEventListener('DOMContentLoaded', () => {
 // ==================================================
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
@@ -334,11 +331,13 @@ async function saveReminder() {
     const res = await fetchWithTimeout(webhookURL, payload); 
     const data = await res.json(); 
     if(data.error) throw new Error(data.error); 
-    // No es necesario refrescar, la UI ya está actualizada.
-    // Solo se refrescará si entra en el catch.
+    if (data.tracking_code) {
+        const tempReminder = appData.remindersList.find(r => r.tracking_code.startsWith('temp-'));
+        if (tempReminder) tempReminder.tracking_code = data.tracking_code;
+    }
   } catch (err) { 
     showToast(`Error: ${err.message}. No se guardó.`, true); 
-    initializeAppContent(); // Restaurar estado si falla
+    initializeAppContent();
   }
 }
 
@@ -537,7 +536,6 @@ async function addArticle() {
   const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
   
   appData.counts.shoppingPendingCount++;
-  // Optimistic UI: Add a temporary item so the user sees it immediately.
   const tempTrackingCode = 'temp-' + Date.now();
   appData.shoppingList.unshift({ '1': description, '2': 'Pendiente', '3': tempTrackingCode, '4': '', '5': cycle });
   renderShoppingList();
@@ -547,13 +545,6 @@ async function addArticle() {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      // On success, we don't need to do anything, but a full refresh might be good here
-      // to get the real tracking code from the server, just in case.
-      // For now, let's keep it fast and only refresh on error.
-      const freshData = await (await fetchWithTimeout(webhookURL, {Type: 'get_shopping_list_only', chat_ID: chatId})).json();
-      appData.shoppingList = freshData.shoppingList; // Update just the list
-      renderShoppingList();
-
   } catch (err) { showToast(`Error: ${err.message}. No se añadió.`, true); initializeAppContent(); }
 }
 
@@ -706,7 +697,6 @@ async function saveNote() {
             const res = await fetchWithTimeout(webhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-            // No refrescamos todo, solo actualizamos el ID temporal si el backend lo devuelve
             if(data.newNoteId){
                 const tempNote = appData.notesList.find(n => n.Nota_ID.startsWith('temp-'));
                 if(tempNote) tempNote.Nota_ID = data.newNoteId;
@@ -803,46 +793,49 @@ function renderEventForm() {
           <label><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;"> Todo el día</label>
           <label>Inicio</label><input type="text" id="event-start">
           <label>Fin</label><input type="text" id="event-end">
-          
           <label>Notificaciones</label>
           <div id="notifications-container"></div>
-          <a href="#" id="add-notification-link" style="font-size: 0.9rem; color: var(--primary); text-decoration: none; display: block; margin-top: 8px; display: none;">Añadir notificación</a>
-          
+          <a href="#" id="add-notification-link" style="font-size: 0.9rem; color: var(--primary); text-decoration: none; display: block; margin-top: 8px;">Añadir notificación</a>
           <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
           <button id="save-event-btn" disabled>Crear Evento</button>
       </div></div>`;
 
     document.querySelector('.back-btn').onclick = () => renderCalendarView();
 
+    const addNotificationLink = document.getElementById('add-notification-link');
+    const notificationsContainer = document.getElementById('notifications-container');
+
     const updateAddNotificationLinkVisibility = () => {
-        const link = document.getElementById('add-notification-link');
-        const rows = document.querySelectorAll('.notification-row');
-        if (rows.length === 0) { link.style.display = 'block'; return; }
+        const rows = notificationsContainer.querySelectorAll('.notification-row');
+        if (rows.length === 0) {
+            addNotificationLink.style.display = 'block';
+            return;
+        }
         const lastRow = rows[rows.length - 1];
         const quantityInput = lastRow.querySelector('.event-reminder-quantity');
-        link.style.display = (quantityInput && quantityInput.value.trim() !== '' && parseInt(quantityInput.value) > 0) ? 'block' : 'none';
+        const isLastRowFilled = quantityInput && quantityInput.value.trim() !== '' && parseInt(quantityInput.value, 10) > 0;
+        addNotificationLink.style.display = isLastRowFilled ? 'block' : 'none';
     };
 
     const createNotificationRow = () => {
-        const container = document.getElementById('notifications-container');
         const row = document.createElement('div');
         row.className = 'notification-row';
         row.innerHTML = `
             <select class="event-reminder-method"><option value="popup">Notificación</option><option value="email">Email</option></select>
             <input type="number" class="event-reminder-quantity" value="10" min="1" />
             <select class="event-reminder-unit">
-              <option value="minutes" selected>minutos</option><option value="hours">horas</option><option value="days">días</option><option value="weeks">semanas</option>
+                <option value="minutes" selected>minutos</option><option value="hours">horas</option><option value="days">días</option><option value="weeks">semanas</option>
             </select>
             <button class="remove-notification-btn">&times;</button>
         `;
-        container.appendChild(row);
+        notificationsContainer.appendChild(row);
         row.querySelector('.remove-notification-btn').onclick = () => { row.remove(); updateAddNotificationLinkVisibility(); };
-        row.querySelectorAll('input, select').forEach(el => el.oninput = updateAddNotificationLinkVisibility);
+        row.querySelectorAll('input, select').forEach(el => el.addEventListener('input', updateAddNotificationLinkVisibility));
         updateAddNotificationLinkVisibility();
     };
 
-    createNotificationRow(); // Create the first row by default
-    document.getElementById('add-notification-link').onclick = (e) => { e.preventDefault(); createNotificationRow(); };
+    addNotificationLink.onclick = (e) => { e.preventDefault(); createNotificationRow(); updateAddNotificationLinkVisibility(); };
+    createNotificationRow(); // Create the first one
     
     let startPicker, endPicker;
     const fpConfig = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
@@ -894,10 +887,9 @@ async function saveEvent() {
         const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'add_calendar_event', eventData });
         const result = await res.json();
         if (result.error) throw new Error(result.error);
-        // No need to refresh, UI is already updated
     } catch (err) {
         showToast(`Error: ${err.message}. No se guardó.`, true);
-        initializeAppContent(); // Restore on error
+        initializeAppContent();
     }
 }
 
@@ -930,7 +922,6 @@ async function executeSearchCalendar() {
 // --- MÓDULO: GASTOS ---
 // ==================================================
 let gastosEncontrados = [];
-// Variables para mantener una referencia a los gráficos y poder destruirlos
 let pieChartInstance = null;
 let dailyChartInstance = null;
 let monthlyChartInstance = null;
@@ -952,7 +943,6 @@ function renderGastoChart() {
       <div class="form-card">
         <label>Detalle por Mes</label>
         <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
-        
         <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
         <ul class="gasto-legend" id="gasto-legend-container"></ul>
         <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
@@ -967,14 +957,11 @@ function renderGastoChart() {
 
 async function fetchAndDisplayGastoChart(event) {
   const mesAnio = event.target.value;
-
   if (pieChartInstance) pieChartInstance.destroy();
   if (dailyChartInstance) dailyChartInstance.destroy();
   if (monthlyChartInstance) monthlyChartInstance.destroy();
-
   document.getElementById('gasto-legend-container').innerHTML = '';
   ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
-
   if (!mesAnio) return;
   
   showSpinner();
@@ -984,10 +971,9 @@ async function fetchAndDisplayGastoChart(event) {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     
-    Chart.register(ChartDataLabels); // Registrar el plugin para que funcione
+    Chart.register(ChartDataLabels);
     const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
 
-    // --- 1. GRÁFICO DE TARTA CON PORCENTAJES ---
     if (data.pieData && data.pieData.data.length > 0) {
       document.getElementById('chart-container-pie').style.display = 'block';
       const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
@@ -1000,10 +986,7 @@ async function fetchAndDisplayGastoChart(event) {
             title: { display: true, text: data.tituloPie, font: { size: 18 } },
             legend: { display: false },
             datalabels: {
-              formatter: (value, ctx) => {
-                const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-                return (value / total * 100).toFixed(0) + '%';
-              },
+              formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); return (value / total * 100).toFixed(0) + '%'; },
               color: '#fff', font: { weight: 'bold', size: 16 }
             }
           }
@@ -1012,7 +995,6 @@ async function fetchAndDisplayGastoChart(event) {
       document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join('');
     }
 
-    // --- GRÁFICO DIARIO (LÍNEA) ---
     if (data.dailyData && data.dailyData.data.length > 0) {
       document.getElementById('hr1').style.display = 'block';
       document.getElementById('chart-container-daily').style.display = 'block';
@@ -1024,11 +1006,9 @@ async function fetchAndDisplayGastoChart(event) {
       });
     }
 
-    // --- 2. GRÁFICO MENSUAL CON DOBLE EJE Y TENDENCIA ---
     if (data.monthlyData && data.monthlyData.data.length > 1) {
       document.getElementById('hr2').style.display = 'block';
       document.getElementById('chart-container-monthly').style.display = 'block';
-      
       const monthlyDataPoints = data.monthlyData.data.map((y, x) => ({ x, y }));
       let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
       monthlyDataPoints.forEach(p => { sumX += p.x; sumY += p.y; sumXY += p.x * p.y; sumX2 += p.x * p.x; });
@@ -1036,7 +1016,6 @@ async function fetchAndDisplayGastoChart(event) {
       const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
       const intercept = (sumY - slope * sumX) / n;
       const trendlineData = monthlyDataPoints.map(p => slope * p.x + intercept);
-
       const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
       monthlyChartInstance = new Chart(monthlyCtx, {
         type: 'bar',
@@ -1050,14 +1029,10 @@ async function fetchAndDisplayGastoChart(event) {
         options: {
           responsive: true, maintainAspectRatio: true,
           plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } },
-          scales: {
-            y: { type: 'linear', display: true, position: 'left' },
-            y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } }
-          }
+          scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
         }
       });
     }
-
   } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
 }
 
