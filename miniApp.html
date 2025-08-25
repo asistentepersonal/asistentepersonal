@@ -788,11 +788,21 @@ function renderEventForm() {
           <label><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;"> Todo el día</label>
           <label>Inicio</label><input type="text" id="event-start" readonly="readonly">
           <label>Fin</label><input type="text" id="event-end" readonly="readonly">
+          
+          <!-- FORMULARIO DE NOTIFICACIÓN FLEXIBLE -->
           <label>Notificación</label>
-          <div style="display: flex; gap: 10px;">
-            <select id="event-reminder-method" style="flex: 1;"><option value="popup">Notificación</option><option value="email">Email</option></select>
-            <input type="number" id="event-reminder-minutes" placeholder="Minutos antes" style="flex: 1;" min="0" />
+          <div id="reminder-controls" style="display: flex; gap: 8px; align-items: center;">
+            <select id="event-reminder-method" style="flex: 2;"><option value="popup">Notificación</option><option value="email">Email</option></select>
+            <input type="number" id="event-reminder-quantity" value="10" style="flex: 1; text-align: right;" min="1" />
+            <select id="event-reminder-unit" style="flex: 2;">
+              <option value="minutes" selected>minutos antes</option>
+              <option value="hours">horas antes</option>
+              <option value="days">días antes</option>
+              <option value="weeks">semanas antes</option>
+            </select>
           </div>
+          <a href="#" id="notification-toggle-link" style="font-size: 0.9rem; color: var(--muted); text-decoration: none; display: block; margin-top: 8px;">Quitar notificación</a>
+          
           <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
           <button id="save-event-btn" disabled>Crear Evento</button>
       </div></div>`;
@@ -803,14 +813,43 @@ function renderEventForm() {
     startPicker = flatpickr("#event-start", { ...fpConfig, defaultDate: new Date(), onChange: function(selectedDates) { if (selectedDates[0] && !document.getElementById('event-all-day').checked) { endPicker.setDate(new Date(selectedDates[0].getTime() + 3600000)); } } });
     endPicker = flatpickr("#event-end", { ...fpConfig, defaultDate: new Date(Date.now() + 3600000) });
     document.getElementById('event-all-day').addEventListener('change', (e) => { const isAllDay = e.target.checked; const newConfig = { enableTime: !isAllDay, dateFormat: isAllDay ? "Y-m-d" : "Y-m-d H:i" }; startPicker.set(newConfig); endPicker.set(newConfig); if (isAllDay) { endPicker.setDate(startPicker.selectedDates[0] || new Date()); } });
+    
     const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
     function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
     summaryInput.oninput = validate;
     saveBtn.onclick = saveEvent;
+    
+    // Lógica para el botón de "Quitar/Añadir notificación"
+    const reminderControls = document.getElementById('reminder-controls');
+    const toggleLink = document.getElementById('notification-toggle-link');
+    let notificationEnabled = true;
+    toggleLink.onclick = (e) => {
+        e.preventDefault();
+        notificationEnabled = !notificationEnabled;
+        reminderControls.style.display = notificationEnabled ? 'flex' : 'none';
+        toggleLink.textContent = notificationEnabled ? 'Quitar notificación' : 'Añadir notificación';
+    };
     validate();
 }
 
 async function saveEvent() {
+    let reminderMinutes = 0;
+    const reminderControls = document.getElementById('reminder-controls');
+
+    // Solo calcular si el contenedor de controles es visible
+    if (reminderControls.style.display !== 'none') {
+        const quantity = parseInt(document.getElementById('event-reminder-quantity').value, 10);
+        const unit = document.getElementById('event-reminder-unit').value;
+        if (quantity > 0) {
+            switch(unit) {
+                case 'minutes': reminderMinutes = quantity; break;
+                case 'hours':   reminderMinutes = quantity * 60; break;
+                case 'days':    reminderMinutes = quantity * 24 * 60; break;
+                case 'weeks':   reminderMinutes = quantity * 7 * 24 * 60; break;
+            }
+        }
+    }
+
     const eventData = {
         summary: document.getElementById('event-summary').value.trim(),
         start: document.getElementById('event-start')._flatpickr.selectedDates[0].toISOString(),
@@ -818,10 +857,12 @@ async function saveEvent() {
         description: document.getElementById('event-description').value,
         isAllDay: document.getElementById('event-all-day').checked,
         reminderMethod: document.getElementById('event-reminder-method').value,
-        reminderMinutes: document.getElementById('event-reminder-minutes').value || 0
+        reminderMinutes: reminderMinutes
     };
     
-    if (new Date(eventData.start).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) { appData.counts.calendarTodayCount++; }
+    if (new Date(eventData.start).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) {
+        appData.counts.calendarTodayCount++;
+    }
     renderDashboard();
 
     try {
