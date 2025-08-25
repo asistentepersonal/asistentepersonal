@@ -77,16 +77,7 @@
     .multi-select-action-btn:disabled { cursor: not-allowed; opacity: 0.6; }
     .shopping-list-section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px 10px; padding-top: 10px; border-top: 1px solid #eee; text-align: left; }
     .shopping-list-section-title:first-of-type { border-top: none; margin-top: 0; }
-    .note-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; }
-    .note-header { display: flex; align-items: center; justify-content: space-between; padding: 15px; }
-    .note-header-interactive { flex-grow: 1; padding-right: 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
-    .note-title-section { display: flex; flex-direction: column; text-align: left; }
-    .note-title { font-size: 1.1rem; font-weight: 500; }
-    .note-date { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
-    .note-description { padding: 0 15px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; white-space: pre-wrap; word-wrap: break-word; text-align: left; }
-    .note-item.open .note-description { max-height: 500px; padding: 0 15px 15px; }
-    .expand-arrow { font-size: 1.5rem; color: var(--muted); transition: transform 0.3s ease; }
-    .note-item.open .expand-arrow { transform: rotate(180deg); }
+    .note-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .day-header { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #eee; text-align: left;}
     .event-description { white-space: pre-wrap; word-wrap: break-word; text-align: left; color: var(--text); margin-top: 10px; display: none; }
     .list-item.open .event-description { display: block; }
@@ -104,7 +95,6 @@
   <div id="toast" class="toast"></div>
   
   <script>
-    // Forzar la recarga para evitar caché en desarrollo
     (function() { const params = new URLSearchParams(window.location.search); if (!params.has('v')) { const newUrl = new URL(window.location.href); newUrl.searchParams.set('v', new Date().getTime()); window.location.replace(newUrl.href); } })();
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -200,7 +190,6 @@ async function executeDelete(type, id) {
     let successMessage = '';
     let viewToRender = null;
 
-    // --- 1. OPTIMISTIC UI UPDATE ---
     try {
         switch(type) {
             case 'reminder':
@@ -249,7 +238,6 @@ async function executeDelete(type, id) {
         if (viewToRender) viewToRender();
     } catch(e) { showToast('Error local al procesar.', true); return; }
 
-    // --- 2. BACKEND REQUEST ---
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
@@ -578,7 +566,7 @@ async function saveEditedShoppingItem(trackingCode) {
 function renderNotesList() {
     const notes = appData.notesList || [];
     let listHtml = (notes.length > 0) ? notes.map(note => `
-            <li class="list-item" id="item-${note.Nota_ID}">
+            <li class="list-item note-item" id="item-${note.Nota_ID}">
                 <div class="list-item-content">
                     <span class="list-item-title">${note.Titulo}</span>
                     <span class="list-item-subtitle">${note.Fecha}</span>
@@ -669,7 +657,7 @@ async function saveNote() {
             if (data.error) throw new Error(data.error);
         } catch (err) {
             showToast(`Error: ${err.message}. No se pudo guardar.`, true);
-            appData.notesList[itemIndex] = originalNote; // Revertir
+            appData.notesList[itemIndex] = originalNote; 
             renderNotesList();
         }
     } else {
@@ -692,7 +680,6 @@ async function saveNote() {
         }
     }
 }
-
 
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
