@@ -201,6 +201,7 @@ async function executeDelete(type, id) {
     let payload = { chat_ID: chatId };
     let successMessage = '';
     let viewToRender = null;
+    let isOptimisticOnly = false;
 
     // --- 1. OPTIMISTIC UI UPDATE ---
     try {
@@ -238,13 +239,13 @@ async function executeDelete(type, id) {
                     }
                     appData.calendarEvents.splice(eventIndex, 1);
                     viewToRender = () => renderCalendarView(appData.calendarEvents);
+                    isOptimisticOnly = true; // --- CORRECCIÓN: Se marca como optimista ---
                 }
                 break;
             case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
                 const gastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === id);
                 if (gastoIndex > -1) {
-                    // --- LÓGICA OPTIMISTA PARA ELIMINAR GASTO ---
                     const gastoToDelete = gastosEncontrados[gastoIndex];
                     const importeARestar = parseFloat(gastoToDelete.Importe);
                     const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
@@ -253,7 +254,7 @@ async function executeDelete(type, id) {
                     
                     gastosEncontrados.splice(gastoIndex, 1);
                     document.getElementById(`item-${id}`)?.remove();
-                    renderDashboard(); // Actualiza el dashboard para que el contador se refleje
+                    renderDashboard();
                 }
                 break;
             default: return;
@@ -268,9 +269,9 @@ async function executeDelete(type, id) {
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
         
-        // No es necesario recargar datos para el gasto, ya que la UI ya es optimista
-        if (type === 'calendar_event') { 
-            initializeAppContent();
+        // --- CORRECCIÓN: No se recarga si la acción fue solo optimista ---
+        if (!isOptimisticOnly) {
+           initializeAppContent();
         }
 
     } catch (err) {
@@ -807,10 +808,11 @@ function renderEventForm() {
         row.style.gap = '8px';
         row.style.alignItems = 'center';
         row.style.marginBottom = '8px';
+        // --- CORRECCIÓN DE ESTILOS APLICADA AQUÍ ---
         row.innerHTML = `
-            <select class="event-reminder-method" style="flex: 2;"><option value="popup">Notificación</option><option value="email">Email</option></select>
-            <input type="number" class="event-reminder-quantity" value="10" style="flex: 1; text-align: right;" min="1" />
-            <select class="event-reminder-unit" style="flex: 2;">
+            <select class="event-reminder-method" style="flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;"><option value="popup">Notificación</option><option value="email">Email</option></select>
+            <input type="number" class="event-reminder-quantity" value="10" style="flex: 1; text-align: right; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;" min="1" />
+            <select class="event-reminder-unit" style="flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;">
               <option value="minutes" selected>minutos antes</option>
               <option value="hours">horas antes</option>
               <option value="days">días antes</option>
@@ -822,7 +824,7 @@ function renderEventForm() {
         row.querySelector('.remove-notification-btn').onclick = () => row.remove();
     };
 
-    createNotificationRow(); // Añadir la primera fila por defecto
+    createNotificationRow();
     document.getElementById('add-notification-link').onclick = (e) => { e.preventDefault(); createNotificationRow(); };
     
     let startPicker, endPicker;
