@@ -241,8 +241,18 @@ async function executeDelete(type, id) {
             case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
                 const gastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === id);
-                if (gastoIndex > -1) gastosEncontrados.splice(gastoIndex, 1);
-                document.getElementById(`item-${id}`)?.remove();
+                if (gastoIndex > -1) {
+                    // --- LÓGICA OPTIMISTA PARA ELIMINAR GASTO ---
+                    const gastoToDelete = gastosEncontrados[gastoIndex];
+                    const importeARestar = parseFloat(gastoToDelete.Importe);
+                    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
+                    const nuevosGastosTotal = gastosActualesNum - importeARestar;
+                    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    
+                    gastosEncontrados.splice(gastoIndex, 1);
+                    document.getElementById(`item-${id}`)?.remove();
+                    renderDashboard(); // Actualiza el dashboard para que el contador se refleje
+                }
                 break;
             default: return;
         }
@@ -256,10 +266,8 @@ async function executeDelete(type, id) {
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
         
-        if (type === 'gasto') {
-            const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
-            if(!freshData.error) appData.counts = freshData.counts;
-        } else if (type === 'calendar_event') { 
+        // No es necesario recargar datos para el gasto, ya que la UI ya es optimista
+        if (type === 'calendar_event') { 
             initializeAppContent();
         }
 
@@ -882,13 +890,10 @@ function renderGastoChart() {
     </div>`;
   document.querySelector('.back-btn').onclick = renderDashboard;
   document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
-  // CORRECCIÓN: Se elimina la llamada automática que causaba el bug.
-  // La función fetchAndDisplayGastoChart ahora solo se llama cuando el usuario selecciona un mes.
 }
 
 async function fetchAndDisplayGastoChart(event) {
   const mesAnio = event.target.value;
-  // Si el usuario vuelve a la opción por defecto, limpiar los gráficos
   if (!mesAnio) {
     document.getElementById('chart-container-pie').innerHTML = '';
     document.getElementById('gasto-legend-container').innerHTML = '';
@@ -898,14 +903,14 @@ async function fetchAndDisplayGastoChart(event) {
   }
   showSpinner();
   const pieContainer = document.getElementById('chart-container-pie'), dailyContainer = document.getElementById('chart-container-daily'), monthlyContainer = document.getElementById('chart-container-monthly'), legendContainer = document.getElementById('gasto-legend-container');
-  if (mesAnio) { pieContainer.innerHTML = ''; dailyContainer.innerHTML = ''; legendContainer.innerHTML = ''; }
+  pieContainer.innerHTML = ''; dailyContainer.innerHTML = ''; legendContainer.innerHTML = ''; monthlyContainer.innerHTML = '';
   try {
     const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
     const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
-    if(data.pieChartUrl && mesAnio) { const imgPie = document.createElement('img'); imgPie.src = data.pieChartUrl; pieContainer.appendChild(imgPie); }
-    if(data.dailyLineChartUrl && mesAnio) { const imgDaily = document.createElement('img'); imgDaily.src = data.dailyLineChartUrl; dailyContainer.appendChild(imgDaily); }
-    if(data.monthlyBarChartUrl) { monthlyContainer.innerHTML = ''; const imgMonthly = document.createElement('img'); imgMonthly.src = data.monthlyBarChartUrl; monthlyContainer.appendChild(imgMonthly); }
-    if(data.datosParaLeyenda && data.datosParaLeyenda.length > 0 && mesAnio) { legendContainer.innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join(''); }
+    if(data.pieChartUrl) { const imgPie = document.createElement('img'); imgPie.src = data.pieChartUrl; pieContainer.appendChild(imgPie); }
+    if(data.dailyLineChartUrl) { const imgDaily = document.createElement('img'); imgDaily.src = data.dailyLineChartUrl; dailyContainer.appendChild(imgDaily); }
+    if(data.monthlyBarChartUrl) { const imgMonthly = document.createElement('img'); imgMonthly.src = data.monthlyBarChartUrl; monthlyContainer.appendChild(imgMonthly); }
+    if(data.datosParaLeyenda && data.datosParaLeyenda.length > 0) { legendContainer.innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join(''); }
   } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
 }
 
@@ -927,21 +932,12 @@ function renderAddGastoForm() {
         </div>`;
     
     document.querySelector('.back-btn').onclick = renderDashboard;
-    
-    const categoriaSelect = document.getElementById('gasto-categoria');
-    const subcategoriaSelect = document.getElementById('gasto-subcategoria');
-    const saveBtn = document.getElementById('save-gasto-btn');
+    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria'), saveBtn = document.getElementById('save-gasto-btn');
     const elementsToValidate = [ document.getElementById('gasto-importe'), document.getElementById('gasto-establecimiento'), document.getElementById('gasto-fecha'), categoriaSelect, subcategoriaSelect ];
 
-    function validateGastoForm() {
-        const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== '');
-        saveBtn.disabled = !allValid;
-        saveBtn.classList.toggle('enabled', allValid);
-    }
-
+    function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
-    
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
         subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
@@ -949,12 +945,9 @@ function renderAddGastoForm() {
             const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
             subcategoriaSelect.innerHTML += subcategoriasOptions;
             subcategoriaSelect.disabled = false;
-        } else {
-            subcategoriaSelect.disabled = true;
-        }
+        } else { subcategoriaSelect.disabled = true; }
         validateGastoForm();
     };
-    
     saveBtn.onclick = saveGasto;
     validateGastoForm();
 }
@@ -962,26 +955,10 @@ function renderAddGastoForm() {
 async function saveGasto() {
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
     const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
-    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
-    const anio = fechaGastoObj.getFullYear();
-    const mesAnioTexto = `${mes}/${anio}`;
-
-    const payload = {
-        Type: 'add_gasto', chat_ID: chatId,
-        datos: { 
-            Importe: importe, 
-            Establecimiento: document.getElementById('gasto-establecimiento').value, 
-            categoria: document.getElementById('gasto-categoria').value,
-            sub_categoria: document.getElementById('gasto-subcategoria').value,
-            Fecha: fechaGastoObj.toISOString(),
-            mesAnio: mesAnioTexto,
-            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-        }
-    };
+    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
+    const payload = { Type: 'add_gasto', chat_ID: chatId, datos: { Importe: importe, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto, ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}` } };
     
-    const hoy = new Date();
-    const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
-    const anioActual = hoy.getFullYear();
+    const hoy = new Date(), mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2), anioActual = hoy.getFullYear();
     if (mesAnioTexto === `${mesActual}/${anioActual}`) {
         const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
         const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
@@ -991,14 +968,9 @@ async function saveGasto() {
     renderDashboard();
     
     try {
-        const res = await fetchWithTimeout(webhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
         showToast('Gasto añadido con éxito');
-    } catch (err) { 
-        showToast(`Error: ${err.message}. Restaurando...`, true); 
-        initializeAppContent();
-    }
+    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
 }
 
 function renderSearchGastosForm() {
@@ -1018,16 +990,10 @@ function renderSearchGastosForm() {
     flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
     document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
     document.getElementById('gastos-search-results').addEventListener('click', (e) => {
-        const target = e.target.closest('.dropdown-item');
-        if (!target) return;
-        const action = target.dataset.action;
-        const idUnico = target.dataset.idUnico;
-        if (action === 'edit-gasto') {
-            const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
-            if (gasto) renderEditGastoForm(gasto);
-        } else if (action === 'delete-gasto') {
-            confirmDelete('gasto', idUnico);
-        }
+        const target = e.target.closest('.dropdown-item'); if (!target) return;
+        const action = target.dataset.action, idUnico = target.dataset.idUnico;
+        if (action === 'edit-gasto') { const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico); if (gasto) renderEditGastoForm(gasto); } 
+        else if (action === 'delete-gasto') { confirmDelete('gasto', idUnico); }
     });
 }
 
@@ -1038,9 +1004,7 @@ async function executeSearchGastos() {
     showSpinner();
     const resultsContainer = document.getElementById('gastos-search-results');
     try {
-        const res = await fetchWithTimeout(webhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
         gastosEncontrados = data.gastos || [];
         if (gastosEncontrados.length > 0) {
             let listHtml = gastosEncontrados.map(gasto => `
@@ -1058,87 +1022,61 @@ async function executeSearchGastos() {
                     </div>
                 </li>`).join('');
             resultsContainer.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
-        } else {
-            resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`;
-        }
+        } else { resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`; }
     } catch (err) { showToast(err.message, true); resultsContainer.innerHTML = ''; } finally { hideSpinner(); }
 }
 
 function renderEditGastoForm(gasto) {
-    const categoriasOptions = Object.keys(categoriasGastos).map(cat => 
-        `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`
-    ).join('');
-
-    const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => 
-        `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`
-    ).join('');
-
+    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
+    const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
     mainContent.innerHTML = `
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
             <div class="form-card">
                 <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
-                <label>Categoría</label> 
-                <select id="gasto-categoria" required>${categoriasOptions}</select>
-                <label>Subcategoría</label> 
-                <select id="gasto-subcategoria" required>${subcategoriasOptions}</select>
+                <label>Categoría</label> <select id="gasto-categoria" required>${categoriasOptions}</select>
+                <label>Subcategoría</label> <select id="gasto-subcategoria" required>${subcategoriasOptions}</select>
                 <label>Fecha</label> <input type="text" id="gasto-fecha" required />
                 <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
             </div>
         </div>`;
     document.querySelector('.back-btn').onclick = renderSearchGastosForm;
     flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
-
-    const categoriaSelect = document.getElementById('gasto-categoria');
-    const subcategoriaSelect = document.getElementById('gasto-subcategoria');
-    
+    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria');
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
         subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
         if (selectedCategory && categoriasGastos[selectedCategory]) {
             const newSubOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += newSubOptions;
-            subcategoriaSelect.disabled = false;
-        } else {
-            subcategoriaSelect.disabled = true;
-        }
+            subcategoriaSelect.innerHTML += newSubOptions; subcategoriaSelect.disabled = false;
+        } else { subcategoriaSelect.disabled = true; }
     };
-    
     document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
 }
 
 async function saveEditedGasto(idUnico) {
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
-    const anio = fechaGastoObj.getFullYear();
-    const mesAnioTexto = `${mes}/${anio}`;
+    const originalGasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
+    if (!originalGasto) { showToast('Error: No se encontró el gasto original.', true); return; }
 
-    const payload = {
-        Type: 'edit_gasto', chat_ID: chatId,
-        datos: { 
-            ID_Unico: idUnico, 
-            Importe: document.getElementById('gasto-importe').value, 
-            Establecimiento: document.getElementById('gasto-establecimiento').value, 
-            categoria: document.getElementById('gasto-categoria').value,
-            sub_categoria: document.getElementById('gasto-subcategoria').value,
-            Fecha: fechaGastoObj.toISOString(),
-            mesAnio: mesAnioTexto
-        }
-    };
+    const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
+    const originalImporte = parseFloat(originalGasto.Importe);
+    const diferencia = nuevoImporte - originalImporte;
     
-    showSpinner();
+    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
+    const nuevosGastosTotal = gastosActualesNum + diferencia;
+    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
+    const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
+    
+    renderDashboard();
+    
     try {
-        const res = await fetchWithTimeout(webhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
-        renderDashboard();
-    } catch (err) { 
-        showToast(`Error: ${err.message}. No se guardó.`, true); 
-    } finally {
-        hideSpinner();
-    }
+    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
 }
 
 // ==================================================
