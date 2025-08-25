@@ -970,7 +970,6 @@ async function saveGasto() {
         }
     };
     
-    // --- OPTIMISTIC UI UPDATE ---
     const hoy = new Date();
     const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
     const anioActual = hoy.getFullYear();
@@ -980,17 +979,16 @@ async function saveGasto() {
         const nuevosGastos = gastosActualesNum + importe;
         appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    renderDashboard(); // Vuelve al dashboard con el contador actualizado
+    renderDashboard();
     
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto añadido con éxito');
-        // No se necesita recarga completa, la UI ya está actualizada.
     } catch (err) { 
         showToast(`Error: ${err.message}. Restaurando...`, true); 
-        initializeAppContent(); // Recarga completa solo si hay error
+        initializeAppContent();
     }
 }
 
@@ -1039,7 +1037,8 @@ async function executeSearchGastos() {
             let listHtml = gastosEncontrados.map(gasto => `
                 <li class="list-item" id="item-${gasto.ID_Unico}">
                     <div class="list-item-content">
-                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span>
+                        <!-- 1. CORRECCIÓN: Se elimina el símbolo '€' de aquí -->
+                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
                         <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleDateString('es-ES')}</span>
                     </div>
                     <div class="list-item-actions">
@@ -1126,9 +1125,11 @@ async function saveEditedGasto(idUnico) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
-        renderDashboard(); // Volver al dashboard principal es una buena opción tras editar
+        renderDashboard();
     } catch (err) { 
         showToast(`Error: ${err.message}. No se guardó.`, true); 
+    } finally {
+        // 2. CORRECCIÓN: Se asegura que el spinner siempre se oculte
         hideSpinner();
     }
 }
