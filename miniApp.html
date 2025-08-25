@@ -200,7 +200,6 @@ async function executeDelete(type, id) {
     let successMessage = '';
     let viewToRender = null;
 
-    // --- 1. OPTIMISTIC UI UPDATE ---
     try {
         switch(type) {
             case 'reminder':
@@ -240,8 +239,6 @@ async function executeDelete(type, id) {
                 break;
             case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
-                const gastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === id);
-                if (gastoIndex > -1) gastosEncontrados.splice(gastoIndex, 1);
                 document.getElementById(`item-${id}`)?.remove();
                 break;
             default: return;
@@ -249,18 +246,20 @@ async function executeDelete(type, id) {
         if (viewToRender) viewToRender();
     } catch(e) { showToast('Error local al procesar.', true); return; }
 
-    // --- 2. BACKEND REQUEST ---
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
         
-        if (type === 'gasto') {
+        // Recarga completa SOLO si es necesario (ej: calendario, o si la eliminación de gastos debe recalcular totales)
+        if (type === 'calendar_event') { 
+            initializeAppContent(); 
+        } else if (type === 'gasto') {
+            // Para gastos, una recarga ligera es mejor para actualizar el total del mes.
             const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
-            if(!freshData.error) appData.counts = freshData.counts;
-        } else if (type === 'calendar_event') { 
-            initializeAppContent();
+            if(freshData.error) throw new Error(freshData.error);
+            appData.counts = freshData.counts;
         }
 
     } catch (err) {
@@ -526,6 +525,7 @@ async function addArticle() {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      // No es necesario recargar, pero sí obtener los nuevos datos para tener los tracking_codes
       const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
       if(freshData.error) throw new Error(freshData.error);
       appData = freshData;
@@ -578,19 +578,24 @@ async function saveEditedShoppingItem(trackingCode) {
 function renderNotesList() {
     const notes = appData.notesList || [];
     let listHtml = (notes.length > 0) ? notes.map(note => `
-            <li class="list-item" id="item-${note.Nota_ID}">
-                <div class="list-item-content">
-                    <span class="list-item-title">${note.Titulo}</span>
-                    <span class="list-item-subtitle">${note.Fecha}</span>
-                    <p style="margin-top: 8px; white-space: pre-wrap; word-wrap: break-word;">${note.Descripcion}</p>
-                </div>
-                <div class="list-item-actions">
-                    <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
-                    <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
-                        <a class="dropdown-item" data-action="edit-note" data-note-id="${note.Nota_ID}">Editar</a>
-                        <a class="dropdown-item" data-action="delete-note" data-note-id="${note.Nota_ID}">Eliminar</a>
+            <li class="note-item" id="item-${note.Nota_ID}">
+                <div class="note-header">
+                    <div class="note-header-interactive">
+                        <div class="note-title-section">
+                            <span class="note-title">${note.Titulo}</span>
+                            <span class="note-date">${note.Fecha}</span>
+                        </div>
+                        <span class="expand-arrow">▾</span>
+                    </div>
+                    <div class="list-item-actions">
+                        <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
+                        <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
+                            <a class="dropdown-item" data-action="edit-note" data-note-id="${note.Nota_ID}">Editar</a>
+                            <a class="dropdown-item" data-action="delete-note" data-note-id="${note.Nota_ID}">Eliminar</a>
+                        </div>
                     </div>
                 </div>
+                <div class="note-description">${note.Descripcion}</div>
             </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
     
     mainContent.innerHTML = `<div class="list-container">
@@ -602,7 +607,14 @@ function renderNotesList() {
     document.querySelector('.back-btn').onclick = renderDashboard;
     document.getElementById('create-new-note-btn').onclick = () => renderNoteForm();
     
-    document.getElementById('notes-list').addEventListener('click', e => {
+    const notesList = document.getElementById('notes-list');
+    notesList.addEventListener('click', e => {
+        const interactiveHeader = e.target.closest('.note-header-interactive');
+        if (interactiveHeader) {
+            interactiveHeader.closest('.note-item').classList.toggle('open');
+            return;
+        }
+        
         const target = e.target.closest('.dropdown-item');
         if (!target) return;
 
@@ -892,103 +904,40 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderAddGastoForm() {
-    const categoriasGastos = {
-        "🏠 Gastos del hogar": ["Alquiler o hipoteca", "Servicios (agua, luz, gas, electricidad)", "Internet y teléfono", "Mantenimiento y reparaciones", "Mobiliario y electrodomésticos"],
-        "🧾 Gastos personales": ["Alimentación y supermercado", "Ropa y calzado", "Salud (seguros, medicamentos, Farmacia, consultas)", "Educación y formación", "Cuidado personal (peluquería, cosmética)"],
-        "🚗 Transporte": ["Combustible", "Transporte público", "Seguro del vehículo", "Mantenimiento y reparaciones", "Estacionamiento y peajes"],
-        "🍽 Entretenimiento y ocio": ["Restaurantes y cafés", "Cine, teatro, conciertos", "Suscripciones (Netflix, Spotify, etc.)", "Vacaciones y viajes", "Actividades deportivas o hobbies"],
-        "💼 Finanzas y seguros": ["Préstamos o créditos", "Ahorros e inversiones", "Seguros (vida, hogar, salud, etc.)", "Impuestos y tasas"],
-        "🎁 Otros": ["Regalos y celebraciones", "Donaciones o caridad", "Mascotas (comida, veterinario, etc.)"]
-    };
-
-    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}">${cat}</option>`).join('');
-
     mainContent.innerHTML = `
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
             <div class="form-card">
                 <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" required />
-                <label>Categoría</label>
-                <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
-                <label>Subcategoría</label>
-                <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona primero una categoría --</option></select>
+                <label>Categoría</label> <input type="text" id="gasto-categoria" placeholder="Ej: Alimentación" required />
                 <label>Fecha</label> <input type="text" id="gasto-fecha" required />
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
-    
     document.querySelector('.back-btn').onclick = renderDashboard;
-    flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
-    
-    const categoriaSelect = document.getElementById('gasto-categoria');
-    const subcategoriaSelect = document.getElementById('gasto-subcategoria');
+    flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es" });
     const saveBtn = document.getElementById('save-gasto-btn');
-    const elementsToValidate = {
-        importe: document.getElementById('gasto-importe'),
-        establecimiento: document.getElementById('gasto-establecimiento'),
-        fecha: document.getElementById('gasto-fecha'),
-        categoria: categoriaSelect,
-        subcategoria: subcategoriaSelect
-    };
-
-    function validateGastoForm() {
-        const allValid = Object.values(elementsToValidate).every(el => el.value && el.value.trim() !== '');
-        saveBtn.disabled = !allValid;
-        saveBtn.classList.toggle('enabled', allValid);
-    }
-
-    Object.values(elementsToValidate).forEach(element => {
-        if (element.tagName === 'SELECT') {
-            element.onchange = validateGastoForm;
-        } else {
-            element.oninput = validateGastoForm;
-        }
-    });
-
-    categoriaSelect.onchange = () => {
-        const selectedCategory = categoriaSelect.value;
-        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
-        
-        if (selectedCategory && categoriasGastos[selectedCategory]) {
-            const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += subcategoriasOptions;
-            subcategoriaSelect.disabled = false;
-        } else {
-            subcategoriaSelect.disabled = true;
-        }
-        validateGastoForm();
-    };
-    
+    const inputs = ['gasto-importe', 'gasto-establecimiento', 'gasto-categoria', 'gasto-fecha'];
+    function validateGastoForm() { const allValid = inputs.every(i => document.getElementById(i).value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', !allValid); }
+    inputs.forEach(id => document.getElementById(id).oninput = validateGastoForm);
     saveBtn.onclick = saveGasto;
-    validateGastoForm(); // Initial check
+    validateGastoForm();
 }
 
 async function saveGasto() {
     const payload = {
         Type: 'add_gasto', chat_ID: chatId,
-        datos: { 
-            Importe: document.getElementById('gasto-importe').value, 
-            Establecimiento: document.getElementById('gasto-establecimiento').value, 
-            categoria: document.getElementById('gasto-categoria').value,
-            sub_categoria: document.getElementById('gasto-subcategoria').value,
-            Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(),
-            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}` // Consistencia en la generación de ID
-        }
+        datos: { Importe: document.getElementById('gasto-importe').value, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(), ID_Unico: 'G-' + Date.now() }
     };
-    
     renderDashboard();
-    
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto añadido con éxito');
         initializeAppContent();
-    } catch (err) { 
-        showToast(`Error: ${err.message}. No se guardó.`, true); 
-        initializeAppContent(); 
-    }
+    } catch (err) { showToast(`Error: ${err.message}. No se guardó.`, true); initializeAppContent(); }
 }
 
 function renderSearchGastosForm() {
@@ -1082,7 +1031,7 @@ async function saveEditedGasto(idUnico) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
-        renderDashboard();
+        renderDashboard(); // <-- REDIRECCIÓN A HOME
     } catch (err) { 
         showToast(`Error: ${err.message}. No se guardó.`, true); 
     }
