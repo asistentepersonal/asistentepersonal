@@ -892,46 +892,103 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderAddGastoForm() {
+    const categoriasGastos = {
+        "🏠 Gastos del hogar": ["Alquiler o hipoteca", "Servicios (agua, luz, gas, electricidad)", "Internet y teléfono", "Mantenimiento y reparaciones", "Mobiliario y electrodomésticos"],
+        "🧾 Gastos personales": ["Alimentación y supermercado", "Ropa y calzado", "Salud (seguros, medicamentos, Farmacia, consultas)", "Educación y formación", "Cuidado personal (peluquería, cosmética)"],
+        "🚗 Transporte": ["Combustible", "Transporte público", "Seguro del vehículo", "Mantenimiento y reparaciones", "Estacionamiento y peajes"],
+        "🍽 Entretenimiento y ocio": ["Restaurantes y cafés", "Cine, teatro, conciertos", "Suscripciones (Netflix, Spotify, etc.)", "Vacaciones y viajes", "Actividades deportivas o hobbies"],
+        "💼 Finanzas y seguros": ["Préstamos o créditos", "Ahorros e inversiones", "Seguros (vida, hogar, salud, etc.)", "Impuestos y tasas"],
+        "🎁 Otros": ["Regalos y celebraciones", "Donaciones o caridad", "Mascotas (comida, veterinario, etc.)"]
+    };
+
+    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}">${cat}</option>`).join('');
+
     mainContent.innerHTML = `
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
             <div class="form-card">
                 <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" required />
-                <label>Categoría</label> <input type="text" id="gasto-categoria" placeholder="Ej: Alimentación" required />
+                <label>Categoría</label>
+                <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
+                <label>Subcategoría</label>
+                <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona primero una categoría --</option></select>
                 <label>Fecha</label> <input type="text" id="gasto-fecha" required />
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
+    
     document.querySelector('.back-btn').onclick = renderDashboard;
-    flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es" });
+    
+    const categoriaSelect = document.getElementById('gasto-categoria');
+    const subcategoriaSelect = document.getElementById('gasto-subcategoria');
     const saveBtn = document.getElementById('save-gasto-btn');
-    const inputs = ['gasto-importe', 'gasto-establecimiento', 'gasto-categoria', 'gasto-fecha'];
-    function validateGastoForm() { const allValid = inputs.every(i => document.getElementById(i).value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', !allValid); }
-    inputs.forEach(id => document.getElementById(id).oninput = validateGastoForm);
+    const elementsToValidate = {
+        importe: document.getElementById('gasto-importe'),
+        establecimiento: document.getElementById('gasto-establecimiento'),
+        fecha: document.getElementById('gasto-fecha'),
+        categoria: categoriaSelect,
+        subcategoria: subcategoriaSelect
+    };
+
+    function validateGastoForm() {
+        const allValid = Object.values(elementsToValidate).every(el => el.value && el.value.trim() !== '');
+        saveBtn.disabled = !allValid;
+        saveBtn.classList.toggle('enabled', allValid);
+    }
+
+    flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
+    elementsToValidate.importe.oninput = validateGastoForm;
+    elementsToValidate.establecimiento.oninput = validateGastoForm;
+    elementsToValidate.categoria.onchange = () => {
+        const selectedCategory = categoriaSelect.value;
+        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
+        if (selectedCategory && categoriasGastos[selectedCategory]) {
+            const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
+            subcategoriaSelect.innerHTML += subcategoriasOptions;
+            subcategoriaSelect.disabled = false;
+        } else {
+            subcategoriaSelect.disabled = true;
+        }
+        validateGastoForm();
+    };
+    elementsToValidate.subcategoria.onchange = validateGastoForm;
+    
     saveBtn.onclick = saveGasto;
     validateGastoForm();
 }
 
 async function saveGasto() {
+    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
+    const anio = fechaGastoObj.getFullYear();
+    const mesAnioTexto = `${mes}/${anio}`;
+
     const payload = {
         Type: 'add_gasto', chat_ID: chatId,
         datos: { 
             Importe: document.getElementById('gasto-importe').value, 
             Establecimiento: document.getElementById('gasto-establecimiento').value, 
-            categoria: document.getElementById('gasto-categoria').value, 
-            Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(),
+            categoria: document.getElementById('gasto-categoria').value,
+            sub_categoria: document.getElementById('gasto-subcategoria').value,
+            Fecha: fechaGastoObj.toISOString(),
+            mesAnio: mesAnioTexto,
             ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
         }
     };
+    
     renderDashboard();
+    
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast('Gasto añadido con éxito');
         initializeAppContent();
-    } catch (err) { showToast(`Error: ${err.message}. No se guardó.`, true); initializeAppContent(); }
+    } catch (err) { 
+        showToast(`Error: ${err.message}. No se guardó.`, true); 
+        initializeAppContent(); 
+    }
 }
 
 function renderSearchGastosForm() {
