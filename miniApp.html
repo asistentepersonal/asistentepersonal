@@ -97,6 +97,9 @@
     .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
     .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
+	/* --- CÓDIGO A AÑADIR AL FINAL DE TUS ESTILOS --- */
+    .notification-row select, .notification-row input {
+        width: auto !important; /* Permite que el flexbox controle el ancho */}
   </style>
 </head>
 <body>
@@ -803,16 +806,17 @@ function renderEventForm() {
     const createNotificationRow = () => {
         const container = document.getElementById('notifications-container');
         const row = document.createElement('div');
-        row.className = 'notification-row';
+        row.className = 'notification-row'; // Asignamos la clase para que el CSS funcione
         row.style.display = 'flex';
         row.style.gap = '8px';
         row.style.alignItems = 'center';
         row.style.marginBottom = '8px';
-        // --- CORRECCIÓN DE ESTILOS APLICADA AQUÍ ---
+        
+        // --- CÓDIGO LIMPIO SIN ESTILOS INCRUSTADOS ---
         row.innerHTML = `
-            <select class="event-reminder-method" style="flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;"><option value="popup">Notificación</option><option value="email">Email</option></select>
-            <input type="number" class="event-reminder-quantity" value="10" style="flex: 1; text-align: right; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;" min="1" />
-            <select class="event-reminder-unit" style="flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;">
+            <select class="event-reminder-method" style="flex: 2;"><option value="popup">Notificación</option><option value="email">Email</option></select>
+            <input type="number" class="event-reminder-quantity" value="10" style="flex: 1; text-align: right;" min="1" />
+            <select class="event-reminder-unit" style="flex: 2;">
               <option value="minutes" selected>minutos antes</option>
               <option value="hours">horas antes</option>
               <option value="days">días antes</option>
