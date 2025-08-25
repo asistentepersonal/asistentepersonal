@@ -892,7 +892,6 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderAddGastoForm() {
-    // Estructura de datos para las categorías y subcategorías
     const categoriasGastos = {
         "🏠 Gastos del hogar": ["Alquiler o hipoteca", "Servicios (agua, luz, gas, electricidad)", "Internet y teléfono", "Mantenimiento y reparaciones", "Mobiliario y electrodomésticos"],
         "🧾 Gastos personales": ["Alimentación y supermercado", "Ropa y calzado", "Salud (seguros, medicamentos, Farmacia, consultas)", "Educación y formación", "Cuidado personal (peluquería, cosmética)"],
@@ -910,34 +909,36 @@ function renderAddGastoForm() {
             <div class="form-card">
                 <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" required />
-                
                 <label>Categoría</label>
                 <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
-                
                 <label>Subcategoría</label>
                 <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona primero una categoría --</option></select>
-                
                 <label>Fecha</label> <input type="text" id="gasto-fecha" required />
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
     
     document.querySelector('.back-btn').onclick = renderDashboard;
-    flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es" });
+    flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
     
     const categoriaSelect = document.getElementById('gasto-categoria');
     const subcategoriaSelect = document.getElementById('gasto-subcategoria');
     const saveBtn = document.getElementById('save-gasto-btn');
-    const inputs = ['gasto-importe', 'gasto-establecimiento', 'gasto-fecha', 'gasto-categoria', 'gasto-subcategoria'];
+    const elementsToValidate = {
+        importe: document.getElementById('gasto-importe'),
+        establecimiento: document.getElementById('gasto-establecimiento'),
+        fecha: document.getElementById('gasto-fecha'),
+        categoria: categoriaSelect,
+        subcategoria: subcategoriaSelect
+    };
 
     function validateGastoForm() {
-        const allValid = inputs.every(id => document.getElementById(id).value.trim() !== '');
+        const allValid = Object.values(elementsToValidate).every(el => el.value && el.value.trim() !== '');
         saveBtn.disabled = !allValid;
-        saveBtn.classList.toggle('enabled', !allValid);
+        saveBtn.classList.toggle('enabled', allValid);
     }
 
-    inputs.forEach(id => {
-        const element = document.getElementById(id);
+    Object.values(elementsToValidate).forEach(element => {
         if (element.tagName === 'SELECT') {
             element.onchange = validateGastoForm;
         } else {
@@ -947,7 +948,7 @@ function renderAddGastoForm() {
 
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
-        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>'; // Reset
+        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
         
         if (selectedCategory && categoriasGastos[selectedCategory]) {
             const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
@@ -956,11 +957,11 @@ function renderAddGastoForm() {
         } else {
             subcategoriaSelect.disabled = true;
         }
-        validateGastoForm(); // Re-validar el formulario cada vez que cambia la categoría
+        validateGastoForm();
     };
     
     saveBtn.onclick = saveGasto;
-    validateGastoForm();
+    validateGastoForm(); // Initial check
 }
 
 async function saveGasto() {
@@ -971,11 +972,13 @@ async function saveGasto() {
             Establecimiento: document.getElementById('gasto-establecimiento').value, 
             categoria: document.getElementById('gasto-categoria').value,
             sub_categoria: document.getElementById('gasto-subcategoria').value,
-            Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString()
-            // El ID_Unico ahora se genera correctamente en el backend
+            Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toISOString(),
+            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}` // Consistencia en la generación de ID
         }
     };
+    
     renderDashboard();
+    
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
