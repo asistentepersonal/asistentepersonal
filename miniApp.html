@@ -97,10 +97,12 @@
     .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
     .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
-    .notification-row select, .notification-row input {
-        width: 100%;
-        margin-top: 0 !important;
-    }
+    .notification-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .notification-row .event-reminder-method { flex-grow: 2; flex-basis: 0; }
+    .notification-row .event-reminder-quantity { flex-grow: 1; flex-basis: 0; text-align: right; }
+    .notification-row .event-reminder-unit { flex-grow: 2; flex-basis: 0; }
+    .notification-row .remove-notification-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 0 5px; flex-shrink: 0; }
+    .notification-row select, .notification-row input { margin-top: 0 !important; width: 100%; }
   </style>
 </head>
 <body>
@@ -324,17 +326,19 @@ async function saveReminder() {
   const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
   
   appData.counts.remindersCount++;
-  appData.remindersList.unshift({ 'Fecha': new Date().toLocaleString(), 'Descripcion': description, 'Categoria': category, 'tracking_code': 'temp' });
+  appData.remindersList.unshift({ 'Fecha': new Date().toLocaleString(), 'Descripcion': description, 'Categoria': category, 'tracking_code': 'temp-' + Date.now() });
   renderDashboard();
+  showToast('Recordatorio creado');
 
   try { 
     const res = await fetchWithTimeout(webhookURL, payload); 
     const data = await res.json(); 
     if(data.error) throw new Error(data.error); 
-    initializeAppContent();
+    // No es necesario refrescar, la UI ya está actualizada.
+    // Solo se refrescará si entra en el catch.
   } catch (err) { 
     showToast(`Error: ${err.message}. No se guardó.`, true); 
-    initializeAppContent();
+    initializeAppContent(); // Restaurar estado si falla
   }
 }
 
@@ -533,6 +537,9 @@ async function addArticle() {
   const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
   
   appData.counts.shoppingPendingCount++;
+  // Optimistic UI: Add a temporary item so the user sees it immediately.
+  const tempTrackingCode = 'temp-' + Date.now();
+  appData.shoppingList.unshift({ '1': description, '2': 'Pendiente', '3': tempTrackingCode, '4': '', '5': cycle });
   renderShoppingList();
   showToast('Artículo añadido');
 
@@ -540,10 +547,13 @@ async function addArticle() {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
-      if(freshData.error) throw new Error(freshData.error);
-      appData = freshData;
+      // On success, we don't need to do anything, but a full refresh might be good here
+      // to get the real tracking code from the server, just in case.
+      // For now, let's keep it fast and only refresh on error.
+      const freshData = await (await fetchWithTimeout(webhookURL, {Type: 'get_shopping_list_only', chat_ID: chatId})).json();
+      appData.shoppingList = freshData.shoppingList; // Update just the list
       renderShoppingList();
+
   } catch (err) { showToast(`Error: ${err.message}. No se añadió.`, true); initializeAppContent(); }
 }
 
@@ -696,10 +706,11 @@ async function saveNote() {
             const res = await fetchWithTimeout(webhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-            const freshData = await (await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId })).json();
-            if(freshData.error) throw new Error(freshData.error);
-            appData = freshData;
-            renderNotesList();
+            // No refrescamos todo, solo actualizamos el ID temporal si el backend lo devuelve
+            if(data.newNoteId){
+                const tempNote = appData.notesList.find(n => n.Nota_ID.startsWith('temp-'));
+                if(tempNote) tempNote.Nota_ID = data.newNoteId;
+            }
         } catch (err) {
             showToast(`Error: ${err.message}. No se pudo crear la nota.`, true);
             initializeAppContent();
@@ -795,7 +806,7 @@ function renderEventForm() {
           
           <label>Notificaciones</label>
           <div id="notifications-container"></div>
-          <a href="#" id="add-notification-link" style="font-size: 0.9rem; color: var(--primary); text-decoration: none; display: block; margin-top: 8px;">Añadir notificación</a>
+          <a href="#" id="add-notification-link" style="font-size: 0.9rem; color: var(--primary); text-decoration: none; display: block; margin-top: 8px; display: none;">Añadir notificación</a>
           
           <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
           <button id="save-event-btn" disabled>Crear Evento</button>
@@ -803,31 +814,34 @@ function renderEventForm() {
 
     document.querySelector('.back-btn').onclick = () => renderCalendarView();
 
+    const updateAddNotificationLinkVisibility = () => {
+        const link = document.getElementById('add-notification-link');
+        const rows = document.querySelectorAll('.notification-row');
+        if (rows.length === 0) { link.style.display = 'block'; return; }
+        const lastRow = rows[rows.length - 1];
+        const quantityInput = lastRow.querySelector('.event-reminder-quantity');
+        link.style.display = (quantityInput && quantityInput.value.trim() !== '' && parseInt(quantityInput.value) > 0) ? 'block' : 'none';
+    };
+
     const createNotificationRow = () => {
         const container = document.getElementById('notifications-container');
         const row = document.createElement('div');
-        row.className = 'notification-row'; 
-        row.style.display = 'flex';
-        row.style.gap = '8px';
-        row.style.alignItems = 'center';
-        row.style.marginBottom = '8px';
-        
+        row.className = 'notification-row';
         row.innerHTML = `
-            <select class="event-reminder-method" style="flex: 2;"><option value="popup">Notificación</option><option value="email">Email</option></select>
-            <input type="number" class="event-reminder-quantity" value="10" style="flex: 1; text-align: right;" min="1" />
-            <select class="event-reminder-unit" style="flex: 2;">
-              <option value="minutes" selected>minutos</option>
-              <option value="hours">horas</option>
-              <option value="days">días</option>
-              <option value="weeks">semanas</option>
+            <select class="event-reminder-method"><option value="popup">Notificación</option><option value="email">Email</option></select>
+            <input type="number" class="event-reminder-quantity" value="10" min="1" />
+            <select class="event-reminder-unit">
+              <option value="minutes" selected>minutos</option><option value="hours">horas</option><option value="days">días</option><option value="weeks">semanas</option>
             </select>
-            <button class="remove-notification-btn" style="background:transparent; border:none; font-size:1.5rem; color:var(--muted); cursor:pointer; padding:0 5px;">&times;</button>
+            <button class="remove-notification-btn">&times;</button>
         `;
         container.appendChild(row);
-        row.querySelector('.remove-notification-btn').onclick = () => row.remove();
+        row.querySelector('.remove-notification-btn').onclick = () => { row.remove(); updateAddNotificationLinkVisibility(); };
+        row.querySelectorAll('input, select').forEach(el => el.oninput = updateAddNotificationLinkVisibility);
+        updateAddNotificationLinkVisibility();
     };
 
-    createNotificationRow();
+    createNotificationRow(); // Create the first row by default
     document.getElementById('add-notification-link').onclick = (e) => { e.preventDefault(); createNotificationRow(); };
     
     let startPicker, endPicker;
@@ -874,15 +888,16 @@ async function saveEvent() {
         appData.counts.calendarTodayCount++;
     }
     renderDashboard();
+    showToast('Evento creado');
 
     try {
         const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'add_calendar_event', eventData });
         const result = await res.json();
         if (result.error) throw new Error(result.error);
-        initializeAppContent();
+        // No need to refresh, UI is already updated
     } catch (err) {
         showToast(`Error: ${err.message}. No se guardó.`, true);
-        initializeAppContent();
+        initializeAppContent(); // Restore on error
     }
 }
 
