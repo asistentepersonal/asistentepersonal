@@ -29,7 +29,7 @@
     .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
     .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
     .dropdown-menu.show { display: block; }
-    .dropdown-item { padding: 12px 20px; color: var(--text); cursor: pointer; display: block; text-align: left; }
+    .dropdown-item { padding: 12px 20px; color: var(--text); background-color: var(--menu-bg, #fff); cursor: pointer; display: block; text-align: left; }
     .dropdown-item:hover { background-color: var(--bg); }
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
     .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
@@ -38,7 +38,7 @@
     .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
     .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
     .form-card textarea,.form-card input, .form-card select, .form-card .radio-group{width:100%;margin-top:8px;}
-    .form-card textarea,.form-card input, .form-card select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text);}
+    .form-card textarea,.form-card input, .form-card select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text); background-color: var(--bg, #f5f7fa);}
     .form-card .input-error { border-color: var(--error-bg) !important; }
     .radio-group{display:flex;gap:10px;align-items:center; flex-wrap: wrap;}
     .radio-group label{font-weight:400;color:var(--text);margin-top:0;}
@@ -971,6 +971,7 @@ function renderScanTicketView() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
+	fileInput.capture = 'environment';
     fileInput.style.display = 'none';
 
     fileInput.onchange = (event) => {
@@ -1068,12 +1069,35 @@ function renderAddGastoForm(initialData = null) {
 
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     
-    let defaultDate = new Date();
+let defaultDate = new Date();
+    let enableTime = false;
+    let dateFormat = "Y-m-d";
+
     if(data.fecha) {
-        const parts = data.fecha.split(' ')[0].split('/');
-        if(parts.length === 3) defaultDate = new Date(parts[2], parts[1] - 1, parts[0]);
+        const dateTimeParts = data.fecha.split(' ');
+        const dateParts = dateTimeParts[0].split('/');
+        if(dateParts.length === 3) {
+            const year = parseInt(dateParts[2], 10);
+            const month = parseInt(dateParts[1], 10) - 1;
+            const day = parseInt(dateParts[0], 10);
+            
+            if(dateTimeParts.length > 1) {
+                const timeParts = dateTimeParts[1].split(':');
+                if(timeParts.length >= 2) {
+                    const hours = parseInt(timeParts[0], 10);
+                    const minutes = parseInt(timeParts[1], 10);
+                    defaultDate = new Date(year, month, day, hours, minutes);
+                    enableTime = true;
+                    dateFormat = "Y-m-d H:i";
+                } else {
+                   defaultDate = new Date(year, month, day);
+                }
+            } else {
+                defaultDate = new Date(year, month, day);
+            }
+        }
     }
-    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
+    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: dateFormat, enableTime: enableTime, locale: "es", onChange: validateGastoForm });
 
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
     categoriaSelect.onchange = () => {
