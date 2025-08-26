@@ -1156,29 +1156,45 @@ let defaultDate = new Date();
 async function saveGasto() {
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
     const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
-    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
-    const payload = { Type: 'add_gasto', chat_ID: chatId, datos: { Importe: importe, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto, ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}` } };
-    
-    const hoy = new Date(), mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2), anioActual = hoy.getFullYear();
+    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
+    const anio = fechaGastoObj.getFullYear();
+    const mesAnioTexto = `${mes}/${anio}`;
+
+    const hoy = new Date();
+    const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
+    const anioActual = hoy.getFullYear();
     if (mesAnioTexto === `${mesActual}/${anioActual}`) {
         const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
         const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
         const nuevosGastos = gastosActualesNum + importe;
         appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-	const hoy = new Date(), mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2), anioActual = hoy.getFullYear();
-	if (mesAnioTexto === `${mesActual}/${anioActual}`) {
-		const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
-		const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
-		const nuevosGastos = gastosActualesNum + importe;
-		appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+    
     renderDashboard();
     
+    const payload = {
+        Type: 'add_gasto',
+        chat_ID: chatId,
+        datos: {
+            Importe: importe,
+            Establecimiento: document.getElementById('gasto-establecimiento').value,
+            categoria: document.getElementById('gasto-categoria').value,
+            sub_categoria: document.getElementById('gasto-subcategoria').value,
+            Fecha: fechaGastoObj.toISOString(),
+            mesAnio: mesAnioTexto,
+            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+        }
+    };
+    
     try {
-        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
         showToast('Gasto añadido con éxito');
-    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
+    } catch (err) {
+        showToast(`Error: ${err.message}. Restaurando...`, true);
+        initializeAppContent();
+    }
 }
 
 function renderGastoChart() {
