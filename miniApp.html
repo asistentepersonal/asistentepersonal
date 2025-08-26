@@ -1503,8 +1503,9 @@ function renderDashboard() {
   document.getElementById('tab-home').onclick = renderDashboard;
 }
 
-initializeAppContent();
-    });
+initializeAppContent(); // <-- ESTA LÍNEA SE MUEVE HACIA ARRIBA
+
+}); // <-- ESTA ES LA LLAVE DE CIERRE DEL DOMContentLoaded
   </script>
 </body>
 </html>
