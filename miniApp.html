@@ -577,7 +577,7 @@ async function addArticle() {
 function renderEditShoppingItemForm(item) {
     mainContent.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Artículo</h2></div>
+          <div class="list-header"><button class="back-btn">‹</button><h2✏️ Editar Artículo</h2></div>
           <div class="form-card">
               <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
               <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
@@ -965,7 +965,7 @@ async function executeSearchCalendar() {
 }
 
 // ==================================================
-// --- MÓDULO: GASTOS (CON ESCÁNER) ---
+// --- INICIO MÓDULO GASTOS (CORREGIDO) ---
 // ==================================================
 let gastosEncontrados = [];
 let pieChartInstance = null, dailyChartInstance = null, monthlyChartInstance = null;
@@ -979,7 +979,6 @@ const categoriasGastos = {
     "🎁 Otros": ["🎉 Regalos y celebraciones", "❤️ Donaciones o caridad", "🐾 Mascotas (comida, veterinario, etc.)"]
 };
 
-// --- NUEVA FUNCIÓN PARA MOSTRAR INSTRUCCIONES ---
 function renderInstructionScreen() {
     mainContent.innerHTML = `
         <div class="list-container">
@@ -999,7 +998,6 @@ function renderInstructionScreen() {
     document.getElementById('select-photo-btn').onclick = renderScanTicketView;
 }
 
-// --- NUEVA FUNCIÓN PARA INICIAR EL ESCANEO ---
 function renderScanTicketView() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -1025,7 +1023,6 @@ function renderScanTicketView() {
     document.body.removeChild(fileInput);
 }
 
-// --- NUEVA FUNCIÓN PARA ENVIAR LA IMAGEN A MAKE ---
 async function handleImageScan() {
     if (!selectedImageFile) {
         showToast('No se ha seleccionado ninguna imagen.', true);
@@ -1040,7 +1037,7 @@ async function handleImageScan() {
 
     try {
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 60000); // 60 segundos de timeout para IA
+        const id = setTimeout(() => controller.abort(), 60000);
         const response = await fetch(makeWebhookUrl, {
             method: 'POST',
             body: formData,
@@ -1068,15 +1065,12 @@ async function handleImageScan() {
     }
 }
 
-// --- AÑADIR EVENT LISTENERS A LOS BOTONES DE VISTA PREVIA ---
 document.getElementById('preview-cancel-btn').onclick = () => {
     document.getElementById('image-preview-overlay').style.display = 'none';
     selectedImageFile = null;
 };
 document.getElementById('preview-send-btn').onclick = handleImageScan;
 
-
-// --- FUNCIÓN MODIFICADA PARA ACEPTAR DATOS INICIALES ---
 function renderAddGastoForm(initialData = null) {
     const data = initialData ? initialData.datos : {};
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
@@ -1085,7 +1079,7 @@ function renderAddGastoForm(initialData = null) {
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
             <div class="form-card">
-                <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" value="${data.importe_total || ''}" required />
+                <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" value="${(data.importe_total || '').toString().replace(',', '.')}" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" value="${data.establecimiento || ''}" required />
                 <label>Categoría</label>
                 <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
@@ -1102,35 +1096,14 @@ function renderAddGastoForm(initialData = null) {
 
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     
-let defaultDate = new Date();
-    let enableTime = false;
-    let dateFormat = "Y-m-d";
-
+    let defaultDate = new Date();
     if(data.fecha) {
-        const dateTimeParts = data.fecha.split(' ');
-        const dateParts = dateTimeParts[0].split('/');
+        const dateParts = data.fecha.split(' ')[0].split('/');
         if(dateParts.length === 3) {
-            const year = parseInt(dateParts[2], 10);
-            const month = parseInt(dateParts[1], 10) - 1;
-            const day = parseInt(dateParts[0], 10);
-            
-            if(dateTimeParts.length > 1) {
-                const timeParts = dateTimeParts[1].split(':');
-                if(timeParts.length >= 2) {
-                    const hours = parseInt(timeParts[0], 10);
-                    const minutes = parseInt(timeParts[1], 10);
-                    defaultDate = new Date(year, month, day, hours, minutes);
-                    enableTime = true;
-                    dateFormat = "Y-m-d H:i";
-                } else {
-                   defaultDate = new Date(year, month, day);
-                }
-            } else {
-                defaultDate = new Date(year, month, day);
-            }
+            defaultDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
         }
     }
-    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: dateFormat, enableTime: enableTime, locale: "es", onChange: validateGastoForm });
+    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
 
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
     categoriaSelect.onchange = () => {
@@ -1145,7 +1118,7 @@ let defaultDate = new Date();
     };
     saveBtn.onclick = saveGasto;
 
-    if (initialData) {
+    if (data.categoria) {
         categoriaSelect.dispatchEvent(new Event('change'));
         if(data.subcategoria) { subcategoriaSelect.value = data.subcategoria; }
     }
@@ -1154,39 +1127,53 @@ let defaultDate = new Date();
 
 
 async function saveGasto() {
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-    const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
+    // 1. Validar y recolectar datos de forma segura
+    const importeStr = document.getElementById('gasto-importe').value;
+    const importeNum = parseFloat(importeStr.replace(',', '.'));
+    if (isNaN(importeNum) || importeNum <= 0) {
+        showToast('Por favor, introduce un importe válido.', true);
+        return;
+    }
+
+    const fechaPicker = document.getElementById('gasto-fecha')._flatpickr;
+    if (!fechaPicker || fechaPicker.selectedDates.length === 0) {
+        showToast('Por favor, selecciona una fecha válida.', true);
+        return;
+    }
+    const fechaGastoObj = fechaPicker.selectedDates[0];
+
+    // 2. Preparar datos adicionales
     const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
     const anio = fechaGastoObj.getFullYear();
     const mesAnioTexto = `${mes}/${anio}`;
 
-    // 1. Lógica optimista: Actualizar el contador localmente
+    // 3. Lógica optimista: Actualizar el contador localmente
     const hoy = new Date();
     const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
     const anioActual = hoy.getFullYear();
     if (mesAnioTexto === `${mesActual}/${anioActual}`) {
         const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
         const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
-        const nuevosGastos = gastosActualesNum + importe;
+        const nuevosGastos = gastosActualesNum + importeNum;
         appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     
-    // 2. Actualizar la UI inmediatamente y mostrar un toast inicial
+    // 4. Actualizar la UI inmediatamente y mostrar un toast inicial
     renderDashboard();
     showToast('Gasto registrado. Guardando...');
 
-    // 3. Preparar y enviar los datos al backend en segundo plano
+    // 5. Preparar y enviar los datos al backend en segundo plano
     const payload = {
         Type: 'add_gasto',
         chat_ID: chatId,
         datos: {
-            Importe: importe,
+            Importe: importeNum,
             Establecimiento: document.getElementById('gasto-establecimiento').value,
             categoria: document.getElementById('gasto-categoria').value,
             sub_categoria: document.getElementById('gasto-subcategoria').value,
             Fecha: fechaGastoObj.toISOString(),
             mesAnio: mesAnioTexto,
-            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+            ID_Unico: `G-${Math.random().toString(36).substring(2, 9).toUpperCase()}`
         }
     };
     
@@ -1194,14 +1181,12 @@ async function saveGasto() {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) {
-            // Si hay un error del servidor, lo mostramos y revertimos
             showToast(`Error del servidor: ${data.error}`, true);
-            initializeAppContent(); // Re-sincronizar para corregir el estado
+            initializeAppContent(); 
         }
     } catch (err) {
-        // Si hay un error de red, lo mostramos y revertimos
         showToast(`Error de red: ${err.message}.`, true);
-        initializeAppContent(); // Re-sincronizar para corregir el estado
+        initializeAppContent();
     }
 }
 
@@ -1412,111 +1397,10 @@ async function saveEditedGasto(idUnico) {
     } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
 }
 
-function renderSearchGastosForm() {
-    mainContent.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar Gastos</h2></div>
-            <div class="form-card">
-                <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
-                <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
-                <button id="search-gasto-btn" class="enabled">Buscar</button>
-            </div>
-            <div id="gastos-search-results" style="margin-top: 20px;"></div>
-        </div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
-    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
-    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
-    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
-    document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
-    document.getElementById('gastos-search-results').addEventListener('click', (e) => {
-        const target = e.target.closest('.dropdown-item'); if (!target) return;
-        const action = target.dataset.action, idUnico = target.dataset.idUnico;
-        if (action === 'edit-gasto') { const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico); if (gasto) renderEditGastoForm(gasto); } 
-        else if (action === 'delete-gasto') { confirmDelete('gasto', idUnico); }
-    });
-}
+// ==================================================
+// --- FIN MÓDULO GASTOS ---
+// ==================================================
 
-async function executeSearchGastos() {
-    const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
-    if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
-    const payload = { Type: 'get_gastos_fecha', chat_ID: chatId, datos: { fecha_start: startDate, fecha_end: endDate } };
-    showSpinner();
-    const resultsContainer = document.getElementById('gastos-search-results');
-    try {
-        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
-        gastosEncontrados = data.gastos || [];
-        if (gastosEncontrados.length > 0) {
-            let listHtml = gastosEncontrados.map(gasto => `
-                <li class="list-item" id="item-${gasto.ID_Unico}">
-                    <div class="list-item-content">
-                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
-                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleDateString('es-ES')}</span>
-                    </div>
-                    <div class="list-item-actions">
-                        <button class="generic-menu-btn" data-menu-id="menu-item-${gasto.ID_Unico}">⋮</button>
-                        <div class="dropdown-menu" id="menu-item-${gasto.ID_Unico}">
-                            <a class="dropdown-item" data-action="edit-gasto" data-id-unico="${gasto.ID_Unico}">Editar</a>
-                            <a class="dropdown-item" data-action="delete-gasto" data-id-unico="${gasto.ID_Unico}">Eliminar</a>
-                        </div>
-                    </div>
-                </li>`).join('');
-            resultsContainer.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
-        } else { resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`; }
-    } catch (err) { showToast(err.message, true); resultsContainer.innerHTML = ''; } finally { hideSpinner(); }
-}
-
-function renderEditGastoForm(gasto) {
-    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
-    const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
-    mainContent.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
-            <div class="form-card">
-                <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
-                <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
-                <label>Categoría</label> <select id="gasto-categoria" required>${categoriasOptions}</select>
-                <label>Subcategoría</label> <select id="gasto-subcategoria" required>${subcategoriasOptions}</select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
-                <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
-            </div>
-        </div>`;
-    document.querySelector('.back-btn').onclick = renderSearchGastosForm;
-    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
-    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria');
-    categoriaSelect.onchange = () => {
-        const selectedCategory = categoriaSelect.value;
-        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
-        if (selectedCategory && categoriasGastos[selectedCategory]) {
-            const newSubOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += newSubOptions; subcategoriaSelect.disabled = false;
-        } else { subcategoriaSelect.disabled = true; }
-    };
-    document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
-}
-
-async function saveEditedGasto(idUnico) {
-    const originalGasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
-    if (!originalGasto) { showToast('Error: No se encontró el gasto original.', true); return; }
-
-    const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
-    const originalImporte = parseFloat(originalGasto.Importe);
-    const diferencia = nuevoImporte - originalImporte;
-    
-    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
-    const nuevosGastosTotal = gastosActualesNum + diferencia;
-    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
-    const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
-    
-    renderDashboard();
-    
-    try {
-        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
-        showToast('Gasto actualizado');
-    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
-}
 
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
