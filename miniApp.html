@@ -106,6 +106,12 @@
     .notification-row .event-reminder-unit { flex: 2 1 auto; min-width: 90px; }
     .notification-row .remove-notification-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 0 5px; flex-shrink: 0; line-height: 1; }
     .notification-row select, .notification-row input { margin-top: 0 !important; width: auto; }
+	#image-preview-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+	#image-preview-element { max-width: 90%; max-height: 70%; object-fit: contain; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+	#image-preview-actions { display: flex; gap: 20px; margin-top: 20px; width: 100%; max-width: 400px; }
+	#image-preview-actions button { flex: 1; padding: 15px; font-size: 1.2rem; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; }
+	#preview-send-btn { background-color: var(--action-bg); color: var(--action-text); }
+	#preview-cancel-btn { background-color: var(--delete-bg); color: var(--delete-text); }
   </style>
 </head>
 <body>
@@ -113,7 +119,14 @@
   <div id="main"></div>
   <div class="tabs"> <div class="tab active" id="tab-home">Home</div> </div>
   <div id="toast" class="toast"></div>
-  
+    <!-- Contenedor para la vista previa de la imagen -->
+  <div id="image-preview-overlay" style="display: none;">
+    <img id="image-preview-element" src="" alt="Vista previa del ticket" />
+    <div id="image-preview-actions">
+        <button id="preview-cancel-btn">Cancelar</button>
+        <button id="preview-send-btn">Enviar</button>
+    </div>
+  </div>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
 // ==================================================
@@ -123,6 +136,8 @@ const tg = window.Telegram?.WebApp;
 if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
 
 const webhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
+const makeWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
+let selectedImageFile = null;
 let chatId = tg?.initDataUnsafe?.user?.id;
 if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
@@ -937,21 +952,170 @@ async function executeSearchCalendar() {
 }
 
 // ==================================================
-// --- MÓDULO: GASTOS ---
+// --- MÓDULO: GASTOS (CON ESCÁNER) ---
 // ==================================================
 let gastosEncontrados = [];
-let pieChartInstance = null;
-let dailyChartInstance = null;
-let monthlyChartInstance = null;
+let pieChartInstance = null, dailyChartInstance = null, monthlyChartInstance = null;
 
 const categoriasGastos = {
-    "🏠 Gastos del hogar": ["Alquiler o hipoteca", "Servicios (agua, luz, gas, electricidad)", "Internet y teléfono", "Mantenimiento y reparaciones", "Mobiliario y electrodomésticos"],
-    "🧾 Gastos personales": ["Alimentación y supermercado", "Ropa y calzado", "Salud (seguros, medicamentos, Farmacia, consultas)", "Educación y formación", "Cuidado personal (peluquería, cosmética)"],
-    "🚗 Transporte": ["Combustible", "Transporte público", "Seguro del vehículo", "Mantenimiento y reparaciones", "Estacionamiento y peajes"],
-    "🍽 Entretenimiento y ocio": ["Restaurantes y cafés", "Cine, teatro, conciertos", "Suscripciones (Netflix, Spotify, etc.)", "Vacaciones y viajes", "Actividades deportivas o hobbies"],
-    "💼 Finanzas y seguros": ["Préstamos o créditos", "Ahorros e inversiones", "Seguros (vida, hogar, salud, etc.)", "Impuestos y tasas"],
-    "🎁 Otros": ["Regalos y celebraciones", "Donaciones o caridad", "Mascotas (comida, veterinario, etc.)"]
+    "🏠 Gastos del hogar": ["🔑 Alquiler o hipoteca", "💡 Servicios (agua, luz, gas, electricidad)", "🌐 Internet y teléfono", "🔧 Mantenimiento y reparaciones", "🛋️ Mobiliario y electrodomésticos"],
+    "🧾 Gastos personales": ["🛒 Alimentación y supermercado", "👕 Ropa y calzado", "💊 Salud (seguros, medicamentos, Farmacia, consultas)", "🎓 Educación y formación", "💈 Cuidado personal (peluquería, cosmética)"],
+    "🚗 Transporte": ["⛽ Combustible", "🚌 Transporte público", "🛡️ Seguro del vehículo", "🛠️ Mantenimiento y reparaciones", "🅿️ Estacionamiento y peajes"],
+    "🍽️ Entretenimiento y ocio": ["☕ Restaurantes y cafés", "🎭 Cine, teatro, conciertos", "📺 Suscripciones (Netflix, Spotify, etc.)", "✈️ Vacaciones y viajes", "⚽ Actividades deportivas o hobbies"],
+    "💼 Finanzas y seguros": ["💳 Préstamos o créditos", "📈 Ahorros e inversiones", "📄 Seguros (vida, hogar, salud, etc.)", "💸 Impuestos y tasas"],
+    "🎁 Otros": ["🎉 Regalos y celebraciones", "❤️ Donaciones o caridad", "🐾 Mascotas (comida, veterinario, etc.)"]
 };
+
+// --- NUEVA FUNCIÓN PARA INICIAR EL ESCANEO ---
+function renderScanTicketView() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        selectedImageFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('image-preview-element').src = e.target.result;
+            document.getElementById('image-preview-overlay').style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+    };
+
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    document.body.removeChild(fileInput);
+}
+
+// --- NUEVA FUNCIÓN PARA ENVIAR LA IMAGEN A MAKE ---
+async function handleImageScan() {
+    if (!selectedImageFile) {
+        showToast('No se ha seleccionado ninguna imagen.', true);
+        return;
+    }
+
+    document.getElementById('image-preview-overlay').style.display = 'none';
+    showSpinner();
+
+    const formData = new FormData();
+    formData.append('file', selectedImageFile, selectedImageFile.name);
+
+    try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 60000); // 60 segundos de timeout para IA
+        const response = await fetch(makeWebhookUrl, {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal
+        });
+        clearTimeout(id);
+
+        if (!response.ok) { throw new Error(`Error del servidor de Make: ${response.status}`); }
+        
+        const resultText = await response.text();
+        const resultJson = JSON.parse(resultText);
+
+        if(resultJson.tipo && resultJson.tipo.toUpperCase() === 'GASTO') {
+            renderAddGastoForm(resultJson);
+        } else {
+            throw new Error(resultJson.datos.motivo || 'El ticket no parece ser un gasto válido.');
+        }
+
+    } catch (error) {
+        console.error('Error al escanear el ticket:', error);
+        showToast(`Error al procesar: ${error.message}`, true);
+    } finally {
+        hideSpinner();
+        selectedImageFile = null;
+    }
+}
+
+// --- AÑADIR EVENT LISTENERS A LOS BOTONES DE VISTA PREVIA ---
+document.getElementById('preview-cancel-btn').onclick = () => {
+    document.getElementById('image-preview-overlay').style.display = 'none';
+    selectedImageFile = null;
+};
+document.getElementById('preview-send-btn').onclick = handleImageScan;
+
+
+// --- FUNCIÓN MODIFICADA PARA ACEPTAR DATOS INICIALES ---
+function renderAddGastoForm(initialData = null) {
+    const data = initialData ? initialData.datos : {};
+    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
+    
+    mainContent.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
+            <div class="form-card">
+                <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" value="${data.importe_total || ''}" required />
+                <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" value="${data.establecimiento || ''}" required />
+                <label>Categoría</label>
+                <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
+                <label>Subcategoría</label>
+                <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona una subcategoría --</option></select>
+                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <button id="save-gasto-btn" disabled>Registrar Gasto</button>
+            </div>
+        </div>`;
+    
+    document.querySelector('.back-btn').onclick = renderDashboard;
+    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria'), saveBtn = document.getElementById('save-gasto-btn');
+    const elementsToValidate = [ document.getElementById('gasto-importe'), document.getElementById('gasto-establecimiento'), document.getElementById('gasto-fecha'), categoriaSelect, subcategoriaSelect ];
+
+    function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
+    
+    let defaultDate = new Date();
+    if(data.fecha) {
+        const parts = data.fecha.split(' ')[0].split('/');
+        if(parts.length === 3) defaultDate = new Date(parts[2], parts[1] - 1, parts[0]);
+    }
+    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
+
+    elementsToValidate.forEach(el => el.oninput = validateGastoForm);
+    categoriaSelect.onchange = () => {
+        const selectedCategory = categoriaSelect.value;
+        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
+        if (selectedCategory && categoriasGastos[selectedCategory]) {
+            const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}" ${data.subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
+            subcategoriaSelect.innerHTML += subcategoriasOptions;
+            subcategoriaSelect.disabled = false;
+        } else { subcategoriaSelect.disabled = true; }
+        validateGastoForm();
+    };
+    saveBtn.onclick = saveGasto;
+
+    if (initialData) {
+        categoriaSelect.dispatchEvent(new Event('change'));
+        if(data.subcategoria) { subcategoriaSelect.value = data.subcategoria; }
+    }
+    validateGastoForm();
+}
+
+
+async function saveGasto() {
+    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+    const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
+    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
+    const payload = { Type: 'add_gasto', chat_ID: chatId, datos: { Importe: importe, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto, ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}` } };
+    
+    const hoy = new Date(), mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2), anioActual = hoy.getFullYear();
+    if (mesAnioTexto === `${mesActual}/${anioActual}`) {
+        const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
+        const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
+        const nuevosGastos = gastosActualesNum + importe;
+        appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    renderDashboard();
+    
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
+        showToast('Gasto añadido con éxito');
+    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
+}
 
 function renderGastoChart() {
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
@@ -1052,65 +1216,6 @@ async function fetchAndDisplayGastoChart(event) {
       });
     }
   } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
-}
-
-function renderAddGastoForm() {
-    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}">${cat}</option>`).join('');
-    mainContent.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
-            <div class="form-card">
-                <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" required />
-                <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" required />
-                <label>Categoría</label>
-                <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
-                <label>Subcategoría</label>
-                <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona primero una categoría --</option></select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
-                <button id="save-gasto-btn" disabled>Registrar Gasto</button>
-            </div>
-        </div>`;
-    
-    document.querySelector('.back-btn').onclick = renderDashboard;
-    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria'), saveBtn = document.getElementById('save-gasto-btn');
-    const elementsToValidate = [ document.getElementById('gasto-importe'), document.getElementById('gasto-establecimiento'), document.getElementById('gasto-fecha'), categoriaSelect, subcategoriaSelect ];
-
-    function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
-    flatpickr("#gasto-fecha", { defaultDate: new Date(), dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
-    elementsToValidate.forEach(el => el.oninput = validateGastoForm);
-    categoriaSelect.onchange = () => {
-        const selectedCategory = categoriaSelect.value;
-        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
-        if (selectedCategory && categoriasGastos[selectedCategory]) {
-            const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += subcategoriasOptions;
-            subcategoriaSelect.disabled = false;
-        } else { subcategoriaSelect.disabled = true; }
-        validateGastoForm();
-    };
-    saveBtn.onclick = saveGasto;
-    validateGastoForm();
-}
-
-async function saveGasto() {
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-    const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
-    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
-    const payload = { Type: 'add_gasto', chat_ID: chatId, datos: { Importe: importe, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto, ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}` } };
-    
-    const hoy = new Date(), mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2), anioActual = hoy.getFullYear();
-    if (mesAnioTexto === `${mesActual}/${anioActual}`) {
-        const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
-        const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
-        const nuevosGastos = gastosActualesNum + importe;
-        appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    renderDashboard();
-    
-    try {
-        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
-        showToast('Gasto añadido con éxito');
-    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
 }
 
 function renderSearchGastosForm() {
@@ -1231,7 +1336,7 @@ function renderDashboard() {
       <div class="card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
-      <div class="card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+	  <div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div>
     </div>`;
   
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
@@ -1242,6 +1347,7 @@ function renderDashboard() {
   document.getElementById('list-notes-link').onclick = renderNotesList;
   document.getElementById('add-event-link').onclick = renderEventForm;
   document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
+  document.getElementById('scan-gasto-link').onclick = renderScanTicketView;
   document.getElementById('add-gasto-link').onclick = renderAddGastoForm;
   document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
