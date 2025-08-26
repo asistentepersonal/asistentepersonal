@@ -29,7 +29,7 @@
     .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
     .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
     .dropdown-menu.show { display: block; }
-    .dropdown-item { padding: 12px 20px; color: var(--text); background-color: var(--menu-bg, #fff); cursor: pointer; display: block; text-align: left; }
+	.dropdown-item { padding: 12px 20px; color: var(--text) !important; background-color: var(--card-bg, #fff) !important; cursor: pointer; display: block; text-align: left; }
     .dropdown-item:hover { background-color: var(--bg); }
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
     .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
@@ -1160,6 +1160,7 @@ async function saveGasto() {
     const anio = fechaGastoObj.getFullYear();
     const mesAnioTexto = `${mes}/${anio}`;
 
+    // 1. Lógica optimista: Actualizar el contador localmente
     const hoy = new Date();
     const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
     const anioActual = hoy.getFullYear();
@@ -1170,8 +1171,11 @@ async function saveGasto() {
         appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     
+    // 2. Actualizar la UI inmediatamente
     renderDashboard();
-    
+    showToast('Gasto registrado. Guardando...');
+
+    // 3. Preparar y enviar los datos al backend en segundo plano
     const payload = {
         Type: 'add_gasto',
         chat_ID: chatId,
@@ -1189,113 +1193,16 @@ async function saveGasto() {
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast('Gasto añadido con éxito');
+        if (data.error) {
+            // Si hay un error, revertimos y notificamos
+            showToast(`Error del servidor: ${data.error}`, true);
+            initializeAppContent(); // Re-sincronizar para corregir el estado
+        }
     } catch (err) {
-        showToast(`Error: ${err.message}. Restaurando...`, true);
-        initializeAppContent();
+        // Si hay un error de red, revertimos y notificamos
+        showToast(`Error de red: ${err.message}. Reintentando...`, true);
+        initializeAppContent(); // Re-sincronizar para corregir el estado
     }
-}
-
-function renderGastoChart() {
-  const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
-  mainContent.innerHTML = `
-    <div class="list-container">
-      <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
-      <div class="form-card">
-        <label>Detalle por Mes</label>
-        <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
-        <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
-        <ul class="gasto-legend" id="gasto-legend-container"></ul>
-        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
-        <div class="gasto-chart-container" id="chart-container-daily" style="display:none;"><canvas id="dailyChartCanvas"></canvas></div>
-        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
-        <div class="gasto-chart-container" id="chart-container-monthly" style="display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
-      </div>
-    </div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
-  document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
-}
-
-async function fetchAndDisplayGastoChart(event) {
-  const mesAnio = event.target.value;
-  if (pieChartInstance) pieChartInstance.destroy();
-  if (dailyChartInstance) dailyChartInstance.destroy();
-  if (monthlyChartInstance) monthlyChartInstance.destroy();
-  document.getElementById('gasto-legend-container').innerHTML = '';
-  ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
-  if (!mesAnio) return;
-  
-  showSpinner();
-  try {
-    const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
-    const res = await fetchWithTimeout(webhookURL, payload);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    
-    Chart.register(ChartDataLabels);
-    const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-
-    if (data.pieData && data.pieData.data.length > 0) {
-      document.getElementById('chart-container-pie').style.display = 'block';
-      const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
-      pieChartInstance = new Chart(pieCtx, {
-        type: 'pie',
-        data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
-        options: {
-          responsive: true, maintainAspectRatio: true,
-          plugins: {
-            title: { display: true, text: data.tituloPie, font: { size: 18 } },
-            legend: { display: false },
-            datalabels: {
-              formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); return (value / total * 100).toFixed(0) + '%'; },
-              color: '#fff', font: { weight: 'bold', size: 16 }
-            }
-          }
-        }
-      });
-      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join('');
-    }
-
-    if (data.dailyData && data.dailyData.data.length > 0) {
-      document.getElementById('hr1').style.display = 'block';
-      document.getElementById('chart-container-daily').style.display = 'block';
-      const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
-      dailyChartInstance = new Chart(dailyCtx, {
-        type: 'line',
-        data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
-        options: { responsive: true, maintainAspectRatio: true, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
-      });
-    }
-
-    if (data.monthlyData && data.monthlyData.data.length > 1) {
-      document.getElementById('hr2').style.display = 'block';
-      document.getElementById('chart-container-monthly').style.display = 'block';
-      const monthlyDataPoints = data.monthlyData.data.map((y, x) => ({ x, y }));
-      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-      monthlyDataPoints.forEach(p => { sumX += p.x; sumY += p.y; sumXY += p.x * p.y; sumX2 += p.x * p.x; });
-      const n = monthlyDataPoints.length;
-      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-      const intercept = (sumY - slope * sumX) / n;
-      const trendlineData = monthlyDataPoints.map(p => slope * p.x + intercept);
-      const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
-      monthlyChartInstance = new Chart(monthlyCtx, {
-        type: 'bar',
-        data: {
-          labels: data.monthlyData.labels,
-          datasets: [
-            { label: 'Gasto Mensual', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
-            { label: 'Tendencia', data: trendlineData, type: 'line', borderColor: '#FF6384', fill: false, pointRadius: 0, yAxisID: 'y1' }
-          ]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: true,
-          plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } },
-          scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
-        }
-      });
-    }
-  } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
 }
 
 function renderSearchGastosForm() {
