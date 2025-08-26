@@ -965,7 +965,7 @@ async function executeSearchCalendar() {
 }
 
 // ==================================================
-// --- INICIO MÓDULO GASTOS (CORREGIDO) ---
+// --- MÓDULO: GASTOS (CON ESCÁNER) ---
 // ==================================================
 let gastosEncontrados = [];
 let pieChartInstance = null, dailyChartInstance = null, monthlyChartInstance = null;
@@ -979,6 +979,7 @@ const categoriasGastos = {
     "🎁 Otros": ["🎉 Regalos y celebraciones", "❤️ Donaciones o caridad", "🐾 Mascotas (comida, veterinario, etc.)"]
 };
 
+// --- NUEVA FUNCIÓN PARA MOSTRAR INSTRUCCIONES ---
 function renderInstructionScreen() {
     mainContent.innerHTML = `
         <div class="list-container">
@@ -998,6 +999,7 @@ function renderInstructionScreen() {
     document.getElementById('select-photo-btn').onclick = renderScanTicketView;
 }
 
+// --- NUEVA FUNCIÓN PARA INICIAR EL ESCANEO ---
 function renderScanTicketView() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -1023,6 +1025,7 @@ function renderScanTicketView() {
     document.body.removeChild(fileInput);
 }
 
+// --- NUEVA FUNCIÓN PARA ENVIAR LA IMAGEN A MAKE ---
 async function handleImageScan() {
     if (!selectedImageFile) {
         showToast('No se ha seleccionado ninguna imagen.', true);
@@ -1037,7 +1040,7 @@ async function handleImageScan() {
 
     try {
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 60000);
+        const id = setTimeout(() => controller.abort(), 60000); // 60 segundos de timeout para IA
         const response = await fetch(makeWebhookUrl, {
             method: 'POST',
             body: formData,
@@ -1065,12 +1068,15 @@ async function handleImageScan() {
     }
 }
 
+// --- AÑADIR EVENT LISTENERS A LOS BOTONES DE VISTA PREVIA ---
 document.getElementById('preview-cancel-btn').onclick = () => {
     document.getElementById('image-preview-overlay').style.display = 'none';
     selectedImageFile = null;
 };
 document.getElementById('preview-send-btn').onclick = handleImageScan;
 
+
+// --- FUNCIÓN MODIFICADA PARA ACEPTAR DATOS INICIALES ---
 function renderAddGastoForm(initialData = null) {
     const data = initialData ? initialData.datos : {};
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
@@ -1079,7 +1085,7 @@ function renderAddGastoForm(initialData = null) {
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
             <div class="form-card">
-                <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" value="${(data.importe_total || '').toString().replace(',', '.')}" required />
+                <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" value="${data.importe_total || ''}" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" value="${data.establecimiento || ''}" required />
                 <label>Categoría</label>
                 <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
@@ -1096,14 +1102,35 @@ function renderAddGastoForm(initialData = null) {
 
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     
-    let defaultDate = new Date();
+let defaultDate = new Date();
+    let enableTime = false;
+    let dateFormat = "Y-m-d";
+
     if(data.fecha) {
-        const dateParts = data.fecha.split(' ')[0].split('/');
+        const dateTimeParts = data.fecha.split(' ');
+        const dateParts = dateTimeParts[0].split('/');
         if(dateParts.length === 3) {
-            defaultDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+            const year = parseInt(dateParts[2], 10);
+            const month = parseInt(dateParts[1], 10) - 1;
+            const day = parseInt(dateParts[0], 10);
+            
+            if(dateTimeParts.length > 1) {
+                const timeParts = dateTimeParts[1].split(':');
+                if(timeParts.length >= 2) {
+                    const hours = parseInt(timeParts[0], 10);
+                    const minutes = parseInt(timeParts[1], 10);
+                    defaultDate = new Date(year, month, day, hours, minutes);
+                    enableTime = true;
+                    dateFormat = "Y-m-d H:i";
+                } else {
+                   defaultDate = new Date(year, month, day);
+                }
+            } else {
+                defaultDate = new Date(year, month, day);
+            }
         }
     }
-    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: "Y-m-d", locale: "es", onChange: validateGastoForm });
+    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: dateFormat, enableTime: enableTime, locale: "es", onChange: validateGastoForm });
 
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
     categoriaSelect.onchange = () => {
@@ -1118,7 +1145,7 @@ function renderAddGastoForm(initialData = null) {
     };
     saveBtn.onclick = saveGasto;
 
-    if (data.categoria) {
+    if (initialData) {
         categoriaSelect.dispatchEvent(new Event('change'));
         if(data.subcategoria) { subcategoriaSelect.value = data.subcategoria; }
     }
@@ -1127,62 +1154,52 @@ function renderAddGastoForm(initialData = null) {
 
 
 async function saveGasto() {
-    // 1. Validar y recolectar datos de forma segura
-    const importeStr = document.getElementById('gasto-importe').value;
-    const importeNum = parseFloat(importeStr.replace(',', '.'));
-    if (isNaN(importeNum) || importeNum <= 0) {
-        showToast('Por favor, introduce un importe válido.', true);
-        return;
-    }
-
-    const fechaPicker = document.getElementById('gasto-fecha')._flatpickr;
-    if (!fechaPicker || fechaPicker.selectedDates.length === 0) {
-        showToast('Por favor, selecciona una fecha válida.', true);
-        return;
-    }
-    const fechaGastoObj = fechaPicker.selectedDates[0];
-
-    // 2. Preparar datos adicionales
+    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+    const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
     const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
     const anio = fechaGastoObj.getFullYear();
     const mesAnioTexto = `${mes}/${anio}`;
 
-    // 3. Lógica optimista: Actualizar el contador localmente
+    // 1. Lógica optimista: Actualizar el contador localmente
     const hoy = new Date();
     const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
     const anioActual = hoy.getFullYear();
     if (mesAnioTexto === `${mesActual}/${anioActual}`) {
         const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
         const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
-        const nuevosGastos = gastosActualesNum + importeNum;
+        const nuevosGastos = gastosActualesNum + importe;
         appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     
-    // 4. Actualizar la UI inmediatamente y mostrar un toast inicial
+    // 2. Actualizar la UI inmediatamente y mostrar un toast inicial
     renderDashboard();
     showToast('Gasto registrado. Guardando...');
 
-    // 5. Preparar y enviar los datos al backend en segundo plano
+    // 3. Preparar y enviar los datos al backend en segundo plano
     const payload = {
         Type: 'add_gasto',
         chat_ID: chatId,
         datos: {
-            Importe: importeNum,
+            Importe: importe,
             Establecimiento: document.getElementById('gasto-establecimiento').value,
             categoria: document.getElementById('gasto-categoria').value,
             sub_categoria: document.getElementById('gasto-subcategoria').value,
             Fecha: fechaGastoObj.toISOString(),
             mesAnio: mesAnioTexto,
-            ID_Unico: `G-${Math.random().toString(36).substring(2, 9).toUpperCase()}`
+            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
         }
     };
     
+    // <<< INICIO DE LA MODIFICACIÓN PARA DEPURACIÓN >>>
+    console.log('Payload de Gasto a enviar:', JSON.stringify(payload, null, 2));
+    // <<< FIN DE LA MODIFICACIÓN PARA DEPURACIÓN >>>
+
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) {
             showToast(`Error del servidor: ${data.error}`, true);
-            initializeAppContent(); 
+            initializeAppContent();
         }
     } catch (err) {
         showToast(`Error de red: ${err.message}.`, true);
@@ -1398,11 +1415,6 @@ async function saveEditedGasto(idUnico) {
 }
 
 // ==================================================
-// --- FIN MÓDULO GASTOS ---
-// ==================================================
-
-
-// ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
 function renderDashboard() {
@@ -1426,7 +1438,7 @@ function renderDashboard() {
   document.getElementById('add-event-link').onclick = renderEventForm;
   document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
-  document.getElementById('add-gasto-link').onclick = renderAddGastoForm;
+  document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm(); // CORRECCIÓN: Llamada a la función correcta.
   document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
   document.getElementById('tab-home').onclick = renderDashboard;
