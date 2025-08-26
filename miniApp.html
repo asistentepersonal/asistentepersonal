@@ -1171,7 +1171,7 @@ async function saveGasto() {
         appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     
-    // 2. Actualizar la UI inmediatamente
+    // 2. Actualizar la UI inmediatamente y mostrar un toast inicial
     renderDashboard();
     showToast('Gasto registrado. Guardando...');
 
@@ -1194,13 +1194,13 @@ async function saveGasto() {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) {
-            // Si hay un error, revertimos y notificamos
+            // Si hay un error del servidor, lo mostramos y revertimos
             showToast(`Error del servidor: ${data.error}`, true);
             initializeAppContent(); // Re-sincronizar para corregir el estado
         }
     } catch (err) {
-        // Si hay un error de red, revertimos y notificamos
-        showToast(`Error de red: ${err.message}. Reintentando...`, true);
+        // Si hay un error de red, lo mostramos y revertimos
+        showToast(`Error de red: ${err.message}.`, true);
         initializeAppContent(); // Re-sincronizar para corregir el estado
     }
 }
