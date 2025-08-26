@@ -212,24 +212,34 @@ async function fetchWithTimeout(resource, payloadObject) {
         }
     };
 
-    iframe.onload = () => {
-      try {
-        const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-        const responseText = iframeDocument.body.innerHTML;
-        const cleanText = responseText.replace(/<pre[^>]*>/, '').replace(/<\/pre>/, '');
-        const jsonResponse = JSON.parse(cleanText);
-        
-        const fetchResponse = {
-          ok: true,
-          json: () => Promise.resolve(jsonResponse)
-        };
-        resolve(fetchResponse);
-      } catch (error) {
-        reject(new Error('Error al procesar la respuesta del servidor.'));
-      } finally {
-        cleanup();
-      }
+iframe.onload = () => {
+  let responseText = '';
+  try {
+    const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+    responseText = iframeDocument.body.innerHTML;
+
+    // --- LÍNEA DE DEPURACIÓN ---
+    console.log('Respuesta CRUDA recibida del servidor:', responseText);
+    // -------------------------
+
+    const cleanText = responseText.replace(/<pre[^>]*>/, '').replace(/<\/pre>/, '');
+    const jsonResponse = JSON.parse(cleanText);
+    
+    const fetchResponse = {
+      ok: true,
+      json: () => Promise.resolve(jsonResponse)
     };
+    resolve(fetchResponse);
+  } catch (error) {
+    // --- DEPURACIÓN MEJORADA ---
+    showToast('Error al procesar JSON. Revisa la consola.', true);
+    console.error('El JSON.parse falló. Respuesta recibida:', responseText);
+    reject(new Error('Error al procesar la respuesta del servidor.'));
+    // -------------------------
+  } finally {
+    cleanup();
+  }
+};
 
     iframe.onerror = () => {
       reject(new Error('Error de red al contactar con el servidor.'));
