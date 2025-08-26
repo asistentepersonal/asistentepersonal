@@ -119,6 +119,12 @@
 	.scan-instruction-screen .add-article-btn { max-width: 100%; }
 	.dropdown-item { background-color: var(--menu-bg, #fff); }
 	.form-card textarea, .form-card input, .form-card select { background-color: var(--card-bg, #fff); color: var(--text, #333); border: 1px solid var(--muted, #ddd); }
+	.dropdown-menu {
+    background-color: var(--card-bg, #fff);
+}
+.dropdown-item:hover {
+    background-color: var(--bg, #f5f7fa);
+}
   </style>
 </head>
 <body>
@@ -1160,6 +1166,13 @@ async function saveGasto() {
         const nuevosGastos = gastosActualesNum + importe;
         appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+	const hoy = new Date(), mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2), anioActual = hoy.getFullYear();
+	if (mesAnioTexto === `${mesActual}/${anioActual}`) {
+		const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
+		const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
+		const nuevosGastos = gastosActualesNum + importe;
+		appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
     renderDashboard();
     
     try {
