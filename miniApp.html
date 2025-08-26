@@ -360,6 +360,29 @@ async function executeDelete(type, id) {
 }
 
 // ==================================================
+// --- INICIO DE LA CORRECCIÓN ---
+// ==================================================
+async function initializeAppContent() {
+    showSpinner();
+    try {
+        const payload = { Type: 'get_initial_data', chat_ID: chatId };
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) { throw new Error(data.error); }
+        appData = data;
+        renderDashboard();
+    } catch (err) {
+        showToast(`Error al cargar datos: ${err.message}`, true);
+        mainContent.innerHTML = `<div class="no-data-msg">❌<br>No se pudieron cargar los datos iniciales.</div>`;
+    } finally {
+        hideSpinner();
+    }
+}
+// ==================================================
+// --- FIN DE LA CORRECCIÓN ---
+// ==================================================
+
+// ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
 function renderReminderForm() {
@@ -1503,7 +1526,7 @@ function renderDashboard() {
   document.getElementById('tab-home').onclick = renderDashboard;
 }
 
-initializeAppContent(); // <-- ESTA LÍNEA SE MUEVE HACIA ARRIBA
+initializeAppContent();
 
 }); // <-- ESTA ES LA LLAVE DE CIERRE DEL DOMContentLoaded
   </script>
