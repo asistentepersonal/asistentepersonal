@@ -1205,6 +1205,213 @@ async function saveGasto() {
     }
 }
 
+function renderGastoChart() {
+  const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+  mainContent.innerHTML = `
+    <div class="list-container">
+      <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
+      <div class="form-card">
+        <label>Detalle por Mes</label>
+        <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
+        <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
+        <ul class="gasto-legend" id="gasto-legend-container"></ul>
+        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
+        <div class="gasto-chart-container" id="chart-container-daily" style="display:none;"><canvas id="dailyChartCanvas"></canvas></div>
+        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
+        <div class="gasto-chart-container" id="chart-container-monthly" style="display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
+      </div>
+    </div>`;
+  document.querySelector('.back-btn').onclick = renderDashboard;
+  document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
+}
+
+async function fetchAndDisplayGastoChart(event) {
+  const mesAnio = event.target.value;
+  if (pieChartInstance) pieChartInstance.destroy();
+  if (dailyChartInstance) dailyChartInstance.destroy();
+  if (monthlyChartInstance) monthlyChartInstance.destroy();
+  document.getElementById('gasto-legend-container').innerHTML = '';
+  ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
+  if (!mesAnio) return;
+  
+  showSpinner();
+  try {
+    const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
+    const res = await fetchWithTimeout(webhookURL, payload);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    Chart.register(ChartDataLabels);
+    const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+
+    if (data.pieData && data.pieData.data.length > 0) {
+      document.getElementById('chart-container-pie').style.display = 'block';
+      const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
+      pieChartInstance = new Chart(pieCtx, {
+        type: 'pie',
+        data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          plugins: {
+            title: { display: true, text: data.tituloPie, font: { size: 18 } },
+            legend: { display: false },
+            datalabels: {
+              formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); return (value / total * 100).toFixed(0) + '%'; },
+              color: '#fff', font: { weight: 'bold', size: 16 }
+            }
+          }
+        }
+      });
+      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join('');
+    }
+
+    if (data.dailyData && data.dailyData.data.length > 0) {
+      document.getElementById('hr1').style.display = 'block';
+      document.getElementById('chart-container-daily').style.display = 'block';
+      const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
+      dailyChartInstance = new Chart(dailyCtx, {
+        type: 'line',
+        data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
+        options: { responsive: true, maintainAspectRatio: true, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
+      });
+    }
+
+    if (data.monthlyData && data.monthlyData.data.length > 1) {
+      document.getElementById('hr2').style.display = 'block';
+      document.getElementById('chart-container-monthly').style.display = 'block';
+      const monthlyDataPoints = data.monthlyData.data.map((y, x) => ({ x, y }));
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      monthlyDataPoints.forEach(p => { sumX += p.x; sumY += p.y; sumXY += p.x * p.y; sumX2 += p.x * p.x; });
+      const n = monthlyDataPoints.length;
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+      const trendlineData = monthlyDataPoints.map(p => slope * p.x + intercept);
+      const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
+      monthlyChartInstance = new Chart(monthlyCtx, {
+        type: 'bar',
+        data: {
+          labels: data.monthlyData.labels,
+          datasets: [
+            { label: 'Gasto Mensual', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
+            { label: 'Tendencia', data: trendlineData, type: 'line', borderColor: '#FF6384', fill: false, pointRadius: 0, yAxisID: 'y1' }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } },
+          scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
+        }
+      });
+    }
+  } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+}
+
+function renderSearchGastosForm() {
+    mainContent.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar Gastos</h2></div>
+            <div class="form-card">
+                <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
+                <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
+                <button id="search-gasto-btn" class="enabled">Buscar</button>
+            </div>
+            <div id="gastos-search-results" style="margin-top: 20px;"></div>
+        </div>`;
+    document.querySelector('.back-btn').onclick = renderDashboard;
+    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
+    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
+    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
+    document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
+    document.getElementById('gastos-search-results').addEventListener('click', (e) => {
+        const target = e.target.closest('.dropdown-item'); if (!target) return;
+        const action = target.dataset.action, idUnico = target.dataset.idUnico;
+        if (action === 'edit-gasto') { const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico); if (gasto) renderEditGastoForm(gasto); } 
+        else if (action === 'delete-gasto') { confirmDelete('gasto', idUnico); }
+    });
+}
+
+async function executeSearchGastos() {
+    const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
+    if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
+    const payload = { Type: 'get_gastos_fecha', chat_ID: chatId, datos: { fecha_start: startDate, fecha_end: endDate } };
+    showSpinner();
+    const resultsContainer = document.getElementById('gastos-search-results');
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
+        gastosEncontrados = data.gastos || [];
+        if (gastosEncontrados.length > 0) {
+            let listHtml = gastosEncontrados.map(gasto => `
+                <li class="list-item" id="item-${gasto.ID_Unico}">
+                    <div class="list-item-content">
+                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
+                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleDateString('es-ES')}</span>
+                    </div>
+                    <div class="list-item-actions">
+                        <button class="generic-menu-btn" data-menu-id="menu-item-${gasto.ID_Unico}">⋮</button>
+                        <div class="dropdown-menu" id="menu-item-${gasto.ID_Unico}">
+                            <a class="dropdown-item" data-action="edit-gasto" data-id-unico="${gasto.ID_Unico}">Editar</a>
+                            <a class="dropdown-item" data-action="delete-gasto" data-id-unico="${gasto.ID_Unico}">Eliminar</a>
+                        </div>
+                    </div>
+                </li>`).join('');
+            resultsContainer.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
+        } else { resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`; }
+    } catch (err) { showToast(err.message, true); resultsContainer.innerHTML = ''; } finally { hideSpinner(); }
+}
+
+function renderEditGastoForm(gasto) {
+    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
+    const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
+    mainContent.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
+            <div class="form-card">
+                <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
+                <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
+                <label>Categoría</label> <select id="gasto-categoria" required>${categoriasOptions}</select>
+                <label>Subcategoría</label> <select id="gasto-subcategoria" required>${subcategoriasOptions}</select>
+                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
+            </div>
+        </div>`;
+    document.querySelector('.back-btn').onclick = renderSearchGastosForm;
+    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
+    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria');
+    categoriaSelect.onchange = () => {
+        const selectedCategory = categoriaSelect.value;
+        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
+        if (selectedCategory && categoriasGastos[selectedCategory]) {
+            const newSubOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
+            subcategoriaSelect.innerHTML += newSubOptions; subcategoriaSelect.disabled = false;
+        } else { subcategoriaSelect.disabled = true; }
+    };
+    document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
+}
+
+async function saveEditedGasto(idUnico) {
+    const originalGasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
+    if (!originalGasto) { showToast('Error: No se encontró el gasto original.', true); return; }
+
+    const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
+    const originalImporte = parseFloat(originalGasto.Importe);
+    const diferencia = nuevoImporte - originalImporte;
+    
+    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
+    const nuevosGastosTotal = gastosActualesNum + diferencia;
+    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
+    const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
+    
+    renderDashboard();
+    
+    try {
+        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
+        showToast('Gasto actualizado');
+    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
+}
+
 function renderSearchGastosForm() {
     mainContent.innerHTML = `
         <div class="list-container">
