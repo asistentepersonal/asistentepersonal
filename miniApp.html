@@ -112,6 +112,13 @@
 	#image-preview-actions button { flex: 1; padding: 15px; font-size: 1.2rem; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; }
 	#preview-send-btn { background-color: var(--action-bg); color: var(--action-text); }
 	#preview-cancel-btn { background-color: var(--delete-bg); color: var(--delete-text); }
+	.scan-instruction-screen { text-align: center; padding: 40px 20px; display: flex; flex-direction: column; justify-content: center; height: 100vh; }
+	.scan-instruction-screen h2 { font-size: 1.6rem; margin-bottom: 20px; }
+	.scan-instruction-screen ol { text-align: left; margin: 0 auto 30px auto; max-width: 300px; }
+	.scan-instruction-screen li { margin-bottom: 10px; line-height: 1.5; }
+	.scan-instruction-screen .add-article-btn { max-width: 100%; }
+	.dropdown-item { background-color: var(--menu-bg, #fff); }
+	.form-card textarea, .form-card input, .form-card select { background-color: var(--card-bg, #fff); color: var(--text, #333); border: 1px solid var(--muted, #ddd); }
   </style>
 </head>
 <body>
@@ -966,6 +973,26 @@ const categoriasGastos = {
     "🎁 Otros": ["🎉 Regalos y celebraciones", "❤️ Donaciones o caridad", "🐾 Mascotas (comida, veterinario, etc.)"]
 };
 
+// --- NUEVA FUNCIÓN PARA MOSTRAR INSTRUCCIONES ---
+function renderInstructionScreen() {
+    mainContent.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><button class="back-btn">‹</button></div>
+            <div class="scan-instruction-screen">
+                <h2>Escanear un Ticket de Gasto</h2>
+                <ol>
+                    <li>Primero, <strong>saca una foto nítida</strong> de tu ticket con la cámara de tu móvil.</li>
+                    <li>Asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
+                    <li>Luego, <strong>pulsa el botón de abajo</strong> para seleccionarla de tu galería.</li>
+                </ol>
+                <button class="add-article-btn" id="select-photo-btn">Seleccionar Foto de la Galería</button>
+            </div>
+        </div>`;
+    
+    document.querySelector('.back-btn').onclick = renderDashboard;
+    document.getElementById('select-photo-btn').onclick = renderScanTicketView;
+}
+
 // --- NUEVA FUNCIÓN PARA INICIAR EL ESCANEO ---
 function renderScanTicketView() {
     const fileInput = document.createElement('input');
@@ -1371,7 +1398,7 @@ function renderDashboard() {
   document.getElementById('list-notes-link').onclick = renderNotesList;
   document.getElementById('add-event-link').onclick = renderEventForm;
   document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
-  document.getElementById('scan-gasto-link').onclick = renderScanTicketView;
+  document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
   document.getElementById('add-gasto-link').onclick = renderAddGastoForm;
   document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
