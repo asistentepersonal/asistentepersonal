@@ -234,7 +234,7 @@ iframe.onload = () => {
     // --- DEPURACIÓN MEJORADA ---
     showToast('Error al procesar JSON. Revisa la consola.', true);
     console.error('El JSON.parse falló. Respuesta recibida:', responseText);
-    reject(new Error('Error al procesar la respuesta del servidor.'));
+    reject(new Error('Respuesta del servidor no es JSON. Contenido recibido: ' + responseText));
     // -------------------------
   } finally {
     cleanup();
@@ -383,7 +383,7 @@ async function initializeAppContent() {
         renderDashboard();
     } catch (err) {
         showToast(`Error al cargar datos: ${err.message}`, true);
-        mainContent.innerHTML = `<div class="no-data-msg">❌<br>No se pudieron cargar los datos iniciales.</div>`;
+        mainContent.innerHTML = `<div class="no-data-msg" style="padding: 15px; text-align: left;">❌ <b>Error Detallado:</b><div style="font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; background: #eee; padding: 10px; border-radius: 5px; margin-top: 10px; color: #333;">${err.message}</div></div>`;
     } finally {
         hideSpinner();
     }
