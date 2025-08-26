@@ -365,7 +365,7 @@ async function executeDelete(type, id) {
 async function initializeAppContent() {
     showSpinner();
     try {
-        const payload = { Type: 'get_initial_data', chat_ID: chatId };
+        const payload = { Type: 'get_full_dashboard', chat_ID: chatId };
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) { throw new Error(data.error); }
