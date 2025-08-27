@@ -138,7 +138,10 @@
     #export-confirm-btn {
     cursor: pointer;
     opacity: 1;
-}
+    .form-card button.force-enabled {
+    cursor: pointer !important;
+    opacity: 1 !important;
+} 
   </style>
   </head>
 <body>
@@ -168,7 +171,7 @@
         <input type="text" id="export-end-date" required />
         <div class="button-group">
             <button id="export-cancel-btn" class="cancel">Cancelar</button>
-            <button id="export-confirm-btn" class="enabled">Exportar</button>
+            <button id="export-confirm-btn" class="force-enabled">Exportar</button>
         </div>
     </div>
   </div>
