@@ -1,4 +1,3 @@
-html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -134,8 +133,10 @@ html
     .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
     input:checked + .slider { background-color: var(--primary); }
     input:checked + .slider:before { transform: translateX(22px); }
+    #export-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1500; }
+    #export-modal { background: var(--card-bg); padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; }
   </style>
-</head>
+  </head>
 <body>
   <div id="spinner" class="spinner"></div>
   <div id="main-content-area">
@@ -153,8 +154,21 @@ html
         <button id="preview-send-btn">Enviar</button>
     </div>
   </div>
-
-  <script>
+  <div id="export-modal-overlay">
+    <div id="export-modal" class="form-card">
+        <h3>Exportar Gastos</h3>
+        <p style="font-size:0.9rem; color:var(--muted); margin:10px 0;">Selecciona el rango de fechas para la exportación. Recibirás el archivo en tu email.</p>
+        <label>Fecha de Inicio</label>
+        <input type="text" id="export-start-date" required />
+        <label>Fecha de Fin</label>
+        <input type="text" id="export-end-date" required />
+        <div class="button-group">
+            <button id="export-cancel-btn" class="cancel">Cancelar</button>
+            <button id="export-confirm-btn">Exportar</button>
+        </div>
+    </div>
+  </div>
+    <script>
     document.addEventListener('DOMContentLoaded', () => {
     
 // ==================================================
@@ -319,10 +333,6 @@ async function executeDelete(type, id) {
     }
 }
 
-// ==================================================
-// --- MÓDULOS EXISTENTES ---
-// ==================================================
-// ... (Aquí van todas las funciones desde renderReminderForm hasta saveEditedGasto)
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
@@ -1058,8 +1068,8 @@ function renderAddGastoForm(initialData = null) {
     const elementsToValidate = [ document.getElementById('gasto-importe'), document.getElementById('gasto-establecimiento'), document.getElementById('gasto-fecha'), categoriaSelect, subcategoriaSelect ];
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     let defaultDate = new Date();
-    let enableTime = false;
-    let dateFormat = "Y-m-d";
+    let enableTime = true; // CAMBIO: Habilitar siempre la hora
+    let dateFormat = "Y-m-d H:i"; // CAMBIO: Usar siempre formato con hora
     if(data.fecha) {
         const dateTimeParts = data.fecha.split(' ');
         const dateParts = dateTimeParts[0].split('/');
@@ -1073,8 +1083,6 @@ function renderAddGastoForm(initialData = null) {
                     const hours = parseInt(timeParts[0], 10);
                     const minutes = parseInt(timeParts[1], 10);
                     defaultDate = new Date(year, month, day, hours, minutes);
-                    enableTime = true;
-                    dateFormat = "Y-m-d H:i";
                 } else {
                    defaultDate = new Date(year, month, day);
                 }
@@ -1181,7 +1189,6 @@ async function saveGasto() {
         initializeApp(); 
     }
 }
-
 function renderGastoChart() {
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
   mainContentArea.innerHTML = `
@@ -1385,7 +1392,6 @@ async function saveEditedGasto(idUnico) {
 function renderSettings() {
     setActiveTab('tab-settings');
     initialUserSettings = JSON.parse(JSON.stringify(appData.settings || {}));
-    
     mainContentArea.innerHTML = `
         <div class="settings-container">
             <h2 class="settings-section-title">👤 Perfil y Apariencia</h2>
@@ -1394,6 +1400,10 @@ function renderSettings() {
                 <input type="text" id="settings-nombre" placeholder="Tu nombre" />
                 <label>Email (para Calendario)</label>
                 <input type="email" id="settings-email" placeholder="tu@email.com" />
+                <label>Ciudad</label>
+                <input type="text" id="settings-ciudad" placeholder="Ej: Barcelona" />
+                <label>País</label>
+                <input type="text" id="settings-pais" placeholder="Ej: España" />
                  <div class="settings-item">
                     <span class="settings-item-label">Tema de la App</span>
                     <div class="settings-item-control">
@@ -1454,6 +1464,7 @@ function renderSettings() {
              <h2 class="settings-section-title">💾 Gestión de Datos</h2>
              <div class="form-card">
                  <button id="settings-sync-btn" class="add-article-btn" style="width:100%; max-width:100%; margin-bottom:10px;">Corregir Contadores</button>
+                 <button id="settings-export-btn" class="add-article-btn" style="width:100%; max-width:100%;">Exportar mis Gastos</button>
              </div>
              
              <div class="form-card" style="margin-top: 20px;">
@@ -1467,6 +1478,8 @@ function renderSettings() {
 
     document.getElementById('settings-nombre').value = appData.settings['Nombre'] || '';
     document.getElementById('settings-email').value = appData.settings['Email'] || '';
+    document.getElementById('settings-ciudad').value = appData.settings['Ciudad'] || '';
+    document.getElementById('settings-pais').value = appData.settings['Pais'] || '';
     document.getElementById('settings-theme').value = appData.settings['Tema'] || 'auto';
     document.getElementById('settings-informe-manana-activo').checked = (appData.settings['Informe_Mañana_Activo'] === 'SI');
     document.getElementById('settings-franja-manana').value = appData.settings['Franja_Informe_Mañana'] || '2';
@@ -1474,7 +1487,7 @@ function renderSettings() {
     document.getElementById('settings-franja-tarde').value = appData.settings['Franja_Informe_Tarde'] || '20';
     document.getElementById('settings-alerta-inventario').checked = (appData.settings['Alerta_Inventario'] === 'SI');
     
-    const controls = document.querySelectorAll('#settings-nombre, #settings-email, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-alerta-inventario');
+    const controls = document.querySelectorAll('#settings-nombre, #settings-email, #settings-ciudad, #settings-pais, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-alerta-inventario');
     controls.forEach(control => {
         control.addEventListener('input', validateSettings);
         control.addEventListener('change', validateSettings);
@@ -1483,21 +1496,24 @@ function renderSettings() {
     document.getElementById('settings-save-btn').onclick = saveSettings;
     document.getElementById('settings-cancel-btn').onclick = renderDashboard;
     document.getElementById('settings-sync-btn').onclick = syncCounts;
+    document.getElementById('settings-export-btn').onclick = showExportModal;
+    document.getElementById('export-cancel-btn').onclick = hideExportModal;
+    document.getElementById('export-confirm-btn').onclick = executeExport;
 }
 
 function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     let hasChanged = false;
-
     if (document.getElementById('settings-nombre').value !== (initialUserSettings['Nombre'] || '')) hasChanged = true;
     if (document.getElementById('settings-email').value !== (initialUserSettings['Email'] || '')) hasChanged = true;
+    if (document.getElementById('settings-ciudad').value !== (initialUserSettings['Ciudad'] || '')) hasChanged = true;
+    if (document.getElementById('settings-pais').value !== (initialUserSettings['Pais'] || '')) hasChanged = true;
     if (document.getElementById('settings-theme').value !== (initialUserSettings['Tema'] || 'auto')) hasChanged = true;
     if (document.getElementById('settings-informe-manana-activo').checked !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) hasChanged = true;
     if (document.getElementById('settings-franja-manana').value != (initialUserSettings['Franja_Informe_Mañana'] || '2')) hasChanged = true;
     if (document.getElementById('settings-informe-tarde-activo').checked !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) hasChanged = true;
     if (document.getElementById('settings-franja-tarde').value != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true;
     if (document.getElementById('settings-alerta-inventario').checked !== (initialUserSettings['Alerta_Inventario'] === 'SI')) hasChanged = true;
-
     saveBtn.disabled = !hasChanged;
     saveBtn.classList.toggle('enabled', hasChanged);
 }
@@ -1505,50 +1521,31 @@ function validateSettings() {
 async function saveSettings() {
     showSpinner();
     const settingsToUpdate = {};
-    
-    const newName = document.getElementById('settings-nombre').value;
-    if (newName !== (initialUserSettings['Nombre'] || '')) settingsToUpdate['Nombre'] = newName;
-
-    const newEmail = document.getElementById('settings-email').value;
-    if (newEmail !== (initialUserSettings['Email'] || '')) settingsToUpdate['Email'] = newEmail;
-    
-    const newTheme = document.getElementById('settings-theme').value;
-    if (newTheme !== (initialUserSettings['Tema'] || 'auto')) settingsToUpdate['Tema'] = newTheme;
-
-    const newMananaActivo = document.getElementById('settings-informe-manana-activo').checked;
-    if (newMananaActivo !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) settingsToUpdate['Informe_Mañana_Activo'] = newMananaActivo ? 'SI' : 'NO';
-
-    const newFranjaManana = document.getElementById('settings-franja-manana').value;
-    if (newFranjaManana != (initialUserSettings['Franja_Informe_Mañana'] || '2')) settingsToUpdate['Franja_Informe_Mañana'] = newFranjaManana;
-
-    const newTardeActivo = document.getElementById('settings-informe-tarde-activo').checked;
-    if (newTardeActivo !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) settingsToUpdate['Informe_Tarde_Activo'] = newTardeActivo ? 'SI' : 'NO';
-
-    const newFranjaTarde = document.getElementById('settings-franja-tarde').value;
-    if (newFranjaTarde != (initialUserSettings['Franja_Informe_Tarde'] || '20')) settingsToUpdate['Franja_Informe_Tarde'] = newFranjaTarde;
-
-    const newAlerta = document.getElementById('settings-alerta-inventario').checked;
-    if (newAlerta !== (initialUserSettings['Alerta_Inventario'] === 'SI')) settingsToUpdate['Alerta_Inventario'] = newAlerta ? 'SI' : 'NO';
-
+    const newName = document.getElementById('settings-nombre').value; if (newName !== (initialUserSettings['Nombre'] || '')) settingsToUpdate['Nombre'] = newName;
+    const newEmail = document.getElementById('settings-email').value; if (newEmail !== (initialUserSettings['Email'] || '')) settingsToUpdate['Email'] = newEmail;
+    const newCiudad = document.getElementById('settings-ciudad').value; if (newCiudad !== (initialUserSettings['Ciudad'] || '')) settingsToUpdate['Ciudad'] = newCiudad;
+    const newPais = document.getElementById('settings-pais').value; if (newPais !== (initialUserSettings['Pais'] || '')) settingsToUpdate['Pais'] = newPais;
+    const newTheme = document.getElementById('settings-theme').value; if (newTheme !== (initialUserSettings['Tema'] || 'auto')) settingsToUpdate['Tema'] = newTheme;
+    const newMananaActivo = document.getElementById('settings-informe-manana-activo').checked; if (newMananaActivo !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) settingsToUpdate['Informe_Mañana_Activo'] = newMananaActivo ? 'SI' : 'NO';
+    const newFranjaManana = document.getElementById('settings-franja-manana').value; if (newFranjaManana != (initialUserSettings['Franja_Informe_Mañana'] || '2')) settingsToUpdate['Franja_Informe_Mañana'] = newFranjaManana;
+    const newTardeActivo = document.getElementById('settings-informe-tarde-activo').checked; if (newTardeActivo !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) settingsToUpdate['Informe_Tarde_Activo'] = newTardeActivo ? 'SI' : 'NO';
+    const newFranjaTarde = document.getElementById('settings-franja-tarde').value; if (newFranjaTarde != (initialUserSettings['Franja_Informe_Tarde'] || '20')) settingsToUpdate['Franja_Informe_Tarde'] = newFranjaTarde;
+    const newAlerta = document.getElementById('settings-alerta-inventario').checked; if (newAlerta !== (initialUserSettings['Alerta_Inventario'] === 'SI')) settingsToUpdate['Alerta_Inventario'] = newAlerta ? 'SI' : 'NO';
     if (Object.keys(settingsToUpdate).length === 0) {
         hideSpinner();
         showToast("No hay cambios para guardar.");
         return;
     }
-    
     try {
         const payload = { Type: 'save_user_settings', chat_ID: chatId, settings: settingsToUpdate };
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        
         Object.assign(appData.settings, settingsToUpdate);
         initialUserSettings = JSON.parse(JSON.stringify(appData.settings));
-        
         showToast("Ajustes guardados con éxito.");
         document.getElementById('settings-save-btn').disabled = true;
         document.getElementById('settings-save-btn').classList.remove('enabled');
-
     } catch (err) {
         showToast(`Error al guardar: ${err.message}`, true);
     } finally {
@@ -1562,7 +1559,6 @@ async function syncCounts() {
         const res = await fetchWithTimeout(webhookURL, { Type: 'resync_counts', chat_ID: chatId });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-
         if (data.success && data.counts) {
             Object.assign(appData.counts, data.counts);
             showToast("Contadores resincronizados con éxito.");
@@ -1574,6 +1570,23 @@ async function syncCounts() {
     } finally {
         hideSpinner();
     }
+}
+
+function showExportModal() {
+    document.getElementById('export-modal-overlay').style.display = 'flex';
+    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
+    flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
+    flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
+}
+
+function hideExportModal() {
+    document.getElementById('export-modal-overlay').style.display = 'none';
+}
+
+async function executeExport() {
+    // Esta función se conectará al backend en el futuro
+    showToast("Función de exportación aún no implementada en el backend.");
+    hideExportModal();
 }
 
 // ==================================================
