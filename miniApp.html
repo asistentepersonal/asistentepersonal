@@ -977,7 +977,6 @@ const categoriasGastos = {
     "🎁 Otros": ["🎉 Regalos y celebraciones", "❤️ Donaciones o caridad", "🐾 Mascotas (comida, veterinario, etc.)"]
 };
 
-// --- NUEVA FUNCIÓN PARA MOSTRAR INSTRUCCIONES ---
 function renderInstructionScreen() {
     mainContent.innerHTML = `
         <div class="list-container">
@@ -997,7 +996,6 @@ function renderInstructionScreen() {
     document.getElementById('select-photo-btn').onclick = renderScanTicketView;
 }
 
-// --- NUEVA FUNCIÓN PARA INICIAR EL ESCANEO ---
 function renderScanTicketView() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -1023,7 +1021,6 @@ function renderScanTicketView() {
     document.body.removeChild(fileInput);
 }
 
-// --- NUEVA FUNCIÓN PARA ENVIAR LA IMAGEN A MAKE ---
 async function handleImageScan() {
     if (!selectedImageFile) {
         showToast('No se ha seleccionado ninguna imagen.', true);
@@ -1038,7 +1035,7 @@ async function handleImageScan() {
 
     try {
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 60000); // 60 segundos de timeout para IA
+        const id = setTimeout(() => controller.abort(), 60000);
         const response = await fetch(makeWebhookUrl, {
             method: 'POST',
             body: formData,
@@ -1066,15 +1063,12 @@ async function handleImageScan() {
     }
 }
 
-// --- AÑADIR EVENT LISTENERS A LOS BOTONES DE VISTA PREVIA ---
 document.getElementById('preview-cancel-btn').onclick = () => {
     document.getElementById('image-preview-overlay').style.display = 'none';
     selectedImageFile = null;
 };
 document.getElementById('preview-send-btn').onclick = handleImageScan;
 
-
-// --- FUNCIÓN MODIFICADA PARA ACEPTAR DATOS INICIALES ---
 function renderAddGastoForm(initialData = null) {
     const data = initialData ? initialData.datos : {};
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
@@ -1100,7 +1094,7 @@ function renderAddGastoForm(initialData = null) {
 
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     
-let defaultDate = new Date();
+    let defaultDate = new Date();
     let enableTime = false;
     let dateFormat = "Y-m-d";
 
@@ -1150,56 +1144,83 @@ let defaultDate = new Date();
     validateGastoForm();
 }
 
-
 async function saveGasto() {
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-    const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
-    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
-    const anio = fechaGastoObj.getFullYear();
-    const mesAnioTexto = `${mes}/${anio}`;
+    console.log("--- Iniciando saveGasto() ---");
 
-    // 1. Lógica optimista: Actualizar el contador localmente
-    const hoy = new Date();
-    const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
-    const anioActual = hoy.getFullYear();
-    if (mesAnioTexto === `${mesActual}/${anioActual}`) {
-        const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
-        const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
-        const nuevosGastos = gastosActualesNum + importe;
-        appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    
-    // 2. Actualizar la UI inmediatamente y mostrar un toast inicial
-    renderDashboard();
-    showToast('Gasto registrado. Guardando...');
-
-    // 3. Preparar y enviar los datos al backend en segundo plano
-    const payload = {
-        Type: 'add_gasto',
-        chat_ID: chatId,
-        datos: {
-            Importe: importe,
-            Establecimiento: document.getElementById('gasto-establecimiento').value,
-            categoria: document.getElementById('gasto-categoria').value,
-            sub_categoria: document.getElementById('gasto-subcategoria').value,
-            Fecha: fechaGastoObj.toISOString(),
-            mesAnio: mesAnioTexto,
-            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-        }
-    };
-    
     try {
+        const fechaEl = document.getElementById('gasto-fecha');
+        console.log("Elemento Fecha:", fechaEl);
+        const fechaGastoObj = fechaEl._flatpickr.selectedDates[0];
+        console.log("Fecha leída:", fechaGastoObj);
+
+        const importeEl = document.getElementById('gasto-importe');
+        console.log("Elemento Importe:", importeEl);
+        const importe = parseFloat(importeEl.value.replace(',', '.'));
+        console.log("Valor Importe:", importe);
+
+        const establecimientoEl = document.getElementById('gasto-establecimiento');
+        console.log("Elemento Establecimiento:", establecimientoEl);
+        const establecimiento = establecimientoEl.value;
+        console.log("Valor Establecimiento:", establecimiento);
+        
+        const categoriaEl = document.getElementById('gasto-categoria');
+        console.log("Elemento Categoría:", categoriaEl);
+        const categoria = categoriaEl.value;
+        console.log("Valor Categoría:", categoria);
+
+        const subcategoriaEl = document.getElementById('gasto-subcategoria');
+        console.log("Elemento Subcategoría:", subcategoriaEl);
+        const subcategoria = subcategoriaEl.value;
+        console.log("Valor Subcategoría:", subcategoria);
+
+        const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
+        const anio = fechaGastoObj.getFullYear();
+        const mesAnioTexto = `${mes}/${anio}`;
+        console.log("Mes/Año calculado:", mesAnioTexto);
+        
+        console.log("Construyendo el objeto de datos (payload)...");
+        const payload = {
+            Type: 'add_gasto',
+            chat_ID: chatId,
+            datos: {
+                Importe: importe,
+                Establecimiento: establecimiento,
+                categoria: categoria,
+                sub_categoria: subcategoria,
+                Fecha: fechaGastoObj.toISOString(),
+                mesAnio: mesAnioTexto,
+                ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+            }
+        };
+        console.log("Payload final listo para enviar:", payload);
+
+        const hoy = new Date();
+        const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
+        const anioActual = hoy.getFullYear();
+        if (mesAnioTexto === `${mesActual}/${anioActual}`) {
+            const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
+            const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
+            const nuevosGastos = gastosActualesNum + importe;
+            appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            console.log("Contador de gastos del mes actualizado localmente a:", appData.counts.gastosMesActual);
+        }
+        
+        renderDashboard();
+        showToast('Gasto registrado. Guardando...');
+        
+        console.log("Enviando datos al backend...");
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
+        console.log("Respuesta del backend recibida:", data);
+
         if (data.error) {
-            // Si hay un error del servidor, lo mostramos y revertimos
             showToast(`Error del servidor: ${data.error}`, true);
-            initializeAppContent(); // Re-sincronizar para corregir el estado
+            initializeAppContent(); 
         }
     } catch (err) {
-        // Si hay un error de red, lo mostramos y revertimos
-        showToast(`Error de red: ${err.message}.`, true);
-        initializeAppContent(); // Re-sincronizar para corregir el estado
+        console.error("--- ERROR CATASTRÓFICO en saveGasto() ---", err);
+        showToast(`Error de red o de código: ${err.message}.`, true);
+        initializeAppContent(); 
     }
 }
 
