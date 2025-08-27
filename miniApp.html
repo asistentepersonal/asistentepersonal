@@ -162,39 +162,101 @@ function showSpinner() { spinner.style.display = 'block'; }
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
 
+// =================================================================================
+// --- INICIO DE LA MODIFICACIÓN: fetchWithTimeout ---
+// =================================================================================
 async function fetchWithTimeout(resource, payloadObject) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 30000);
-  const formData = new FormData();
-  formData.append("postData", JSON.stringify(payloadObject));
-  try {
-    const response = await fetch(resource, { method: 'POST', body: formData, signal: controller.signal });
-    clearTimeout(id);
-    if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
-    return response;
-  } catch (error) {
-    clearTimeout(id);
-    if (error.name === 'AbortError') throw new Error('La solicitud tardó demasiado.');
-    throw error;
-  }
-}
+  return new Promise((resolve, reject) => {
+    const controller = {
+        signal: { onabort: null },
+        abort: function() {
+            if (this.signal.onabort) {
+                this.signal.onabort();
+            }
+        }
+    };
 
-async function initializeAppContent() { 
-  showSpinner(); 
-  try { 
-    const res = await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
-    const data = await res.json(); 
-    if (data.error) throw new Error(data.error); 
-    appData = data; 
-    renderDashboard(); 
-  } catch (err) { 
-    console.error('Error en carga inicial:', err); 
-    showToast(`Error al cargar datos: ${err.message}`, true); 
-    mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; 
-  } finally { 
-    hideSpinner(); 
-  } 
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      reject(new Error('La solicitud tardó demasiado.'));
+    }, 30000);
+
+    const iframe = document.createElement('iframe');
+    const iframeName = 'hidden_iframe_' + Date.now();
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const form = document.createElement('form');
+    form.target = iframeName;
+    form.action = resource;
+    form.method = 'POST';
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'postData';
+    input.value = JSON.stringify(payloadObject);
+    form.appendChild(input);
+
+    document.body.appendChild(form);
+
+    const cleanup = () => {
+        clearTimeout(timeoutId);
+        iframe.onload = null;
+        iframe.onerror = null;
+        if (iframe.parentNode === document.body) {
+            document.body.removeChild(iframe);
+        }
+        if (form.parentNode === document.body) {
+            document.body.removeChild(form);
+        }
+    };
+
+iframe.onload = () => {
+  let responseText = '';
+  try {
+    const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+    responseText = iframeDocument.body.innerHTML;
+
+    // --- LÍNEA DE DEPURACIÓN ---
+    console.log('Respuesta CRUDA recibida del servidor:', responseText);
+    // -------------------------
+
+    const cleanText = responseText.replace(/<pre[^>]*>/, '').replace(/<\/pre>/, '');
+    const jsonResponse = JSON.parse(cleanText);
+    
+    const fetchResponse = {
+      ok: true,
+      json: () => Promise.resolve(jsonResponse)
+    };
+    resolve(fetchResponse);
+  } catch (error) {
+    // --- DEPURACIÓN MEJORADA ---
+    showToast('Error al procesar JSON. Revisa la consola.', true);
+    console.error('El JSON.parse falló. Respuesta recibida:', responseText);
+    reject(new Error('Respuesta del servidor no es JSON. Contenido recibido: ' + responseText));
+    // -------------------------
+  } finally {
+    cleanup();
+  }
+};
+
+    iframe.onerror = () => {
+      reject(new Error('Error de red al contactar con el servidor.'));
+      cleanup();
+    };
+    
+    controller.signal.onabort = () => {
+        iframe.src = 'about:blank';
+        cleanup();
+    };
+
+    form.submit();
+  });
 }
+// =================================================================================
+// --- FIN DE LA MODIFICACIÓN ---
+// =================================================================================
 
 function setActiveTab(activeTabId) { 
   document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); 
@@ -306,6 +368,29 @@ async function executeDelete(type, id) {
         initializeAppContent();
     }
 }
+
+// ==================================================
+// --- INICIO DE LA CORRECCIÓN ---
+// ==================================================
+async function initializeAppContent() {
+    showSpinner();
+    try {
+        const payload = { Type: 'get_full_dashboard', chat_ID: chatId };
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) { throw new Error(data.error); }
+        appData = data;
+        renderDashboard();
+    } catch (err) {
+        showToast(`Error al cargar datos: ${err.message}`, true);
+        mainContent.innerHTML = `<div class="no-data-msg" style="padding: 15px; text-align: left;">❌ <b>Error Detallado:</b><div style="font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; background: #eee; padding: 10px; border-radius: 5px; margin-top: 10px; color: #333;">${err.message}</div></div>`;
+    } finally {
+        hideSpinner();
+    }
+}
+// ==================================================
+// --- FIN DE LA CORRECCIÓN ---
+// ==================================================
 
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
@@ -551,7 +636,8 @@ function renderAddArticleForm() {
   document.querySelector('.back-btn').onclick = renderShoppingList;
   const sendBtn = document.getElementById('add-article-send-btn');
   const descriptionInput = document.getElementById('article-description');
-  descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
+  descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''
+sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
   sendBtn.onclick = addArticle;
 }
 
@@ -1076,7 +1162,6 @@ document.getElementById('preview-cancel-btn').onclick = () => {
 document.getElementById('preview-send-btn').onclick = handleImageScan;
 
 
-// --- FUNCIÓN MODIFICADA PARA ACEPTAR DATOS INICIALES ---
 function renderAddGastoForm(initialData = null) {
     const data = initialData ? initialData.datos : {};
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
@@ -1091,7 +1176,7 @@ function renderAddGastoForm(initialData = null) {
                 <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
                 <label>Subcategoría</label>
                 <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona una subcategoría --</option></select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <label>Fecha y Hora</label> <input type="text" id="gasto-fecha" required />
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
@@ -1102,9 +1187,9 @@ function renderAddGastoForm(initialData = null) {
 
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     
-let defaultDate = new Date();
-    let enableTime = false;
-    let dateFormat = "Y-m-d";
+	let defaultDate = new Date();
+    let enableTime = true;
+    let dateFormat = "Y-m-d H:i";
 
     if(data.fecha) {
         const dateTimeParts = data.fecha.split(' ');
@@ -1120,8 +1205,6 @@ let defaultDate = new Date();
                     const hours = parseInt(timeParts[0], 10);
                     const minutes = parseInt(timeParts[1], 10);
                     defaultDate = new Date(year, month, day, hours, minutes);
-                    enableTime = true;
-                    dateFormat = "Y-m-d H:i";
                 } else {
                    defaultDate = new Date(year, month, day);
                 }
@@ -1130,7 +1213,7 @@ let defaultDate = new Date();
             }
         }
     }
-    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: dateFormat, enableTime: enableTime, locale: "es", onChange: validateGastoForm });
+    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: dateFormat, enableTime: enableTime, time_24hr: true, locale: "es", onChange: validateGastoForm });
 
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
     categoriaSelect.onchange = () => {
@@ -1154,13 +1237,37 @@ let defaultDate = new Date();
 
 
 async function saveGasto() {
+    // --- INICIO DE LA CORRECCIÓN DE SECUENCIA ---
+    // 1. LEER TODOS LOS DATOS DEL FORMULARIO ANTES DE CAMBIAR LA PANTALLA
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
     const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
+    const establecimiento = document.getElementById('gasto-establecimiento').value;
+    const categoria = document.getElementById('gasto-categoria').value;
+    const sub_categoria = document.getElementById('gasto-subcategoria').value;
+
     const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
     const anio = fechaGastoObj.getFullYear();
     const mesAnioTexto = `${mes}/${anio}`;
 
-    // 1. Lógica optimista: Actualizar el contador localmente
+    // 2. PREPARAR EL PAQUETE DE DATOS (PAYLOAD)
+    const payload = {
+        Type: 'add_gasto',
+        chat_ID: chatId,
+        datos: {
+            Importe: importe,
+            Establecimiento: establecimiento,
+            categoria: categoria,
+            sub_categoria: sub_categoria,
+            Fecha: fechaGastoObj.toISOString(),
+            mesAnio: mesAnioTexto,
+            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+        }
+    };
+    
+    // Log para depuración
+    console.log('Payload de Gasto a enviar:', JSON.stringify(payload, null, 2));
+    
+    // 3. ACTUALIZACIÓN OPTIMISTA DE LA UI
     const hoy = new Date();
     const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
     const anioActual = hoy.getFullYear();
@@ -1171,37 +1278,21 @@ async function saveGasto() {
         appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     
-    // 2. Actualizar la UI inmediatamente y mostrar un toast inicial
+    // 4. RENDERIZAR EL DASHBOARD Y ENVIAR DATOS
     renderDashboard();
     showToast('Gasto registrado. Guardando...');
-
-    // 3. Preparar y enviar los datos al backend en segundo plano
-    const payload = {
-        Type: 'add_gasto',
-        chat_ID: chatId,
-        datos: {
-            Importe: importe,
-            Establecimiento: document.getElementById('gasto-establecimiento').value,
-            categoria: document.getElementById('gasto-categoria').value,
-            sub_categoria: document.getElementById('gasto-subcategoria').value,
-            Fecha: fechaGastoObj.toISOString(),
-            mesAnio: mesAnioTexto,
-            ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-        }
-    };
+    // --- FIN DE LA CORRECCIÓN DE SECUENCIA ---
     
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
         if (data.error) {
-            // Si hay un error del servidor, lo mostramos y revertimos
             showToast(`Error del servidor: ${data.error}`, true);
-            initializeAppContent(); // Re-sincronizar para corregir el estado
+            initializeAppContent();
         }
     } catch (err) {
-        // Si hay un error de red, lo mostramos y revertimos
         showToast(`Error de red: ${err.message}.`, true);
-        initializeAppContent(); // Re-sincronizar para corregir el estado
+        initializeAppContent();
     }
 }
 
@@ -1344,7 +1435,7 @@ async function executeSearchGastos() {
                 <li class="list-item" id="item-${gasto.ID_Unico}">
                     <div class="list-item-content">
                         <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
-                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleDateString('es-ES')}</span>
+                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${gasto.Fecha}</span>
                     </div>
                     <div class="list-item-actions">
                         <button class="generic-menu-btn" data-menu-id="menu-item-${gasto.ID_Unico}">⋮</button>
@@ -1375,113 +1466,7 @@ function renderEditGastoForm(gasto) {
             </div>
         </div>`;
     document.querySelector('.back-btn').onclick = renderSearchGastosForm;
-    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
-    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria');
-    categoriaSelect.onchange = () => {
-        const selectedCategory = categoriaSelect.value;
-        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
-        if (selectedCategory && categoriasGastos[selectedCategory]) {
-            const newSubOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += newSubOptions; subcategoriaSelect.disabled = false;
-        } else { subcategoriaSelect.disabled = true; }
-    };
-    document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
-}
-
-async function saveEditedGasto(idUnico) {
-    const originalGasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
-    if (!originalGasto) { showToast('Error: No se encontró el gasto original.', true); return; }
-
-    const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
-    const originalImporte = parseFloat(originalGasto.Importe);
-    const diferencia = nuevoImporte - originalImporte;
-    
-    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
-    const nuevosGastosTotal = gastosActualesNum + diferencia;
-    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
-    const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
-    
-    renderDashboard();
-    
-    try {
-        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
-        showToast('Gasto actualizado');
-    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
-}
-
-function renderSearchGastosForm() {
-    mainContent.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar Gastos</h2></div>
-            <div class="form-card">
-                <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
-                <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
-                <button id="search-gasto-btn" class="enabled">Buscar</button>
-            </div>
-            <div id="gastos-search-results" style="margin-top: 20px;"></div>
-        </div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
-    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
-    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
-    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
-    document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
-    document.getElementById('gastos-search-results').addEventListener('click', (e) => {
-        const target = e.target.closest('.dropdown-item'); if (!target) return;
-        const action = target.dataset.action, idUnico = target.dataset.idUnico;
-        if (action === 'edit-gasto') { const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico); if (gasto) renderEditGastoForm(gasto); } 
-        else if (action === 'delete-gasto') { confirmDelete('gasto', idUnico); }
-    });
-}
-
-async function executeSearchGastos() {
-    const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
-    if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
-    const payload = { Type: 'get_gastos_fecha', chat_ID: chatId, datos: { fecha_start: startDate, fecha_end: endDate } };
-    showSpinner();
-    const resultsContainer = document.getElementById('gastos-search-results');
-    try {
-        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
-        gastosEncontrados = data.gastos || [];
-        if (gastosEncontrados.length > 0) {
-            let listHtml = gastosEncontrados.map(gasto => `
-                <li class="list-item" id="item-${gasto.ID_Unico}">
-                    <div class="list-item-content">
-                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
-                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleDateString('es-ES')}</span>
-                    </div>
-                    <div class="list-item-actions">
-                        <button class="generic-menu-btn" data-menu-id="menu-item-${gasto.ID_Unico}">⋮</button>
-                        <div class="dropdown-menu" id="menu-item-${gasto.ID_Unico}">
-                            <a class="dropdown-item" data-action="edit-gasto" data-id-unico="${gasto.ID_Unico}">Editar</a>
-                            <a class="dropdown-item" data-action="delete-gasto" data-id-unico="${gasto.ID_Unico}">Eliminar</a>
-                        </div>
-                    </div>
-                </li>`).join('');
-            resultsContainer.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
-        } else { resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`; }
-    } catch (err) { showToast(err.message, true); resultsContainer.innerHTML = ''; } finally { hideSpinner(); }
-}
-
-function renderEditGastoForm(gasto) {
-    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
-    const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
-    mainContent.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
-            <div class="form-card">
-                <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
-                <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
-                <label>Categoría</label> <select id="gasto-categoria" required>${categoriasOptions}</select>
-                <label>Subcategoría</label> <select id="gasto-subcategoria" required>${subcategoriasOptions}</select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
-                <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
-            </div>
-        </div>`;
-    document.querySelector('.back-btn').onclick = renderSearchGastosForm;
-    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
+    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d H:i", enableTime: true, time_24hr: true, locale: "es" });
     const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria');
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
@@ -1542,14 +1527,15 @@ function renderDashboard() {
   document.getElementById('add-event-link').onclick = renderEventForm;
   document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
-  document.getElementById('add-gasto-link').onclick = renderAddGastoForm;
+  document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
   document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
   document.getElementById('tab-home').onclick = renderDashboard;
 }
 
 initializeAppContent();
-    });
+
+}); // <-- ESTA ES LA LLAVE DE CIERRE DEL DOMContentLoaded
   </script>
 </body>
 </html>
