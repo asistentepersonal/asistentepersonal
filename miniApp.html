@@ -35,7 +35,7 @@
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
     .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
     .tab.active{color:var(--badge-color);}
-    .form-container, .list-container{max-width:480px;margin:20px auto;padding:10px;}
+    .form-container, .list-container, .settings-container{max-width:480px;margin:20px auto;padding:10px;}
     .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
     .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
     .form-card textarea,.form-card input, .form-card select, .form-card .radio-group{width:100%;margin-top:8px;}
@@ -120,17 +120,30 @@
 	.scan-instruction-screen .add-article-btn { max-width: 100%; }
 	.dropdown-item { background-color: var(--menu-bg, #fff); }
 	.form-card textarea, .form-card input, .form-card select { background-color: var(--card-bg, #fff); color: var(--text, #333); border: 1px solid var(--muted, #ddd); }
-	.dropdown-menu {
-    background-color: var(--card-bg, #fff);
-}
+	.dropdown-menu { background-color: var(--card-bg, #fff); }
+    .settings-section-title { font-size: 1.3rem; font-weight: 600; color: var(--text); margin: 25px 0 15px 0; padding-bottom: 10px; border-bottom: 1px solid #eee; text-align: left;}
+    .settings-section-title:first-of-type { margin-top: 0; }
+    .settings-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
+    .settings-item-label { font-size: 1.1rem; }
+    .settings-item-control .form-card input, .settings-item-control .form-card select { margin-top:0; }
+    .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
+    .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: var(--primary); }
+    input:checked + .slider:before { transform: translateX(22px); }
   </style>
 </head>
 <body>
   <div id="spinner" class="spinner"></div>
-  <div id="main"></div>
-  <div class="tabs"> <div class="tab active" id="tab-home">Home</div> </div>
+  <div id="main-content-area">
+    <!-- El contenido del Dashboard o de Ajustes se renderizará aquí -->
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tab-home">🏠 Home</div>
+    <div class="tab" id="tab-settings">⚙️ Ajustes</div>
+  </div>
   <div id="toast" class="toast"></div>
-    <!-- Contenedor para la vista previa de la imagen -->
   <div id="image-preview-overlay" style="display: none;">
     <img id="image-preview-element" src="" alt="Vista previa del ticket" />
     <div id="image-preview-actions">
@@ -138,8 +151,12 @@
         <button id="preview-send-btn">Enviar</button>
     </div>
   </div>
+
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+    // ... (El resto de tu código JavaScript existente irá aquí, lo añadiremos en el siguiente paso)
+    // Por ahora, solo la estructura principal y la lógica de las pestañas
+    
 // ==================================================
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
@@ -153,7 +170,7 @@ let chatId = tg?.initDataUnsafe?.user?.id;
 if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
 let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [] };
-const mainContent = document.getElementById('main');
+const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
 
 function showSpinner() { spinner.style.display = 'block'; }
@@ -177,7 +194,7 @@ async function fetchWithTimeout(resource, payloadObject) {
   }
 }
 
-async function initializeAppContent() { 
+async function initializeApp() { 
   showSpinner(); 
   try { 
     const res = await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
@@ -188,7 +205,7 @@ async function initializeAppContent() {
   } catch (err) { 
     console.error('Error en carga inicial:', err); 
     showToast(`Error al cargar datos: ${err.message}`, true); 
-    mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeAppContent()">Reintentar</button></div>`; 
+    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`; 
   } finally { 
     hideSpinner(); 
   } 
@@ -233,8 +250,6 @@ async function executeDelete(type, id) {
     let payload = { chat_ID: chatId };
     let successMessage = '';
     let viewToRender = null;
-
-    // --- 1. OPTIMISTIC UI UPDATE ---
     try {
         switch(type) {
             case 'reminder':
@@ -292,8 +307,6 @@ async function executeDelete(type, id) {
         if (viewToRender) viewToRender();
         if (type === 'calendar_event') renderDashboard();
     } catch(e) { showToast('Error local al procesar.', true); return; }
-
-    // --- 2. BACKEND REQUEST ---
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
@@ -301,7 +314,7 @@ async function executeDelete(type, id) {
         showToast(successMessage);
     } catch (err) {
         showToast(`Error: ${err.message}. Restaurando...`, true);
-        initializeAppContent();
+        initializeApp();
     }
 }
 
@@ -309,7 +322,7 @@ async function executeDelete(type, id) {
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
 function renderReminderForm() {
-  mainContent.innerHTML = `
+  mainContentArea.innerHTML = `
     <div class="list-container">
       <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
       <div class="form-card">
@@ -344,13 +357,11 @@ async function saveReminder() {
   const time = document.getElementById('time')._flatpickr.selectedDates[0];
   const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null;
   const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
-  
   appData.counts.remindersCount++;
   const tempId = 'temp-' + Date.now();
   appData.remindersList.unshift({ 'Fecha': new Date().toLocaleString(), 'Descripcion': description, 'Categoria': category, 'tracking_code': tempId });
   renderDashboard();
   showToast('Recordatorio creado');
-
   try { 
     const res = await fetchWithTimeout(webhookURL, payload); 
     const data = await res.json(); 
@@ -361,7 +372,7 @@ async function saveReminder() {
     }
   } catch (err) { 
     showToast(`Error: ${err.message}. No se guardó.`, true); 
-    initializeAppContent();
+    initializeApp();
   }
 }
 
@@ -381,9 +392,8 @@ function renderRemindersList() {
         </div>
       </div>
     </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-  mainContent.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
+  mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
   document.querySelector('.back-btn').onclick = renderDashboard;
-  
   document.getElementById('reminders-list').addEventListener('click', (e) => {
     const target = e.target.closest('.dropdown-item');
     if (!target) return;
@@ -406,7 +416,6 @@ async function editReminderDescription(item) {
     if (itemIndex === -1) return;
     appData.remindersList[itemIndex].Descripcion = newDescription.trim();
     renderRemindersList();
-
     try {
       const payload = { Type: 'edit_reminder_description', chat_ID: chatId, tracking_code: item.tracking_code, new_description: newDescription.trim() };
       const res = await fetchWithTimeout(webhookURL, payload);
@@ -428,7 +437,6 @@ function renderShoppingList() {
   const pendingItems = items.filter(item => item['2'] === 'Pendiente');
   const boughtItems = items.filter(item => item['2'] === 'Comprado');
   let listHtml = '';
-
   const createItemHTML = (item) => {
     const isPending = item['2'] === 'Pendiente';
     if (isPending) {
@@ -461,11 +469,10 @@ function renderShoppingList() {
         </li>`;
     }
   };
-
   if (pendingItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>'; listHtml += pendingItems.map(createItemHTML).join(''); }
   if (boughtItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>'; listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`; listHtml += boughtItems.map(createItemHTML).join(''); }
   if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
-  mainContent.innerHTML = `
+  mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><button class="back-btn">‹</button><h2>Lista de las Compras</h2></div>
           <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
@@ -513,7 +520,7 @@ function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
   renderShoppingList();
   fetchWithTimeout(webhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
       .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
-      .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeAppContent(); });
+      .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
 
 function updateMultiSelectButtonState() {
@@ -533,11 +540,11 @@ function toggleSelectedItemsToPending() {
   renderShoppingList();
   fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes })
     .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
-    .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeAppContent(); });
+    .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
 
 function renderAddArticleForm() {
-  mainContent.innerHTML = `
+  mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><button class="back-btn">‹</button><h2>➕ Añadir Artículo</h2></div>
           <div class="form-card">
@@ -558,22 +565,20 @@ async function addArticle() {
   const cycle = document.getElementById('article-cycle').value || 0;
   if (!description) return;
   const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
-  
   appData.counts.shoppingPendingCount++;
   const tempId = 'temp-' + Date.now();
   appData.shoppingList.unshift({ '1': description, '2': 'Pendiente', '3': tempId, '4': '', '5': cycle });
   renderShoppingList();
   showToast('Artículo añadido');
-
   try {
       const res = await fetchWithTimeout(webhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-  } catch (err) { showToast(`Error: ${err.message}. No se añadió.`, true); initializeAppContent(); }
+  } catch (err) { showToast(`Error: ${err.message}. No se añadió.`, true); initializeApp(); }
 }
 
 function renderEditShoppingItemForm(item) {
-    mainContent.innerHTML = `
+    mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><button class="back-btn">‹</button><h2✏️ Editar Artículo</h2></div>
           <div class="form-card">
@@ -590,16 +595,13 @@ async function saveEditedShoppingItem(trackingCode) {
     const newDescription = document.getElementById('article-description').value.trim();
     const newCycle = document.getElementById('article-cycle').value || 0;
     if (!newDescription) return;
-
     const itemIndex = appData.shoppingList.findIndex(i => i['3'] === trackingCode);
     if (itemIndex === -1) return;
     const originalItem = { ...appData.shoppingList[itemIndex] };
     appData.shoppingList[itemIndex]['1'] = newDescription;
     appData.shoppingList[itemIndex]['5'] = newCycle;
     renderShoppingList();
-
     const payload = { Type: 'edit_shopping_item', chat_ID: chatId, tracking_code: trackingCode, new_description: newDescription, new_cycle: parseInt(newCycle) };
-    
     try {
         const res = await fetchWithTimeout(webhookURL, payload);
         const data = await res.json();
@@ -632,19 +634,16 @@ function renderNotesList() {
                 </div>
             </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
     
-    mainContent.innerHTML = `<div class="list-container">
+    mainContentArea.innerHTML = `<div class="list-container">
                                 <div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div>
                                 <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
                                 <ul class="list-style-none" id="notes-list">${listHtml}</ul>
                              </div>`;
-
     document.querySelector('.back-btn').onclick = renderDashboard;
     document.getElementById('create-new-note-btn').onclick = () => renderNoteForm();
-    
     document.getElementById('notes-list').addEventListener('click', e => {
         const target = e.target.closest('.dropdown-item');
         if (!target) return;
-
         const action = target.dataset.action;
         const noteId = target.dataset.noteId;
         if (action === 'edit-note') {
@@ -658,7 +657,7 @@ function renderNotesList() {
 
 function renderNoteForm(note = null) {
     const isEditing = note !== null;
-    mainContent.innerHTML = `<div class="list-container">
+    mainContentArea.innerHTML = `<div class="list-container">
                                 <div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
                                 <div class="form-card">
                                     <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
@@ -666,18 +665,15 @@ function renderNoteForm(note = null) {
                                     <button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
                                 </div>
                              </div>`;
-
     document.querySelector('.back-btn').onclick = renderNotesList;
     const titleInput = document.getElementById('note-title');
     const descriptionInput = document.getElementById('note-description');
     const saveBtn = document.getElementById('save-note-btn');
-
     function validate() {
         const isEnabled = titleInput.value.trim() !== '' && descriptionInput.value.trim() !== '';
         saveBtn.disabled = !isEnabled;
         saveBtn.classList.toggle('enabled', isEnabled);
     }
-
     titleInput.oninput = validate;
     descriptionInput.oninput = validate;
     saveBtn.onclick = saveNote;
@@ -690,9 +686,7 @@ async function saveNote() {
     const description = document.getElementById('note-description').value.trim();
     const noteId = saveBtn.dataset.noteId;
     const isEditing = !!noteId;
-
     const payload = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', note_id: noteId, title: title, description: description };
-    
     if (isEditing) {
         const itemIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
         if (itemIndex === -1) return;
@@ -701,14 +695,13 @@ async function saveNote() {
         appData.notesList[itemIndex].Descripcion = description;
         renderNotesList();
         showToast('Nota guardada');
-
         try {
             const res = await fetchWithTimeout(webhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
         } catch (err) {
             showToast(`Error: ${err.message}. No se pudo guardar.`, true);
-            appData.notesList[itemIndex] = originalNote; // Revertir
+            appData.notesList[itemIndex] = originalNote;
             renderNotesList();
         }
     } else {
@@ -717,7 +710,6 @@ async function saveNote() {
         appData.notesList.unshift({ Nota_ID: tempId, Titulo: title, Descripcion: description, Fecha: new Date().toLocaleDateString('es-ES') });
         renderNotesList();
         showToast('Nota creada');
-
         try {
             const res = await fetchWithTimeout(webhookURL, payload);
             const data = await res.json();
@@ -728,11 +720,10 @@ async function saveNote() {
             }
         } catch (err) {
             showToast(`Error: ${err.message}. No se pudo crear la nota.`, true);
-            initializeAppContent();
+            initializeApp();
         }
     }
 }
-
 
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
@@ -749,7 +740,6 @@ async function renderCalendarView(eventsToShow = null) {
             events = data;
             appData.calendarEvents = events;
         }
-
         const groupAndRenderEvents = (evs) => {
             if (!evs || evs.length === 0) return '<div class="no-data-msg">🗓️<br>No se encontraron eventos.</div>';
             const eventsByDay = evs.reduce((acc, event) => { 
@@ -786,7 +776,7 @@ async function renderCalendarView(eventsToShow = null) {
             return html;
         };
         let listHtml = groupAndRenderEvents(events);
-        mainContent.innerHTML = `<div class="list-container">
+        mainContentArea.innerHTML = `<div class="list-container">
                                   <div class="list-header"><button class="back-btn">‹</button><h2>Calendario</h2></div>
                                   <div class="add-article-btn-container">
                                     <button class="add-article-btn" id="add-event-btn">Añadir Evento</button>
@@ -797,7 +787,6 @@ async function renderCalendarView(eventsToShow = null) {
         document.querySelector('.back-btn').onclick = renderDashboard;
         document.getElementById('add-event-btn').onclick = renderEventForm;
         document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
-        
         document.getElementById('calendar-list').addEventListener('click', (e) => {
             const target = e.target.closest('.dropdown-item');
             if (!target || target.href) return;
@@ -807,31 +796,28 @@ async function renderCalendarView(eventsToShow = null) {
                 confirmDelete('calendar_event', eventId);
             }
         });
-    } catch (err) { mainContent.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
+    } catch (err) { mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
 }
 
 function updateAddNotificationLinkVisibility() {
     const container = document.getElementById('notifications-container');
     const link = document.getElementById('add-notification-link');
     if (!container || !link) return;
-
     const rows = container.querySelectorAll('.notification-row');
     if (rows.length === 0) {
         link.style.display = 'block';
         return;
     }
-    
     const lastRow = rows[rows.length - 1];
     const method = lastRow.querySelector('.event-reminder-method').value;
     const quantity = lastRow.querySelector('.event-reminder-quantity').value;
     const unit = lastRow.querySelector('.event-reminder-unit').value;
-    
     const isLastRowFilled = method && quantity.trim() !== '' && parseInt(quantity, 10) > 0 && unit;
     link.style.display = isLastRowFilled ? 'block' : 'none';
 }
 
 function renderEventForm() {
-    mainContent.innerHTML = `
+    mainContentArea.innerHTML = `
       <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>➕ Nuevo Evento</h2></div>
       <div class="form-card">
           <label>Título</label><input type="text" id="event-summary" required />
@@ -847,13 +833,10 @@ function renderEventForm() {
             <button id="cancel-event-btn" class="cancel">Cancelar</button>
           </div>
       </div></div>`;
-
     document.querySelector('.back-btn').onclick = () => renderCalendarView();
     document.getElementById('cancel-event-btn').onclick = renderDashboard;
-
     const addNotificationLink = document.getElementById('add-notification-link');
     const notificationsContainer = document.getElementById('notifications-container');
-
     const createNotificationRow = () => {
         const row = document.createElement('div');
         row.className = 'notification-row';
@@ -878,15 +861,12 @@ function renderEventForm() {
         row.querySelectorAll('input, select').forEach(el => el.addEventListener('change', updateAddNotificationLinkVisibility));
         updateAddNotificationLinkVisibility();
     };
-
     addNotificationLink.onclick = (e) => { e.preventDefault(); createNotificationRow(); };
-    
     let startPicker, endPicker;
     const fpConfig = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
     startPicker = flatpickr("#event-start", { ...fpConfig, defaultDate: new Date(), onChange: function(selectedDates) { if (selectedDates[0] && !document.getElementById('event-all-day').checked) { endPicker.setDate(new Date(selectedDates[0].getTime() + 3600000)); } } });
     endPicker = flatpickr("#event-end", { ...fpConfig, defaultDate: new Date(Date.now() + 3600000) });
     document.getElementById('event-all-day').addEventListener('change', (e) => { const isAllDay = e.target.checked; const newConfig = { enableTime: !isAllDay, dateFormat: isAllDay ? "Y-m-d" : "Y-m-d H:i" }; startPicker.set(newConfig); endPicker.set(newConfig); if (isAllDay) { endPicker.setDate(startPicker.selectedDates[0] || new Date()); } });
-    
     const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
     function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
     summaryInput.oninput = validate;
@@ -911,7 +891,6 @@ async function saveEvent() {
             reminders.push({ method: method, minutes: minutes });
         }
     });
-
     const eventData = {
         summary: document.getElementById('event-summary').value.trim(),
         start: document.getElementById('event-start')._flatpickr.selectedDates[0].toISOString(),
@@ -920,25 +899,23 @@ async function saveEvent() {
         isAllDay: document.getElementById('event-all-day').checked,
         reminders: reminders
     };
-    
     if (new Date(eventData.start).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) {
         appData.counts.calendarTodayCount++;
     }
     renderDashboard();
     showToast('Evento creado');
-
     try {
         const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'add_calendar_event', eventData });
         const result = await res.json();
         if (result.error) throw new Error(result.error);
     } catch (err) {
         showToast(`Error: ${err.message}. No se guardó.`, true);
-        initializeAppContent();
+        initializeApp();
     }
 }
 
 function renderSearchCalendarForm() {
-    mainContent.innerHTML = `
+    mainContentArea.innerHTML = `
         <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar en Calendario</h2></div>
         <div class="form-card">
             <label>Término de búsqueda</label>
@@ -963,7 +940,7 @@ async function executeSearchCalendar() {
 }
 
 // ==================================================
-// --- MÓDULO: GASTOS (CON ESCÁNER) ---
+// --- MÓDULO: GASTOS ---
 // ==================================================
 let gastosEncontrados = [];
 let pieChartInstance = null, dailyChartInstance = null, monthlyChartInstance = null;
@@ -978,7 +955,7 @@ const categoriasGastos = {
 };
 
 function renderInstructionScreen() {
-    mainContent.innerHTML = `
+    mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button></div>
             <div class="scan-instruction-screen">
@@ -991,7 +968,6 @@ function renderInstructionScreen() {
                 <button class="add-article-btn" id="select-photo-btn">Seleccionar Foto de la Galería</button>
             </div>
         </div>`;
-    
     document.querySelector('.back-btn').onclick = renderDashboard;
     document.getElementById('select-photo-btn').onclick = renderScanTicketView;
 }
@@ -1002,11 +978,9 @@ function renderScanTicketView() {
     fileInput.accept = 'image/*';
 	fileInput.capture = 'environment';
     fileInput.style.display = 'none';
-
     fileInput.onchange = (event) => {
         const file = event.target.files[0];
         if (!file) return;
-
         selectedImageFile = file;
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -1015,7 +989,6 @@ function renderScanTicketView() {
         };
         reader.readAsDataURL(file);
     };
-
     document.body.appendChild(fileInput);
     fileInput.click();
     document.body.removeChild(fileInput);
@@ -1026,34 +999,23 @@ async function handleImageScan() {
         showToast('No se ha seleccionado ninguna imagen.', true);
         return;
     }
-
     document.getElementById('image-preview-overlay').style.display = 'none';
     showSpinner();
-
     const formData = new FormData();
     formData.append('file', selectedImageFile, selectedImageFile.name);
-
     try {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 60000);
-        const response = await fetch(makeWebhookUrl, {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal
-        });
+        const response = await fetch(makeWebhookUrl, { method: 'POST', body: formData, signal: controller.signal });
         clearTimeout(id);
-
         if (!response.ok) { throw new Error(`Error del servidor de Make: ${response.status}`); }
-        
         const resultText = await response.text();
         const resultJson = JSON.parse(resultText);
-
         if(resultJson.tipo && resultJson.tipo.toUpperCase() === 'GASTO') {
             renderAddGastoForm(resultJson);
         } else {
             throw new Error(resultJson.datos.motivo || 'El ticket no parece ser un gasto válido.');
         }
-
     } catch (error) {
         console.error('Error al escanear el ticket:', error);
         showToast(`Error al procesar: ${error.message}`, true);
@@ -1072,8 +1034,7 @@ document.getElementById('preview-send-btn').onclick = handleImageScan;
 function renderAddGastoForm(initialData = null) {
     const data = initialData ? initialData.datos : {};
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
-    
-    mainContent.innerHTML = `
+    mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
             <div class="form-card">
@@ -1087,17 +1048,13 @@ function renderAddGastoForm(initialData = null) {
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
-    
     document.querySelector('.back-btn').onclick = renderDashboard;
     const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria'), saveBtn = document.getElementById('save-gasto-btn');
     const elementsToValidate = [ document.getElementById('gasto-importe'), document.getElementById('gasto-establecimiento'), document.getElementById('gasto-fecha'), categoriaSelect, subcategoriaSelect ];
-
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
-    
     let defaultDate = new Date();
     let enableTime = false;
     let dateFormat = "Y-m-d";
-
     if(data.fecha) {
         const dateTimeParts = data.fecha.split(' ');
         const dateParts = dateTimeParts[0].split('/');
@@ -1105,7 +1062,6 @@ function renderAddGastoForm(initialData = null) {
             const year = parseInt(dateParts[2], 10);
             const month = parseInt(dateParts[1], 10) - 1;
             const day = parseInt(dateParts[0], 10);
-            
             if(dateTimeParts.length > 1) {
                 const timeParts = dateTimeParts[1].split(':');
                 if(timeParts.length >= 2) {
@@ -1123,7 +1079,6 @@ function renderAddGastoForm(initialData = null) {
         }
     }
     flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: dateFormat, enableTime: enableTime, locale: "es", onChange: validateGastoForm });
-
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
@@ -1136,7 +1091,6 @@ function renderAddGastoForm(initialData = null) {
         validateGastoForm();
     };
     saveBtn.onclick = saveGasto;
-
     if (initialData) {
         categoriaSelect.dispatchEvent(new Event('change'));
         if(data.subcategoria) { subcategoriaSelect.value = data.subcategoria; }
@@ -1146,7 +1100,6 @@ function renderAddGastoForm(initialData = null) {
 
 async function saveGasto() {
     console.log("--- Iniciando saveGasto() ---");
-
     try {
         const fechaEl = document.getElementById('gasto-fecha');
         console.log("Elemento Fecha:", fechaEl);
@@ -1215,18 +1168,18 @@ async function saveGasto() {
 
         if (data.error) {
             showToast(`Error del servidor: ${data.error}`, true);
-            initializeAppContent(); 
+            initializeApp(); 
         }
     } catch (err) {
         console.error("--- ERROR CATASTRÓFICO en saveGasto() ---", err);
         showToast(`Error de red o de código: ${err.message}.`, true);
-        initializeAppContent(); 
+        initializeApp(); 
     }
 }
 
 function renderGastoChart() {
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
-  mainContent.innerHTML = `
+  mainContentArea.innerHTML = `
     <div class="list-container">
       <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
       <div class="form-card">
@@ -1252,17 +1205,14 @@ async function fetchAndDisplayGastoChart(event) {
   document.getElementById('gasto-legend-container').innerHTML = '';
   ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
   if (!mesAnio) return;
-  
   showSpinner();
   try {
     const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
     const res = await fetchWithTimeout(webhookURL, payload);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    
     Chart.register(ChartDataLabels);
     const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-
     if (data.pieData && data.pieData.data.length > 0) {
       document.getElementById('chart-container-pie').style.display = 'block';
       const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
@@ -1283,7 +1233,6 @@ async function fetchAndDisplayGastoChart(event) {
       });
       document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join('');
     }
-
     if (data.dailyData && data.dailyData.data.length > 0) {
       document.getElementById('hr1').style.display = 'block';
       document.getElementById('chart-container-daily').style.display = 'block';
@@ -1294,7 +1243,6 @@ async function fetchAndDisplayGastoChart(event) {
         options: { responsive: true, maintainAspectRatio: true, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
       });
     }
-
     if (data.monthlyData && data.monthlyData.data.length > 1) {
       document.getElementById('hr2').style.display = 'block';
       document.getElementById('chart-container-monthly').style.display = 'block';
@@ -1326,7 +1274,7 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderSearchGastosForm() {
-    mainContent.innerHTML = `
+    mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar Gastos</h2></div>
             <div class="form-card">
@@ -1381,7 +1329,7 @@ async function executeSearchGastos() {
 function renderEditGastoForm(gasto) {
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
-    mainContent.innerHTML = `
+    mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
             <div class="form-card">
@@ -1410,26 +1358,89 @@ function renderEditGastoForm(gasto) {
 async function saveEditedGasto(idUnico) {
     const originalGasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
     if (!originalGasto) { showToast('Error: No se encontró el gasto original.', true); return; }
-
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
     const originalImporte = parseFloat(originalGasto.Importe);
     const diferencia = nuevoImporte - originalImporte;
-    
     const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
     const nuevosGastosTotal = gastosActualesNum + diferencia;
     appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
     const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
     const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
-    
     renderDashboard();
-    
     try {
         const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
-    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeAppContent(); }
+    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeApp(); }
 }
+
+// ==================================================
+// --- MÓDULO: AJUSTES (NUEVO) ---
+// ==================================================
+function renderSettings() {
+    setActiveTab('tab-settings');
+    mainContentArea.innerHTML = `
+        <div class="settings-container">
+            <h2 class="settings-section-title">👤 Perfil y Apariencia</h2>
+            <div class="form-card">
+                <label>Nombre de Usuario</label>
+                <input type="text" id="settings-nombre" placeholder="Tu nombre" />
+                <label>Email (para Calendario)</label>
+                <input type="email" id="settings-email" placeholder="tu@email.com" />
+                 <div class="settings-item">
+                    <span class="settings-item-label">Tema de la App</span>
+                    <select id="settings-theme">
+                        <option value="auto">Automático (Telegram)</option>
+                        <option value="light">Claro</option>
+                        <option value="dark">Oscuro</option>
+                    </select>
+                </div>
+            </div>
+
+            <h2 class="settings-section-title">🔔 Informes y Alertas</h2>
+            <div class="form-card">
+                <div class="settings-item">
+                    <span class="settings-item-label">Informe Matutino</span>
+                    <label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label>
+                </div>
+                 <div class="settings-item">
+                    <span class="settings-item-label">Hora del Informe</span>
+                    <select id="settings-franja-manana">
+                        <option value="1">A primera hora (6-7am)</option>
+                        <option value="2">Habitual (7-8am)</option>
+                        <option value="3">Media mañana (8-9am)</option>
+                        <option value="4">Tarde (9-10am)</option>
+                    </select>
+                </div>
+                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
+                <div class="settings-item">
+                    <span class="settings-item-label">Informe del Tiempo (Tarde)</span>
+                    <label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label>
+                </div>
+                 <div class="settings-item">
+                    <span class="settings-item-label">Hora del Informe</span>
+                     <select id="settings-franja-tarde">
+                        <option value="19">19:00</option>
+                        <option value="20">20:00</option>
+                        <option value="21">21:00</option>
+                    </select>
+                </div>
+                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
+                 <div class="settings-item">
+                    <span class="settings-item-label">Alertas de Compra Inteligente</span>
+                    <label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label>
+                </div>
+            </div>
+
+             <h2 class="settings-section-title">💾 Gestión de Datos</h2>
+             <div class="form-card">
+                 <button id="settings-sync-btn" class="add-article-btn" style="width:100%; max-width:100%; margin-bottom:10px;">Corregir Contadores</button>
+                 <button id="settings-export-btn" class="add-article-btn" style="width:100%; max-width:100%;">Exportar mis Gastos</button>
+             </div>
+        </div>
+    `;
+}
+
 
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
@@ -1437,7 +1448,7 @@ async function saveEditedGasto(idUnico) {
 function renderDashboard() {
   setActiveTab('tab-home');
   const counts = appData.counts;
-  mainContent.innerHTML = `
+  mainContentArea.innerHTML = `
     <div class="grid">
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
@@ -1458,7 +1469,6 @@ function renderDashboard() {
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm(null);
   document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-  document.getElementById('tab-home').onclick = renderDashboard;
 
   document.querySelectorAll('.clickable-card').forEach(card => {
       card.addEventListener('click', (e) => {
@@ -1480,10 +1490,13 @@ function renderDashboard() {
   });
 }
 
-initializeAppContent();
+// Lógica de pestañas
+document.getElementById('tab-home').onclick = renderDashboard;
+document.getElementById('tab-settings').onclick = renderSettings;
+
+initializeApp();
+
     });
   </script>
 </body>
 </html>
-
-
