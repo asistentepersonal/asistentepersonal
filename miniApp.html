@@ -1577,8 +1577,35 @@ function renderExportPage() {
 
 
 async function executeExport() {
-    // Esta función se conectará al backend en el futuro
-    showToast("Función de exportación aún no implementada en el backend.");
+    showSpinner();
+    const startDate = document.getElementById('export-start-date').value;
+    const endDate = document.getElementById('export-end-date').value;
+
+    if (!startDate || !endDate) {
+        hideSpinner();
+        showToast("Por favor, selecciona ambas fechas.", true);
+        return;
+    }
+
+    try {
+        const payload = {
+            Type: 'export_gastos',
+            chat_ID: chatId,
+            startDate: startDate,
+            endDate: endDate
+        };
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        showToast(data.message || "Petición de exportación enviada. Revisa tu email.");
+    } catch (err) {
+        showToast(`Error al exportar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+        // No cerramos el modal para que el usuario vea el mensaje,
+        // puede cerrarlo manualmente con el botón cancelar.
+    }
 }
 
 // ==================================================
