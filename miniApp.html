@@ -1,3 +1,4 @@
+html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -125,7 +126,8 @@
     .settings-section-title:first-of-type { margin-top: 0; }
     .settings-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
     .settings-item-label { font-size: 1.1rem; }
-    .settings-item-control .form-card input, .settings-item-control .form-card select { margin-top:0; }
+    .settings-item-control { flex-shrink: 0; margin-left: 15px; }
+    .settings-item-control input, .settings-item-control select { margin-top:0 !important; width: auto; max-width: 150px;}
     .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
     .switch input { opacity: 0; width: 0; height: 0; }
     .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
@@ -154,8 +156,6 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-    // ... (El resto de tu código JavaScript existente irá aquí, lo añadiremos en el siguiente paso)
-    // Por ahora, solo la estructura principal y la lógica de las pestañas
     
 // ==================================================
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
@@ -169,7 +169,8 @@ let selectedImageFile = null;
 let chatId = tg?.initDataUnsafe?.user?.id;
 if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
-let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [] };
+let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {} };
+let initialUserSettings = {};
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
 
@@ -318,6 +319,10 @@ async function executeDelete(type, id) {
     }
 }
 
+// ==================================================
+// --- MÓDULOS EXISTENTES ---
+// ==================================================
+// ... (Aquí van todas las funciones desde renderReminderForm hasta saveEditedGasto)
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
@@ -1379,6 +1384,8 @@ async function saveEditedGasto(idUnico) {
 // ==================================================
 function renderSettings() {
     setActiveTab('tab-settings');
+    initialUserSettings = JSON.parse(JSON.stringify(appData.settings || {}));
+    
     mainContentArea.innerHTML = `
         <div class="settings-container">
             <h2 class="settings-section-title">👤 Perfil y Apariencia</h2>
@@ -1389,11 +1396,13 @@ function renderSettings() {
                 <input type="email" id="settings-email" placeholder="tu@email.com" />
                  <div class="settings-item">
                     <span class="settings-item-label">Tema de la App</span>
-                    <select id="settings-theme">
-                        <option value="auto">Automático (Telegram)</option>
-                        <option value="light">Claro</option>
-                        <option value="dark">Oscuro</option>
-                    </select>
+                    <div class="settings-item-control">
+                        <select id="settings-theme">
+                            <option value="auto">Automático (Telegram)</option>
+                            <option value="light">Claro</option>
+                            <option value="dark">Oscuro</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -1401,46 +1410,171 @@ function renderSettings() {
             <div class="form-card">
                 <div class="settings-item">
                     <span class="settings-item-label">Informe Matutino</span>
-                    <label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label>
+                    <div class="settings-item-control">
+                        <label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label>
+                    </div>
                 </div>
                  <div class="settings-item">
                     <span class="settings-item-label">Hora del Informe</span>
-                    <select id="settings-franja-manana">
-                        <option value="1">A primera hora (6-7am)</option>
-                        <option value="2">Habitual (7-8am)</option>
-                        <option value="3">Media mañana (8-9am)</option>
-                        <option value="4">Tarde (9-10am)</option>
-                    </select>
+                    <div class="settings-item-control">
+                        <select id="settings-franja-manana">
+                            <option value="1">A primera hora (6:00)</option>
+                            <option value="2">Habitual (7:00)</option>
+                            <option value="3">Media mañana (8:00)</option>
+                            <option value="4">Tarde (9:00)</option>
+                        </select>
+                    </div>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
                 <div class="settings-item">
                     <span class="settings-item-label">Informe del Tiempo (Tarde)</span>
-                    <label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label>
+                    <div class="settings-item-control">
+                        <label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label>
+                    </div>
                 </div>
                  <div class="settings-item">
                     <span class="settings-item-label">Hora del Informe</span>
-                     <select id="settings-franja-tarde">
-                        <option value="19">19:00</option>
-                        <option value="20">20:00</option>
-                        <option value="21">21:00</option>
-                    </select>
+                    <div class="settings-item-control">
+                         <select id="settings-franja-tarde">
+                            <option value="19">19:00</option>
+                            <option value="20">20:00</option>
+                            <option value="21">21:00</option>
+                        </select>
+                    </div>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
                  <div class="settings-item">
                     <span class="settings-item-label">Alertas de Compra Inteligente</span>
-                    <label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label>
+                    <div class="settings-item-control">
+                        <label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label>
+                    </div>
                 </div>
             </div>
 
              <h2 class="settings-section-title">💾 Gestión de Datos</h2>
              <div class="form-card">
                  <button id="settings-sync-btn" class="add-article-btn" style="width:100%; max-width:100%; margin-bottom:10px;">Corregir Contadores</button>
-                 <button id="settings-export-btn" class="add-article-btn" style="width:100%; max-width:100%;">Exportar mis Gastos</button>
              </div>
+             
+             <div class="form-card" style="margin-top: 20px;">
+                <div class="button-group">
+                    <button id="settings-cancel-btn" class="cancel">Cancelar y Salir</button>
+                    <button id="settings-save-btn" disabled>Guardar Ajustes</button>
+                </div>
+            </div>
         </div>
     `;
+
+    document.getElementById('settings-nombre').value = appData.settings['Nombre'] || '';
+    document.getElementById('settings-email').value = appData.settings['Email'] || '';
+    document.getElementById('settings-theme').value = appData.settings['Tema'] || 'auto';
+    document.getElementById('settings-informe-manana-activo').checked = (appData.settings['Informe_Mañana_Activo'] === 'SI');
+    document.getElementById('settings-franja-manana').value = appData.settings['Franja_Informe_Mañana'] || '2';
+    document.getElementById('settings-informe-tarde-activo').checked = (appData.settings['Informe_Tarde_Activo'] === 'SI');
+    document.getElementById('settings-franja-tarde').value = appData.settings['Franja_Informe_Tarde'] || '20';
+    document.getElementById('settings-alerta-inventario').checked = (appData.settings['Alerta_Inventario'] === 'SI');
+    
+    const controls = document.querySelectorAll('#settings-nombre, #settings-email, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-alerta-inventario');
+    controls.forEach(control => {
+        control.addEventListener('input', validateSettings);
+        control.addEventListener('change', validateSettings);
+    });
+
+    document.getElementById('settings-save-btn').onclick = saveSettings;
+    document.getElementById('settings-cancel-btn').onclick = renderDashboard;
+    document.getElementById('settings-sync-btn').onclick = syncCounts;
 }
 
+function validateSettings() {
+    const saveBtn = document.getElementById('settings-save-btn');
+    let hasChanged = false;
+
+    if (document.getElementById('settings-nombre').value !== (initialUserSettings['Nombre'] || '')) hasChanged = true;
+    if (document.getElementById('settings-email').value !== (initialUserSettings['Email'] || '')) hasChanged = true;
+    if (document.getElementById('settings-theme').value !== (initialUserSettings['Tema'] || 'auto')) hasChanged = true;
+    if (document.getElementById('settings-informe-manana-activo').checked !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) hasChanged = true;
+    if (document.getElementById('settings-franja-manana').value != (initialUserSettings['Franja_Informe_Mañana'] || '2')) hasChanged = true;
+    if (document.getElementById('settings-informe-tarde-activo').checked !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) hasChanged = true;
+    if (document.getElementById('settings-franja-tarde').value != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true;
+    if (document.getElementById('settings-alerta-inventario').checked !== (initialUserSettings['Alerta_Inventario'] === 'SI')) hasChanged = true;
+
+    saveBtn.disabled = !hasChanged;
+    saveBtn.classList.toggle('enabled', hasChanged);
+}
+
+async function saveSettings() {
+    showSpinner();
+    const settingsToUpdate = {};
+    
+    const newName = document.getElementById('settings-nombre').value;
+    if (newName !== (initialUserSettings['Nombre'] || '')) settingsToUpdate['Nombre'] = newName;
+
+    const newEmail = document.getElementById('settings-email').value;
+    if (newEmail !== (initialUserSettings['Email'] || '')) settingsToUpdate['Email'] = newEmail;
+    
+    const newTheme = document.getElementById('settings-theme').value;
+    if (newTheme !== (initialUserSettings['Tema'] || 'auto')) settingsToUpdate['Tema'] = newTheme;
+
+    const newMananaActivo = document.getElementById('settings-informe-manana-activo').checked;
+    if (newMananaActivo !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) settingsToUpdate['Informe_Mañana_Activo'] = newMananaActivo ? 'SI' : 'NO';
+
+    const newFranjaManana = document.getElementById('settings-franja-manana').value;
+    if (newFranjaManana != (initialUserSettings['Franja_Informe_Mañana'] || '2')) settingsToUpdate['Franja_Informe_Mañana'] = newFranjaManana;
+
+    const newTardeActivo = document.getElementById('settings-informe-tarde-activo').checked;
+    if (newTardeActivo !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) settingsToUpdate['Informe_Tarde_Activo'] = newTardeActivo ? 'SI' : 'NO';
+
+    const newFranjaTarde = document.getElementById('settings-franja-tarde').value;
+    if (newFranjaTarde != (initialUserSettings['Franja_Informe_Tarde'] || '20')) settingsToUpdate['Franja_Informe_Tarde'] = newFranjaTarde;
+
+    const newAlerta = document.getElementById('settings-alerta-inventario').checked;
+    if (newAlerta !== (initialUserSettings['Alerta_Inventario'] === 'SI')) settingsToUpdate['Alerta_Inventario'] = newAlerta ? 'SI' : 'NO';
+
+    if (Object.keys(settingsToUpdate).length === 0) {
+        hideSpinner();
+        showToast("No hay cambios para guardar.");
+        return;
+    }
+    
+    try {
+        const payload = { Type: 'save_user_settings', chat_ID: chatId, settings: settingsToUpdate };
+        const res = await fetchWithTimeout(webhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        Object.assign(appData.settings, settingsToUpdate);
+        initialUserSettings = JSON.parse(JSON.stringify(appData.settings));
+        
+        showToast("Ajustes guardados con éxito.");
+        document.getElementById('settings-save-btn').disabled = true;
+        document.getElementById('settings-save-btn').classList.remove('enabled');
+
+    } catch (err) {
+        showToast(`Error al guardar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
+}
+
+async function syncCounts() {
+    showSpinner();
+    try {
+        const res = await fetchWithTimeout(webhookURL, { Type: 'resync_counts', chat_ID: chatId });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        if (data.success && data.counts) {
+            Object.assign(appData.counts, data.counts);
+            showToast("Contadores resincronizados con éxito.");
+        } else {
+            throw new Error("Respuesta inesperada del servidor.");
+        }
+    } catch (err) {
+        showToast(`Error al sincronizar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
+}
 
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
