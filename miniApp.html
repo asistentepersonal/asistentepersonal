@@ -1091,7 +1091,7 @@ function renderAddGastoForm(initialData = null) {
                 <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
                 <label>Subcategoría</label>
                 <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona una subcategoría --</option></select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <label>Fecha y Hora</label> <input type="text" id="gasto-fecha" required />
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
@@ -1102,9 +1102,9 @@ function renderAddGastoForm(initialData = null) {
 
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     
-let defaultDate = new Date();
-    let enableTime = false;
-    let dateFormat = "Y-m-d";
+	let defaultDate = new Date();
+    let enableTime = true;
+    let dateFormat = "Y-m-d H:i";
 
     if(data.fecha) {
         const dateTimeParts = data.fecha.split(' ');
@@ -1120,8 +1120,6 @@ let defaultDate = new Date();
                     const hours = parseInt(timeParts[0], 10);
                     const minutes = parseInt(timeParts[1], 10);
                     defaultDate = new Date(year, month, day, hours, minutes);
-                    enableTime = true;
-                    dateFormat = "Y-m-d H:i";
                 } else {
                    defaultDate = new Date(year, month, day);
                 }
@@ -1130,7 +1128,7 @@ let defaultDate = new Date();
             }
         }
     }
-    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: dateFormat, enableTime: enableTime, locale: "es", onChange: validateGastoForm });
+    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: dateFormat, enableTime: enableTime, time_24hr: true, locale: "es", onChange: validateGastoForm });
 
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
     categoriaSelect.onchange = () => {
