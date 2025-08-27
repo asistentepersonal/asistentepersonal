@@ -1599,12 +1599,11 @@ async function executeExport() {
         if (data.error) throw new Error(data.error);
 
         showToast(data.message || "Petición de exportación enviada. Revisa tu email.");
+		renderDashboard();
     } catch (err) {
         showToast(`Error al exportar: ${err.message}`, true);
     } finally {
         hideSpinner();
-        // No cerramos el modal para que el usuario vea el mensaje,
-        // puede cerrarlo manualmente con el botón cancelar.
     }
 }
 
