@@ -35,7 +35,7 @@
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
     .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
     .tab.active{color:var(--badge-color);}
-    .form-container, .list-container, .settings-container{max-width:480px;margin:20px auto;padding:10px;}
+    .form-container, .list-container, .settings-container, .export-container{max-width:480px;margin:20px auto;padding:10px;}
     .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
     .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
     .form-card textarea,.form-card input, .form-card select, .form-card .radio-group{width:100%;margin-top:8px;}
@@ -133,15 +133,6 @@
     .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
     input:checked + .slider { background-color: var(--primary); }
     input:checked + .slider:before { transform: translateX(22px); }
-    #export-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1500; }
-    #export-modal { background: var(--card-bg); padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; }
-    #export-confirm-btn {
-    cursor: pointer;
-    opacity: 1;
-    .form-card button.force-enabled {
-    cursor: pointer !important;
-    opacity: 1 !important;
-} 
   </style>
   </head>
 <body>
@@ -151,6 +142,7 @@
   </div>
   <div class="tabs">
     <div class="tab active" id="tab-home">🏠 Home</div>
+    <div class="tab" id="tab-export">📄 Exportar Gastos</div>
     <div class="tab" id="tab-settings">⚙️ Ajustes</div>
   </div>
   <div id="toast" class="toast"></div>
@@ -159,20 +151,6 @@
     <div id="image-preview-actions">
         <button id="preview-cancel-btn">Cancelar</button>
         <button id="preview-send-btn">Enviar</button>
-    </div>
-  </div>
-  <div id="export-modal-overlay">
-    <div id="export-modal" class="form-card">
-        <h3>Exportar Gastos</h3>
-        <p style="font-size:0.9rem; color:var(--muted); margin:10px 0;">Selecciona el rango de fechas para la exportación. Recibirás el archivo en tu email.</p>
-        <label>Fecha de Inicio</label>
-        <input type="text" id="export-start-date" required />
-        <label>Fecha de Fin</label>
-        <input type="text" id="export-end-date" required />
-        <div class="button-group">
-            <button id="export-cancel-btn" class="cancel">Cancelar</button>
-            <button id="export-confirm-btn" class="force-enabled">Exportar</button>
-        </div>
     </div>
   </div>
     <script>
@@ -1075,8 +1053,8 @@ function renderAddGastoForm(initialData = null) {
     const elementsToValidate = [ document.getElementById('gasto-importe'), document.getElementById('gasto-establecimiento'), document.getElementById('gasto-fecha'), categoriaSelect, subcategoriaSelect ];
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     let defaultDate = new Date();
-    let enableTime = true; // CAMBIO: Habilitar siempre la hora
-    let dateFormat = "Y-m-d H:i"; // CAMBIO: Usar siempre formato con hora
+    let enableTime = true;
+    let dateFormat = "Y-m-d H:i";
     if(data.fecha) {
         const dateTimeParts = data.fecha.split(' ');
         const dateParts = dateTimeParts[0].split('/');
@@ -1399,6 +1377,7 @@ async function saveEditedGasto(idUnico) {
 function renderSettings() {
     setActiveTab('tab-settings');
     initialUserSettings = JSON.parse(JSON.stringify(appData.settings || {}));
+    
     mainContentArea.innerHTML = `
         <div class="settings-container">
             <h2 class="settings-section-title">👤 Perfil y Apariencia</h2>
@@ -1467,12 +1446,6 @@ function renderSettings() {
                     </div>
                 </div>
             </div>
-
-             <h2 class="settings-section-title">💾 Gestión de Datos</h2>
-             <div class="form-card">
-                 <button id="settings-sync-btn" class="add-article-btn" style="width:100%; max-width:100%; margin-bottom:10px;">Corregir Contadores</button>
-                 <button id="settings-export-btn" class="add-article-btn" style="width:100%; max-width:100%;">Exportar mis Gastos</button>
-             </div>
              
              <div class="form-card" style="margin-top: 20px;">
                 <div class="button-group">
@@ -1502,10 +1475,6 @@ function renderSettings() {
 
     document.getElementById('settings-save-btn').onclick = saveSettings;
     document.getElementById('settings-cancel-btn').onclick = renderDashboard;
-    document.getElementById('settings-sync-btn').onclick = syncCounts;
-    document.getElementById('settings-export-btn').onclick = showExportModal;
-    document.getElementById('export-cancel-btn').onclick = hideExportModal;
-    document.getElementById('export-confirm-btn').onclick = executeExport;
 }
 
 function validateSettings() {
@@ -1579,21 +1548,37 @@ async function syncCounts() {
     }
 }
 
-function showExportModal() {
-    document.getElementById('export-modal-overlay').style.display = 'flex';
+function renderExportPage() {
+    setActiveTab('tab-export');
+    mainContentArea.innerHTML = `
+        <div class="export-container">
+            <h2 class="settings-section-title">📄 Exportar Gastos</h2>
+            <div class="form-card">
+                <p style="font-size:0.9rem; color:var(--muted); margin-bottom:15px;">Selecciona el rango de fechas para la exportación. Recibirás el archivo en tu email.</p>
+                <label>Fecha de Inicio</label>
+                <input type="text" id="export-start-date" required />
+                <label>Fecha de Fin</label>
+                <input type="text" id="export-end-date" required />
+                <div class="button-group">
+                    <button id="export-cancel-btn" class="cancel">Cancelar</button>
+                    <button id="export-confirm-btn" class="enabled">Generar y Enviar</button>
+                </div>
+            </div>
+        </div>
+    `;
+
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
     flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
+
+    document.getElementById('export-cancel-btn').onclick = renderDashboard;
+    document.getElementById('export-confirm-btn').onclick = executeExport;
 }
 
-function hideExportModal() {
-    document.getElementById('export-modal-overlay').style.display = 'none';
-}
 
 async function executeExport() {
     // Esta función se conectará al backend en el futuro
     showToast("Función de exportación aún no implementada en el backend.");
-    hideExportModal();
 }
 
 // ==================================================
@@ -1647,6 +1632,7 @@ function renderDashboard() {
 // Lógica de pestañas
 document.getElementById('tab-home').onclick = renderDashboard;
 document.getElementById('tab-settings').onclick = renderSettings;
+document.getElementById('tab-export').onclick = renderExportPage;
 
 initializeApp();
 
