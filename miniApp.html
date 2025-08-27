@@ -1530,7 +1530,7 @@ function renderDashboard() {
       <div class="card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
-	  <div class="card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+	  <div class="card" id="card-gastos" style="cursor: pointer;"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
     </div>`;
   
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
@@ -1542,10 +1542,25 @@ function renderDashboard() {
   document.getElementById('add-event-link').onclick = renderEventForm;
   document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
-  document.getElementById('add-gasto-link').onclick = renderAddGastoForm;
+  document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm(null);
   document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
   document.getElementById('tab-home').onclick = renderDashboard;
+
+  // *** NUEVO CÓDIGO AÑADIDO ***
+  const cardGastos = document.getElementById('card-gastos');
+  if (cardGastos) {
+      cardGastos.addEventListener('click', (e) => {
+          if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
+          e.stopPropagation();
+          const menu = document.getElementById('menu-gastos');
+          if (menu) {
+              const isShown = menu.classList.contains('show');
+              document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m.id !== 'menu-gastos') m.classList.remove('show'); });
+              menu.classList.toggle('show', !isShown);
+          }
+      });
+  }
 }
 
 initializeAppContent();
