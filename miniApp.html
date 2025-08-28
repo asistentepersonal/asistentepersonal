@@ -1402,7 +1402,7 @@ async function saveEditedGasto(idUnico) {
 }
 
 // ==================================================
-// --- MÓDULO: CHEF ASISTENTE (NUEVO) ---
+// --- MÓDULO: CHEF ASISTENTE (VERSIÓN FINAL Y FUNCIONAL) ---
 // ==================================================
 async function renderChefPage() {
     setActiveTab('tab-chef');
@@ -1462,7 +1462,7 @@ async function renderChefPage() {
 
         flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
         
-        let selectedImagesData = []; // Array para guardar los objetos { name, data }
+        let selectedFiles = [];
 
         document.getElementById('chef-add-photo-btn').onclick = () => {
             const fileInput = document.createElement('input');
@@ -1470,35 +1470,15 @@ async function renderChefPage() {
             fileInput.accept = 'image/*';
             fileInput.multiple = true;
             fileInput.onchange = (event) => {
-                const files = event.target.files;
-                if (!files || files.length === 0) return;
-                
-                selectedImagesData = []; // Limpiar array anterior
-                let fileNames = [];
-                let filesToProcess = files.length;
-                
-                Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        // Creamos el objeto con nombre y datos Base64
-                        selectedImagesData.push({
-                            name: file.name,
-                            data: e.target.result.split(',')[1] // Solo la parte Base64
-                        });
-                        fileNames.push(file.name);
-                        
-                        // Actualizar UI solo al final
-                        if (selectedImagesData.length === filesToProcess) {
-                             document.getElementById('chef-photo-name').textContent = `📷 ${fileNames.join(', ')} (cargadas)`;
-                        }
-                    };
-                    reader.onerror = () => showToast("Error al leer la imagen: " + file.name, true);
-                    reader.readAsDataURL(file);
-                });
+                selectedFiles = Array.from(event.target.files);
+                if (selectedFiles.length > 0) {
+                    const fileNames = selectedFiles.map(f => f.name);
+                    document.getElementById('chef-photo-name').textContent = `📷 ${fileNames.join(', ')}`;
+                }
             };
             fileInput.click();
         };
-        document.getElementById('chef-submit-btn').onclick = () => executeChefRequest(selectedImagesData);
+        document.getElementById('chef-submit-btn').onclick = () => executeChefRequest(selectedFiles);
 
     } catch(err) {
         showToast(err.message, true);
@@ -1508,7 +1488,7 @@ async function renderChefPage() {
     }
 }
 
-async function executeChefRequest(imagesData) {
+async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
     
     const tipoComida = document.getElementById('chef-tipo-comida').value;
@@ -1559,18 +1539,18 @@ Instrucciones Adicionales:
 - Sé realista con las cantidades a comprar para el número de comensales.`;
 
     try {
-        const payload = { 
-            prompt: prompt,
-            images: imagesData // Enviamos el array de objetos {name, data}
-        };
+        const formData = new FormData();
+        formData.append('prompt', prompt);
+        files.forEach(file => {
+            formData.append('images', file, file.name);
+        });
         
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 60000);
 
         const res = await fetch(chefWebhookURL, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload),
+            body: formData, // Enviamos como FormData, no como JSON
             signal: controller.signal
         });
         
@@ -1587,7 +1567,7 @@ Instrucciones Adicionales:
         showToast(err.message, true);
     } finally {
         hideSpinner();
-        selectedImageFile = null; // Limpiar después de usar
+        selectedImageFile = null;
     }
 }
 
@@ -1606,12 +1586,12 @@ function renderChefResults(sugerencias) {
                     <p class="recipe-description">${sug.descripcion}</p>
                     <h4 class="recipe-subtitle">Ingredientes que ya tienes:</h4>
                     <ul class="recipe-ingredient-list">
-                        ${sug.ingredientes_detectados.map(ing => `<li>✅ ${ing}</li>`).join('')}
+                        ${(sug.ingredientes_detectados || []).map(ing => `<li>✅ ${ing}</li>`).join('')}
                     </ul>
                     ${sug.ingredientes_a_comprar && sug.ingredientes_a_comprar.length > 0 ? `
                         <h4 class="recipe-subtitle" style="margin-top:15px;">Necesitarás comprar:</h4>
                         <ul class="recipe-ingredient-list buy">
-                           ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} ${ing.cantidad}"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
+                           ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} (${ing.cantidad})"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
                         </ul>
                         <button class="add-article-btn" style="width:100%; max-width:100%; margin-top:15px;" onclick="addIngredientsToShoppingList(${index})">Añadir seleccionados a la compra</button>
                     ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
