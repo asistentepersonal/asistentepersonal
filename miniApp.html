@@ -1462,30 +1462,33 @@ async function renderChefPage() {
 
         flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
         
-        // Array para guardar las imágenes en Base64
-        let selectedImagesBase64 = [];
+        let selectedImagesData = []; // Array para guardar los objetos { name, data }
 
         document.getElementById('chef-add-photo-btn').onclick = () => {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = 'image/*';
-            fileInput.multiple = true; // Permitir selección múltiple
+            fileInput.multiple = true;
             fileInput.onchange = (event) => {
                 const files = event.target.files;
                 if (!files || files.length === 0) return;
                 
-                selectedImagesBase64 = []; // Limpiar array anterior
+                selectedImagesData = []; // Limpiar array anterior
                 let fileNames = [];
+                let filesToProcess = files.length;
                 
                 Array.from(files).forEach(file => {
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        // Guardamos cada imagen como texto Base64
-                        selectedImagesBase64.push(e.target.result); 
+                        // Creamos el objeto con nombre y datos Base64
+                        selectedImagesData.push({
+                            name: file.name,
+                            data: e.target.result.split(',')[1] // Solo la parte Base64
+                        });
                         fileNames.push(file.name);
                         
-                        // Actualizar la UI solo cuando todas las imágenes se hayan leído
-                        if (selectedImagesBase64.length === files.length) {
+                        // Actualizar UI solo al final
+                        if (selectedImagesData.length === filesToProcess) {
                              document.getElementById('chef-photo-name').textContent = `📷 ${fileNames.join(', ')} (cargadas)`;
                         }
                     };
@@ -1495,7 +1498,7 @@ async function renderChefPage() {
             };
             fileInput.click();
         };
-        document.getElementById('chef-submit-btn').onclick = () => executeChefRequest(selectedImagesBase64);
+        document.getElementById('chef-submit-btn').onclick = () => executeChefRequest(selectedImagesData);
 
     } catch(err) {
         showToast(err.message, true);
@@ -1505,7 +1508,7 @@ async function renderChefPage() {
     }
 }
 
-async function executeChefRequest(imagesBase64) {
+async function executeChefRequest(imagesData) {
     showSpinner("Un momento, el Chef está trabajando...");
     
     const tipoComida = document.getElementById('chef-tipo-comida').value;
@@ -1558,7 +1561,7 @@ Instrucciones Adicionales:
     try {
         const payload = { 
             prompt: prompt,
-            images: imagesBase64 // Enviamos el array de imágenes en Base64
+            images: imagesData // Enviamos el array de objetos {name, data}
         };
         
         const controller = new AbortController();
