@@ -142,7 +142,7 @@
   </div>
   <div class="tabs">
     <div class="tab active" id="tab-home">🏠 Home</div>
-    <div class="tab" id="tab-export">📄 Exportar Gastos</div>
+    <div class="tab" id="tab-export">📊 Exportar Gastos</div>
     <div class="tab" id="tab-settings">⚙️ Ajustes</div>
   </div>
   <div id="toast" class="toast"></div>
@@ -741,7 +741,7 @@ async function renderCalendarView(eventsToShow = null) {
             appData.calendarEvents = events;
         }
         const groupAndRenderEvents = (evs) => {
-            if (!evs || evs.length === 0) return '<div class="no-data-msg">🗓️<br>No se encontraron eventos.</div>';
+            if (!evs || evs.length === 0) return '<div class="no-data-msg">📅<br>No se encontraron eventos.</div>';
             const eventsByDay = evs.reduce((acc, event) => { 
                 const dateKey = event.start.dateTime || event.start.date;
                 if (!dateKey) return acc;
