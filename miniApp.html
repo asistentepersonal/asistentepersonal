@@ -204,6 +204,12 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   if (isMakeWebhook) {
       const formData = new FormData();
       formData.append('prompt', payloadObject.prompt);
+      
+      // *** NUEVA LÍNEA AÑADIDA ***
+      if (payloadObject.image_count !== undefined) {
+          formData.append('image_count', payloadObject.image_count);
+      }
+      
       if (payloadObject.images && payloadObject.images.length > 0) {
         payloadObject.images.forEach(imageFile => {
             formData.append('images', imageFile, imageFile.name);
@@ -1517,7 +1523,13 @@ Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Mencion
 Instrucciones Adicionales:
 Si no hay postre, el campo "postre" debe ser null. Si no hay ingredientes a comprar, el array debe estar vacío. Sé realista.`;
 
-        const makeRes = await fetchWithTimeout(chefWebhookURL, { prompt: prompt, images: files }, true);
+        // *** LÍNEA MODIFICADA ***
+        const makeRes = await fetchWithTimeout(chefWebhookURL, { 
+            prompt: prompt, 
+            images: files, 
+            image_count: files.length // Aquí se añade el recuento
+        }, true);
+
         const responseText = await makeRes.text();
         const data = JSON.parse(responseText);
         
