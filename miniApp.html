@@ -35,7 +35,7 @@
     .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
     .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
     .tab.active{color:var(--badge-color);}
-    .form-container, .list-container, .settings-container, .export-container{max-width:480px;margin:20px auto;padding:10px;}
+    .form-container, .list-container, .settings-container, .export-container, .chef-container {max-width:480px;margin:20px auto;padding:10px;}
     .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
     .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
     .form-card textarea,.form-card input, .form-card select, .form-card .radio-group{width:100%;margin-top:8px;}
@@ -133,6 +133,18 @@
     .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
     input:checked + .slider { background-color: var(--primary); }
     input:checked + .slider:before { transform: translateX(22px); }
+    .chef-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+    .chef-item label { margin-top:0; }
+    #chef-peticion-ayuda { font-size: 0.85rem; color: var(--muted); margin-top: 5px; display: block; }
+    .recipe-card { background: var(--card-bg); border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .recipe-header { padding: 15px; border-bottom: 1px solid #eee; }
+    .recipe-title { font-size: 1.2rem; font-weight: 600; }
+    .recipe-body { padding: 15px; }
+    .recipe-description { margin-bottom: 15px; line-height: 1.5; }
+    .recipe-subtitle { font-size: 1rem; font-weight: 500; margin-bottom: 8px; }
+    .recipe-ingredient-list li { list-style: none; margin-bottom: 5px; }
+    .recipe-ingredient-list.buy li { display: flex; align-items: center; }
+    .recipe-ingredient-list.buy input { margin-right: 10px; width: 18px; height: 18px; }
   </style>
   </head>
 <body>
@@ -142,6 +154,7 @@
   </div>
   <div class="tabs">
     <div class="tab active" id="tab-home">🏠 Home</div>
+    <div class="tab" id="tab-chef">🧑‍🍳 Chef</div>
     <div class="tab" id="tab-export">📊 Exportar Gastos</div>
     <div class="tab" id="tab-settings">⚙️ Ajustes</div>
   </div>
@@ -153,6 +166,7 @@
         <button id="preview-send-btn">Enviar</button>
     </div>
   </div>
+  
     <script>
     document.addEventListener('DOMContentLoaded', () => {
     
@@ -162,28 +176,45 @@
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
 
-const webhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
-const makeWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
+const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
+const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
+const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
 let selectedImageFile = null;
 let chatId = tg?.initDataUnsafe?.user?.id;
 if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
 let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {} };
 let initialUserSettings = {};
+let userContextForChef = {};
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
 
-function showSpinner() { spinner.style.display = 'block'; }
+function showSpinner(message = '') { 
+    spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : '';
+    spinner.style.display = 'block'; 
+}
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
 
-async function fetchWithTimeout(resource, payloadObject) {
+async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 30000);
-  const formData = new FormData();
-  formData.append("postData", JSON.stringify(payloadObject));
+  const timeout = isMakeWebhook ? 60000 : 30000;
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  let options = { method: 'POST', signal: controller.signal };
+  if (isMakeWebhook) {
+      const formData = new FormData();
+      if (payloadObject.prompt) formData.append('prompt', payloadObject.prompt);
+      if (payloadObject.image) formData.append('image', payloadObject.image, payloadObject.image.name);
+      options.body = formData;
+  } else {
+      const formData = new FormData();
+      formData.append("postData", JSON.stringify(payloadObject));
+      options.body = formData;
+  }
+  
   try {
-    const response = await fetch(resource, { method: 'POST', body: formData, signal: controller.signal });
+    const response = await fetch(resource, options);
     clearTimeout(id);
     if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
     return response;
@@ -197,7 +228,7 @@ async function fetchWithTimeout(resource, payloadObject) {
 async function initializeApp() { 
   showSpinner(); 
   try { 
-    const res = await fetchWithTimeout(webhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
+    const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
     const data = await res.json(); 
     if (data.error) throw new Error(data.error); 
     appData = data; 
@@ -308,7 +339,7 @@ async function executeDelete(type, id) {
         if (type === 'calendar_event') renderDashboard();
     } catch(e) { showToast('Error local al procesar.', true); return; }
     try {
-        const res = await fetchWithTimeout(webhookURL, payload);
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
@@ -363,7 +394,7 @@ async function saveReminder() {
   renderDashboard();
   showToast('Recordatorio creado');
   try { 
-    const res = await fetchWithTimeout(webhookURL, payload); 
+    const res = await fetchWithTimeout(gasWebhookURL, payload); 
     const data = await res.json(); 
     if(data.error) throw new Error(data.error); 
     if (data.tracking_code) {
@@ -418,7 +449,7 @@ async function editReminderDescription(item) {
     renderRemindersList();
     try {
       const payload = { Type: 'edit_reminder_description', chat_ID: chatId, tracking_code: item.tracking_code, new_description: newDescription.trim() };
-      const res = await fetchWithTimeout(webhookURL, payload);
+      const res = await fetchWithTimeout(gasWebhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
     } catch (err) {
@@ -518,7 +549,7 @@ function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
   appData.shoppingList[itemIndex]['2'] = newStatus;
   if (newStatus === 'Comprado') { appData.shoppingList[itemIndex]['4'] = new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); appData.counts.shoppingPendingCount--; appData.counts.shoppingBoughtCount++; } else { appData.shoppingList[itemIndex]['4'] = ''; appData.counts.shoppingPendingCount++; appData.counts.shoppingBoughtCount--; }
   renderShoppingList();
-  fetchWithTimeout(webhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
+  fetchWithTimeout(gasWebhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
       .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
       .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
@@ -538,7 +569,7 @@ function toggleSelectedItemsToPending() {
   appData.counts.shoppingPendingCount += trackingCodes.length;
   appData.counts.shoppingBoughtCount -= trackingCodes.length;
   renderShoppingList();
-  fetchWithTimeout(webhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes })
+  fetchWithTimeout(gasWebhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes })
     .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
     .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
@@ -571,7 +602,7 @@ async function addArticle() {
   renderShoppingList();
   showToast('Artículo añadido');
   try {
-      const res = await fetchWithTimeout(webhookURL, payload);
+      const res = await fetchWithTimeout(gasWebhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
   } catch (err) { showToast(`Error: ${err.message}. No se añadió.`, true); initializeApp(); }
@@ -603,7 +634,7 @@ async function saveEditedShoppingItem(trackingCode) {
     renderShoppingList();
     const payload = { Type: 'edit_shopping_item', chat_ID: chatId, tracking_code: trackingCode, new_description: newDescription, new_cycle: parseInt(newCycle) };
     try {
-        const res = await fetchWithTimeout(webhookURL, payload);
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
     } catch (err) {
@@ -612,7 +643,6 @@ async function saveEditedShoppingItem(trackingCode) {
         renderShoppingList();
     }
 }
-
 // ==================================================
 // --- MÓDULO: NOTAS ---
 // ==================================================
@@ -696,7 +726,7 @@ async function saveNote() {
         renderNotesList();
         showToast('Nota guardada');
         try {
-            const res = await fetchWithTimeout(webhookURL, payload);
+            const res = await fetchWithTimeout(gasWebhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
         } catch (err) {
@@ -711,7 +741,7 @@ async function saveNote() {
         renderNotesList();
         showToast('Nota creada');
         try {
-            const res = await fetchWithTimeout(webhookURL, payload);
+            const res = await fetchWithTimeout(gasWebhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
             if(data.newNoteId){
@@ -734,14 +764,14 @@ async function renderCalendarView(eventsToShow = null) {
         let events = eventsToShow;
         if (!events) {
             const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
-            const res = await fetchWithTimeout(webhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+            const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
             const data = await res.json();
             if (data.error) throw new Error(data.error);
             events = data;
             appData.calendarEvents = events;
         }
         const groupAndRenderEvents = (evs) => {
-            if (!evs || evs.length === 0) return '<div class="no-data-msg">📅<br>No se encontraron eventos.</div>';
+            if (!evs || evs.length === 0) return '<div class="no-data-msg">🗓️<br>No se encontraron eventos.</div>';
             const eventsByDay = evs.reduce((acc, event) => { 
                 const dateKey = event.start.dateTime || event.start.date;
                 if (!dateKey) return acc;
@@ -905,7 +935,7 @@ async function saveEvent() {
     renderDashboard();
     showToast('Evento creado');
     try {
-        const res = await fetchWithTimeout(webhookURL, { chat_ID: chatId, Type: 'add_calendar_event', eventData });
+        const res = await fetchWithTimeout(gasWebhookURL, { chat_ID: chatId, Type: 'add_calendar_event', eventData });
         const result = await res.json();
         if (result.error) throw new Error(result.error);
     } catch (err) {
@@ -932,13 +962,12 @@ async function executeSearchCalendar() {
     if (!query) { showToast('Introduce un término para buscar.', true); return; }
     showSpinner();
     try {
-        const res = await fetchWithTimeout(webhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: query });
+        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: query });
         const events = await res.json();
         if (events.error) throw new Error(events.error);
         renderCalendarView(events);
     } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
 }
-
 // ==================================================
 // --- MÓDULO: GASTOS ---
 // ==================================================
@@ -1006,7 +1035,7 @@ async function handleImageScan() {
     try {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 60000);
-        const response = await fetch(makeWebhookUrl, { method: 'POST', body: formData, signal: controller.signal });
+        const response = await fetch(makeTicketWebhookUrl, { method: 'POST', body: formData, signal: controller.signal });
         clearTimeout(id);
         if (!response.ok) { throw new Error(`Error del servidor de Make: ${response.status}`); }
         const resultText = await response.text();
@@ -1160,7 +1189,7 @@ async function saveGasto() {
         showToast('Gasto registrado. Guardando...');
         
         console.log("Enviando datos al backend...");
-        const res = await fetchWithTimeout(webhookURL, payload);
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         console.log("Respuesta del backend recibida:", data);
 
@@ -1174,6 +1203,7 @@ async function saveGasto() {
         initializeApp(); 
     }
 }
+
 function renderGastoChart() {
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
   mainContentArea.innerHTML = `
@@ -1205,7 +1235,7 @@ async function fetchAndDisplayGastoChart(event) {
   showSpinner();
   try {
     const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
-    const res = await fetchWithTimeout(webhookURL, payload);
+    const res = await fetchWithTimeout(gasWebhookURL, payload);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     Chart.register(ChartDataLabels);
@@ -1301,7 +1331,7 @@ async function executeSearchGastos() {
     showSpinner();
     const resultsContainer = document.getElementById('gastos-search-results');
     try {
-        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
+        const res = await fetchWithTimeout(gasWebhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
         gastosEncontrados = data.gastos || [];
         if (gastosEncontrados.length > 0) {
             let listHtml = gastosEncontrados.map(gasto => `
@@ -1366,13 +1396,222 @@ async function saveEditedGasto(idUnico) {
     const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
     renderDashboard();
     try {
-        const res = await fetchWithTimeout(webhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
+        const res = await fetchWithTimeout(gasWebhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
     } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeApp(); }
 }
 
 // ==================================================
-// --- MÓDULO: AJUSTES (NUEVO) ---
+// --- MÓDULO: CHEF ASISTENTE (NUEVO) ---
+// ==================================================
+async function renderChefPage() {
+    setActiveTab('tab-chef');
+    showSpinner();
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_user_context', chat_ID: chatId });
+        userContextForChef = await res.json();
+        if (userContextForChef.error) throw new Error(userContextForChef.error);
+
+        mainContentArea.innerHTML = `
+            <div class="chef-container">
+                <h2 class="settings-section-title">🧑‍🍳 Chef Asistente</h2>
+                <div class="form-card">
+                    <div class="chef-item">
+                        <label>Tipo de Comida</label>
+                        <select id="chef-tipo-comida">
+                            <option value="Desayuno">🍳 Desayuno</option>
+                            <option value="Almuerzo" selected>🥗 Almuerzo</option>
+                            <option value="Merienda">🥪 Merienda</option>
+                            <option value="Cena">🍝 Cena</option>
+                        </select>
+                    </div>
+                    <div class="chef-item">
+                        <label>Hora Aproximada</label>
+                        <input type="text" id="chef-hora" style="width: 100px; text-align: center;"/>
+                    </div>
+                    <div class="chef-item">
+                        <label>Nº de Comensales</label>
+                        <input type="number" id="chef-comensales" value="1" min="1" style="width: 80px; text-align: center;"/>
+                    </div>
+                    <div class="chef-item">
+                        <label>Estilo de Cocina</label>
+                        <select id="chef-estilo">
+                            <option value="Sorpréndeme">✨ Sorpréndeme</option>
+                            <option value="Rápida">🏃 Rápida</option>
+                            <option value="Casera">🏡 Casera</option>
+                            <option value="Saludable">💪 Saludable</option>
+                        </select>
+                    </div>
+                    <div class="chef-item">
+                        <label>¿Incluir Postre?</label>
+                        <label class="switch"><input type="checkbox" id="chef-postre"><span class="slider"></span></label>
+                    </div>
+                    <div class="chef-item">
+                        <label>Solo con lo que tengo</label>
+                        <label class="switch"><input type="checkbox" id="chef-solo-nevera"><span class="slider"></span></label>
+                    </div>
+                    <label style="margin-top: 20px;">Tu Petición Especial</label>
+                    <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
+                    
+                    <button id="chef-add-photo-btn" class="add-article-btn" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto de Ingredientes</button>
+                    <div id="chef-photo-name" style="color:var(--muted); font-size:0.9rem; margin-top:8px; text-align:center;"></div>
+                    
+                    <button id="chef-submit-btn" class="enabled" style="margin-top:20px;">Obtener Sugerencias</button>
+                </div>
+            </div>`;
+
+        flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
+        document.getElementById('chef-add-photo-btn').onclick = () => {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.onchange = (event) => {
+                selectedImageFile = event.target.files[0];
+                if (selectedImageFile) {
+                    document.getElementById('chef-photo-name').textContent = `📷 ${selectedImageFile.name}`;
+                }
+            };
+            fileInput.click();
+        };
+        document.getElementById('chef-submit-btn').onclick = executeChefRequest;
+
+    } catch(err) {
+        showToast(err.message, true);
+        renderDashboard();
+    } finally {
+        hideSpinner();
+    }
+}
+async function executeChefRequest() {
+    showSpinner("Un momento, el Chef está trabajando...");
+    
+    // Recopilar datos del formulario
+    const tipoComida = document.getElementById('chef-tipo-comida').value;
+    const hora = document.getElementById('chef-hora').value;
+    const comensales = document.getElementById('chef-comensales').value;
+    const estilo = document.getElementById('chef-estilo').value;
+    const conPostre = document.getElementById('chef-postre').checked;
+    const soloNevera = document.getElementById('chef-solo-nevera').checked;
+    const peticionUsuario = document.getElementById('chef-peticion').value;
+
+    // Construir el prompt
+    let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
+
+Contexto del Entorno del Usuario:
+- Ubicación: ${userContextForChef.ciudad || 'desconocida'}, ${userContextForChef.pais || 'desconocido'}.
+- Estación del Año: ${userContextForChef.estacion}.
+- Clima a la hora de la comida (${hora}): ${userContextForChef.clima_hora_especifica}.
+
+Contexto de la Petición:
+- Tipo de Comida: ${tipoComida} ${conPostre ? '(con Postre incluido)' : ''}
+- Número de Comensales: ${comensales}
+- Estilo de Cocina Deseado: ${estilo}
+- Petición Específica del Usuario: "${peticionUsuario || 'Ninguna'}"
+- Restricciones Dietéticas del Usuario: ${userContextForChef.preferencias_dieteticas || 'Ninguna especificada'}.
+- Condición de ingredientes: ${soloNevera ? 'El usuario solicita usar EXCLUSIVAMENTE los ingredientes de la foto, sin comprar nada más.' : 'El usuario está dispuesto a comprar ingredientes si es necesario.'}
+
+Análisis de Ingredientes:
+Analiza la imagen adjunta de la nevera/despensa del usuario. Lista en primer lugar los ingredientes principales que identificas.
+
+Tu Tarea:
+Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Menciona el clima en tu descripción para hacerla más personal. Tu respuesta DEBE estar en formato JSON, siguiendo estrictamente esta estructura:
+{
+  "sugerencias": [
+    {
+      "titulo_receta": "Nombre de la Receta 1",
+      "descripcion": "Un texto corto y apetitoso que venda la receta y se relacione con la petición del usuario.",
+      "ingredientes_detectados": ["Ingrediente 1", "Ingrediente 2"],
+      "ingredientes_a_comprar": [{"nombre": "Ingrediente 3", "cantidad": "1 ud"}],
+      "tiempo_estimado_min": 30,
+      "dificultad": "Fácil",
+      "postre": { "titulo": "Nombre del Postre", "descripcion": "Descripción del postre", "ingredientes_a_comprar": [{"nombre": "Ingrediente P1", "cantidad": "100g"}] }
+    }
+  ]
+}
+
+Instrucciones Adicionales:
+- Si no hay postre, el campo "postre" debe ser null.
+- Si una receta no requiere comprar nada, deja el array "ingredientes_a_comprar" vacío.
+- Sé realista con las cantidades a comprar para el número de comensales.`;
+
+    try {
+        const payload = { prompt: prompt, image: selectedImageFile };
+        const res = await fetchWithTimeout(chefWebhookURL, payload, true);
+        const data = await res.json();
+        
+        showToast("¡Aquí tienes tus sugerencias!");
+        renderChefResults(data.sugerencias);
+
+    } catch(err) {
+        showToast(err.message, true);
+    } finally {
+        hideSpinner();
+        selectedImageFile = null;
+    }
+}
+function renderChefResults(sugerencias) {
+    let html = '<div class="chef-container">';
+    if (!sugerencias || sugerencias.length === 0) {
+        html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
+    } else {
+        sugerencias.forEach((sug, index) => {
+            html += `
+            <div class="recipe-card" id="recipe-${index}">
+                <div class="recipe-header">
+                    <h3 class="recipe-title">${sug.titulo_receta}</h3>
+                </div>
+                <div class="recipe-body">
+                    <p class="recipe-description">${sug.descripcion}</p>
+                    <h4 class="recipe-subtitle">Ingredientes que ya tienes:</h4>
+                    <ul class="recipe-ingredient-list">
+                        ${sug.ingredientes_detectados.map(ing => `<li>✅ ${ing}</li>`).join('')}
+                    </ul>
+                    ${sug.ingredientes_a_comprar.length > 0 ? `
+                        <h4 class="recipe-subtitle" style="margin-top:15px;">Necesitarás comprar:</h4>
+                        <ul class="recipe-ingredient-list buy">
+                           ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} ${ing.cantidad}"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
+                        </ul>
+                        <button class="add-article-btn" style="width:100%; max-width:100%; margin-top:15px;" onclick="addIngredientsToShoppingList(${index})">Añadir seleccionados a la compra</button>
+                    ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
+                </div>
+            </div>`;
+        });
+    }
+    html += '</div>';
+    mainContentArea.innerHTML = html;
+}
+
+async function addIngredientsToShoppingList(recipeIndex) {
+    const recipeCard = document.getElementById(`recipe-${recipeIndex}`);
+    const checkboxes = recipeCard.querySelectorAll('.buy-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showToast("No has seleccionado ningún ingrediente.", true);
+        return;
+    }
+    const itemsToAdd = Array.from(checkboxes).map(cb => cb.dataset.itemName);
+    
+    showSpinner();
+    try {
+        const payload = { Type: 'add_multiple_shopping_items', chat_ID: chatId, items: itemsToAdd };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        // Actualización optimista
+        itemsToAdd.forEach(item => {
+            appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}`, '4': '', '5': 0 });
+        });
+        appData.counts.shoppingPendingCount += itemsToAdd.length;
+
+        showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
+    } catch(err) {
+        showToast(err.message, true);
+    } finally {
+        hideSpinner();
+    }
+}
+// ==================================================
+// --- MÓDULO: AJUSTES ---
 // ==================================================
 function renderSettings() {
     setActiveTab('tab-settings');
@@ -1384,7 +1623,7 @@ function renderSettings() {
             <div class="form-card">
                 <label>Nombre de Usuario</label>
                 <input type="text" id="settings-nombre" placeholder="Tu nombre" />
-                <label>Email (para Calendario)</label>
+                <label>Email (para Calendario y Exportaciones)</label>
                 <input type="email" id="settings-email" placeholder="tu@email.com" />
                 <label>Ciudad</label>
                 <input type="text" id="settings-ciudad" placeholder="Ej: Barcelona" />
@@ -1414,10 +1653,10 @@ function renderSettings() {
                     <span class="settings-item-label">Hora del Informe</span>
                     <div class="settings-item-control">
                         <select id="settings-franja-manana">
-                            <option value="1">Franja de 6:00 a 7:00)</option>
-                            <option value="2">Franja de 7:00 a 8:00</option>
-                            <option value="3">Franja de 8:00 a 9:00</option>
-                            <option value="4">Franja de 9:00 a 10:00</option>
+                            <option value="1">A primera hora (6:00)</option>
+                            <option value="2">Habitual (7:00)</option>
+                            <option value="3">Media mañana (8:00)</option>
+                            <option value="4">Tarde (9:00)</option>
                         </select>
                     </div>
                 </div>
@@ -1446,6 +1685,11 @@ function renderSettings() {
                     </div>
                 </div>
             </div>
+
+             <h2 class="settings-section-title">💾 Gestión de Datos</h2>
+             <div class="form-card">
+                 <button id="settings-sync-btn" class="add-article-btn" style="width:100%; max-width:100%;">Corregir Contadores</button>
+             </div>
              
              <div class="form-card" style="margin-top: 20px;">
                 <div class="button-group">
@@ -1475,8 +1719,8 @@ function renderSettings() {
 
     document.getElementById('settings-save-btn').onclick = saveSettings;
     document.getElementById('settings-cancel-btn').onclick = renderDashboard;
+    document.getElementById('settings-sync-btn').onclick = syncCounts;
 }
-
 function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     let hasChanged = false;
@@ -1514,7 +1758,7 @@ async function saveSettings() {
     }
     try {
         const payload = { Type: 'save_user_settings', chat_ID: chatId, settings: settingsToUpdate };
-        const res = await fetchWithTimeout(webhookURL, payload);
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         Object.assign(appData.settings, settingsToUpdate);
@@ -1532,7 +1776,7 @@ async function saveSettings() {
 async function syncCounts() {
     showSpinner();
     try {
-        const res = await fetchWithTimeout(webhookURL, { Type: 'resync_counts', chat_ID: chatId });
+        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         if (data.success && data.counts) {
@@ -1552,7 +1796,7 @@ function renderExportPage() {
     setActiveTab('tab-export');
     mainContentArea.innerHTML = `
         <div class="export-container">
-            <h2 class="settings-section-title">📄 Exportar Gastos</h2>
+            <h2 class="settings-section-title">📊 Exportar Gastos</h2>
             <div class="form-card">
                 <p style="font-size:0.9rem; color:var(--muted); margin-bottom:15px;">Selecciona el rango de fechas para la exportación. Recibirás el archivo en tu email.</p>
                 <label>Fecha de Inicio</label>
@@ -1566,40 +1810,29 @@ function renderExportPage() {
             </div>
         </div>
     `;
-
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
     flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
-
     document.getElementById('export-cancel-btn').onclick = renderDashboard;
     document.getElementById('export-confirm-btn').onclick = executeExport;
 }
-
 
 async function executeExport() {
     showSpinner();
     const startDate = document.getElementById('export-start-date').value;
     const endDate = document.getElementById('export-end-date').value;
-
     if (!startDate || !endDate) {
         hideSpinner();
         showToast("Por favor, selecciona ambas fechas.", true);
         return;
     }
-
     try {
-        const payload = {
-            Type: 'export_gastos',
-            chat_ID: chatId,
-            startDate: startDate,
-            endDate: endDate
-        };
-        const res = await fetchWithTimeout(webhookURL, payload);
+        const payload = { Type: 'export_gastos', chat_ID: chatId, startDate: startDate, endDate: endDate };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-
         showToast(data.message || "Petición de exportación enviada. Revisa tu email.");
-		renderDashboard();
+        renderDashboard();
     } catch (err) {
         showToast(`Error al exportar: ${err.message}`, true);
     } finally {
@@ -1620,6 +1853,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
 	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+      <div class="card clickable-card" id="chef-card"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef Asistente</div></div>
     </div>`;
   
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
@@ -1634,10 +1868,12 @@ function renderDashboard() {
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm(null);
   document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
+  document.getElementById('chef-card').onclick = renderChefPage;
 
   document.querySelectorAll('.clickable-card').forEach(card => {
       card.addEventListener('click', (e) => {
           if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
+          if (e.currentTarget.id === 'chef-card') return;
           e.stopPropagation();
           const menuBtn = card.querySelector('.card-menu-btn');
           if (menuBtn) {
@@ -1659,6 +1895,7 @@ function renderDashboard() {
 document.getElementById('tab-home').onclick = renderDashboard;
 document.getElementById('tab-settings').onclick = renderSettings;
 document.getElementById('tab-export').onclick = renderExportPage;
+document.getElementById('tab-chef').onclick = renderChefPage;
 
 initializeApp();
 
