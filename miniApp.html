@@ -145,12 +145,15 @@
     .recipe-ingredient-list li { list-style: none; margin-bottom: 5px; }
     .recipe-ingredient-list.buy li { display: flex; align-items: center; }
     .recipe-ingredient-list.buy input { margin-right: 10px; width: 18px; height: 18px; }
+    #chef-image-previews { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+    .preview-item { position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; }
+    .preview-image { width: 100%; height: 100%; object-fit: cover; }
+    .delete-preview-btn { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; background-color: rgba(231, 76, 60, 0.9); color: white; border: none; border-radius: 50%; font-size: 14px; line-height: 22px; text-align: center; cursor: pointer; font-weight: bold; }
   </style>
   </head>
 <body>
   <div id="spinner" class="spinner"></div>
   <div id="main-content-area">
-    <!-- El contenido del Dashboard o de Ajustes se renderizará aquí -->
   </div>
   <div class="tabs">
     <div class="tab active" id="tab-home">🏠 Home</div>
@@ -166,10 +169,33 @@
         <button id="preview-send-btn">Enviar</button>
     </div>
   </div>
-      <script>
+  
+    <script>
     document.addEventListener('DOMContentLoaded', () => {
-
     
+// --- COPIA DESDE AQUÍ ---
+
+// ==================================================
+// --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
+// ==================================================
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
+
+const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
+const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
+const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
+let selectedImageFile = null;
+let chatId = tg?.initDataUnsafe?.user?.id;
+if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
+
+let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false };
+let initialUserSettings = {};
+const mainContentArea = document.getElementById('main-content-area');
+const spinner = document.getElementById('spinner');
+
+// ... (El resto del código JavaScript sigue aquí)
+// --- HASTA EL FINAL DEL ARCHIVO ---
+
 // ==================================================
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
@@ -204,12 +230,9 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   if (isMakeWebhook) {
       const formData = new FormData();
       formData.append('prompt', payloadObject.prompt);
-      
-      // *** NUEVA LÍNEA AÑADIDA ***
       if (payloadObject.image_count !== undefined) {
           formData.append('image_count', payloadObject.image_count);
       }
-      
       if (payloadObject.images && payloadObject.images.length > 0) {
         payloadObject.images.forEach(imageFile => {
             formData.append('images', imageFile, imageFile.name);
@@ -1453,38 +1476,77 @@ function renderChefPage() {
                 <label style="margin-top: 20px;">Tu Petición Especial</label>
                 <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
                 
-                <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto(s) de Ingredientes</button>
-                <div id="chef-photo-name" style="color:var(--muted); font-size:0.9rem; margin-top:8px; text-align:center;"></div>
-                
-                <button id="chef-submit-btn" class="enabled" style="margin-top:20px;">Obtener Sugerencias</button>
+                <div id="chef-image-previews"></div>
+                <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto de Ingredientes</button>
+
+                <div class="button-group">
+                    <button id="chef-cancel-btn" class="cancel">Cancelar/Salir</button>
+                    <button id="chef-submit-btn" class="enabled">Obtener Sugerencias</button>
+                </div>
             </div>
         </div>`;
 
     flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
+    document.getElementById('chef-cancel-btn').onclick = renderDashboard;
     
     let selectedFiles = [];
 
-    document.getElementById('chef-add-photo-btn').onclick = () => {
+    const previewsContainer = document.getElementById('chef-image-previews');
+    const addPhotoButton = document.getElementById('chef-add-photo-btn');
+
+    const updatePreviews = () => {
+        previewsContainer.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const previewItem = document.createElement('div');
+                previewItem.className = 'preview-item';
+                previewItem.innerHTML = `
+                    <img src="${e.target.result}" class="preview-image" alt="preview">
+                    <button class="delete-preview-btn" data-index="${index}">&times;</button>
+                `;
+                previewsContainer.appendChild(previewItem);
+            };
+            reader.readAsDataURL(file);
+        });
+        addPhotoButton.style.display = selectedFiles.length < 2 ? 'block' : 'none';
+    };
+
+    previewsContainer.addEventListener('click', (event) => {
+        if (event.target.classList.contains('delete-preview-btn')) {
+            const index = parseInt(event.target.dataset.index, 10);
+            selectedFiles.splice(index, 1);
+            updatePreviews();
+        }
+    });
+
+    addPhotoButton.onclick = () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = 'image/*';
         fileInput.multiple = true;
         fileInput.onchange = (event) => {
             const newFiles = Array.from(event.target.files);
-            const totalFiles = selectedFiles.length + newFiles.length;
-            if (totalFiles > 2) {
+            if (selectedFiles.length + newFiles.length > 2) {
                 showToast("Puedes subir un máximo de 2 fotos.", true);
                 return;
             }
-            selectedFiles.push(...newFiles);
-            if (selectedFiles.length > 0) {
-                const fileNames = selectedFiles.map(f => f.name);
-                document.getElementById('chef-photo-name').textContent = `📷 ${fileNames.join(', ')}`;
-            }
+            newFiles.forEach(file => {
+                const clonedFile = new File([file], file.name, { type: file.type, lastModified: file.lastModified });
+                selectedFiles.push(clonedFile);
+            });
+            updatePreviews();
         };
         fileInput.click();
     };
-    document.getElementById('chef-submit-btn').onclick = () => executeChefRequest(selectedFiles);
+    
+    document.getElementById('chef-submit-btn').onclick = () => {
+        if(selectedFiles.length === 0) {
+            showToast("Por favor, sube una foto de tus ingredientes.", true);
+            return;
+        }
+        executeChefRequest(selectedFiles);
+    };
 }
 
 async function executeChefRequest(files) {
@@ -1523,11 +1585,10 @@ Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Mencion
 Instrucciones Adicionales:
 Si no hay postre, el campo "postre" debe ser null. Si no hay ingredientes a comprar, el array debe estar vacío. Sé realista.`;
 
-        // *** LÍNEA MODIFICADA ***
         const makeRes = await fetchWithTimeout(chefWebhookURL, { 
             prompt: prompt, 
             images: files, 
-            image_count: files.length // Aquí se añade el recuento
+            image_count: files.length
         }, true);
 
         const responseText = await makeRes.text();
@@ -1571,6 +1632,7 @@ function renderChefResults(sugerencias) {
             </div>`;
         });
     }
+    html += `<div class="form-card" style="margin-top: 20px;"><button data-action="go-home" class="cancel" style="width:100%; max-width:100%; opacity:1; cursor:pointer;">Volver a Inicio</button></div>`;
     html += '</div>';
     
     mainContentArea.innerHTML = html;
@@ -1585,6 +1647,7 @@ function handleChefResultsClicks(event) {
     switch(action) {
         case 'add-ingredients': addIngredientsToShoppingList(button); break;
         case 'copy-recipe': copyToClipboard(button); break;
+        case 'go-home': renderDashboard(); break;
     }
 }
 
@@ -1942,7 +2005,6 @@ document.getElementById('tab-chef').onclick = () => {
 
 initializeApp();
 
-    });
-  </script>
+</script>
 </body>
 </html>
