@@ -1422,10 +1422,17 @@ async function saveEditedGasto(idUnico) {
 }
 
 // ==================================================
-// --- MÓDULO: CHEF ASISTENTE (VERSIÓN MEJORADA) ---
+// --- MÓDULO: CHEF ASISTENTE (VERSIÓN CORREGIDA Y MEJORADA) ---
 // ==================================================
 function renderChefPage() {
     setActiveTab('tab-chef');
+    
+    if (tg.BackButton.isVisible) {
+        tg.BackButton.offClick(renderDashboard); // Limpia listener anterior si existe
+    }
+    tg.BackButton.show();
+    tg.BackButton.onClick(renderDashboard);
+
     mainContentArea.innerHTML = `
         <div class="chef-container">
             <h2 class="settings-section-title">🧑‍🍳 Chef Asistente</h2>
@@ -1513,12 +1520,10 @@ async function executeChefRequest(files) {
     const peticionUsuario = document.getElementById('chef-peticion').value;
 
     try {
-        // 1. Obtener el contexto del usuario (clima, etc.)
         const contextRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_user_context', chat_ID: chatId, hora_comida: hora });
         const userContextForChef = await contextRes.json();
         if (userContextForChef.error) throw new Error(userContextForChef.error);
 
-        // 2. Construir el prompt para Make
         let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
 Contexto del Entorno del Usuario:
 Ubicación: ${userContextForChef.ciudad || 'desconocida'}, ${userContextForChef.pais || 'desconocido'}.
@@ -1535,25 +1540,10 @@ Análisis de Ingredientes:
 Analiza las imágenes adjuntas de la nevera/despensa del usuario. Lista en primer lugar los ingredientes principales que identificas.
 Tu Tarea:
 Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Menciona el clima en tu descripción para hacerla más personal. Tu respuesta DEBE estar en formato JSON, siguiendo estrictamente esta estructura:
-{
-"sugerencias": [
-{
-"titulo_receta": "Nombre de la Receta 1",
-"descripcion": "Un texto corto y apetitoso que venda la receta y se relacione con la petición del usuario.",
-"ingredientes_detectados": ["Ingrediente 1", "Ingrediente 2"],
-"ingredientes_a_comprar": [{"nombre": "Ingrediente 3", "cantidad": "1 ud"}],
-"tiempo_estimado_min": 30,
-"dificultad": "Fácil",
-"postre": { "titulo": "Nombre del Postre", "descripcion": "Descripción del postre", "ingredientes_a_comprar": [{"nombre": "Ingrediente P1", "cantidad": "100g"}] }
-}
-]
-}
+{"sugerencias": [{"titulo_receta": "Nombre Receta 1","descripcion": "Texto apetitoso.","ingredientes_detectados": ["Ingrediente 1"],"ingredientes_a_comprar": [{"nombre": "Ingrediente 3", "cantidad": "1 ud"}],"postre": {"titulo": "Nombre Postre","descripcion": "Descripción.","ingredientes_a_comprar": []}},{"titulo_receta": "Nombre Receta 2","descripcion": "Texto apetitoso.","ingredientes_detectados": [],"ingredientes_a_comprar": [],"postre": null}]}
 Instrucciones Adicionales:
-Si no hay postre, el campo "postre" debe ser null.
-Si una receta no requiere comprar nada, deja el array "ingredientes_a_comprar" vacío.
-Sé realista con las cantidades a comprar para el número de comensales.`;
+Si no hay postre, el campo "postre" debe ser null. Si no hay ingredientes a comprar, el array debe estar vacío. Sé realista.`;
 
-        // 3. Llamar al webhook de Make
         const makeRes = await fetchWithTimeout(chefWebhookURL, { prompt: prompt, images: files }, true);
         const responseText = await makeRes.text();
         const data = JSON.parse(responseText);
@@ -1569,21 +1559,18 @@ Sé realista con las cantidades a comprar para el número de comensales.`;
 }
 
 function renderChefResults(sugerencias) {
+    tg.BackButton.offClick(renderDashboard);
+    tg.BackButton.show();
+    tg.BackButton.onClick(renderChefPage);
+
     let html = '<div class="chef-container">';
     if (!sugerencias || sugerencias.length === 0) {
         html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
     } else {
         sugerencias.forEach((sug, index) => {
-            let recipeTextForCopy = `Receta: ${sug.titulo_receta}\n\nDescripción: ${sug.descripcion}\n\nIngredientes que ya tienes:\n${(sug.ingredientes_detectados || []).map(i => `- ${i}`).join('\n')}\n\n`;
-            if (sug.ingredientes_a_comprar && sug.ingredientes_a_comprar.length > 0) {
-                recipeTextForCopy += `Ingredientes a comprar:\n${sug.ingredientes_a_comprar.map(i => `- ${i.nombre} (${i.cantidad})`).join('\n')}`;
-            }
-
             html += `
             <div class="recipe-card" id="recipe-${index}">
-                <div class="recipe-header">
-                    <h3 class="recipe-title">${sug.titulo_receta}</h3>
-                </div>
+                <div class="recipe-header"><h3 class="recipe-title">${sug.titulo_receta}</h3></div>
                 <div class="recipe-body">
                     <p class="recipe-description">${sug.descripcion}</p>
                     <h4 class="recipe-subtitle">Ingredientes que ya tienes:</h4>
@@ -1595,77 +1582,76 @@ function renderChefResults(sugerencias) {
                         <ul class="recipe-ingredient-list buy">
                            ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} (${ing.cantidad})"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
                         </ul>
-                        <button class="add-article-btn" style="width:100%; max-width:100%; margin-top:15px;" onclick="addIngredientsToShoppingList(this, ${index})">Añadir seleccionados a la compra</button>
+                        <button class="add-article-btn" data-action="add-ingredients" style="width:100%; max-width:100%; margin-top:15px;">Añadir seleccionados a la compra</button>
                     ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
-                    <button class="add-article-btn" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;" onclick="copyToClipboard(this)">Copiar Receta</button>
+                    <button class="add-article-btn" data-action="copy-recipe" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;">Copiar Receta</button>
                 </div>
             </div>`;
         });
     }
-     html += `
-        <div class="form-card" style="margin-top: 20px;">
-            <div class="button-group">
-                <button onclick="renderDashboard()" class="cancel">Volver a Inicio</button>
-            </div>
-        </div>
-    `;
+    html += `<div class="form-card" style="margin-top: 20px;"><button data-action="go-home" class="cancel" style="width:100%; max-width:100%;">Volver a Inicio</button></div>`;
     html += '</div>';
+    
     mainContentArea.innerHTML = html;
+    mainContentArea.removeEventListener('click', handleChefResultsClicks); // Limpia anterior
+    mainContentArea.addEventListener('click', handleChefResultsClicks);
+}
+
+function handleChefResultsClicks(event) {
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+
+    const action = button.dataset.action;
+    switch(action) {
+        case 'add-ingredients':
+            addIngredientsToShoppingList(button);
+            break;
+        case 'copy-recipe':
+            copyToClipboard(button);
+            break;
+        case 'go-home':
+            renderDashboard();
+            break;
+    }
 }
 
 function copyToClipboard(buttonElement) {
     const recipeCard = buttonElement.closest('.recipe-card');
     const title = recipeCard.querySelector('.recipe-title').innerText;
     const description = recipeCard.querySelector('.recipe-description').innerText;
-    
     let textToCopy = `Receta: ${title}\n\n${description}\n\n`;
-    
     const detectedIngredients = Array.from(recipeCard.querySelectorAll('.recipe-ingredient-list:not(.buy) li')).map(li => `- ${li.innerText.replace('✅ ', '')}`);
-    if(detectedIngredients.length > 0) {
-        textToCopy += `Ingredientes en casa:\n${detectedIngredients.join('\n')}\n\n`;
-    }
-
+    if(detectedIngredients.length > 0) textToCopy += `Ingredientes en casa:\n${detectedIngredients.join('\n')}\n\n`;
     const toBuyIngredients = Array.from(recipeCard.querySelectorAll('.recipe-ingredient-list.buy li')).map(li => `- ${li.innerText.trim()}`);
-     if(toBuyIngredients.length > 0) {
-        textToCopy += `Ingredientes a comprar:\n${toBuyIngredients.join('\n')}`;
-    }
-
-    navigator.clipboard.writeText(textToCopy).then(() => {
-        showToast('Receta copiada al portapapeles');
-    }).catch(err => {
-        showToast('Error al copiar la receta', true);
-    });
+    if(toBuyIngredients.length > 0) textToCopy += `Ingredientes a comprar:\n${toBuyIngredients.join('\n')}`;
+    navigator.clipboard.writeText(textToCopy).then(() => { showToast('Receta copiada al portapapeles'); }).catch(err => { showToast('Error al copiar la receta', true); });
 }
 
-async function addIngredientsToShoppingList(buttonElement, recipeIndex) {
-    const recipeCard = document.getElementById(`recipe-${recipeIndex}`);
+async function addIngredientsToShoppingList(buttonElement) {
+    const recipeCard = buttonElement.closest('.recipe-card');
     const checkboxes = recipeCard.querySelectorAll('.buy-checkbox:checked');
     if (checkboxes.length === 0) {
         showToast("No has seleccionado ningún ingrediente.", true);
         return;
     }
     const itemsToAdd = Array.from(checkboxes).map(cb => cb.dataset.itemName);
-    
     showSpinner();
     try {
         const payload = { Type: 'add_multiple_shopping_items', chat_ID: chatId, items: itemsToAdd };
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-
-        itemsToAdd.forEach(item => {
-            appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}${Math.random()}`, '4': '', '5': 0 });
-        });
+        itemsToAdd.forEach(item => { appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}${Math.random()}`, '4': '', '5': 0 }); });
         appData.counts.shoppingPendingCount += itemsToAdd.length;
-
         showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
-        buttonElement.style.display = 'none'; // Oculta el botón
+        buttonElement.style.display = 'none';
     } catch(err) {
         showToast(err.message, true);
     } finally {
         hideSpinner();
     }
 }
+
 // ==================================================
 // --- MÓDULO: AJUSTES ---
 // ==================================================
