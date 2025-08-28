@@ -1851,7 +1851,7 @@ function renderDashboard() {
   setActiveTab('tab-home');
   manageBackButton(false);
   const counts = appData.counts;
-  const isPremium = appData.isPremium === true;
+  const isPremium = String(appData.isPremium).toLowerCase() === 'true';
 
   let chefCardHtml = `
     <div class="card clickable-card" id="chef-card">
