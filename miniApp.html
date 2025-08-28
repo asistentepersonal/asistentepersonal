@@ -1453,7 +1453,7 @@ async function renderChefPage() {
                     <label style="margin-top: 20px;">Tu Petición Especial</label>
                     <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
                     
-                    <button id="chef-add-photo-btn" class="add-article-btn" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto de Ingredientes</button>
+                    <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto de Ingredientes</button>
                     <div id="chef-photo-name" style="color:var(--muted); font-size:0.9rem; margin-top:8px; text-align:center;"></div>
                     
                     <button id="chef-submit-btn" class="enabled" style="margin-top:20px;">Obtener Sugerencias</button>
@@ -1853,7 +1853,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
 	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
-      <div class="card clickable-card" id="chef-card"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef Asistente</div></div>
+      <div class="card clickable-card" id="chef-card" onclick="renderChefPage()"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef Asistente</div></div>
     </div>`;
   
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
