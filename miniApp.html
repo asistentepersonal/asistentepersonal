@@ -1453,7 +1453,7 @@ async function renderChefPage() {
                     <label style="margin-top: 20px;">Tu Petición Especial</label>
                     <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
                     
-                    <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto de Ingredientes</button>
+                    <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto(s) de Ingredientes</button>
                     <div id="chef-photo-name" style="color:var(--muted); font-size:0.9rem; margin-top:8px; text-align:center;"></div>
                     
                     <button id="chef-submit-btn" class="enabled" style="margin-top:20px;">Obtener Sugerencias</button>
@@ -1462,25 +1462,40 @@ async function renderChefPage() {
 
         flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
         
+        // Array para guardar las imágenes en Base64
+        let selectedImagesBase64 = [];
+
         document.getElementById('chef-add-photo-btn').onclick = () => {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = 'image/*';
+            fileInput.multiple = true; // Permitir selección múltiple
             fileInput.onchange = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
+                const files = event.target.files;
+                if (!files || files.length === 0) return;
                 
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    selectedImageFile = e.target.result; 
-                    document.getElementById('chef-photo-name').textContent = `📷 ${file.name} (cargada)`;
-                };
-                reader.onerror = () => showToast("Error al leer la imagen.", true);
-                reader.readAsDataURL(file);
+                selectedImagesBase64 = []; // Limpiar array anterior
+                let fileNames = [];
+                
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        // Guardamos cada imagen como texto Base64
+                        selectedImagesBase64.push(e.target.result); 
+                        fileNames.push(file.name);
+                        
+                        // Actualizar la UI solo cuando todas las imágenes se hayan leído
+                        if (selectedImagesBase64.length === files.length) {
+                             document.getElementById('chef-photo-name').textContent = `📷 ${fileNames.join(', ')} (cargadas)`;
+                        }
+                    };
+                    reader.onerror = () => showToast("Error al leer la imagen: " + file.name, true);
+                    reader.readAsDataURL(file);
+                });
             };
             fileInput.click();
         };
-        document.getElementById('chef-submit-btn').onclick = executeChefRequest;
+        document.getElementById('chef-submit-btn').onclick = () => executeChefRequest(selectedImagesBase64);
 
     } catch(err) {
         showToast(err.message, true);
@@ -1489,10 +1504,10 @@ async function renderChefPage() {
         hideSpinner();
     }
 }
-async function executeChefRequest() {
+
+async function executeChefRequest(imagesBase64) {
     showSpinner("Un momento, el Chef está trabajando...");
     
-    // Recopilar datos del formulario
     const tipoComida = document.getElementById('chef-tipo-comida').value;
     const hora = document.getElementById('chef-hora').value;
     const comensales = document.getElementById('chef-comensales').value;
@@ -1501,7 +1516,6 @@ async function executeChefRequest() {
     const soloNevera = document.getElementById('chef-solo-nevera').checked;
     const peticionUsuario = document.getElementById('chef-peticion').value;
 
-    // Construir el prompt
     let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
 
 Contexto del Entorno del Usuario:
@@ -1518,7 +1532,7 @@ Contexto de la Petición:
 - Condición de ingredientes: ${soloNevera ? 'El usuario solicita usar EXCLUSIVAMENTE los ingredientes de la foto, sin comprar nada más.' : 'El usuario está dispuesto a comprar ingredientes si es necesario.'}
 
 Análisis de Ingredientes:
-Analiza la imagen adjunta de la nevera/despensa del usuario. Lista en primer lugar los ingredientes principales que identificas.
+Analiza las imágenes adjuntas de la nevera/despensa del usuario. Lista en primer lugar los ingredientes principales que identificas.
 
 Tu Tarea:
 Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Menciona el clima en tu descripción para hacerla más personal. Tu respuesta DEBE estar en formato JSON, siguiendo estrictamente esta estructura:
@@ -1541,17 +1555,12 @@ Instrucciones Adicionales:
 - Si una receta no requiere comprar nada, deja el array "ingredientes_a_comprar" vacío.
 - Sé realista con las cantidades a comprar para el número de comensales.`;
 
-    // AÑADIMOS la imagen Base64 al final del prompt si existe
-    if (selectedImageFile) {
-        prompt += `\n\nAnaliza la siguiente imagen de los ingredientes del usuario codificada en Base64: ${selectedImageFile.split(',')[1]}`; // Enviamos solo la parte Base64
-    }
-
     try {
         const payload = { 
-            prompt: prompt
+            prompt: prompt,
+            images: imagesBase64 // Enviamos el array de imágenes en Base64
         };
         
-        // Esta vez no usamos fetchWithTimeout para tener más control
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 60000);
 
@@ -1575,7 +1584,68 @@ Instrucciones Adicionales:
         showToast(err.message, true);
     } finally {
         hideSpinner();
-        selectedImageFile = null;
+        selectedImageFile = null; // Limpiar después de usar
+    }
+}
+
+function renderChefResults(sugerencias) {
+    let html = '<div class="chef-container">';
+    if (!sugerencias || sugerencias.length === 0) {
+        html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
+    } else {
+        sugerencias.forEach((sug, index) => {
+            html += `
+            <div class="recipe-card" id="recipe-${index}">
+                <div class="recipe-header">
+                    <h3 class="recipe-title">${sug.titulo_receta}</h3>
+                </div>
+                <div class="recipe-body">
+                    <p class="recipe-description">${sug.descripcion}</p>
+                    <h4 class="recipe-subtitle">Ingredientes que ya tienes:</h4>
+                    <ul class="recipe-ingredient-list">
+                        ${sug.ingredientes_detectados.map(ing => `<li>✅ ${ing}</li>`).join('')}
+                    </ul>
+                    ${sug.ingredientes_a_comprar && sug.ingredientes_a_comprar.length > 0 ? `
+                        <h4 class="recipe-subtitle" style="margin-top:15px;">Necesitarás comprar:</h4>
+                        <ul class="recipe-ingredient-list buy">
+                           ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} ${ing.cantidad}"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
+                        </ul>
+                        <button class="add-article-btn" style="width:100%; max-width:100%; margin-top:15px;" onclick="addIngredientsToShoppingList(${index})">Añadir seleccionados a la compra</button>
+                    ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
+                </div>
+            </div>`;
+        });
+    }
+    html += '</div>';
+    mainContentArea.innerHTML = html;
+}
+
+async function addIngredientsToShoppingList(recipeIndex) {
+    const recipeCard = document.getElementById(`recipe-${recipeIndex}`);
+    const checkboxes = recipeCard.querySelectorAll('.buy-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showToast("No has seleccionado ningún ingrediente.", true);
+        return;
+    }
+    const itemsToAdd = Array.from(checkboxes).map(cb => cb.dataset.itemName);
+    
+    showSpinner();
+    try {
+        const payload = { Type: 'add_multiple_shopping_items', chat_ID: chatId, items: itemsToAdd };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        itemsToAdd.forEach(item => {
+            appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}`, '4': '', '5': 0 });
+        });
+        appData.counts.shoppingPendingCount += itemsToAdd.length;
+
+        showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
+    } catch(err) {
+        showToast(err.message, true);
+    } finally {
+        hideSpinner();
     }
 }
 // ==================================================
