@@ -1209,43 +1209,32 @@ async function saveGasto() {
 }
 
 function renderGastoChart() {
-  console.log("--- Se ha llamado a renderGastoChart ---"); // Línea de prueba
-  try {
-    manageBackButton(true, renderDashboard);
-    const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
-    mainContentArea.innerHTML = `
-      <div class="list-container">
-        <div class="list-header"><h2>Análisis de Gastos</h2></div>
-        <div class="form-card">
-          <label>Detalle por Mes</label>
-          <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
-          <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
-          <ul class="gasto-legend" id="gasto-legend-container"></ul>
-          <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
-          <div class="gasto-chart-container" id="chart-container-daily" style="display:none;"><canvas id="dailyChartCanvas"></canvas></div>
-          <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
-          <div class="gasto-chart-container" id="chart-container-monthly" style="display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
-        </div>
-      </div>`;
-    document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
-    console.log("--- renderGastoChart se ejecutó con éxito ---"); // Línea de prueba
-  } catch (error) {
-    console.error("ERROR DENTRO DE renderGastoChart:", error); // Línea de prueba
-  }
+  manageBackButton(true, renderDashboard);
+  const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+  mainContentArea.innerHTML = `
+    <div class="list-container">
+      <div class="list-header"><h2>Análisis de Gastos</h2></div>
+      <div class="form-card">
+        <label>Detalle por Mes</label>
+        <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
+        <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
+        <ul class="gasto-legend" id="gasto-legend-container"></ul>
+        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
+        <div class="gasto-chart-container" id="chart-container-daily" style="display:none;"><canvas id="dailyChartCanvas"></canvas></div>
+        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
+        <div class="gasto-chart-container" id="chart-container-monthly" style="display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
+      </div>
+    </div>`;
+  document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
 }
 
 async function fetchAndDisplayGastoChart(event) {
   const mesAnio = event.target.value;
-  // Limpia el contenido anterior en lugar de destruir instancias de Chart.js
+  if (pieChartInstance) pieChartInstance.destroy();
+  if (dailyChartInstance) dailyChartInstance.destroy();
+  if (monthlyChartInstance) monthlyChartInstance.destroy();
   document.getElementById('gasto-legend-container').innerHTML = '';
-  const chartContainers = ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly'];
-  chartContainers.forEach(id => {
-      const container = document.getElementById(id);
-      container.innerHTML = ''; // Limpia el canvas o img anterior
-      container.style.display = 'none';
-  });
-  ['hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
-
+  ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
   if (!mesAnio) return;
   showSpinner();
   try {
@@ -1253,62 +1242,32 @@ async function fetchAndDisplayGastoChart(event) {
     const res = await fetchWithTimeout(gasWebhookURL, payload);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-
-    // Lógica para mostrar imágenes desde URLs
-    if (data.pieChartUrl) {
-      const pieContainer = document.getElementById('chart-container-pie');
-      pieContainer.innerHTML = `<img src="${data.pieChartUrl}" style="max-width: 100%; border-radius: 8px;" alt="Gráfico de Gastos por Categoría">`;
-      pieContainer.style.display = 'block';
+    
+    Chart.register(ChartDataLabels);
+    const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+    
+    if (data.pieData && data.pieData.data && data.pieData.data.length > 0) {
+      document.getElementById('chart-container-pie').style.display = 'block';
+      const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
+      pieChartInstance = new Chart(pieCtx, {
+        type: 'pie',
+        data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          plugins: {
+            title: { display: true, text: data.tituloPie, font: { size: 18 } },
+            legend: { display: false },
+            datalabels: {
+              formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (total === 0) return '0%'; return (value / total * 100).toFixed(0) + '%'; },
+              color: '#fff', font: { weight: 'bold', size: 16 }
+            }
+          }
+        }
+      });
+      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe}</strong></div></li>`).join('');
     }
     
-    if (data.datosParaLeyenda && data.datosParaLeyenda.length > 0) {
-        document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span>${item.categoria}: <strong>${item.importe}</strong></li>`).join('');
-    }
-
-    if (data.dailyLineChartUrl) {
-      document.getElementById('hr1').style.display = 'block';
-      const dailyContainer = document.getElementById('chart-container-daily');
-      dailyContainer.innerHTML = `<img src="${data.dailyLineChartUrl}" style="max-width: 100%; border-radius: 8px;" alt="Gráfico de Gastos Diarios">`;
-      dailyContainer.style.display = 'block';
-    }
-    
-    if (data.monthlyBarChartUrl) {
-      document.getElementById('hr2').style.display = 'block';
-      const monthlyContainer = document.getElementById('chart-container-monthly');
-      monthlyContainer.innerHTML = `<img src="${data.monthlyBarChartUrl}" style="max-width: 100%; border-radius: 8px;" alt="Gráfico de Gastos Mensuales">`;
-      monthlyContainer.style.display = 'block';
-    }
-    
-  } catch (err) { 
-      showToast(err.message, true); 
-  } finally { 
-      hideSpinner(); 
-  }
-}
-
-function renderSearchGastosForm() {
-    manageBackButton(true, renderDashboard);
-    mainContentArea.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
-            <div class="form-card">
-                <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
-                <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
-                <button id="search-gasto-btn" class="enabled">Buscar</button>
-            </div>
-            <div id="gastos-search-results" style="margin-top: 20px;"></div>
-        </div>`;
-    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
-    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
-    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
-    document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
-    document.getElementById('gastos-search-results').addEventListener('click', (e) => {
-        const target = e.target.closest('.dropdown-item'); if (!target) return;
-        const action = target.dataset.action, idUnico = target.dataset.idUnico;
-        if (action === 'edit-gasto') { const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico); if (gasto) renderEditGastoForm(gasto); } 
-        else if (action === 'delete-gasto') { confirmDelete('gasto', idUnico); }
-    });
-}
+    if (data.dailyData && dat
 
 async function executeSearchGastos() {
     const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
