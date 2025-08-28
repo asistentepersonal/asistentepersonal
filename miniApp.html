@@ -51,7 +51,7 @@
     .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1000;font-size:1rem;}
     .toast.error{background:var(--error-bg);}
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
-    .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;z-index:1001;}
+    .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 2s linear infinite;z-index:1001; text-align: center;}
     @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
     @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
@@ -166,8 +166,7 @@
         <button id="preview-send-btn">Enviar</button>
     </div>
   </div>
-  
-    <script>
+      <script>
     document.addEventListener('DOMContentLoaded', () => {
     
 // ==================================================
@@ -185,7 +184,6 @@ if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Tele
 
 let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {} };
 let initialUserSettings = {};
-let userContextForChef = {};
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
 
@@ -204,8 +202,12 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   let options = { method: 'POST', signal: controller.signal };
   if (isMakeWebhook) {
       const formData = new FormData();
-      if (payloadObject.prompt) formData.append('prompt', payloadObject.prompt);
-      if (payloadObject.image) formData.append('image', payloadObject.image, payloadObject.image.name);
+      formData.append('prompt', payloadObject.prompt);
+      if (payloadObject.images && payloadObject.images.length > 0) {
+        payloadObject.images.forEach(imageFile => {
+            formData.append('images', imageFile, imageFile.name);
+        });
+      }
       options.body = formData;
   } else {
       const formData = new FormData();
@@ -473,7 +475,7 @@ function renderShoppingList() {
     if (isPending) {
       return `
         <li class="shopping-item" id="item-${item['3']}">
-            <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="Pendiente"><span>${item['1']}</span></button>
+            <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="Pendiente" data-cycle="${item['5'] || 0}"><span>${item['1']}</span></button>
             <div class="list-item-actions">
                 <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item['3']}">
@@ -486,7 +488,7 @@ function renderShoppingList() {
       return `
         <li class="shopping-item" id="item-${item['3']}">
             <div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}"></div>
-            <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="Comprado">
+            <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="Comprado" data-cycle="${item['5'] || 0}">
                 <span>${item['1']}</span>
                 ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
             </button>
@@ -526,8 +528,16 @@ function handleShoppingItemInteractions(event) {
   const toggleButton = event.target.closest('.shopping-item-toggle-btn');
   if (toggleButton) {
       const trackingCode = toggleButton.dataset.trackingCode;
-      const newStatus = toggleButton.dataset.currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
-      optimisticToggleShoppingItemStatus(trackingCode, newStatus);
+      const currentStatus = toggleButton.dataset.currentStatus;
+      const cycle = parseInt(toggleButton.dataset.cycle, 10);
+      
+      // *** NUEVA LÓGICA DE ELIMINACIÓN ***
+      if (currentStatus === 'Pendiente' && cycle === 0) {
+          optimisticDeleteItemPermanently(trackingCode);
+      } else {
+          const newStatus = currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+          optimisticToggleShoppingItemStatus(trackingCode, newStatus);
+      }
       return;
   }
   const menuItem = event.target.closest('.dropdown-item');
@@ -543,6 +553,19 @@ function handleShoppingItemInteractions(event) {
   }
 }
 
+function optimisticDeleteItemPermanently(trackingCode) {
+    const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
+    if (itemIndex === -1) return;
+    appData.shoppingList.splice(itemIndex, 1);
+    appData.counts.shoppingPendingCount--;
+    renderShoppingList();
+    showToast('Artículo de un solo uso eliminado.');
+    fetchWithTimeout(gasWebhookURL, { Type: 'delete_item_shopping_list', chat_ID: chatId, tracking_code: trackingCode })
+        .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
+        .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
+}
+
+
 function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
   const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
   if (itemIndex === -1) return;
@@ -553,7 +576,6 @@ function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
       .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
       .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
-
 function updateMultiSelectButtonState() {
   const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
   if (!multiSelectToggleButton) return;
@@ -611,7 +633,7 @@ async function addArticle() {
 function renderEditShoppingItemForm(item) {
     mainContentArea.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2✏️ Editar Artículo</h2></div>
+          <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Artículo</h2></div>
           <div class="form-card">
               <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
               <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
@@ -943,7 +965,6 @@ async function saveEvent() {
         initializeApp();
     }
 }
-
 function renderSearchCalendarForm() {
     mainContentArea.innerHTML = `
         <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar en Calendario</h2></div>
@@ -1203,7 +1224,6 @@ async function saveGasto() {
         initializeApp(); 
     }
 }
-
 function renderGastoChart() {
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
   mainContentArea.innerHTML = `
@@ -1402,90 +1422,83 @@ async function saveEditedGasto(idUnico) {
 }
 
 // ==================================================
-// --- MÓDULO: CHEF ASISTENTE (VERSIÓN FINAL Y FUNCIONAL) ---
+// --- MÓDULO: CHEF ASISTENTE (VERSIÓN MEJORADA) ---
 // ==================================================
-async function renderChefPage() {
+function renderChefPage() {
     setActiveTab('tab-chef');
-    showSpinner();
-    try {
-        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_user_context', chat_ID: chatId });
-        userContextForChef = await res.json();
-        if (userContextForChef.error) throw new Error(userContextForChef.error);
-
-        mainContentArea.innerHTML = `
-            <div class="chef-container">
-                <h2 class="settings-section-title">🧑‍🍳 Chef Asistente</h2>
-                <div class="form-card">
-                    <div class="chef-item">
-                        <label>Tipo de Comida</label>
-                        <select id="chef-tipo-comida">
-                            <option value="Desayuno">🍳 Desayuno</option>
-                            <option value="Almuerzo" selected>🥗 Almuerzo</option>
-                            <option value="Merienda">🥪 Merienda</option>
-                            <option value="Cena">🍝 Cena</option>
-                        </select>
-                    </div>
-                    <div class="chef-item">
-                        <label>Hora Aproximada</label>
-                        <input type="text" id="chef-hora" style="width: 100px; text-align: center;"/>
-                    </div>
-                    <div class="chef-item">
-                        <label>Nº de Comensales</label>
-                        <input type="number" id="chef-comensales" value="1" min="1" style="width: 80px; text-align: center;"/>
-                    </div>
-                    <div class="chef-item">
-                        <label>Estilo de Cocina</label>
-                        <select id="chef-estilo">
-                            <option value="Sorpréndeme">✨ Sorpréndeme</option>
-                            <option value="Rápida">🏃 Rápida</option>
-                            <option value="Casera">🏡 Casera</option>
-                            <option value="Saludable">💪 Saludable</option>
-                        </select>
-                    </div>
-                    <div class="chef-item">
-                        <label>¿Incluir Postre?</label>
-                        <label class="switch"><input type="checkbox" id="chef-postre"><span class="slider"></span></label>
-                    </div>
-                    <div class="chef-item">
-                        <label>Solo con lo que tengo</label>
-                        <label class="switch"><input type="checkbox" id="chef-solo-nevera"><span class="slider"></span></label>
-                    </div>
-                    <label style="margin-top: 20px;">Tu Petición Especial</label>
-                    <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
-                    
-                    <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto(s) de Ingredientes</button>
-                    <div id="chef-photo-name" style="color:var(--muted); font-size:0.9rem; margin-top:8px; text-align:center;"></div>
-                    
-                    <button id="chef-submit-btn" class="enabled" style="margin-top:20px;">Obtener Sugerencias</button>
+    mainContentArea.innerHTML = `
+        <div class="chef-container">
+            <h2 class="settings-section-title">🧑‍🍳 Chef Asistente</h2>
+            <div class="form-card">
+                <div class="chef-item">
+                    <label>Tipo de Comida</label>
+                    <select id="chef-tipo-comida">
+                        <option value="Desayuno">🍳 Desayuno</option>
+                        <option value="Almuerzo" selected>🥗 Almuerzo</option>
+                        <option value="Merienda">🥪 Merienda</option>
+                        <option value="Cena">🍝 Cena</option>
+                    </select>
                 </div>
-            </div>`;
+                <div class="chef-item">
+                    <label>Hora Aproximada</label>
+                    <input type="text" id="chef-hora" style="width: 100px; text-align: center;"/>
+                </div>
+                <div class="chef-item">
+                    <label>Nº de Comensales</label>
+                    <input type="number" id="chef-comensales" value="1" min="1" style="width: 80px; text-align: center;"/>
+                </div>
+                <div class="chef-item">
+                    <label>Estilo de Cocina</label>
+                    <select id="chef-estilo">
+                        <option value="Sorpréndeme">✨ Sorpréndeme</option>
+                        <option value="Rápida">🏃 Rápida</option>
+                        <option value="Casera">🏡 Casera</option>
+                        <option value="Saludable">💪 Saludable</option>
+                    </select>
+                </div>
+                <div class="chef-item">
+                    <label>¿Incluir Postre?</label>
+                    <label class="switch"><input type="checkbox" id="chef-postre"><span class="slider"></span></label>
+                </div>
+                <div class="chef-item">
+                    <label>Solo con lo que tengo</label>
+                    <label class="switch"><input type="checkbox" id="chef-solo-nevera"><span class="slider"></span></label>
+                </div>
+                <label style="margin-top: 20px;">Tu Petición Especial</label>
+                <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
+                
+                <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto(s) de Ingredientes</button>
+                <div id="chef-photo-name" style="color:var(--muted); font-size:0.9rem; margin-top:8px; text-align:center;"></div>
+                
+                <button id="chef-submit-btn" class="enabled" style="margin-top:20px;">Obtener Sugerencias</button>
+            </div>
+        </div>`;
 
-        flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
-        
-        let selectedFiles = [];
+    flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
+    
+    let selectedFiles = [];
 
-        document.getElementById('chef-add-photo-btn').onclick = () => {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'image/*';
-            fileInput.multiple = true;
-            fileInput.onchange = (event) => {
-                selectedFiles = Array.from(event.target.files);
-                if (selectedFiles.length > 0) {
-                    const fileNames = selectedFiles.map(f => f.name);
-                    document.getElementById('chef-photo-name').textContent = `📷 ${fileNames.join(', ')}`;
-                }
-            };
-            fileInput.click();
+    document.getElementById('chef-add-photo-btn').onclick = () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.multiple = true;
+        fileInput.onchange = (event) => {
+            const newFiles = Array.from(event.target.files);
+            const totalFiles = selectedFiles.length + newFiles.length;
+            if (totalFiles > 2) {
+                showToast("Puedes subir un máximo de 2 fotos.", true);
+                return;
+            }
+            selectedFiles.push(...newFiles);
+            if (selectedFiles.length > 0) {
+                const fileNames = selectedFiles.map(f => f.name);
+                document.getElementById('chef-photo-name').textContent = `📷 ${fileNames.join(', ')}`;
+            }
         };
-        document.getElementById('chef-submit-btn').onclick = () => executeChefRequest(selectedFiles);
-
-    } catch(err) {
-        showToast(err.message, true);
-        renderDashboard();
-    } finally {
-        hideSpinner();
-    }
+        fileInput.click();
+    };
+    document.getElementById('chef-submit-btn').onclick = () => executeChefRequest(selectedFiles);
 }
 
 async function executeChefRequest(files) {
@@ -1499,7 +1512,14 @@ async function executeChefRequest(files) {
     const soloNevera = document.getElementById('chef-solo-nevera').checked;
     const peticionUsuario = document.getElementById('chef-peticion').value;
 
-    let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
+    try {
+        // 1. Obtener el contexto del usuario (clima, etc.)
+        const contextRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_user_context', chat_ID: chatId, hora_comida: hora });
+        const userContextForChef = await contextRes.json();
+        if (userContextForChef.error) throw new Error(userContextForChef.error);
+
+        // 2. Construir el prompt para Make
+        let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
 Contexto del Entorno del Usuario:
 Ubicación: ${userContextForChef.ciudad || 'desconocida'}, ${userContextForChef.pais || 'desconocido'}.
 Estación del Año: ${userContextForChef.estacion}.
@@ -1532,30 +1552,10 @@ Instrucciones Adicionales:
 Si no hay postre, el campo "postre" debe ser null.
 Si una receta no requiere comprar nada, deja el array "ingredientes_a_comprar" vacío.
 Sé realista con las cantidades a comprar para el número de comensales.`;
-code
-Code
 
-
-    try {
-        const formData = new FormData();
-        formData.append('prompt', prompt);
-        files.forEach((file, index) => {
-            formData.append(`images`, file, file.name); // Envía todas las imágenes en un array "images"
-        });
-        
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 60000);
-
-        const res = await fetch(chefWebhookURL, {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal
-        });
-        
-        clearTimeout(id);
-        if (!res.ok) throw new Error(`Error del servidor de Make: ${res.status}`);
-        
-        const responseText = await res.text();
+        // 3. Llamar al webhook de Make
+        const makeRes = await fetchWithTimeout(chefWebhookURL, { prompt: prompt, images: files }, true);
+        const responseText = await makeRes.text();
         const data = JSON.parse(responseText);
         
         showToast("¡Aquí tienes tus sugerencias!");
@@ -1574,7 +1574,7 @@ function renderChefResults(sugerencias) {
         html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
     } else {
         sugerencias.forEach((sug, index) => {
-            let recipeTextForCopy = `Receta: ${sug.titulo_receta}\n\nDescripción: ${sug.descripcion}\n\nIngredientes que ya tienes:\n${(sug.ingredientes_detectados || []).join('\n')}\n\n`;
+            let recipeTextForCopy = `Receta: ${sug.titulo_receta}\n\nDescripción: ${sug.descripcion}\n\nIngredientes que ya tienes:\n${(sug.ingredientes_detectados || []).map(i => `- ${i}`).join('\n')}\n\n`;
             if (sug.ingredientes_a_comprar && sug.ingredientes_a_comprar.length > 0) {
                 recipeTextForCopy += `Ingredientes a comprar:\n${sug.ingredientes_a_comprar.map(i => `- ${i.nombre} (${i.cantidad})`).join('\n')}`;
             }
@@ -1595,9 +1595,9 @@ function renderChefResults(sugerencias) {
                         <ul class="recipe-ingredient-list buy">
                            ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} (${ing.cantidad})"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
                         </ul>
-                        <button class="add-article-btn" style="width:100%; max-width:100%; margin-top:15px;" onclick="addIngredientsToShoppingList(${index})">Añadir seleccionados a la compra</button>
+                        <button class="add-article-btn" style="width:100%; max-width:100%; margin-top:15px;" onclick="addIngredientsToShoppingList(this, ${index})">Añadir seleccionados a la compra</button>
                     ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
-                    <button class="add-article-btn" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;" onclick="copyToClipboard('${recipeTextForCopy.replace(/"/g, '&quot;').replace(/'/g, '\\\'')}')">Copiar Receta</button>
+                    <button class="add-article-btn" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;" onclick="copyToClipboard(this)">Copiar Receta</button>
                 </div>
             </div>`;
         });
@@ -1606,7 +1606,6 @@ function renderChefResults(sugerencias) {
         <div class="form-card" style="margin-top: 20px;">
             <div class="button-group">
                 <button onclick="renderDashboard()" class="cancel">Volver a Inicio</button>
-                <button onclick="renderChefPage()" class="enabled">Nueva Consulta</button>
             </div>
         </div>
     `;
@@ -1614,15 +1613,31 @@ function renderChefResults(sugerencias) {
     mainContentArea.innerHTML = html;
 }
 
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
+function copyToClipboard(buttonElement) {
+    const recipeCard = buttonElement.closest('.recipe-card');
+    const title = recipeCard.querySelector('.recipe-title').innerText;
+    const description = recipeCard.querySelector('.recipe-description').innerText;
+    
+    let textToCopy = `Receta: ${title}\n\n${description}\n\n`;
+    
+    const detectedIngredients = Array.from(recipeCard.querySelectorAll('.recipe-ingredient-list:not(.buy) li')).map(li => `- ${li.innerText.replace('✅ ', '')}`);
+    if(detectedIngredients.length > 0) {
+        textToCopy += `Ingredientes en casa:\n${detectedIngredients.join('\n')}\n\n`;
+    }
+
+    const toBuyIngredients = Array.from(recipeCard.querySelectorAll('.recipe-ingredient-list.buy li')).map(li => `- ${li.innerText.trim()}`);
+     if(toBuyIngredients.length > 0) {
+        textToCopy += `Ingredientes a comprar:\n${toBuyIngredients.join('\n')}`;
+    }
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
         showToast('Receta copiada al portapapeles');
     }).catch(err => {
         showToast('Error al copiar la receta', true);
     });
 }
 
-async function addIngredientsToShoppingList(recipeIndex) {
+async function addIngredientsToShoppingList(buttonElement, recipeIndex) {
     const recipeCard = document.getElementById(`recipe-${recipeIndex}`);
     const checkboxes = recipeCard.querySelectorAll('.buy-checkbox:checked');
     if (checkboxes.length === 0) {
@@ -1638,13 +1653,13 @@ async function addIngredientsToShoppingList(recipeIndex) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        // Actualización optimista
         itemsToAdd.forEach(item => {
-            appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}`, '4': '', '5': 0 });
+            appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}${Math.random()}`, '4': '', '5': 0 });
         });
         appData.counts.shoppingPendingCount += itemsToAdd.length;
 
         showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
+        buttonElement.style.display = 'none'; // Oculta el botón
     } catch(err) {
         showToast(err.message, true);
     } finally {
