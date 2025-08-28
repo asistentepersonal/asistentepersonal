@@ -1851,7 +1851,7 @@ function renderDashboard() {
   setActiveTab('tab-home');
   manageBackButton(false);
   const counts = appData.counts;
-  const isPremium = String(appData.isPremium).toLowerCase() === 'true';
+  const isPremium = String(appData.isPremium).toLowerCase() === 'si';
 
   let chefCardHtml = `
     <div class="card clickable-card" id="chef-card">
@@ -1921,7 +1921,7 @@ document.getElementById('tab-home').onclick = renderDashboard;
 document.getElementById('tab-settings').onclick = renderSettings;
 document.getElementById('tab-export').onclick = renderExportPage;
 document.getElementById('tab-chef').onclick = () => {
-    if(appData.isPremium) {
+    if (String(appData.isPremium).toLowerCase() === 'si') {
         renderChefPage();
     } else {
         showToast("El Chef Asistente es una función Premium.", true);
