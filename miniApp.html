@@ -1461,15 +1461,22 @@ async function renderChefPage() {
             </div>`;
 
         flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
+        
         document.getElementById('chef-add-photo-btn').onclick = () => {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = 'image/*';
             fileInput.onchange = (event) => {
-                selectedImageFile = event.target.files[0];
-                if (selectedImageFile) {
-                    document.getElementById('chef-photo-name').textContent = `📷 ${selectedImageFile.name}`;
-                }
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    selectedImageFile = e.target.result; 
+                    document.getElementById('chef-photo-name').textContent = `📷 ${file.name} (cargada)`;
+                };
+                reader.onerror = () => showToast("Error al leer la imagen.", true);
+                reader.readAsDataURL(file);
             };
             fileInput.click();
         };
@@ -1534,10 +1541,32 @@ Instrucciones Adicionales:
 - Si una receta no requiere comprar nada, deja el array "ingredientes_a_comprar" vacío.
 - Sé realista con las cantidades a comprar para el número de comensales.`;
 
+    // AÑADIMOS la imagen Base64 al final del prompt si existe
+    if (selectedImageFile) {
+        prompt += `\n\nAnaliza la siguiente imagen de los ingredientes del usuario codificada en Base64: ${selectedImageFile.split(',')[1]}`; // Enviamos solo la parte Base64
+    }
+
     try {
-        const payload = { prompt: prompt, image: selectedImageFile };
-        const res = await fetchWithTimeout(chefWebhookURL, payload, true);
-        const data = await res.json();
+        const payload = { 
+            prompt: prompt
+        };
+        
+        // Esta vez no usamos fetchWithTimeout para tener más control
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 60000);
+
+        const res = await fetch(chefWebhookURL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+        
+        clearTimeout(id);
+        if (!res.ok) throw new Error(`Error del servidor de Make: ${res.status}`);
+        
+        const responseText = await res.text();
+        const data = JSON.parse(responseText);
         
         showToast("¡Aquí tienes tus sugerencias!");
         renderChefResults(data.sugerencias);
@@ -1547,67 +1576,6 @@ Instrucciones Adicionales:
     } finally {
         hideSpinner();
         selectedImageFile = null;
-    }
-}
-function renderChefResults(sugerencias) {
-    let html = '<div class="chef-container">';
-    if (!sugerencias || sugerencias.length === 0) {
-        html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
-    } else {
-        sugerencias.forEach((sug, index) => {
-            html += `
-            <div class="recipe-card" id="recipe-${index}">
-                <div class="recipe-header">
-                    <h3 class="recipe-title">${sug.titulo_receta}</h3>
-                </div>
-                <div class="recipe-body">
-                    <p class="recipe-description">${sug.descripcion}</p>
-                    <h4 class="recipe-subtitle">Ingredientes que ya tienes:</h4>
-                    <ul class="recipe-ingredient-list">
-                        ${sug.ingredientes_detectados.map(ing => `<li>✅ ${ing}</li>`).join('')}
-                    </ul>
-                    ${sug.ingredientes_a_comprar.length > 0 ? `
-                        <h4 class="recipe-subtitle" style="margin-top:15px;">Necesitarás comprar:</h4>
-                        <ul class="recipe-ingredient-list buy">
-                           ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} ${ing.cantidad}"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
-                        </ul>
-                        <button class="add-article-btn" style="width:100%; max-width:100%; margin-top:15px;" onclick="addIngredientsToShoppingList(${index})">Añadir seleccionados a la compra</button>
-                    ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
-                </div>
-            </div>`;
-        });
-    }
-    html += '</div>';
-    mainContentArea.innerHTML = html;
-}
-
-async function addIngredientsToShoppingList(recipeIndex) {
-    const recipeCard = document.getElementById(`recipe-${recipeIndex}`);
-    const checkboxes = recipeCard.querySelectorAll('.buy-checkbox:checked');
-    if (checkboxes.length === 0) {
-        showToast("No has seleccionado ningún ingrediente.", true);
-        return;
-    }
-    const itemsToAdd = Array.from(checkboxes).map(cb => cb.dataset.itemName);
-    
-    showSpinner();
-    try {
-        const payload = { Type: 'add_multiple_shopping_items', chat_ID: chatId, items: itemsToAdd };
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        // Actualización optimista
-        itemsToAdd.forEach(item => {
-            appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}`, '4': '', '5': 0 });
-        });
-        appData.counts.shoppingPendingCount += itemsToAdd.length;
-
-        showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
-    } catch(err) {
-        showToast(err.message, true);
-    } finally {
-        hideSpinner();
     }
 }
 // ==================================================
