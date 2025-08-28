@@ -1267,7 +1267,75 @@ async function fetchAndDisplayGastoChart(event) {
       document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe}</strong></div></li>`).join('');
     }
     
-    if (data.dailyData && dat
+    if (data.dailyData && data.dailyData.data && data.dailyData.data.length > 0) {
+      document.getElementById('hr1').style.display = 'block';
+      document.getElementById('chart-container-daily').style.display = 'block';
+      const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
+      dailyChartInstance = new Chart(dailyCtx, {
+        type: 'line',
+        data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
+        options: { responsive: true, maintainAspectRatio: true, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
+      });
+    }
+    
+    if (data.monthlyData && data.monthlyData.data && data.monthlyData.data.length > 1) {
+      document.getElementById('hr2').style.display = 'block';
+      document.getElementById('chart-container-monthly').style.display = 'block';
+      const monthlyDataPoints = data.monthlyData.data.map((y, x) => ({ x, y }));
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      monthlyDataPoints.forEach(p => { sumX += p.x; sumY += p.y; sumXY += p.x * p.y; sumX2 += p.x * p.x; });
+      const n = monthlyDataPoints.length;
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+      const trendlineData = monthlyDataPoints.map
+(p => slope * p.x + intercept);
+      const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
+      monthlyChartInstance = new Chart(monthlyCtx, {
+        type: 'bar',
+        data: {
+          labels: data.monthlyData.labels,
+          datasets: [
+            { label: 'Gasto Mensual', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
+            { label: 'Tendencia', data: trendlineData, type: 'line', borderColor: '#FF6384', fill: false, pointRadius: 0, yAxisID: 'y1' }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } },
+          scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
+        }
+      });
+    }
+  } catch (err) { 
+      showToast(err.message, true); 
+  } finally { 
+      hideSpinner(); 
+  }
+}
+
+function renderSearchGastosForm() {
+    manageBackButton(true, renderDashboard);
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
+            <div class="form-card">
+                <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
+                <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
+                <button id="search-gasto-btn" class="enabled">Buscar</button>
+            </div>
+            <div id="gastos-search-results" style="margin-top: 20px;"></div>
+        </div>`;
+    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
+    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
+    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
+    document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
+    document.getElementById('gastos-search-results').addEventListener('click', (e) => {
+        const target = e.target.closest('.dropdown-item'); if (!target) return;
+        const action = target.dataset.action, idUnico = target.dataset.idUnico;
+        if (action === 'edit-gasto') { const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico); if (gasto) renderEditGastoForm(gasto); } 
+        else if (action === 'delete-gasto') { confirmDelete('gasto', idUnico); }
+    });
+}
 
 async function executeSearchGastos() {
     const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
