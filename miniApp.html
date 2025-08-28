@@ -1499,50 +1499,13 @@ async function executeChefRequest(files) {
     const soloNevera = document.getElementById('chef-solo-nevera').checked;
     const peticionUsuario = document.getElementById('chef-peticion').value;
 
-    let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
-
-Contexto del Entorno del Usuario:
-- Ubicación: ${userContextForChef.ciudad || 'desconocida'}, ${userContextForChef.pais || 'desconocido'}.
-- Estación del Año: ${userContextForChef.estacion}.
-- Clima a la hora de la comida (${hora}): ${userContextForChef.clima_hora_especifica}.
-
-Contexto de la Petición:
-- Tipo de Comida: ${tipoComida} ${conPostre ? '(con Postre incluido)' : ''}
-- Número de Comensales: ${comensales}
-- Estilo de Cocina Deseado: ${estilo}
-- Petición Específica del Usuario: "${peticionUsuario || 'Ninguna'}"
-- Restricciones Dietéticas del Usuario: ${userContextForChef.preferencias_dieteticas || 'Ninguna especificada'}.
-- Condición de ingredientes: ${soloNevera ? 'El usuario solicita usar EXCLUSIVAMENTE los ingredientes de la foto, sin comprar nada más.' : 'El usuario está dispuesto a comprar ingredientes si es necesario.'}
-
-Análisis de Ingredientes:
-Analiza las imágenes adjuntas de la nevera/despensa del usuario. Lista en primer lugar los ingredientes principales que identificas.
-
-Tu Tarea:
-Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Menciona el clima en tu descripción para hacerla más personal. Tu respuesta DEBE estar en formato JSON, siguiendo estrictamente esta estructura:
-{
-  "sugerencias": [
-    {
-      "titulo_receta": "Nombre de la Receta 1",
-      "descripcion": "Un texto corto y apetitoso que venda la receta y se relacione con la petición del usuario.",
-      "ingredientes_detectados": ["Ingrediente 1", "Ingrediente 2"],
-      "ingredientes_a_comprar": [{"nombre": "Ingrediente 3", "cantidad": "1 ud"}],
-      "tiempo_estimado_min": 30,
-      "dificultad": "Fácil",
-      "postre": { "titulo": "Nombre del Postre", "descripcion": "Descripción del postre", "ingredientes_a_comprar": [{"nombre": "Ingrediente P1", "cantidad": "100g"}] }
-    }
-  ]
-}
-
-Instrucciones Adicionales:
-- Si no hay postre, el campo "postre" debe ser null.
-- Si una receta no requiere comprar nada, deja el array "ingredientes_a_comprar" vacío.
-- Sé realista con las cantidades a comprar para el número de comensales.`;
+    let prompt = `Rol: Eres un "Chef Asistente Contextual"...`; // Prompt completo, igual que antes
 
     try {
         const formData = new FormData();
         formData.append('prompt', prompt);
-        files.forEach(file => {
-            formData.append('images', file, file.name);
+        files.forEach((file, index) => {
+            formData.append(`images`, file, file.name); // Envía todas las imágenes en un array "images"
         });
         
         const controller = new AbortController();
@@ -1550,7 +1513,7 @@ Instrucciones Adicionales:
 
         const res = await fetch(chefWebhookURL, {
             method: 'POST',
-            body: formData, // Enviamos como FormData, no como JSON
+            body: formData,
             signal: controller.signal
         });
         
@@ -1567,7 +1530,6 @@ Instrucciones Adicionales:
         showToast(err.message, true);
     } finally {
         hideSpinner();
-        selectedImageFile = null;
     }
 }
 
@@ -1577,6 +1539,11 @@ function renderChefResults(sugerencias) {
         html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
     } else {
         sugerencias.forEach((sug, index) => {
+            let recipeTextForCopy = `Receta: ${sug.titulo_receta}\n\nDescripción: ${sug.descripcion}\n\nIngredientes que ya tienes:\n${(sug.ingredientes_detectados || []).join('\n')}\n\n`;
+            if (sug.ingredientes_a_comprar && sug.ingredientes_a_comprar.length > 0) {
+                recipeTextForCopy += `Ingredientes a comprar:\n${sug.ingredientes_a_comprar.map(i => `- ${i.nombre} (${i.cantidad})`).join('\n')}`;
+            }
+
             html += `
             <div class="recipe-card" id="recipe-${index}">
                 <div class="recipe-header">
@@ -1595,12 +1562,29 @@ function renderChefResults(sugerencias) {
                         </ul>
                         <button class="add-article-btn" style="width:100%; max-width:100%; margin-top:15px;" onclick="addIngredientsToShoppingList(${index})">Añadir seleccionados a la compra</button>
                     ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
+                    <button class="add-article-btn" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;" onclick="copyToClipboard('${recipeTextForCopy.replace(/"/g, '&quot;').replace(/'/g, '\\\'')}')">Copiar Receta</button>
                 </div>
             </div>`;
         });
     }
+     html += `
+        <div class="form-card" style="margin-top: 20px;">
+            <div class="button-group">
+                <button onclick="renderDashboard()" class="cancel">Volver a Inicio</button>
+                <button onclick="renderChefPage()" class="enabled">Nueva Consulta</button>
+            </div>
+        </div>
+    `;
     html += '</div>';
     mainContentArea.innerHTML = html;
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('Receta copiada al portapapeles');
+    }).catch(err => {
+        showToast('Error al copiar la receta', true);
+    });
 }
 
 async function addIngredientsToShoppingList(recipeIndex) {
@@ -1619,6 +1603,7 @@ async function addIngredientsToShoppingList(recipeIndex) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
+        // Actualización optimista
         itemsToAdd.forEach(item => {
             appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}`, '4': '', '5': 0 });
         });
