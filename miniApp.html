@@ -1209,23 +1209,29 @@ async function saveGasto() {
 }
 
 function renderGastoChart() {
-  manageBackButton(true, renderDashboard);
-  const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
-  mainContentArea.innerHTML = `
-    <div class="list-container">
-      <div class="list-header"><h2>Análisis de Gastos</h2></div>
-      <div class="form-card">
-        <label>Detalle por Mes</label>
-        <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
-        <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
-        <ul class="gasto-legend" id="gasto-legend-container"></ul>
-        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
-        <div class="gasto-chart-container" id="chart-container-daily" style="display:none;"><canvas id="dailyChartCanvas"></canvas></div>
-        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
-        <div class="gasto-chart-container" id="chart-container-monthly" style="display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
-      </div>
-    </div>`;
-  document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
+  console.log("--- Se ha llamado a renderGastoChart ---"); // Línea de prueba
+  try {
+    manageBackButton(true, renderDashboard);
+    const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+    mainContentArea.innerHTML = `
+      <div class="list-container">
+        <div class="list-header"><h2>Análisis de Gastos</h2></div>
+        <div class="form-card">
+          <label>Detalle por Mes</label>
+          <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
+          <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
+          <ul class="gasto-legend" id="gasto-legend-container"></ul>
+          <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
+          <div class="gasto-chart-container" id="chart-container-daily" style="display:none;"><canvas id="dailyChartCanvas"></canvas></div>
+          <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
+          <div class="gasto-chart-container" id="chart-container-monthly" style="display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
+        </div>
+      </div>`;
+    document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
+    console.log("--- renderGastoChart se ejecutó con éxito ---"); // Línea de prueba
+  } catch (error) {
+    console.error("ERROR DENTRO DE renderGastoChart:", error); // Línea de prueba
+  }
 }
 
 async function fetchAndDisplayGastoChart(event) {
