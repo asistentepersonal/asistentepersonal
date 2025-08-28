@@ -168,6 +168,7 @@
   </div>
       <script>
     document.addEventListener('DOMContentLoaded', () => {
+
     
 // ==================================================
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
@@ -182,7 +183,7 @@ let selectedImageFile = null;
 let chatId = tg?.initDataUnsafe?.user?.id;
 if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
-let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {} };
+let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false };
 let initialUserSettings = {};
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
@@ -351,13 +352,26 @@ async function executeDelete(type, id) {
     }
 }
 
+function manageBackButton(show, onClickHandler) {
+    if (tg && tg.BackButton) {
+        tg.BackButton.offClick();
+        if (show) {
+            tg.BackButton.show();
+            tg.BackButton.onClick(onClickHandler);
+        } else {
+            tg.BackButton.hide();
+        }
+    }
+}
+
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
 function renderReminderForm() {
+  manageBackButton(true, renderDashboard);
   mainContentArea.innerHTML = `
     <div class="list-container">
-      <div class="list-header"><button class="back-btn">‹</button><h2>📝 Nuevo Recordatorio</h2></div>
+      <div class="list-header"><h2>📝 Nuevo Recordatorio</h2></div>
       <div class="form-card">
         <label>Descripción</label><textarea id="text" rows="3" required></textarea>
         <label>Fecha y hora</label><input type="text" id="time" required/>
@@ -374,7 +388,6 @@ function renderReminderForm() {
         <button id="sendBtn" disabled>Crear Recordatorio</button>
       </div>
     </div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
   const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
   flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H-i", defaultDate: new Date(), locale: "es", minDate: "today" });
   function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
@@ -410,6 +423,7 @@ async function saveReminder() {
 }
 
 function renderRemindersList() {
+  manageBackButton(true, renderDashboard);
   const reminders = appData.remindersList || [];
   let listHtml = (reminders.length > 0) ? reminders.map(item => `
     <li class="list-item" id="item-${item.tracking_code}">
@@ -425,8 +439,7 @@ function renderRemindersList() {
         </div>
       </div>
     </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-  mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
+  mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
   document.getElementById('reminders-list').addEventListener('click', (e) => {
     const target = e.target.closest('.dropdown-item');
     if (!target) return;
@@ -466,6 +479,7 @@ async function editReminderDescription(item) {
 // --- MÓDULO: COMPRAS ---
 // ==================================================
 function renderShoppingList() {
+  manageBackButton(true, renderDashboard);
   const items = appData.shoppingList || [];
   const pendingItems = items.filter(item => item['2'] === 'Pendiente');
   const boughtItems = items.filter(item => item['2'] === 'Comprado');
@@ -507,14 +521,13 @@ function renderShoppingList() {
   if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
   mainContentArea.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2>Lista de las Compras</h2></div>
+          <div class="list-header"><h2>Lista de las Compras</h2></div>
           <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
           <div class="add-article-btn-container">
               <button class="add-article-btn" id="add-shopping-item-btn">Añadir Artículo</button>
               <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
           </div>
       </div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
   document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
   document.getElementById('add-shopping-item-btn').onclick = renderAddArticleForm;
   const selectAllCheckbox = document.getElementById('select-all-checkbox');
@@ -531,7 +544,6 @@ function handleShoppingItemInteractions(event) {
       const currentStatus = toggleButton.dataset.currentStatus;
       const cycle = parseInt(toggleButton.dataset.cycle, 10);
       
-      // *** NUEVA LÓGICA DE ELIMINACIÓN ***
       if (currentStatus === 'Pendiente' && cycle === 0) {
           optimisticDeleteItemPermanently(trackingCode);
       } else {
@@ -565,7 +577,6 @@ function optimisticDeleteItemPermanently(trackingCode) {
         .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
 
-
 function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
   const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
   if (itemIndex === -1) return;
@@ -576,6 +587,7 @@ function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
       .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
       .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
+
 function updateMultiSelectButtonState() {
   const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
   if (!multiSelectToggleButton) return;
@@ -597,16 +609,16 @@ function toggleSelectedItemsToPending() {
 }
 
 function renderAddArticleForm() {
+  manageBackButton(true, renderShoppingList);
   mainContentArea.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2>➕ Añadir Artículo</h2></div>
+          <div class="list-header"><h2>➕ Añadir Artículo</h2></div>
           <div class="form-card">
               <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required></textarea>
               <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="0" min="0" step="1" required />
               <button id="add-article-send-btn" disabled>Añadir</button>
           </div>
       </div>`;
-  document.querySelector('.back-btn').onclick = renderShoppingList;
   const sendBtn = document.getElementById('add-article-send-btn');
   const descriptionInput = document.getElementById('article-description');
   descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
@@ -631,16 +643,16 @@ async function addArticle() {
 }
 
 function renderEditShoppingItemForm(item) {
+    manageBackButton(true, renderShoppingList);
     mainContentArea.innerHTML = `
       <div class="list-container">
-          <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Artículo</h2></div>
+          <div class="list-header"><h2>✏️ Editar Artículo</h2></div>
           <div class="form-card">
               <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
               <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
               <button id="edit-article-send-btn" class="enabled">Guardar Cambios</button>
           </div>
       </div>`;
-    document.querySelector('.back-btn').onclick = renderShoppingList;
     document.getElementById('edit-article-send-btn').onclick = () => saveEditedShoppingItem(item['3']);
 }
 
@@ -669,6 +681,7 @@ async function saveEditedShoppingItem(trackingCode) {
 // --- MÓDULO: NOTAS ---
 // ==================================================
 function renderNotesList() {
+    manageBackButton(true, renderDashboard);
     const notes = appData.notesList || [];
     let listHtml = (notes.length > 0) ? notes.map(note => `
             <li class="list-item" id="item-${note.Nota_ID}">
@@ -687,11 +700,10 @@ function renderNotesList() {
             </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
     
     mainContentArea.innerHTML = `<div class="list-container">
-                                <div class="list-header"><button class="back-btn">‹</button><h2>Mis Notas</h2></div>
+                                <div class="list-header"><h2>Mis Notas</h2></div>
                                 <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
                                 <ul class="list-style-none" id="notes-list">${listHtml}</ul>
                              </div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
     document.getElementById('create-new-note-btn').onclick = () => renderNoteForm();
     document.getElementById('notes-list').addEventListener('click', e => {
         const target = e.target.closest('.dropdown-item');
@@ -708,16 +720,16 @@ function renderNotesList() {
 }
 
 function renderNoteForm(note = null) {
+    manageBackButton(true, renderNotesList);
     const isEditing = note !== null;
     mainContentArea.innerHTML = `<div class="list-container">
-                                <div class="list-header"><button class="back-btn">‹</button><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
+                                <div class="list-header"><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
                                 <div class="form-card">
                                     <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
                                     <label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea>
                                     <button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
                                 </div>
                              </div>`;
-    document.querySelector('.back-btn').onclick = renderNotesList;
     const titleInput = document.getElementById('note-title');
     const descriptionInput = document.getElementById('note-description');
     const saveBtn = document.getElementById('save-note-btn');
@@ -781,6 +793,7 @@ async function saveNote() {
 // --- MÓDULO: CALENDARIO ---
 // ==================================================
 async function renderCalendarView(eventsToShow = null) {
+    manageBackButton(true, renderDashboard);
     showSpinner();
     try {
         let events = eventsToShow;
@@ -829,14 +842,13 @@ async function renderCalendarView(eventsToShow = null) {
         };
         let listHtml = groupAndRenderEvents(events);
         mainContentArea.innerHTML = `<div class="list-container">
-                                  <div class="list-header"><button class="back-btn">‹</button><h2>Calendario</h2></div>
+                                  <div class="list-header"><h2>Calendario</h2></div>
                                   <div class="add-article-btn-container">
                                     <button class="add-article-btn" id="add-event-btn">Añadir Evento</button>
                                     <button class="add-article-btn" id="search-event-btn">Buscar</button>
                                   </div>
                                   <ul class="list-style-none" id="calendar-list">${listHtml}</ul>
                                 </div>`;
-        document.querySelector('.back-btn').onclick = renderDashboard;
         document.getElementById('add-event-btn').onclick = renderEventForm;
         document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
         document.getElementById('calendar-list').addEventListener('click', (e) => {
@@ -869,8 +881,9 @@ function updateAddNotificationLinkVisibility() {
 }
 
 function renderEventForm() {
+    manageBackButton(true, renderCalendarView);
     mainContentArea.innerHTML = `
-      <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>➕ Nuevo Evento</h2></div>
+      <div class="list-container"><div class="list-header"><h2>➕ Nuevo Evento</h2></div>
       <div class="form-card">
           <label>Título</label><input type="text" id="event-summary" required />
           <label><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;"> Todo el día</label>
@@ -885,7 +898,6 @@ function renderEventForm() {
             <button id="cancel-event-btn" class="cancel">Cancelar</button>
           </div>
       </div></div>`;
-    document.querySelector('.back-btn').onclick = () => renderCalendarView();
     document.getElementById('cancel-event-btn').onclick = renderDashboard;
     const addNotificationLink = document.getElementById('add-notification-link');
     const notificationsContainer = document.getElementById('notifications-container');
@@ -965,16 +977,17 @@ async function saveEvent() {
         initializeApp();
     }
 }
+
 function renderSearchCalendarForm() {
+    manageBackButton(true, renderCalendarView);
     mainContentArea.innerHTML = `
-        <div class="list-container"><div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar en Calendario</h2></div>
+        <div class="list-container"><div class="list-header"><h2>🔎 Buscar en Calendario</h2></div>
         <div class="form-card">
             <label>Término de búsqueda</label>
             <input type="text" id="calendar-search-query" placeholder="Ej: Reunión, Dentista..." required />
             <button id="search-calendar-btn" class="enabled">Buscar</button>
         </div>
         </div>`;
-    document.querySelector('.back-btn').onclick = () => renderCalendarView();
     document.getElementById('search-calendar-btn').onclick = executeSearchCalendar;
 }
 
@@ -1005,9 +1018,10 @@ const categoriasGastos = {
 };
 
 function renderInstructionScreen() {
+    manageBackButton(true, renderDashboard);
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button></div>
+            <div class="list-header"></div>
             <div class="scan-instruction-screen">
                 <h2>Escanear un Ticket de Gasto</h2>
                 <ol>
@@ -1018,7 +1032,6 @@ function renderInstructionScreen() {
                 <button class="add-article-btn" id="select-photo-btn">Seleccionar Foto de la Galería</button>
             </div>
         </div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
     document.getElementById('select-photo-btn').onclick = renderScanTicketView;
 }
 
@@ -1082,11 +1095,12 @@ document.getElementById('preview-cancel-btn').onclick = () => {
 document.getElementById('preview-send-btn').onclick = handleImageScan;
 
 function renderAddGastoForm(initialData = null) {
+    manageBackButton(true, renderDashboard);
     const data = initialData ? initialData.datos : {};
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>💰 Nuevo Gasto</h2></div>
+            <div class="list-header"><h2>💰 Nuevo Gasto</h2></div>
             <div class="form-card">
                 <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" value="${data.importe_total || ''}" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" value="${data.establecimiento || ''}" required />
@@ -1098,7 +1112,6 @@ function renderAddGastoForm(initialData = null) {
                 <button id="save-gasto-btn" disabled>Registrar Gasto</button>
             </div>
         </div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
     const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria'), saveBtn = document.getElementById('save-gasto-btn');
     const elementsToValidate = [ document.getElementById('gasto-importe'), document.getElementById('gasto-establecimiento'), document.getElementById('gasto-fecha'), categoriaSelect, subcategoriaSelect ];
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
@@ -1147,54 +1160,24 @@ function renderAddGastoForm(initialData = null) {
 }
 
 async function saveGasto() {
-    console.log("--- Iniciando saveGasto() ---");
     try {
-        const fechaEl = document.getElementById('gasto-fecha');
-        console.log("Elemento Fecha:", fechaEl);
-        const fechaGastoObj = fechaEl._flatpickr.selectedDates[0];
-        console.log("Fecha leída:", fechaGastoObj);
-
-        const importeEl = document.getElementById('gasto-importe');
-        console.log("Elemento Importe:", importeEl);
-        const importe = parseFloat(importeEl.value.replace(',', '.'));
-        console.log("Valor Importe:", importe);
-
-        const establecimientoEl = document.getElementById('gasto-establecimiento');
-        console.log("Elemento Establecimiento:", establecimientoEl);
-        const establecimiento = establecimientoEl.value;
-        console.log("Valor Establecimiento:", establecimiento);
-        
-        const categoriaEl = document.getElementById('gasto-categoria');
-        console.log("Elemento Categoría:", categoriaEl);
-        const categoria = categoriaEl.value;
-        console.log("Valor Categoría:", categoria);
-
-        const subcategoriaEl = document.getElementById('gasto-subcategoria');
-        console.log("Elemento Subcategoría:", subcategoriaEl);
-        const subcategoria = subcategoriaEl.value;
-        console.log("Valor Subcategoría:", subcategoria);
-
+        const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+        const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
+        const establecimiento = document.getElementById('gasto-establecimiento').value;
+        const categoria = document.getElementById('gasto-categoria').value;
+        const subcategoria = document.getElementById('gasto-subcategoria').value;
         const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
         const anio = fechaGastoObj.getFullYear();
         const mesAnioTexto = `${mes}/${anio}`;
-        console.log("Mes/Año calculado:", mesAnioTexto);
-        
-        console.log("Construyendo el objeto de datos (payload)...");
         const payload = {
             Type: 'add_gasto',
             chat_ID: chatId,
             datos: {
-                Importe: importe,
-                Establecimiento: establecimiento,
-                categoria: categoria,
-                sub_categoria: subcategoria,
-                Fecha: fechaGastoObj.toISOString(),
-                mesAnio: mesAnioTexto,
+                Importe: importe, Establecimiento: establecimiento, categoria: categoria, sub_categoria: subcategoria,
+                Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto,
                 ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
             }
         };
-        console.log("Payload final listo para enviar:", payload);
-
         const hoy = new Date();
         const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
         const anioActual = hoy.getFullYear();
@@ -1203,32 +1186,28 @@ async function saveGasto() {
             const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
             const nuevosGastos = gastosActualesNum + importe;
             appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            console.log("Contador de gastos del mes actualizado localmente a:", appData.counts.gastosMesActual);
         }
-        
         renderDashboard();
         showToast('Gasto registrado. Guardando...');
-        
-        console.log("Enviando datos al backend...");
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
-        console.log("Respuesta del backend recibida:", data);
-
         if (data.error) {
             showToast(`Error del servidor: ${data.error}`, true);
             initializeApp(); 
         }
     } catch (err) {
-        console.error("--- ERROR CATASTRÓFICO en saveGasto() ---", err);
-        showToast(`Error de red o de código: ${err.message}.`, true);
+        console.error("Error en saveGasto():", err);
+        showToast(`Error: ${err.message}.`, true);
         initializeApp(); 
     }
 }
+
 function renderGastoChart() {
+  manageBackButton(true, renderDashboard);
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
   mainContentArea.innerHTML = `
     <div class="list-container">
-      <div class="list-header"><button class="back-btn">‹</button><h2>Análisis de Gastos</h2></div>
+      <div class="list-header"><h2>Análisis de Gastos</h2></div>
       <div class="form-card">
         <label>Detalle por Mes</label>
         <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
@@ -1240,7 +1219,6 @@ function renderGastoChart() {
         <div class="gasto-chart-container" id="chart-container-monthly" style="display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
       </div>
     </div>`;
-  document.querySelector('.back-btn').onclick = renderDashboard;
   document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
 }
 
@@ -1321,9 +1299,10 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderSearchGastosForm() {
+    manageBackButton(true, renderDashboard);
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>🔎 Buscar Gastos</h2></div>
+            <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
             <div class="form-card">
                 <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
                 <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
@@ -1331,7 +1310,6 @@ function renderSearchGastosForm() {
             </div>
             <div id="gastos-search-results" style="margin-top: 20px;"></div>
         </div>`;
-    document.querySelector('.back-btn').onclick = renderDashboard;
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
     flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
@@ -1374,11 +1352,12 @@ async function executeSearchGastos() {
 }
 
 function renderEditGastoForm(gasto) {
+    manageBackButton(true, renderSearchGastosForm);
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><button class="back-btn">‹</button><h2>✏️ Editar Gasto</h2></div>
+            <div class="list-header"><h2>✏️ Editar Gasto</h2></div>
             <div class="form-card">
                 <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
@@ -1388,7 +1367,6 @@ function renderEditGastoForm(gasto) {
                 <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
             </div>
         </div>`;
-    document.querySelector('.back-btn').onclick = renderSearchGastosForm;
     flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
     const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria');
     categoriaSelect.onchange = () => {
@@ -1422,16 +1400,11 @@ async function saveEditedGasto(idUnico) {
 }
 
 // ==================================================
-// --- MÓDULO: CHEF ASISTENTE (VERSIÓN CORREGIDA Y MEJORADA) ---
+// --- MÓDULO: CHEF ASISTENTE (VERSIÓN FINAL) ---
 // ==================================================
 function renderChefPage() {
     setActiveTab('tab-chef');
-    
-    if (tg.BackButton.isVisible) {
-        tg.BackButton.offClick(renderDashboard); // Limpia listener anterior si existe
-    }
-    tg.BackButton.show();
-    tg.BackButton.onClick(renderDashboard);
+    manageBackButton(true, renderDashboard);
 
     mainContentArea.innerHTML = `
         <div class="chef-container">
@@ -1559,10 +1532,7 @@ Si no hay postre, el campo "postre" debe ser null. Si no hay ingredientes a comp
 }
 
 function renderChefResults(sugerencias) {
-    tg.BackButton.offClick(renderDashboard);
-    tg.BackButton.show();
-    tg.BackButton.onClick(renderChefPage);
-
+    manageBackButton(true, renderDashboard);
     let html = '<div class="chef-container">';
     if (!sugerencias || sugerencias.length === 0) {
         html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
@@ -1589,29 +1559,20 @@ function renderChefResults(sugerencias) {
             </div>`;
         });
     }
-    html += `<div class="form-card" style="margin-top: 20px;"><button data-action="go-home" class="cancel" style="width:100%; max-width:100%;">Volver a Inicio</button></div>`;
     html += '</div>';
     
     mainContentArea.innerHTML = html;
-    mainContentArea.removeEventListener('click', handleChefResultsClicks); // Limpia anterior
+    mainContentArea.removeEventListener('click', handleChefResultsClicks);
     mainContentArea.addEventListener('click', handleChefResultsClicks);
 }
 
 function handleChefResultsClicks(event) {
     const button = event.target.closest('[data-action]');
     if (!button) return;
-
     const action = button.dataset.action;
     switch(action) {
-        case 'add-ingredients':
-            addIngredientsToShoppingList(button);
-            break;
-        case 'copy-recipe':
-            copyToClipboard(button);
-            break;
-        case 'go-home':
-            renderDashboard();
-            break;
+        case 'add-ingredients': addIngredientsToShoppingList(button); break;
+        case 'copy-recipe': copyToClipboard(button); break;
     }
 }
 
@@ -1651,12 +1612,12 @@ async function addIngredientsToShoppingList(buttonElement) {
         hideSpinner();
     }
 }
-
 // ==================================================
 // --- MÓDULO: AJUSTES ---
 // ==================================================
 function renderSettings() {
     setActiveTab('tab-settings');
+    manageBackButton(true, renderDashboard);
     initialUserSettings = JSON.parse(JSON.stringify(appData.settings || {}));
     
     mainContentArea.innerHTML = `
@@ -1735,7 +1696,7 @@ function renderSettings() {
              
              <div class="form-card" style="margin-top: 20px;">
                 <div class="button-group">
-                    <button id="settings-cancel-btn" class="cancel">Cancelar y Salir</button>
+                    <button id="settings-cancel-btn" class="cancel">Cancelar</button>
                     <button id="settings-save-btn" disabled>Guardar Ajustes</button>
                 </div>
             </div>
@@ -1836,6 +1797,7 @@ async function syncCounts() {
 
 function renderExportPage() {
     setActiveTab('tab-export');
+    manageBackButton(true, renderDashboard);
     mainContentArea.innerHTML = `
         <div class="export-container">
             <h2 class="settings-section-title">📊 Exportar Gastos</h2>
@@ -1887,7 +1849,25 @@ async function executeExport() {
 // ==================================================
 function renderDashboard() {
   setActiveTab('tab-home');
+  manageBackButton(false);
   const counts = appData.counts;
+  const isPremium = appData.isPremium === true;
+
+  let chefCardHtml = `
+    <div class="card clickable-card" id="chef-card">
+        <div class="card-icon">🧑‍🍳</div>
+        <div class="card-title">Chef Asistente</div>
+    </div>`;
+
+  if (!isPremium) {
+      chefCardHtml = `
+        <div class="card" style="opacity: 0.5; cursor: not-allowed;">
+            <div class="card-icon">🔒</div>
+            <div class="card-title">Chef Asistente</div>
+            <div style="font-size: 0.8rem; color: var(--muted); margin-top: 4px;">Función Premium</div>
+        </div>`;
+  }
+
   mainContentArea.innerHTML = `
     <div class="grid">
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
@@ -1895,7 +1875,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
 	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
-      <div class="card clickable-card" id="chef-card" onclick="renderChefPage()"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef Asistente</div></div>
+      ${chefCardHtml}
     </div>`;
   
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
@@ -1910,12 +1890,15 @@ function renderDashboard() {
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm(null);
   document.getElementById('list-gastos-link').onclick = renderSearchGastosForm;
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-  document.getElementById('chef-card').onclick = renderChefPage;
+  
+  if (isPremium) {
+      document.getElementById('chef-card').onclick = renderChefPage;
+  }
 
   document.querySelectorAll('.clickable-card').forEach(card => {
       card.addEventListener('click', (e) => {
           if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
-          if (e.currentTarget.id === 'chef-card') return;
+          if (e.currentTarget.id === 'chef-card' && !isPremium) return;
           e.stopPropagation();
           const menuBtn = card.querySelector('.card-menu-btn');
           if (menuBtn) {
@@ -1937,7 +1920,13 @@ function renderDashboard() {
 document.getElementById('tab-home').onclick = renderDashboard;
 document.getElementById('tab-settings').onclick = renderSettings;
 document.getElementById('tab-export').onclick = renderExportPage;
-document.getElementById('tab-chef').onclick = renderChefPage;
+document.getElementById('tab-chef').onclick = () => {
+    if(appData.isPremium) {
+        renderChefPage();
+    } else {
+        showToast("El Chef Asistente es una función Premium.", true);
+    }
+};
 
 initializeApp();
 
