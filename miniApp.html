@@ -1499,7 +1499,42 @@ async function executeChefRequest(files) {
     const soloNevera = document.getElementById('chef-solo-nevera').checked;
     const peticionUsuario = document.getElementById('chef-peticion').value;
 
-    let prompt = `Rol: Eres un "Chef Asistente Contextual"...`; // Prompt completo, igual que antes
+    let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
+Contexto del Entorno del Usuario:
+Ubicación: ${userContextForChef.ciudad || 'desconocida'}, ${userContextForChef.pais || 'desconocido'}.
+Estación del Año: ${userContextForChef.estacion}.
+Clima a la hora de la comida (${hora}): ${userContextForChef.clima_hora_especifica}.
+Contexto de la Petición:
+Tipo de Comida: ${tipoComida} ${conPostre ? '(con Postre incluido)' : ''}
+Número de Comensales: ${comensales}
+Estilo de Cocina Deseado: ${estilo}
+Petición Específica del Usuario: "${peticionUsuario || 'Ninguna'}"
+Restricciones Dietéticas del Usuario: ${userContextForChef.preferencias_dieteticas || 'Ninguna especificada'}.
+Condición de ingredientes: ${soloNevera ? 'El usuario solicita usar EXCLUSIVAMENTE los ingredientes de la foto, sin comprar nada más.' : 'El usuario está dispuesto a comprar ingredientes si es necesario.'}
+Análisis de Ingredientes:
+Analiza las imágenes adjuntas de la nevera/despensa del usuario. Lista en primer lugar los ingredientes principales que identificas.
+Tu Tarea:
+Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Menciona el clima en tu descripción para hacerla más personal. Tu respuesta DEBE estar en formato JSON, siguiendo estrictamente esta estructura:
+{
+"sugerencias": [
+{
+"titulo_receta": "Nombre de la Receta 1",
+"descripcion": "Un texto corto y apetitoso que venda la receta y se relacione con la petición del usuario.",
+"ingredientes_detectados": ["Ingrediente 1", "Ingrediente 2"],
+"ingredientes_a_comprar": [{"nombre": "Ingrediente 3", "cantidad": "1 ud"}],
+"tiempo_estimado_min": 30,
+"dificultad": "Fácil",
+"postre": { "titulo": "Nombre del Postre", "descripcion": "Descripción del postre", "ingredientes_a_comprar": [{"nombre": "Ingrediente P1", "cantidad": "100g"}] }
+}
+]
+}
+Instrucciones Adicionales:
+Si no hay postre, el campo "postre" debe ser null.
+Si una receta no requiere comprar nada, deja el array "ingredientes_a_comprar" vacío.
+Sé realista con las cantidades a comprar para el número de comensales.`;
+code
+Code
+
 
     try {
         const formData = new FormData();
