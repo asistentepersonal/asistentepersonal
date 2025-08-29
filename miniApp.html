@@ -1550,10 +1550,10 @@ function renderEditGastoForm(gasto) {
 }
 
 async function saveEditedGasto(idUnico) {
-    // --- PASO 1: Encontrar el gasto original y guardarlo por si algo falla ---
+    // --- PASO 1: Encontrar y respaldar el gasto original ---
     const originalGastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === idUnico);
     if (originalGastoIndex === -1) {
-        showToast('Error: No se encontró el gasto original.', true);
+        showToast('Error fatal: Gasto no encontrado en la lista local.', true);
         return;
     }
     const originalGasto = { ...gastosEncontrados[originalGastoIndex] };
@@ -1568,27 +1568,24 @@ async function saveEditedGasto(idUnico) {
         Subcategoria: document.getElementById('gasto-subcategoria').value,
         Fecha: document.getElementById('gasto-fecha')._flatpickr.selectedDates[0].toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     };
-
-    // --- PASO 3: Actualizar el contador (solo si el importe cambió) ---
+    
+    // --- PASO 3: Actualizar el contador y la lista en memoria (Lógica optimista) ---
     const diferencia = nuevoImporte - parseFloat(originalGasto.Importe);
     if (diferencia !== 0) {
         const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
-        const nuevosGastosTotal = gastosActualesNum + diferencia;
-        appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        appData.counts.gastosMesActual = (gastosActualesNum + diferencia).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    
-    // --- PASO 4: Actualizar la interfaz INMEDIATAMENTE ---
-    gastosEncontrados[originalGastoIndex] = nuevosDatos; // Actualiza la lista local
+    gastosEncontrados[originalGastoIndex] = nuevosDatos;
     showToast('Gasto actualizado. Guardando...');
-    displayGastosResults(gastosEncontrados); // Te devuelve a la lista de búsqueda
+    
+    // --- PASO 4: Reconstruir y mostrar la pantalla de búsqueda con los datos actualizados ---
+    renderSearchGastosForm(); 
+    displayGastosResults(gastosEncontrados);
 
     // --- PASO 5: Enviar los datos a Google en segundo plano ---
     try {
         const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-        const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
-        const anio = fechaGastoObj.getFullYear();
-        const mesAnioTexto = `${mes}/${anio}`;
-
+        const mesAnioTexto = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2) + '/' + fechaGastoObj.getFullYear();
         const payload = {
             Type: 'edit_gasto',
             chat_ID: chatId,
@@ -1605,9 +1602,7 @@ async function saveEditedGasto(idUnico) {
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-
     } catch (err) {
-        // Si el guardado falla, se avisa y se recargan los datos para no tener inconsistencias.
         showToast(`Error de sincronización: ${err.message}. Restaurando...`, true);
         initializeApp();
     }
