@@ -1417,8 +1417,8 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderSearchGastosForm() {
-    // Esta función SIEMPRE configura el botón "Atrás" para volver al Home.
-    manageBackButton(true, renderDashboard); 
+    // Configura el botón "Atrás" para que SIEMPRE vuelva al Dashboard desde esta pantalla.
+    manageBackButton(true, renderDashboard);
     
     mainContentArea.innerHTML = `
         <div class="list-container">
@@ -1438,6 +1438,7 @@ function renderSearchGastosForm() {
     
     document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
     
+    // Este listener ahora está dentro de la función que lo crea, evitando duplicados.
     document.getElementById('gastos-search-results').addEventListener('click', (e) => {
         const item = e.target.closest('.list-item.clickable');
         if (item) {
@@ -1477,6 +1478,19 @@ function returnToGastosSearchList() {
     // 2. Rellena la pantalla recién creada con la lista de gastos que ya teníamos en memoria.
     displayGastosResults(gastosEncontrados);
 }
+// ===============================================================
+// --- NUEVO CONTROLADOR DE PANTALLA DE BÚSQUEDA DE GASTOS ---
+// ===============================================================
+function renderGastosSearchResultsScreen() {
+    // Esta función SIEMPRE te devuelve a la pantalla de búsqueda y resultados.
+    
+    // 1. Dibuja el esqueleto de la página de búsqueda.
+    //    IMPORTANTE: Esto también configura el botón "Atrás" de ESTA pantalla para que vaya al Home.
+    renderSearchGastosForm();
+    
+    // 2. Rellena el esqueleto con la lista de gastos que ya tenemos en memoria.
+    displayGastosResults(gastosEncontrados);
+}
 async function executeSearchGastos() {
     const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
     if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
@@ -1491,9 +1505,9 @@ async function executeSearchGastos() {
 }
 
 function renderEditGastoForm(gasto) {
-    // Esta función SIEMPRE configura el botón "Atrás" para volver a la lista de búsqueda.
-    // La clave es que NO llama a renderSearchGastosForm, solo a displayGastosResults.
-    manageBackButton(true, () => displayGastosResults(gastosEncontrados));
+    // Configura el botón "Atrás" para que llame al nuevo controlador de pantalla.
+    // Esta es la ruta segura para volver a la lista SIN EDITAR.
+    manageBackButton(true, renderGastosSearchResultsScreen);
     
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
@@ -1522,22 +1536,10 @@ function renderEditGastoForm(gasto) {
     const establecimientoInput = document.getElementById('gasto-establecimiento');
     const saveBtn = document.getElementById('save-gasto-btn');
     
-    const initialValues = {
-        importe: importeInput.value,
-        establecimiento: establecimientoInput.value,
-        categoria: categoriaSelect.value,
-        subcategoria: subcategoriaSelect.value,
-        fecha: fechaPicker.input.value
-    };
+    const initialValues = { importe: importeInput.value, establecimiento: establecimientoInput.value, categoria: categoriaSelect.value, subcategoria: subcategoriaSelect.value, fecha: fechaPicker.input.value };
 
     function validateChanges() {
-        const currentValues = {
-            importe: importeInput.value,
-            establecimiento: establecimientoInput.value,
-            categoria: categoriaSelect.value,
-            subcategoria: subcategoriaSelect.value,
-            fecha: fechaPicker.input.value
-        };
+        const currentValues = { importe: importeInput.value, establecimiento: establecimientoInput.value, categoria: categoriaSelect.value, subcategoria: subcategoriaSelect.value, fecha: fechaPicker.input.value };
         const hasChanged = JSON.stringify(initialValues) !== JSON.stringify(currentValues);
         saveBtn.disabled = !hasChanged;
         saveBtn.classList.toggle('enabled', hasChanged);
@@ -1560,12 +1562,10 @@ function renderEditGastoForm(gasto) {
     };
 
     document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
-    // Corregido también el botón de eliminar para que vuelva a la lista correctamente.
-    document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico, () => displayGastosResults(gastosEncontrados));
+    document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico, renderGastosSearchResultsScreen);
 }
 
 async function saveEditedGasto(idUnico) {
-    // --- ZONA SEGURA: CAPTURAR TODOS LOS DATOS DEL FORMULARIO ANTES DE NADA ---
     const originalGastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === idUnico);
     if (originalGastoIndex === -1) {
         showToast('Error: Gasto no encontrado en memoria.', true);
@@ -1573,16 +1573,12 @@ async function saveEditedGasto(idUnico) {
     }
     const originalGasto = { ...gastosEncontrados[originalGastoIndex] };
 
-    // Guardar todos los valores en variables locales AHORA.
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
     const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
     const nuevaCategoria = document.getElementById('gasto-categoria').value;
     const nuevaSubcategoria = document.getElementById('gasto-subcategoria').value;
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
 
-    // --- FIN DE LA CAPTURA. AHORA SE PUEDE TRABAJAR CON LAS VARIABLES ---
-
-    // 1. Actualizar el estado local (el "almacén").
     const diferencia = nuevoImporte - parseFloat(originalGasto.Importe);
     if (diferencia !== 0) {
         const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
@@ -1598,12 +1594,10 @@ async function saveEditedGasto(idUnico) {
         Fecha: fechaGastoObj.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     };
 
-    // 2. Cambiar la pantalla de forma segura.
     showToast('Gasto actualizado. Guardando...');
-    renderSearchGastosForm(); // Borra el formulario viejo.
-    displayGastosResults(gastosEncontrados); // Muestra la lista actualizada.
+    // Esta es la ruta segura para volver a la lista DESPUÉS DE EDITAR.
+    renderGastosSearchResultsScreen();
 
-    // 3. Enviar los datos al script de Google usando las variables ya guardadas.
     try {
         const mesAnioTexto = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2) + '/' + fechaGastoObj.getFullYear();
         const payload = {
