@@ -150,41 +150,10 @@
     .preview-item { position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; }
     .preview-image { width: 100%; height: 100%; object-fit: cover; }
     .delete-preview-btn { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; background-color: rgba(231, 76, 60, 0.9); color: white; border: none; border-radius: 50%; font-size: 14px; line-height: 22px; text-align: center; cursor: pointer; font-weight: bold; }
-  .tab-premium-locked {
-    position: relative;
+.tab-premium-locked {
     cursor: not-allowed;
-    opacity: 0.65;
-    overflow: hidden; /* Importante para recortar la franja */
+    opacity: 0.6;
     pointer-events: none; /* Bloquea los clics */
-}
-.tab-premium-locked::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: -25%;
-    width: 150%;
-    height: 20px; /* Grosor de la franja */
-    background-color: rgba(74, 118, 243, 0.7); /* Azul de la franja con transparencia */
-    transform: rotate(-45deg);
-    transform-origin: center;
-    z-index: 1;
-}
-.tab-premium-locked::after {
-    content: 'PREMIUM';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(231, 76, 60, 0.9); /* Rojo del texto */
-    font-size: 10px;
-    font-weight: bold;
-    transform: rotate(-45deg);
-    z-index: 2;
-    letter-spacing: 1px;
 }
   </style>
   </head>
@@ -344,7 +313,7 @@ function updateChefTabStyle() {
         chefTab.innerHTML = '🧑‍🍳 Chef';
     } else {
         chefTab.classList.add('tab-premium-locked');
-        chefTab.innerHTML = '🔒 Chef';
+        chefTab.innerHTML = '⭐ Chef';
     }
 }
 
