@@ -1507,24 +1507,22 @@ function renderChefPage() {
     });
 
     addPhotoButton.onclick = () => {
+        if (selectedFiles.length >= 2) {
+            showToast("Puedes subir un máximo de 2 fotos.", true);
+            return;
+        }
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = 'image/*';
-        fileInput.multiple = true;
+        fileInput.capture = 'environment';
         fileInput.onchange = (event) => {
-            const newFiles = Array.from(event.target.files);
-            if (selectedFiles.length + newFiles.length > 2) {
-                showToast("Puedes subir un máximo de 2 fotos.", true);
-                return;
+            const file = event.target.files[0];
+            if (file) {
+                handleChefImageSelection(file, (confirmedFile) => {
+                    selectedFiles.push(confirmedFile);
+                    updatePreviews();
+                });
             }
-            // *** INICIO DE LA CORRECCIÓN CLAVE ***
-            // "Clonamos" los archivos inmediatamente para que no caduquen en móvil.
-            newFiles.forEach(file => {
-                const clonedFile = new File([file], file.name, { type: file.type, lastModified: file.lastModified });
-                selectedFiles.push(clonedFile);
-            });
-            // *** FIN DE LA CORRECCIÓN CLAVE ***
-            updatePreviews();
         };
         fileInput.click();
     };
@@ -1535,6 +1533,38 @@ function renderChefPage() {
             return;
         }
         executeChefRequest(selectedFiles);
+    };
+}
+
+function handleChefImageSelection(file, callback) {
+    const overlay = document.getElementById('image-preview-overlay');
+    const imgElement = document.getElementById('image-preview-element');
+    const sendBtn = document.getElementById('preview-send-btn');
+    const cancelBtn = document.getElementById('preview-cancel-btn');
+
+    sendBtn.textContent = "Usar esta Foto"; // Cambia el texto del botón
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imgElement.src = e.target.result;
+        overlay.style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+
+    const cleanup = () => {
+        overlay.style.display = 'none';
+        sendBtn.onclick = null;
+        cancelBtn.onclick = null;
+        sendBtn.textContent = "Enviar"; // Restaura el texto original para el módulo de gastos
+    };
+
+    sendBtn.onclick = () => {
+        callback(file);
+        cleanup();
+    };
+    
+    cancelBtn.onclick = () => {
+        cleanup();
     };
 }
 
