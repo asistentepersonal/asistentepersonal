@@ -1465,6 +1465,12 @@ function displayGastosResults(gastos) {
         legend.style.display = 'none';
     }
 }
+function returnToGastosSearchList() {
+    // 1. Reconstruye la pantalla de búsqueda. Esto también configura su propio botón "Atrás" para que apunte al Home.
+    renderSearchGastosForm();
+    // 2. Rellena la pantalla recién creada con la lista de gastos que ya teníamos en memoria.
+    displayGastosResults(gastosEncontrados);
+}
 async function executeSearchGastos() {
     const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
     if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
@@ -1479,9 +1485,9 @@ async function executeSearchGastos() {
 }
 
 function renderEditGastoForm(gasto) {
-    // --- LÍNEA CORREGIDA ---
-    manageBackButton(true, () => { renderSearchGastosForm(); displayGastosResults(gastosEncontrados); });
-    // -----------------------
+    // --- LÍNEA CORREGIDA: Ahora llama a la nueva función puente ---
+    manageBackButton(true, returnToGastosSearchList);
+    // -----------------------------------------------------------
     
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
