@@ -1416,8 +1416,30 @@ async function fetchAndDisplayGastoChart(event) {
   }
 }
 
-function renderSearchGastosForm() {
-    manageBackButton(true, renderDashboard); // Desde aquí, "Atrás" siempre va al Home.
+function renderGastosSearchAndResultsScreen(gastos = null) {
+    // Esta función ahora es la ÚNICA responsable de dibujar esta pantalla.
+    // Siempre configura el botón "Atrás" para ir al Home.
+    manageBackButton(true, renderDashboard);
+    
+    let resultsHtml = '';
+    let legendDisplay = 'none';
+
+    if (gastos) { // Si nos pasan gastos, generamos la lista de resultados.
+        if (gastos.length > 0) {
+            resultsHtml = gastos.map(gasto => `
+                <li class="list-item clickable" id="item-${gasto.ID_Unico}" data-id-unico="${gasto.ID_Unico}">
+                    <div class="list-item-content">
+                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span>
+                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${gasto.Fecha}</span>
+                    </div>
+                </li>`).join('');
+            resultsHtml = `<ul class="list-style-none">${resultsHtml}</ul>`;
+            legendDisplay = 'block';
+        } else {
+            resultsHtml = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`;
+        }
+    }
+
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
@@ -1426,8 +1448,8 @@ function renderSearchGastosForm() {
                 <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
                 <button id="search-gasto-btn" class="enabled">Buscar</button>
             </div>
-            <p id="gastos-search-legend" style="text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 15px; display: none;">Pulsa sobre un gasto para ver/editarlo</p>
-            <div id="gastos-search-results" style="margin-top: 10px;"></div>
+            <p id="gastos-search-legend" style="text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 15px; display: ${legendDisplay};">Pulsa sobre un gasto para ver/editarlo</p>
+            <div id="gastos-search-results" style="margin-top: 10px;">${resultsHtml}</div>
         </div>`;
         
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
@@ -1436,7 +1458,6 @@ function renderSearchGastosForm() {
     
     document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
     
-    // El listener se añade al contenedor que siempre existe.
     document.getElementById('gastos-search-results').addEventListener('click', (e) => {
         const item = e.target.closest('.list-item.clickable');
         if (item) {
@@ -1445,27 +1466,6 @@ function renderSearchGastosForm() {
             if(gasto) renderEditGastoForm(gasto);
         }
     });
-}
-
-function displayGastosResults(gastos) {
-    const resultsContainer = document.getElementById('gastos-search-results');
-    const legend = document.getElementById('gastos-search-legend');
-    if (!resultsContainer || !legend) return; // Salida segura si el contenedor no existe
-
-    if (gastos && gastos.length > 0) {
-        let listHtml = gastos.map(gasto => `
-            <li class="list-item clickable" id="item-${gasto.ID_Unico}" data-id-unico="${gasto.ID_Unico}">
-                <div class="list-item-content">
-                    <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span>
-                    <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${gasto.Fecha}</span>
-                </div>
-            </li>`).join('');
-        resultsContainer.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
-        legend.style.display = 'block';
-    } else { 
-        resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`; 
-        legend.style.display = 'none';
-    }
 }
 
 async function executeSearchGastos() {
@@ -1481,24 +1481,24 @@ async function executeSearchGastos() {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         gastosEncontrados = data.gastos || [];
-		displayGastosResults(gastosEncontrados);
+		// Una vez tenemos los datos, llamamos a la función principal para que redibuje todo.
+        renderGastosSearchAndResultsScreen(gastosEncontrados);
     } catch (err) {
         showToast(err.message, true);
-        const resultsContainer = document.getElementById('gastos-search-results');
-        if (resultsContainer) resultsContainer.innerHTML = '';
+        renderGastosSearchAndResultsScreen([]); // Mostramos la pantalla con un mensaje de "no encontrados".
     } finally {
         hideSpinner();
     }
 }
 
 function renderEditGastoForm(gasto) {
-    // FUNCIÓN CLAVE PARA VOLVER A LA LISTA DE RESULTADOS ANTERIOR
+    // Al pulsar "Atrás" desde la edición, simplemente volvemos a dibujar la pantalla de resultados
+    // con los datos que ya teníamos en memoria.
     const returnToLastSearch = () => {
-        renderSearchGastosForm(); // Dibuja la pantalla de búsqueda y configura "Atrás" -> Home
-        displayGastosResults(gastosEncontrados); // Rellena la pantalla con los resultados en memoria
+        renderGastosSearchAndResultsScreen(gastosEncontrados);
     };
 
-    manageBackButton(true, returnToLastSearch); // Desde aquí, "Atrás" vuelve a la lista
+    manageBackButton(true, returnToLastSearch);
     
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
@@ -1520,7 +1520,6 @@ function renderEditGastoForm(gasto) {
         </div>`;
     
     const fechaPicker = flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
-    
     const categoriaSelect = document.getElementById('gasto-categoria');
     const subcategoriaSelect = document.getElementById('gasto-subcategoria');
     const importeInput = document.getElementById('gasto-importe');
@@ -1543,8 +1542,7 @@ function renderEditGastoForm(gasto) {
         const selectedCategory = categoriaSelect.value;
         subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
         if (selectedCategory && categoriasGastos[selectedCategory]) {
-            const newSubOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += newSubOptions;
+            subcategoriaSelect.innerHTML += categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
             subcategoriaSelect.disabled = false;
         } else {
             subcategoriaSelect.disabled = true;
@@ -1558,10 +1556,7 @@ function renderEditGastoForm(gasto) {
 
 async function saveEditedGasto(idUnico) {
     const originalGastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === idUnico);
-    if (originalGastoIndex === -1) {
-        showToast('Error: Gasto no encontrado en memoria.', true);
-        return;
-    }
+    if (originalGastoIndex === -1) return;
 
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
     const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
@@ -1575,38 +1570,27 @@ async function saveEditedGasto(idUnico) {
         appData.counts.gastosMesActual = (gastosActualesNum + diferencia).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     
-    // Actualización optimista en memoria
-    gastosEncontrados[originalGastoIndex] = {
-        ...gastosEncontrados[originalGastoIndex],
-        Importe: nuevoImporte,
-        Establecimiento: nuevoEstablecimiento,
-        Categoria: nuevaCategoria,
-        Subcategoria: nuevaSubcategoria,
-        Fecha: fechaGastoObj.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    };
+    gastosEncontrados[originalGastoIndex] = { ...gastosEncontrados[originalGastoIndex], Importe: nuevoImporte, Establecimiento: nuevoEstablecimiento, Categoria: nuevaCategoria, Subcategoria: nuevaSubcategoria, Fecha: fechaGastoObj.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) };
 
     showToast('Gasto actualizado. Guardando...');
     
-    // Navegación optimista: vuelve a la lista actualizada
-    renderSearchGastosForm(); // Dibuja la pantalla de búsqueda y configura "Atrás" -> Home
-    displayGastosResults(gastosEncontrados); // Rellena la pantalla con los resultados actualizados
+    // Navegación optimista: llama a la función principal para que redibuje todo de una vez.
+    renderGastosSearchAndResultsScreen(gastosEncontrados);
 
-    // Envío asíncrono al servidor
     try {
         const mesAnioTexto = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2) + '/' + fechaGastoObj.getFullYear();
-        const payload = {
-            Type: 'edit_gasto',
-            chat_ID: chatId,
-            datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: nuevoEstablecimiento, categoria: nuevaCategoria, sub_categoria: nuevaSubcategoria, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto }
-        };
+        const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: nuevoEstablecimiento, categoria: nuevaCategoria, sub_categoria: nuevaSubcategoria, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
     } catch (err) {
         showToast(`Error de sincronización: ${err.message}. Restaurando...`, true);
-        initializeApp(); // Si falla, recarga todo para evitar inconsistencias
+        initializeApp();
     }
 }
+
+// Renombramos la vieja función para que apunte a la nueva, por si se llama desde otra parte.
+const renderSearchGastosForm = () => renderGastosSearchAndResultsScreen();
 
 // ==================================================
 // --- MÓDULO: CHEF ASISTENTE (VERSIÓN FINAL) ---
