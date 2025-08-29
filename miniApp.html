@@ -1254,7 +1254,7 @@ function renderGastoChart() {
         <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
         <ul class="gasto-legend" id="gasto-legend-container"></ul>
         <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
-        <div class="gasto-chart-container" id="chart-container-daily" style="display:none;"><canvas id="dailyChartCanvas"></canvas></div>
+        <div class="gasto-chart-container" id="chart-container-daily" style="position: relative; height:300px; display:none;"><canvas id="dailyChartCanvas"></canvas></div>
         <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
         <div class="gasto-chart-container" id="chart-container-monthly" style="position: relative; height:300px; display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
       </div>
@@ -1308,7 +1308,7 @@ async function fetchAndDisplayGastoChart(event) {
       dailyChartInstance = new Chart(dailyCtx, {
         type: 'line',
         data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
-        options: { responsive: true, maintainAspectRatio: true, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
       });
     }
     
@@ -1330,7 +1330,24 @@ async function fetchAndDisplayGastoChart(event) {
           labels: data.monthlyData.labels,
           datasets: [
             { label: 'Gasto Mensual', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
-            { label: 'Tendencia', data: trendlineData, type: 'line', borderColor: '#FF6384', fill: false, pointRadius: 0, yAxisID: 'y1' }
+            {
+    label: 'Tendencia',
+    data: trendlineData,
+    type: 'line',
+    borderColor: '#FF6384',
+    fill: false,
+    pointRadius: 0,
+    yAxisID: 'y1',
+    datalabels: {
+      formatter: (value) => Math.round(value),
+      align: 'end',
+      anchor: 'end',
+      color: '#666',
+      font: {
+        weight: 'bold'
+      }
+    }
+}
           ]
         },
         options: {
