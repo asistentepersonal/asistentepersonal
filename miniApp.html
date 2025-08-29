@@ -267,41 +267,47 @@ function setActiveTab(activeTabId) {
 document.body.addEventListener('click', (e) => {
     const menuBtn = e.target.closest('.card-menu-btn, .generic-menu-btn');
     
+    // Si el clic NO es en un botón de menú NI dentro de un menú ya abierto, cierra todos los menús.
     if (!menuBtn && !e.target.closest('.dropdown-menu')) {
         document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
         return;
     }
 
+    // Si el clic FUE en un botón de menú...
     if (menuBtn) {
-        e.stopPropagation();
+        e.stopPropagation(); // Evita que el clic se propague y active otros eventos.
         const menuId = menuBtn.dataset.menuId;
         const menu = document.getElementById(menuId);
 
         if (menu) {
             const isShown = menu.classList.contains('show');
             
+            // Cierra cualquier otro menú que pudiera estar abierto.
             document.querySelectorAll('.dropdown-menu.show').forEach(m => {
                 if (m.id !== menuId) m.classList.remove('show');
             });
 
+            // Decide si mostrar u ocultar el menú actual.
             if (isShown) {
                 menu.classList.remove('show');
             } else {
-const buttonRect = menuBtn.getBoundingClientRect();
-const windowHeight = window.innerHeight;
+                const buttonRect = menuBtn.getBoundingClientRect();
+                const windowHeight = window.innerHeight;
 
-// Lógica mejorada: si el botón está en la mitad inferior de la pantalla, abre hacia arriba.
-if (buttonRect.top > (windowHeight / 2)) {
-    menu.classList.add('up');
-} else {
-    menu.classList.remove('up');
-}
-
-menu.classList.add('show');
+                // Lógica clave: si el botón está en la mitad inferior de la pantalla, abre hacia arriba.
+                if (buttonRect.top > (windowHeight / 2)) {
+                    menu.classList.add('up');
+                } else {
+                    menu.classList.remove('up');
+                }
+                
+                // Muestra el menú.
+                menu.classList.add('show');
             }
         }
     }
 });
+
 function updateChefTabStyle() {
     const chefTab = document.getElementById('tab-chef');
     if (!chefTab) return;
@@ -1177,7 +1183,7 @@ function renderAddGastoForm(initialData = null) {
     function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
     let defaultDate = new Date();
     let enableTime = true;
-    let dateFormat = "Y-m-d H:i";
+    let dateFormat = "d/m/Y H:i";
     if(data.fecha) {
         const dateTimeParts = data.fecha.split(' ');
         const dateParts = dateTimeParts[0].split('/');
@@ -1422,7 +1428,7 @@ async function executeSearchGastos() {
                 <li class="list-item" id="item-${gasto.ID_Unico}">
                     <div class="list-item-content">
                         <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
-                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleDateString('es-ES')}</span>
+                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div class="list-item-actions">
                         <button class="generic-menu-btn" data-menu-id="menu-item-${gasto.ID_Unico}">⋮</button>
@@ -1453,7 +1459,7 @@ function renderEditGastoForm(gasto) {
                 <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
             </div>
         </div>`;
-    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "Y-m-d", locale: "es" });
+    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
     const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria');
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
