@@ -1417,9 +1417,7 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderSearchGastosForm() {
-    // Configura el botón "Atrás" para que SIEMPRE vuelva al Dashboard desde esta pantalla.
-    manageBackButton(true, renderDashboard);
-    
+    manageBackButton(true, renderDashboard); // Desde aquí, "Atrás" siempre va al Home.
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
@@ -1438,7 +1436,7 @@ function renderSearchGastosForm() {
     
     document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
     
-    // Este listener ahora está dentro de la función que lo crea, evitando duplicados.
+    // El listener se añade al contenedor que siempre existe.
     document.getElementById('gastos-search-results').addEventListener('click', (e) => {
         const item = e.target.closest('.list-item.clickable');
         if (item) {
@@ -1452,10 +1450,7 @@ function renderSearchGastosForm() {
 function displayGastosResults(gastos) {
     const resultsContainer = document.getElementById('gastos-search-results');
     const legend = document.getElementById('gastos-search-legend');
-    
-    // --- LÍNEA AÑADIDA ---
-    manageBackButton(true, renderDashboard);
-    // --------------------
+    if (!resultsContainer || !legend) return; // Salida segura si el contenedor no existe
 
     if (gastos && gastos.length > 0) {
         let listHtml = gastos.map(gasto => `
@@ -1472,42 +1467,38 @@ function displayGastosResults(gastos) {
         legend.style.display = 'none';
     }
 }
-function returnToGastosSearchList() {
-    // 1. Reconstruye la pantalla de búsqueda. Esto también configura su propio botón "Atrás" para que apunte al Home.
-    renderSearchGastosForm();
-    // 2. Rellena la pantalla recién creada con la lista de gastos que ya teníamos en memoria.
-    displayGastosResults(gastosEncontrados);
-}
-// ===============================================================
-// --- NUEVO CONTROLADOR DE PANTALLA DE BÚSQUEDA DE GASTOS ---
-// ===============================================================
-function renderGastosSearchResultsScreen() {
-    // Esta función SIEMPRE te devuelve a la pantalla de búsqueda y resultados.
-    
-    // 1. Dibuja el esqueleto de la página de búsqueda.
-    //    IMPORTANTE: Esto también configura el botón "Atrás" de ESTA pantalla para que vaya al Home.
-    renderSearchGastosForm();
-    
-    // 2. Rellena el esqueleto con la lista de gastos que ya tenemos en memoria.
-    displayGastosResults(gastosEncontrados);
-}
+
 async function executeSearchGastos() {
-    const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
+    const startDate = document.getElementById('gasto-fecha-inicio').value;
+    const endDate = document.getElementById('gasto-fecha-fin').value;
     if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
+    
     const payload = { Type: 'get_gastos_fecha', chat_ID: chatId, datos: { fecha_start: startDate, fecha_end: endDate } };
     showSpinner();
-    const resultsContainer = document.getElementById('gastos-search-results');
+    
     try {
-        const res = await fetchWithTimeout(gasWebhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
         gastosEncontrados = data.gastos || [];
 		displayGastosResults(gastosEncontrados);
-    } catch (err) { showToast(err.message, true); resultsContainer.innerHTML = ''; } finally { hideSpinner(); }
+    } catch (err) {
+        showToast(err.message, true);
+        const resultsContainer = document.getElementById('gastos-search-results');
+        if (resultsContainer) resultsContainer.innerHTML = '';
+    } finally {
+        hideSpinner();
+    }
 }
 
 function renderEditGastoForm(gasto) {
-    // Configura el botón "Atrás" para que llame al nuevo controlador de pantalla.
-    // Esta es la ruta segura para volver a la lista SIN EDITAR.
-    manageBackButton(true, renderGastosSearchResultsScreen);
+    // FUNCIÓN CLAVE PARA VOLVER A LA LISTA DE RESULTADOS ANTERIOR
+    const returnToLastSearch = () => {
+        renderSearchGastosForm(); // Dibuja la pantalla de búsqueda y configura "Atrás" -> Home
+        displayGastosResults(gastosEncontrados); // Rellena la pantalla con los resultados en memoria
+    };
+
+    manageBackButton(true, returnToLastSearch); // Desde aquí, "Atrás" vuelve a la lista
     
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
@@ -1562,7 +1553,7 @@ function renderEditGastoForm(gasto) {
     };
 
     document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
-    document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico, renderGastosSearchResultsScreen);
+    document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico, returnToLastSearch);
 }
 
 async function saveEditedGasto(idUnico) {
@@ -1571,7 +1562,6 @@ async function saveEditedGasto(idUnico) {
         showToast('Error: Gasto no encontrado en memoria.', true);
         return;
     }
-    const originalGasto = { ...gastosEncontrados[originalGastoIndex] };
 
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
     const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
@@ -1579,14 +1569,15 @@ async function saveEditedGasto(idUnico) {
     const nuevaSubcategoria = document.getElementById('gasto-subcategoria').value;
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
 
-    const diferencia = nuevoImporte - parseFloat(originalGasto.Importe);
+    const diferencia = nuevoImporte - parseFloat(gastosEncontrados[originalGastoIndex].Importe);
     if (diferencia !== 0) {
         const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
         appData.counts.gastosMesActual = (gastosActualesNum + diferencia).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     
+    // Actualización optimista en memoria
     gastosEncontrados[originalGastoIndex] = {
-        ...originalGasto,
+        ...gastosEncontrados[originalGastoIndex],
         Importe: nuevoImporte,
         Establecimiento: nuevoEstablecimiento,
         Categoria: nuevaCategoria,
@@ -1595,30 +1586,25 @@ async function saveEditedGasto(idUnico) {
     };
 
     showToast('Gasto actualizado. Guardando...');
-    // Esta es la ruta segura para volver a la lista DESPUÉS DE EDITAR.
-    renderGastosSearchResultsScreen();
+    
+    // Navegación optimista: vuelve a la lista actualizada
+    renderSearchGastosForm(); // Dibuja la pantalla de búsqueda y configura "Atrás" -> Home
+    displayGastosResults(gastosEncontrados); // Rellena la pantalla con los resultados actualizados
 
+    // Envío asíncrono al servidor
     try {
         const mesAnioTexto = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2) + '/' + fechaGastoObj.getFullYear();
         const payload = {
             Type: 'edit_gasto',
             chat_ID: chatId,
-            datos: {
-                ID_Unico: idUnico,
-                Importe: nuevoImporte,
-                Establecimiento: nuevoEstablecimiento,
-                categoria: nuevaCategoria,
-                sub_categoria: nuevaSubcategoria,
-                Fecha: fechaGastoObj.toISOString(),
-                mesAnio: mesAnioTexto
-            }
+            datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: nuevoEstablecimiento, categoria: nuevaCategoria, sub_categoria: nuevaSubcategoria, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto }
         };
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
     } catch (err) {
         showToast(`Error de sincronización: ${err.message}. Restaurando...`, true);
-        initializeApp();
+        initializeApp(); // Si falla, recarga todo para evitar inconsistencias
     }
 }
 
