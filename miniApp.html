@@ -1428,7 +1428,7 @@ async function executeSearchGastos() {
                 <li class="list-item" id="item-${gasto.ID_Unico}">
                     <div class="list-item-content">
                         <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})}</span>
-                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${new Date(gasto.Fecha).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${gasto.Fecha}</span>
                     </div>
                     <div class="list-item-actions">
                         <button class="generic-menu-btn" data-menu-id="menu-item-${gasto.ID_Unico}">⋮</button>
@@ -1484,7 +1484,7 @@ async function saveEditedGasto(idUnico) {
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
     const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
     const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
-    renderDashboard();
+    executeSearchGastos();
     try {
         const res = await fetchWithTimeout(gasWebhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
         showToast('Gasto actualizado');
