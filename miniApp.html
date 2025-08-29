@@ -1417,7 +1417,9 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderSearchGastosForm() {
-    manageBackButton(true, renderDashboard);
+    // Esta función SIEMPRE configura el botón "Atrás" para volver al Home.
+    manageBackButton(true, renderDashboard); 
+    
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
@@ -1427,12 +1429,15 @@ function renderSearchGastosForm() {
                 <button id="search-gasto-btn" class="enabled">Buscar</button>
             </div>
             <p id="gastos-search-legend" style="text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 15px; display: none;">Pulsa sobre un gasto para ver/editarlo</p>
-<div id="gastos-search-results" style="margin-top: 10px;"></div>
+            <div id="gastos-search-results" style="margin-top: 10px;"></div>
         </div>`;
+        
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
     flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
+    
     document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
+    
     document.getElementById('gastos-search-results').addEventListener('click', (e) => {
         const item = e.target.closest('.list-item.clickable');
         if (item) {
@@ -1442,6 +1447,7 @@ function renderSearchGastosForm() {
         }
     });
 }
+
 function displayGastosResults(gastos) {
     const resultsContainer = document.getElementById('gastos-search-results');
     const legend = document.getElementById('gastos-search-legend');
@@ -1485,9 +1491,9 @@ async function executeSearchGastos() {
 }
 
 function renderEditGastoForm(gasto) {
-    // --- LÍNEA CORREGIDA: Ahora llama a la nueva función puente ---
-    manageBackButton(true, returnToGastosSearchList);
-    // -----------------------------------------------------------
+    // Esta función SIEMPRE configura el botón "Atrás" para volver a la lista de búsqueda.
+    // La clave es que NO llama a renderSearchGastosForm, solo a displayGastosResults.
+    manageBackButton(true, () => displayGastosResults(gastosEncontrados));
     
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
@@ -1545,15 +1551,16 @@ function renderEditGastoForm(gasto) {
         subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
         if (selectedCategory && categoriasGastos[selectedCategory]) {
             const newSubOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += newSubOptions; 
+            subcategoriaSelect.innerHTML += newSubOptions;
             subcategoriaSelect.disabled = false;
-        } else { 
-            subcategoriaSelect.disabled = true; 
+        } else {
+            subcategoriaSelect.disabled = true;
         }
         validateChanges();
     };
 
     document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
+    // Corregido también el botón de eliminar para que vuelva a la lista correctamente.
     document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico, () => displayGastosResults(gastosEncontrados));
 }
 
