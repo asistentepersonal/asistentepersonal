@@ -1426,7 +1426,8 @@ function renderSearchGastosForm() {
                 <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
                 <button id="search-gasto-btn" class="enabled">Buscar</button>
             </div>
-            <div id="gastos-search-results" style="margin-top: 20px;"></div>
+            <p id="gastos-search-legend" style="text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 15px; display: none;">Pulsa sobre un gasto para ver/editarlo</p>
+<div id="gastos-search-results" style="margin-top: 10px;"></div>
         </div>`;
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
@@ -1441,6 +1442,24 @@ function renderSearchGastosForm() {
         }
     });
 }
+function displayGastosResults(gastos) {
+    const resultsContainer = document.getElementById('gastos-search-results');
+    const legend = document.getElementById('gastos-search-legend');
+    if (gastos && gastos.length > 0) {
+        let listHtml = gastos.map(gasto => `
+            <li class="list-item clickable" id="item-${gasto.ID_Unico}" data-id-unico="${gasto.ID_Unico}">
+                <div class="list-item-content">
+                    <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span>
+                    <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${gasto.Fecha}</span>
+                </div>
+            </li>`).join('');
+        resultsContainer.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
+        legend.style.display = 'block';
+    } else { 
+        resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`; 
+        legend.style.display = 'none';
+    }
+}
 async function executeSearchGastos() {
     const startDate = document.getElementById('gasto-fecha-inicio').value, endDate = document.getElementById('gasto-fecha-fin').value;
     if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
@@ -1450,26 +1469,19 @@ async function executeSearchGastos() {
     try {
         const res = await fetchWithTimeout(gasWebhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
         gastosEncontrados = data.gastos || [];
-        if (gastosEncontrados.length > 0) {
-            let listHtml = gastosEncontrados.map(gasto => `
-                <li class="list-item clickable" id="item-${gasto.ID_Unico}" data-id-unico="${gasto.ID_Unico}">
-                    <div class="list-item-content">
-                        <span class="list-item-title">${gasto.Establecimiento} - ${gasto.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span>
-                        <span class="list-item-subtitle">${gasto.Subcategoria || gasto.Categoria} - ${gasto.Fecha}</span>
-                    </div>
-                </li>`).join('');
-            resultsContainer.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
-        } else { resultsContainer.innerHTML = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`; }
+		displayGastosResults(gastosEncontrados);
     } catch (err) { showToast(err.message, true); resultsContainer.innerHTML = ''; } finally { hideSpinner(); }
 }
 
 function renderEditGastoForm(gasto) {
-    manageBackButton(true, executeSearchGastos);
+    manageBackButton(true, () => displayGastosResults(gastosEncontrados));
+    
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
+    
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><h2>✏️ Editar Gasto</h2></div>
+            <div class="list-header"><h2>✏️ Ver/Editar Gasto</h2></div>
             <div class="form-card" id="item-${gasto.ID_Unico}">
                 <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
@@ -1478,41 +1490,130 @@ function renderEditGastoForm(gasto) {
                 <label>Fecha</label> <input type="text" id="gasto-fecha" required />
                 <div class="button-group">
                     <button id="delete-gasto-btn" class="cancel">Eliminar</button>
-                    <button id="save-gasto-btn" class="enabled">Guardar Cambios</button>
+                    <button id="save-gasto-btn" disabled>Guardar Cambios</button>
                 </div>
             </div>
         </div>`;
-    flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
-    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria');
+    
+    const fechaPicker = flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
+    
+    const categoriaSelect = document.getElementById('gasto-categoria');
+    const subcategoriaSelect = document.getElementById('gasto-subcategoria');
+    const importeInput = document.getElementById('gasto-importe');
+    const establecimientoInput = document.getElementById('gasto-establecimiento');
+    const saveBtn = document.getElementById('save-gasto-btn');
+    
+    const initialValues = {
+        importe: importeInput.value,
+        establecimiento: establecimientoInput.value,
+        categoria: categoriaSelect.value,
+        subcategoria: subcategoriaSelect.value,
+        fecha: fechaPicker.input.value
+    };
+
+    function validateChanges() {
+        const currentValues = {
+            importe: importeInput.value,
+            establecimiento: establecimientoInput.value,
+            categoria: categoriaSelect.value,
+            subcategoria: subcategoriaSelect.value,
+            fecha: fechaPicker.input.value
+        };
+        const hasChanged = JSON.stringify(initialValues) !== JSON.stringify(currentValues);
+        saveBtn.disabled = !hasChanged;
+        saveBtn.classList.toggle('enabled', hasChanged);
+    }
+
+    [importeInput, establecimientoInput, categoriaSelect, subcategoriaSelect].forEach(el => el.addEventListener('input', validateChanges));
+    fechaPicker.config.onChange.push(validateChanges);
+    
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
         subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
         if (selectedCategory && categoriasGastos[selectedCategory]) {
             const newSubOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += newSubOptions; subcategoriaSelect.disabled = false;
-        } else { subcategoriaSelect.disabled = true; }
+            subcategoriaSelect.innerHTML += newSubOptions; 
+            subcategoriaSelect.disabled = false;
+        } else { 
+            subcategoriaSelect.disabled = true; 
+        }
+        validateChanges();
     };
+
     document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
-    document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico, executeSearchGastos);
+    document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico, () => displayGastosResults(gastosEncontrados));
 }
 
 async function saveEditedGasto(idUnico) {
-    const originalGasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
-    if (!originalGasto) { showToast('Error: No se encontró el gasto original.', true); return; }
+    const originalGastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === idUnico);
+    if (originalGastoIndex === -1) { 
+        showToast('Error: No se encontró el gasto original.', true); 
+        return; 
+    }
+    
+    // --- 1. Feedback Inmediato ---
+    showToast('Gasto actualizado. Guardando...');
+    
+    // --- 2. Recopilar nuevos datos y calcular diferencia ---
+    const originalGasto = gastosEncontrados[originalGastoIndex];
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
     const originalImporte = parseFloat(originalGasto.Importe);
     const diferencia = nuevoImporte - originalImporte;
-    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
-    const nuevosGastosTotal = gastosActualesNum + diferencia;
-    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // --- 3. Actualización Optimista ---
+    // Actualiza el badge del total del mes
+    if (diferencia !== 0) {
+        const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
+        const nuevosGastosTotal = gastosActualesNum + diferencia;
+        appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        
+        // Actualiza el badge en el dashboard si es visible
+        const gastoBadge = document.querySelector('[data-menu-id="menu-gastos"]')?.previousElementSibling;
+        if (gastoBadge) {
+            gastoBadge.textContent = nuevosGastosTotal.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+        }
+    }
+    
+    // Actualiza los datos en la lista local
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-    const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
-    const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: document.getElementById('gasto-establecimiento').value, categoria: document.getElementById('gasto-categoria').value, sub_categoria: document.getElementById('gasto-subcategoria').value, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
-    executeSearchGastos();
+    const nuevosDatos = {
+        ...originalGasto,
+        Importe: nuevoImporte,
+        Establecimiento: document.getElementById('gasto-establecimiento').value,
+        Categoria: document.getElementById('gasto-categoria').value,
+        Subcategoria: document.getElementById('gasto-subcategoria').value,
+        Fecha: fechaGastoObj.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    };
+    gastosEncontrados[originalGastoIndex] = nuevosDatos;
+
+    // --- 4. Regreso a la lista de búsqueda ---
+    displayGastosResults(gastosEncontrados);
+    manageBackButton(true, renderDashboard); 
+
+    // --- 5. Envío al backend en segundo plano ---
     try {
-        const res = await fetchWithTimeout(gasWebhookURL, payload); const data = await res.json(); if (data.error) throw new Error(data.error);
-        showToast('Gasto actualizado');
-    } catch (err) { showToast(`Error: ${err.message}. Restaurando...`, true); initializeApp(); }
+        const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
+        const payload = { 
+            Type: 'edit_gasto', 
+            chat_ID: chatId, 
+            datos: { 
+                ID_Unico: idUnico, 
+                Importe: nuevoImporte, 
+                Establecimiento: nuevosDatos.Establecimiento, 
+                categoria: nuevosDatos.Categoria, 
+                sub_categoria: nuevosDatos.Subcategoria, 
+                Fecha: fechaGastoObj.toISOString(), 
+                mesAnio: mesAnioTexto 
+            } 
+        };
+        const res = await fetchWithTimeout(gasWebhookURL, payload); 
+        const data = await res.json(); 
+        if (data.error) throw new Error(data.error);
+    } catch (err) { 
+        showToast(`Error de sincronización: ${err.message}. Restaurando...`, true); 
+        // Si falla, se revierte al reiniciar la app o al volver a buscar
+        initializeApp(); 
+    }
 }
 
 // ==================================================
@@ -2071,7 +2172,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
-	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${chefCardHtml}
     </div>`;
   
