@@ -1479,7 +1479,9 @@ async function executeSearchGastos() {
 }
 
 function renderEditGastoForm(gasto) {
-    manageBackButton(true, () => displayGastosResults(gastosEncontrados));
+    // --- LÍNEA CORREGIDA ---
+    manageBackButton(true, () => { renderSearchGastosForm(); displayGastosResults(gastosEncontrados); });
+    // -----------------------
     
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
