@@ -1517,10 +1517,13 @@ function renderChefPage() {
                 showToast("Puedes subir un máximo de 2 fotos.", true);
                 return;
             }
+            // *** INICIO DE LA CORRECCIÓN CLAVE ***
+            // "Clonamos" los archivos inmediatamente para que no caduquen en móvil.
             newFiles.forEach(file => {
                 const clonedFile = new File([file], file.name, { type: file.type, lastModified: file.lastModified });
                 selectedFiles.push(clonedFile);
             });
+            // *** FIN DE LA CORRECCIÓN CLAVE ***
             updatePreviews();
         };
         fileInput.click();
