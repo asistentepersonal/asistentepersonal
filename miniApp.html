@@ -281,25 +281,17 @@ document.body.addEventListener('click', (e) => {
             if (isShown) {
                 menu.classList.remove('show');
             } else {
-                // Paso 1: Hacer el menú medible pero invisible
-                menu.style.visibility = 'hidden';
-                menu.style.display = 'block';
+const buttonRect = menuBtn.getBoundingClientRect();
+const windowHeight = window.innerHeight;
 
-                const buttonRect = menuBtn.getBoundingClientRect();
-                const menuHeight = menu.offsetHeight;
-                const windowHeight = window.innerHeight;
+// Lógica mejorada: si el botón está en la mitad inferior de la pantalla, abre hacia arriba.
+if (buttonRect.top > (windowHeight / 2)) {
+    menu.classList.add('up');
+} else {
+    menu.classList.remove('up');
+}
 
-                // Paso 2: Decidir la dirección
-                if ((buttonRect.bottom + menuHeight) > windowHeight) {
-                    menu.classList.add('up');
-                } else {
-                    menu.classList.remove('up');
-                }
-
-                // Paso 3: Quitar los estilos temporales y mostrarlo
-                menu.style.visibility = '';
-                menu.style.display = '';
-                menu.classList.add('show');
+menu.classList.add('show');
             }
         }
     }
