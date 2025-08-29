@@ -1256,7 +1256,7 @@ function renderGastoChart() {
         <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
         <div class="gasto-chart-container" id="chart-container-daily" style="display:none;"><canvas id="dailyChartCanvas"></canvas></div>
         <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
-        <div class="gasto-chart-container" id="chart-container-monthly" style="display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
+        <div class="gasto-chart-container" id="chart-container-monthly" style="position: relative; height:300px; display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
       </div>
     </div>`;
   document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
@@ -1334,7 +1334,7 @@ async function fetchAndDisplayGastoChart(event) {
           ]
         },
         options: {
-          responsive: true, maintainAspectRatio: true,
+          responsive: true, maintainAspectRatio: false,
           plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } },
           scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
         }
