@@ -1445,6 +1445,11 @@ function renderSearchGastosForm() {
 function displayGastosResults(gastos) {
     const resultsContainer = document.getElementById('gastos-search-results');
     const legend = document.getElementById('gastos-search-legend');
+    
+    // --- LÍNEA AÑADIDA ---
+    manageBackButton(true, renderDashboard);
+    // --------------------
+
     if (gastos && gastos.length > 0) {
         let listHtml = gastos.map(gasto => `
             <li class="list-item clickable" id="item-${gasto.ID_Unico}" data-id-unico="${gasto.ID_Unico}">
@@ -1558,18 +1563,26 @@ async function saveEditedGasto(idUnico) {
     const originalImporte = parseFloat(originalGasto.Importe);
     const diferencia = nuevoImporte - originalImporte;
 
-    if (diferencia !== 0) {
-        const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
-        const nuevosGastosTotal = gastosActualesNum + diferencia;
-        appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        
-        const gastoBadge = document.querySelector('[data-menu-id="menu-gastos"]')?.previousElementSibling;
-        if (gastoBadge) {
-            gastoBadge.textContent = nuevosGastosTotal.toLocaleString('es-ES', { maximumFractionDigits: 0 }).split(',')[0];
-        }
+    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+    
+    const hoy = new Date();
+    const fechaOriginalGasto = new Date(originalGasto.Fecha.split(' ')[0].split('/').reverse().join('-'));
+    const esMesActualOriginal = fechaOriginalGasto.getMonth() === hoy.getMonth() && fechaOriginalGasto.getFullYear() === hoy.getFullYear();
+    const esMesActualNuevo = fechaGastoObj.getMonth() === hoy.getMonth() && fechaGastoObj.getFullYear() === hoy.getFullYear();
+
+    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
+    let nuevosGastosTotal = gastosActualesNum;
+
+    if (esMesActualOriginal && !esMesActualNuevo) {
+        nuevosGastosTotal -= originalImporte;
+    } else if (!esMesActualOriginal && esMesActualNuevo) {
+        nuevosGastosTotal += nuevoImporte;
+    } else if (esMesActualOriginal && esMesActualNuevo) {
+        nuevosGastosTotal += diferencia;
     }
     
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
     const nuevosDatos = {
         ...originalGasto,
         Importe: nuevoImporte,
@@ -1580,10 +1593,7 @@ async function saveEditedGasto(idUnico) {
     };
     gastosEncontrados[originalGastoIndex] = nuevosDatos;
 
-    // --- LÍNEAS CORREGIDAS ---
     displayGastosResults(gastosEncontrados);
-    manageBackButton(true, renderDashboard); 
-    // ------------------------
 
     try {
         const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
