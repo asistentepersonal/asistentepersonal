@@ -1551,38 +1551,45 @@ function renderEditGastoForm(gasto) {
 
 async function saveEditedGasto(idUnico) {
     const originalGastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === idUnico);
-    if (originalGastoIndex === -1) { 
-        showToast('Error: No se encontró el gasto original.', true); 
-        return; 
+    if (originalGastoIndex === -1) {
+        showToast('Error: No se encontró el gasto original.', true);
+        return;
     }
     
-    showToast('Gasto actualizado. Guardando...');
+    const originalGasto = { ...gastosEncontrados[originalGastoIndex] };
     
-    const originalGasto = gastosEncontrados[originalGastoIndex];
+    // 1. Recopilar todos los datos nuevos del formulario
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
-    const originalImporte = parseFloat(originalGasto.Importe);
-    const diferencia = nuevoImporte - originalImporte;
-
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
     
-    const hoy = new Date();
-    const fechaOriginalGasto = new Date(originalGasto.Fecha.split(' ')[0].split('/').reverse().join('-'));
-    const esMesActualOriginal = fechaOriginalGasto.getMonth() === hoy.getMonth() && fechaOriginalGasto.getFullYear() === hoy.getFullYear();
-    const esMesActualNuevo = fechaGastoObj.getMonth() === hoy.getMonth() && fechaGastoObj.getFullYear() === hoy.getFullYear();
-
+    // 2. Actualizar el contador de gastos del mes (lógica optimista)
     const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
     let nuevosGastosTotal = gastosActualesNum;
+    
+    const hoy = new Date();
+    const esMesActual = (d) => d.getMonth() === hoy.getMonth() && d.getFullYear() === hoy.getFullYear();
+    
+    // Extraer la fecha del gasto original. El formato es "dd/MM/yyyy HH:mm"
+    const partesFechaOriginal = originalGasto.Fecha.split(' ')[0].split('/');
+    const fechaOriginalObj = new Date(partesFechaOriginal[2], partesFechaOriginal[1] - 1, partesFechaOriginal[0]);
 
-    if (esMesActualOriginal && !esMesActualNuevo) {
-        nuevosGastosTotal -= originalImporte;
-    } else if (!esMesActualOriginal && esMesActualNuevo) {
+    const eraDelMesActual = esMesActual(fechaOriginalObj);
+    const esDelMesActual = esMesActual(fechaGastoObj);
+    
+    if (eraDelMesActual && !esDelMesActual) {
+        // Se movió fuera del mes actual
+        nuevosGastosTotal -= parseFloat(originalGasto.Importe);
+    } else if (!eraDelMesActual && esDelMesActual) {
+        // Se movió hacia el mes actual
         nuevosGastosTotal += nuevoImporte;
-    } else if (esMesActualOriginal && esMesActualNuevo) {
-        nuevosGastosTotal += diferencia;
+    } else if (eraDelMesActual && esDelMesActual) {
+        // Se mantuvo en el mes actual, solo se ajusta la diferencia
+        nuevosGastosTotal += (nuevoImporte - parseFloat(originalGasto.Importe));
     }
     
     appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
+
+    // 3. Actualizar el gasto en la lista local (lógica optimista)
     const nuevosDatos = {
         ...originalGasto,
         Importe: nuevoImporte,
@@ -1593,29 +1600,40 @@ async function saveEditedGasto(idUnico) {
     };
     gastosEncontrados[originalGastoIndex] = nuevosDatos;
 
+    // 4. Mostrar el toast y volver a la lista de resultados AHORA MISMO
+    showToast('Gasto actualizado. Guardando...');
     displayGastosResults(gastosEncontrados);
 
+    // 5. ENVIAR LOS DATOS AL SCRIPT EN SEGUNDO PLANO
     try {
-        const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
-        const payload = { 
-            Type: 'edit_gasto', 
-            chat_ID: chatId, 
-            datos: { 
-                ID_Unico: idUnico, 
-                Importe: nuevoImporte, 
-                Establecimiento: nuevosDatos.Establecimiento, 
-                categoria: nuevosDatos.Categoria, 
-                sub_categoria: nuevosDatos.Subcategoria, 
-                Fecha: fechaGastoObj.toISOString(), 
-                mesAnio: mesAnioTexto 
-            } 
+        const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
+        const anio = fechaGastoObj.getFullYear();
+        const mesAnioTexto = `${mes}/${anio}`;
+        
+        const payload = {
+            Type: 'edit_gasto',
+            chat_ID: chatId,
+            datos: {
+                ID_Unico: idUnico,
+                Importe: nuevoImporte,
+                Establecimiento: nuevosDatos.Establecimiento,
+                categoria: nuevosDatos.Categoria,
+                sub_categoria: nuevosDatos.Subcategoria,
+                Fecha: fechaGastoObj.toISOString(),
+                mesAnio: mesAnioTexto
+            }
         };
-        const res = await fetchWithTimeout(gasWebhookURL, payload); 
-        const data = await res.json(); 
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
-    } catch (err) { 
-        showToast(`Error de sincronización: ${err.message}. Restaurando...`, true); 
-        initializeApp(); 
+        // Si todo va bien, no hacemos nada más, la UI ya está actualizada.
+        
+    } catch (err) {
+        // Si falla, mostramos un error y revertimos los cambios locales.
+        showToast(`Error de sincronización: ${err.message}. Restaurando...`, true);
+        // Revertimos los cambios locales para mantener la consistencia
+        gastosEncontrados[originalGastoIndex] = originalGasto; 
+        initializeApp(); // Forzamos una recarga completa para asegurar datos correctos.
     }
 }
 
