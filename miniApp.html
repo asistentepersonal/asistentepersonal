@@ -261,7 +261,6 @@ function setActiveTab(activeTabId) {
 document.body.addEventListener('click', (e) => {
     const menuBtn = e.target.closest('.card-menu-btn, .generic-menu-btn');
     
-    // Cierra todos los menús si se hace clic fuera
     if (!menuBtn && !e.target.closest('.dropdown-menu')) {
         document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
         return;
@@ -275,23 +274,24 @@ document.body.addEventListener('click', (e) => {
         if (menu) {
             const isShown = menu.classList.contains('show');
             
-            // Cierra otros menús antes de abrir el nuevo
             document.querySelectorAll('.dropdown-menu.show').forEach(m => {
                 if (m.id !== menuId) m.classList.remove('show');
             });
 
-            // Lógica para decidir si abrir hacia arriba o hacia abajo
-            const buttonRect = menuBtn.getBoundingClientRect();
-            const menuHeight = menu.offsetHeight;
-            const windowHeight = window.innerHeight;
-
-            if (buttonRect.bottom + menuHeight > windowHeight) {
-                menu.classList.add('up');
-            } else {
-                menu.classList.remove('up');
-            }
-            
             menu.classList.toggle('show', !isShown);
+
+            if (!isShown) {
+                const buttonRect = menuBtn.getBoundingClientRect();
+                const menuHeight = menu.offsetHeight;
+                const windowHeight = window.innerHeight;
+
+                // Si el borde inferior del menú se sale de la pantalla, ábrelo hacia arriba.
+                if ((buttonRect.bottom + menuHeight) > windowHeight) {
+                    menu.classList.add('up');
+                } else {
+                    menu.classList.remove('up');
+                }
+            }
         }
     }
 });
