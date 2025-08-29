@@ -278,19 +278,28 @@ document.body.addEventListener('click', (e) => {
                 if (m.id !== menuId) m.classList.remove('show');
             });
 
-            menu.classList.toggle('show', !isShown);
+            if (isShown) {
+                menu.classList.remove('show');
+            } else {
+                // Paso 1: Hacer el menú medible pero invisible
+                menu.style.visibility = 'hidden';
+                menu.style.display = 'block';
 
-            if (!isShown) {
                 const buttonRect = menuBtn.getBoundingClientRect();
                 const menuHeight = menu.offsetHeight;
                 const windowHeight = window.innerHeight;
 
-                // Si el borde inferior del menú se sale de la pantalla, ábrelo hacia arriba.
+                // Paso 2: Decidir la dirección
                 if ((buttonRect.bottom + menuHeight) > windowHeight) {
                     menu.classList.add('up');
                 } else {
                     menu.classList.remove('up');
                 }
+
+                // Paso 3: Quitar los estilos temporales y mostrarlo
+                menu.style.visibility = '';
+                menu.style.display = '';
+                menu.classList.add('show');
             }
         }
     }
