@@ -1551,30 +1551,24 @@ async function saveEditedGasto(idUnico) {
         return; 
     }
     
-    // --- 1. Feedback Inmediato ---
     showToast('Gasto actualizado. Guardando...');
     
-    // --- 2. Recopilar nuevos datos y calcular diferencia ---
     const originalGasto = gastosEncontrados[originalGastoIndex];
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
     const originalImporte = parseFloat(originalGasto.Importe);
     const diferencia = nuevoImporte - originalImporte;
 
-    // --- 3. Actualización Optimista ---
-    // Actualiza el badge del total del mes
     if (diferencia !== 0) {
         const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
         const nuevosGastosTotal = gastosActualesNum + diferencia;
         appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         
-        // Actualiza el badge en el dashboard si es visible
         const gastoBadge = document.querySelector('[data-menu-id="menu-gastos"]')?.previousElementSibling;
         if (gastoBadge) {
-            gastoBadge.textContent = nuevosGastosTotal.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+            gastoBadge.textContent = nuevosGastosTotal.toLocaleString('es-ES', { maximumFractionDigits: 0 }).split(',')[0];
         }
     }
     
-    // Actualiza los datos en la lista local
     const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
     const nuevosDatos = {
         ...originalGasto,
@@ -1586,11 +1580,11 @@ async function saveEditedGasto(idUnico) {
     };
     gastosEncontrados[originalGastoIndex] = nuevosDatos;
 
-    // --- 4. Regreso a la lista de búsqueda ---
+    // --- LÍNEAS CORREGIDAS ---
     displayGastosResults(gastosEncontrados);
     manageBackButton(true, renderDashboard); 
+    // ------------------------
 
-    // --- 5. Envío al backend en segundo plano ---
     try {
         const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2), anio = fechaGastoObj.getFullYear(), mesAnioTexto = `${mes}/${anio}`;
         const payload = { 
@@ -1611,7 +1605,6 @@ async function saveEditedGasto(idUnico) {
         if (data.error) throw new Error(data.error);
     } catch (err) { 
         showToast(`Error de sincronización: ${err.message}. Restaurando...`, true); 
-        // Si falla, se revierte al reiniciar la app o al volver a buscar
         initializeApp(); 
     }
 }
