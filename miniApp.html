@@ -648,8 +648,8 @@ function toggleSelectedItemsToPending() {
     .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
 
-function renderAddArticleForm() {
-  manageBackButton(true, renderShoppingList);
+function renderAddArticleForm(returnPath = renderShoppingList) {
+  manageBackButton(true, returnPath);
   mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><h2>➕ Añadir Artículo</h2></div>
@@ -759,8 +759,8 @@ function renderNotesList() {
     });
 }
 
-function renderNoteForm(note = null) {
-    manageBackButton(true, renderNotesList);
+function renderNoteForm(note = null, returnPath = renderNotesList) {
+    manageBackButton(true, returnPath);
     const isEditing = note !== null;
     mainContentArea.innerHTML = `<div class="list-container">
                                 <div class="list-header"><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
@@ -920,8 +920,8 @@ function updateAddNotificationLinkVisibility() {
     link.style.display = isLastRowFilled ? 'block' : 'none';
 }
 
-function renderEventForm() {
-    manageBackButton(true, renderCalendarView);
+function renderEventForm(returnPath = renderCalendarView) {
+    manageBackButton(true, returnPath);
     mainContentArea.innerHTML = `
       <div class="list-container"><div class="list-header"><h2>➕ Nuevo Evento</h2></div>
       <div class="form-card">
@@ -2026,10 +2026,10 @@ function renderDashboard() {
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
   document.getElementById('list-reminders-link').onclick = renderRemindersList;
   document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-  document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
-  document.getElementById('add-note-link').onclick = () => renderNoteForm();
+  document.getElementById('add-shopping-item-link').onclick = () => renderAddArticleForm(renderDashboard);
+  document.getElementById('add-note-link').onclick = () => renderNoteForm(null, renderDashboard);
   document.getElementById('list-notes-link').onclick = renderNotesList;
-  document.getElementById('add-event-link').onclick = renderEventForm;
+  document.getElementById('add-event-link').onclick = () => renderEventForm(renderDashboard);
   document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm(null);
