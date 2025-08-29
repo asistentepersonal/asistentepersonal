@@ -1550,40 +1550,45 @@ function renderEditGastoForm(gasto) {
 }
 
 async function saveEditedGasto(idUnico) {
-    // --- PASO 1: Capturar TODOS los datos del formulario ANTES de borrarlo ---
+    // --- ZONA SEGURA: CAPTURAR TODOS LOS DATOS DEL FORMULARIO ANTES DE NADA ---
     const originalGastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === idUnico);
     if (originalGastoIndex === -1) {
-        showToast('Error fatal: Gasto no encontrado en la lista local.', true);
+        showToast('Error: Gasto no encontrado en memoria.', true);
         return;
     }
     const originalGasto = { ...gastosEncontrados[originalGastoIndex] };
-    
+
+    // Guardar todos los valores en variables locales AHORA.
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0]; // <-- CAPTURA CRÍTICA
-    
-    // --- PASO 2: Actualizar los datos en memoria ---
+    const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
+    const nuevaCategoria = document.getElementById('gasto-categoria').value;
+    const nuevaSubcategoria = document.getElementById('gasto-subcategoria').value;
+    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+
+    // --- FIN DE LA CAPTURA. AHORA SE PUEDE TRABAJAR CON LAS VARIABLES ---
+
+    // 1. Actualizar el estado local (el "almacén").
     const diferencia = nuevoImporte - parseFloat(originalGasto.Importe);
     if (diferencia !== 0) {
         const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
         appData.counts.gastosMesActual = (gastosActualesNum + diferencia).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     
-    const nuevosDatos = {
+    gastosEncontrados[originalGastoIndex] = {
         ...originalGasto,
         Importe: nuevoImporte,
-        Establecimiento: document.getElementById('gasto-establecimiento').value,
-        Categoria: document.getElementById('gasto-categoria').value,
-        Subcategoria: document.getElementById('gasto-subcategoria').value,
+        Establecimiento: nuevoEstablecimiento,
+        Categoria: nuevaCategoria,
+        Subcategoria: nuevaSubcategoria,
         Fecha: fechaGastoObj.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     };
-    gastosEncontrados[originalGastoIndex] = nuevosDatos;
 
-    // --- PASO 3: Navegar y mostrar la lista actualizada ---
+    // 2. Cambiar la pantalla de forma segura.
     showToast('Gasto actualizado. Guardando...');
-    renderSearchGastosForm();
-    displayGastosResults(gastosEncontrados);
+    renderSearchGastosForm(); // Borra el formulario viejo.
+    displayGastosResults(gastosEncontrados); // Muestra la lista actualizada.
 
-    // --- PASO 4: Enviar los datos a Google en segundo plano ---
+    // 3. Enviar los datos al script de Google usando las variables ya guardadas.
     try {
         const mesAnioTexto = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2) + '/' + fechaGastoObj.getFullYear();
         const payload = {
@@ -1592,9 +1597,9 @@ async function saveEditedGasto(idUnico) {
             datos: {
                 ID_Unico: idUnico,
                 Importe: nuevoImporte,
-                Establecimiento: nuevosDatos.Establecimiento,
-                categoria: nuevosDatos.Categoria,
-                sub_categoria: nuevosDatos.Subcategoria,
+                Establecimiento: nuevoEstablecimiento,
+                categoria: nuevaCategoria,
+                sub_categoria: nuevaSubcategoria,
                 Fecha: fechaGastoObj.toISOString(),
                 mesAnio: mesAnioTexto
             }
