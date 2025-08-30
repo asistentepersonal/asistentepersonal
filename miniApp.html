@@ -897,38 +897,36 @@ async function saveNote() {
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
 // ==================================================
-let lastCalendarSearchQuery = null; // Memoria para la última búsqueda
+flatpickr.localize(flatpickr.l10ns.es); // Forzar localización globalmente
+let lastCalendarSearchQuery = null;
 
-// Función principal para mostrar la vista del calendario
 async function renderCalendarView(searchQuery = null, useCache = false) {
     navigationHistory.push(renderDashboard);
     updateBackButton();
     
-    if (!useCache) { // Solo muestra el spinner si vamos a buscar datos nuevos
-        showSpinner();
-    }
+    if (!useCache) { showSpinner(); }
 
     try {
         let events;
         if (useCache && !searchQuery) {
-            events = appData.calendarEvents; // Usa los eventos ya cargados
+            events = appData.calendarEvents;
         } else if (searchQuery) {
             const res = await fetchWithTimeout(gasWebhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: searchQuery });
             events = await res.json();
             if (events.error) throw new Error(events.error);
+            appData.calendarEvents = events;
             lastCalendarSearchQuery = searchQuery;
-        } else { // Carga por defecto (próximos 30 días)
+        } else {
             const startDate = new Date();
             const endDate = new Date();
             endDate.setDate(startDate.getDate() + 30);
             const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
             events = await res.json();
             if (events.error) throw new Error(events.error);
-            appData.calendarEvents = events; // Actualiza la caché principal
+            appData.calendarEvents = events;
             lastCalendarSearchQuery = null;
         }
 
-        // Sub-función para dibujar la lista de eventos
         const groupAndRenderEvents = (evs) => {
             if (!evs || evs.length === 0) {
                 const message = searchQuery ? `No se encontraron eventos para "${searchQuery}".` : "No tienes eventos en los próximos 30 días.";
@@ -978,7 +976,7 @@ async function renderCalendarView(searchQuery = null, useCache = false) {
                                   <ul class="list-style-none" id="calendar-list">${groupAndRenderEvents(events)}</ul>
                                 </div>`;
                                 
-        document.getElementById('add-event-btn').onclick = () => renderEventForm(null, renderCalendarView);
+        document.getElementById('add-event-btn').onclick = () => renderEventForm(null, () => renderCalendarView(null, true));
         document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
         document.getElementById('calendar-list').addEventListener('click', (e) => {
             const target = e.target.closest('.dropdown-item');
@@ -989,15 +987,13 @@ async function renderCalendarView(searchQuery = null, useCache = false) {
                 confirmDelete('calendar_event', eventId);
             } else if (action === 'edit-calendar-event') {
                 const event = appData.calendarEvents.find(ev => ev.id === eventId);
-                if (event) renderEventForm(event, () => renderCalendarView(lastCalendarSearchQuery));
+                if (event) renderEventForm(event, () => renderCalendarView(lastCalendarSearchQuery, true));
             }
         });
     } catch (err) {
         mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`;
     } finally {
-        if (!useCache) {
-            hideSpinner();
-        }
+        if (!useCache) { hideSpinner(); }
     }
 }
 
@@ -1021,7 +1017,7 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
           </div>
           <label>Descripción</label><textarea id="event-description" rows="4">${isEditing ? (event.description || '') : ''}</textarea>
           <div class="button-group">
-            <button id="save-event-btn" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button>
+            <button id="save-event-btn">${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button>
             <button id="cancel-event-btn" class="cancel">Cancelar</button>
           </div>
       </div></div>`;
@@ -1069,7 +1065,7 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
     addNotificationBtn.onclick = () => createNotificationRow();
     
     let startPicker, endPicker;
-    const baseConfig = { locale: "es", time_24hr: true };
+    const baseConfig = { time_24hr: true }; // El locale se aplica globalmente
     const dateTimeConfig = { ...baseConfig, enableTime: true, dateFormat: "Y-m-d H:i" };
     const dateConfig = { ...baseConfig, enableTime: false, dateFormat: "Y-m-d" };
     
@@ -1107,8 +1103,8 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
     const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
     function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
     summaryInput.oninput = validate;
-    saveBtn.onclick = () => saveEvent(event, returnPath);
     validate();
+    saveBtn.onclick = () => saveEvent(event, returnPath);
 
     if (isEditing && event.reminders && event.reminders.overrides) {
         event.reminders.overrides.forEach(rem => createNotificationRow(rem));
@@ -1117,11 +1113,71 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
 }
 
 async function saveEvent(eventToEdit = null, returnPath) {
-    // Lógica de guardado (resto de la función)
+    const isEditing = eventToEdit !== null;
+    const reminders = [];
+    let notificationsValid = true;
+    document.querySelectorAll('.notification-row').forEach(row => {
+        const quantity = parseInt(row.querySelector('.event-reminder-quantity').value, 10);
+        const unit = row.querySelector('.event-reminder-unit').value;
+        const method = row.querySelector('.event-reminder-method').value;
+        if (!quantity || !unit || !method) { notificationsValid = false; return; }
+        let minutes = 0;
+        if (unit === 'days') minutes = quantity * 24 * 60;
+        else if (unit === 'hours') minutes = quantity * 60;
+        else minutes = quantity;
+        reminders.push({ method: method, minutes: minutes });
+    });
+
+    if (!notificationsValid) { showToast("Completa o elimina las notificaciones vacías.", true); return; }
+
+    const isAllDay = document.getElementById('event-all-day').checked;
+    const startDate = document.getElementById('event-start')._flatpickr.selectedDates[0];
+    const endDate = document.getElementById('event-end')._flatpickr.selectedDates[0];
+
+    if (!startDate || !endDate) { showToast("Las fechas son obligatorias.", true); return; }
+    if (endDate < startDate) { showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
+
+    const eventData = {
+        summary: document.getElementById('event-summary').value.trim(),
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        description: document.getElementById('event-description').value,
+        isAllDay: isAllDay,
+        reminders: reminders,
+        eventId: isEditing ? eventToEdit.id : null
+    };
+    
+    const type = isEditing ? 'edit_calendar_event' : 'add_calendar_event';
+    
+    // --- Actualización optimista ---
+    const isToday = (dateStr) => dateStr.slice(0, 10) === new Date().toISOString().slice(0, 10);
+    if (isEditing) {
+        const wasToday = isToday(eventToEdit.start.dateTime || eventToEdit.start.date);
+        const isNowToday = isToday(eventData.start);
+        if (wasToday && !isNowToday) appData.counts.calendarTodayCount--;
+        if (!wasToday && isNowToday) appData.counts.calendarTodayCount++;
+    } else {
+        if (isToday(eventData.start)) {
+            appData.counts.calendarTodayCount = (appData.counts.calendarTodayCount || 0) + 1;
+        }
+    }
+    
+    goBack();
+    showToast(isEditing ? 'Evento actualizado' : 'Evento creado');
+    
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, { chat_ID: chatId, Type: type, eventData });
+        const result = await res.json();
+        if (result.error) throw new Error(result.error);
+        initializeApp();
+    } catch (err) {
+        showToast(`Error: ${err.message}. No se guardó.`, true);
+        initializeApp();
+    }
 }
 
 function renderSearchCalendarForm() {
-    navigationHistory.push(renderCalendarView);
+    navigationHistory.push(() => renderCalendarView(null, true));
     updateBackButton();
     mainContentArea.innerHTML = `
         <div class="list-container"><div class="list-header"><h2>🔎 Buscar en Calendario</h2></div>
