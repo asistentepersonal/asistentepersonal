@@ -915,7 +915,7 @@ async function renderCalendarView(searchQuery = null, useCache = false) {
             appData.calendarEvents = events;
             lastCalendarSearchQuery = searchQuery;
         } else {
-            const startDate = new Date(); endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
+            const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
             const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
             events = await res.json(); if (events.error) throw new Error(events.error);
             appData.calendarEvents = events;
@@ -971,8 +971,7 @@ async function renderCalendarView(searchQuery = null, useCache = false) {
         document.getElementById('calendar-list').addEventListener('click', (e) => {
             const target = e.target.closest('.dropdown-item'); if (!target || target.href) return;
             const action = target.dataset.action; const eventId = target.dataset.eventId;
-            if (action === 'delete-calendar-event') {
-                confirmDelete('calendar_event', eventId);
+            if (action === 'delete-calendar-event') { confirmDelete('calendar_event', eventId);
             } else if (action === 'edit-calendar-event') {
                 const event = appData.calendarEvents.find(ev => ev.id === eventId);
                 if (event) renderEventForm(event, () => renderCalendarView(lastCalendarSearchQuery, true));
@@ -1012,8 +1011,7 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
 
     const updateAddNotificationButtonVisibility = () => {
         const rows = notificationsContainer.querySelectorAll('.notification-row');
-        const lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
-        let isLastRowFilled = true;
+        const lastRow = rows.length > 0 ? rows[rows.length - 1] : null; let isLastRowFilled = true;
         if (lastRow) {
             const method = lastRow.querySelector('.event-reminder-method').value;
             const quantity = lastRow.querySelector('.event-reminder-quantity').value;
@@ -1045,32 +1043,30 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
 
     addNotificationBtn.onclick = () => createNotificationRow();
     
-    let startPicker, endPicker;
     const baseConfig = { time_24hr: true, locale: flatpickr.l10ns.es };
     const dateTimeConfig = { ...baseConfig, enableTime: true, dateFormat: "Y-m-d H:i" };
     const dateConfig = { ...baseConfig, enableTime: false, dateFormat: "Y-m-d" };
-    
     const initialIsAllDay = isEditing && !event.start.dateTime;
     
-    startPicker = flatpickr("#event-start", { 
+    const startPicker = flatpickr("#event-start", { 
         ...(initialIsAllDay ? dateConfig : dateTimeConfig),
         defaultDate: isEditing ? new Date(event.start.dateTime || event.start.date) : new Date(),
         onChange: function(selectedDates) {
             if (selectedDates[0] && !document.getElementById('event-all-day').checked) {
+                const endPicker = document.getElementById('event-end')._flatpickr;
                 const currentEndDate = endPicker.selectedDates[0];
                 const newEndDate = new Date(selectedDates[0].getTime() + 3600000);
                 if (!currentEndDate || newEndDate > currentEndDate) { endPicker.setDate(newEndDate); }
             }
         }
     });
-    endPicker = flatpickr("#event-end", { 
+    const endPicker = flatpickr("#event-end", { 
         ...(initialIsAllDay ? dateConfig : dateTimeConfig),
         defaultDate: isEditing ? new Date(event.end.dateTime || event.end.date) : new Date(Date.now() + 3600000)
     });
 
     document.getElementById('event-all-day').addEventListener('change', (e) => {
-        const isAllDay = e.target.checked;
-        const newConfig = isAllDay ? dateConfig : dateTimeConfig;
+        const isAllDay = e.target.checked; const newConfig = isAllDay ? dateConfig : dateTimeConfig;
         const currentStartDate = startPicker.selectedDates[0] || new Date();
         let currentEndDate = endPicker.selectedDates[0] || new Date(Date.now() + 3600000);
         if(isAllDay && currentEndDate < currentStartDate) currentEndDate = currentStartDate;
@@ -1118,7 +1114,6 @@ async function saveEvent(eventToEdit = null) {
         eventId: isEditing ? eventToEdit.id : null
     };
     
-    const type = isEditing ? 'edit_calendar_event' : 'add_calendar_event';
     const isToday = (dateStr) => dateStr.slice(0, 10) === new Date().toISOString().slice(0, 10);
     if (isEditing) {
         const wasToday = isToday(eventToEdit.start.dateTime || eventToEdit.start.date);
@@ -1133,10 +1128,10 @@ async function saveEvent(eventToEdit = null) {
     showToast(isEditing ? 'Evento actualizado' : 'Evento creado');
     
     try {
-        const res = await fetchWithTimeout(gasWebhookURL, { chat_ID: chatId, Type: type, eventData });
+        const res = await fetchWithTimeout(gasWebhookURL, { chat_ID: chatId, Type: 'miniapp_save_calendar_event', eventData });
         const result = await res.json(); if (result.error) throw new Error(result.error);
     } catch (err) {
-        showToast(`Error: ${err.message}. No se guardó. Refrescando...`, true);
+        showToast(`Error: ${err.message}. No se guardó.`, true);
         initializeApp();
     }
 }
