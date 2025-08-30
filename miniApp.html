@@ -897,29 +897,43 @@ async function saveNote() {
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
 // ==================================================
-async function renderCalendarView(eventsToShow = null) {
+let lastCalendarSearchQuery = null;
+
+async function renderCalendarView(searchQuery = null) {
     navigationHistory.push(renderDashboard);
     updateBackButton();
     showSpinner();
+
     try {
-        let events = eventsToShow;
-        if (!events) {
-            const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
+        let events;
+        if (searchQuery) {
+            const res = await fetchWithTimeout(gasWebhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: searchQuery });
+            events = await res.json();
+            if (events.error) throw new Error(events.error);
+            lastCalendarSearchQuery = searchQuery;
+        } else {
+            const startDate = new Date();
+            const endDate = new Date();
+            endDate.setDate(startDate.getDate() + 30);
             const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            events = data;
+            events = await res.json();
+            if (events.error) throw new Error(events.error);
             appData.calendarEvents = events;
+            lastCalendarSearchQuery = null;
         }
+
         const groupAndRenderEvents = (evs) => {
-            if (!evs || evs.length === 0) return '<div class="no-data-msg">🗓️<br>No se encontraron eventos.</div>';
-            const eventsByDay = evs.reduce((acc, event) => { 
+            if (!evs || evs.length === 0) {
+                const message = searchQuery ? `No se encontraron eventos para "${searchQuery}".` : "No tienes eventos en los próximos 30 días.";
+                return `<div class="no-data-msg">🗓️<br>${message}</div>`;
+            }
+            const eventsByDay = evs.reduce((acc, event) => {
                 const dateKey = event.start.dateTime || event.start.date;
                 if (!dateKey) return acc;
-                const day = new Date(dateKey).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); 
-                if (!acc[day]) acc[day] = []; 
-                acc[day].push(event); 
-                return acc; 
+                const day = new Date(dateKey).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+                if (!acc[day]) acc[day] = [];
+                acc[day].push(event);
+                return acc;
             }, {});
             let html = '';
             for (const day in eventsByDay) {
@@ -955,7 +969,7 @@ async function renderCalendarView(eventsToShow = null) {
                                   </div>
                                   <ul class="list-style-none" id="calendar-list">${listHtml}</ul>
                                 </div>`;
-        document.getElementById('add-event-btn').onclick = () => renderEventForm();
+        document.getElementById('add-event-btn').onclick = () => renderEventForm(renderCalendarView);
         document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
         document.getElementById('calendar-list').addEventListener('click', (e) => {
             const target = e.target.closest('.dropdown-item');
@@ -966,29 +980,17 @@ async function renderCalendarView(eventsToShow = null) {
                 confirmDelete('calendar_event', eventId);
             }
         });
-    } catch (err) { mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`; } finally { hideSpinner(); }
-}
-
-function updateAddNotificationLinkVisibility() {
-    const container = document.getElementById('notifications-container');
-    const link = document.getElementById('add-notification-link');
-    if (!container || !link) return;
-    const rows = container.querySelectorAll('.notification-row');
-    if (rows.length === 0) {
-        link.style.display = 'block';
-        return;
+    } catch (err) {
+        mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`;
+    } finally {
+        hideSpinner();
     }
-    const lastRow = rows[rows.length - 1];
-    const method = lastRow.querySelector('.event-reminder-method').value;
-    const quantity = lastRow.querySelector('.event-reminder-quantity').value;
-    const unit = lastRow.querySelector('.event-reminder-unit').value;
-    const isLastRowFilled = method && quantity.trim() !== '' && parseInt(quantity, 10) > 0 && unit;
-    link.style.display = isLastRowFilled ? 'block' : 'none';
 }
 
-function renderEventForm() {
-    navigationHistory.push(renderCalendarView);
+function renderEventForm(returnPath = renderCalendarView) {
+    navigationHistory.push(returnPath);
     updateBackButton();
+
     mainContentArea.innerHTML = `
       <div class="list-container"><div class="list-header"><h2>➕ Nuevo Evento</h2></div>
       <div class="form-card">
@@ -998,83 +1000,143 @@ function renderEventForm() {
           <label>Fin</label><input type="text" id="event-end">
           <label>Notificarme</label>
           <div id="notifications-container"></div>
-          <a href="#" id="add-notification-link" style="font-size: 0.9rem; color: var(--primary); text-decoration: none; margin-top: 8px;">Añadir notificación</a>
+          <div class="add-article-btn-container" style="padding: 10px 0;">
+            <button id="add-notification-btn" class="add-article-btn" style="width:100%; max-width:100%; background-color: var(--muted); display: none;">➕ Añadir Notificación</button>
+          </div>
           <label>Descripción</label><textarea id="event-description" rows="4"></textarea>
           <div class="button-group">
             <button id="save-event-btn" disabled>Crear Evento</button>
             <button id="cancel-event-btn" class="cancel">Cancelar</button>
           </div>
       </div></div>`;
+
     document.getElementById('cancel-event-btn').onclick = goBack;
-    const addNotificationLink = document.getElementById('add-notification-link');
+    const addNotificationBtn = document.getElementById('add-notification-btn');
     const notificationsContainer = document.getElementById('notifications-container');
+
+    const updateAddNotificationButtonVisibility = () => {
+        const rows = notificationsContainer.querySelectorAll('.notification-row');
+        if (rows.length === 0) {
+            addNotificationBtn.style.display = 'block';
+            return;
+        }
+        const lastRow = rows[rows.length - 1];
+        const method = lastRow.querySelector('.event-reminder-method').value;
+        const quantity = lastRow.querySelector('.event-reminder-quantity').value;
+        const unit = lastRow.querySelector('.event-reminder-unit').value;
+        const isLastRowFilled = method && quantity.trim() !== '' && parseInt(quantity, 10) > 0 && unit;
+        addNotificationBtn.style.display = isLastRowFilled ? 'block' : 'none';
+    };
+
     const createNotificationRow = () => {
         const row = document.createElement('div');
         row.className = 'notification-row';
         row.innerHTML = `
-            <select class="event-reminder-method">
-              <option value="" selected disabled>Tipo</option>
-              <option value="popup">Notificación</option>
-              <option value="email">Email</option>
-            </select>
-            <input type="number" class="event-reminder-quantity" value="10" min="1" />
-            <select class="event-reminder-unit">
-              <option value="" selected disabled>Unidad</option>
-              <option value="minutes">minutos</option>
-              <option value="hours">horas</option>
-              <option value="days">días</option>
-              <option value="weeks">semanas</option>
-            </select>
+            <select class="event-reminder-method"><option value="" selected disabled>Tipo</option><option value="popup">Notificación</option><option value="email">Email</option></select>
+            <input type="number" class="event-reminder-quantity" placeholder="10" min="1" />
+            <select class="event-reminder-unit"><option value="" selected disabled>Unidad</option><option value="minutes">min</option><option value="hours">hrs</option><option value="days">días</option></select>
             <button class="remove-notification-btn">&times;</button>
         `;
         notificationsContainer.appendChild(row);
-        row.querySelector('.remove-notification-btn').onclick = () => { row.remove(); updateAddNotificationLinkVisibility(); };
-        row.querySelectorAll('input, select').forEach(el => el.addEventListener('change', updateAddNotificationLinkVisibility));
-        updateAddNotificationLinkVisibility();
+        row.querySelector('.remove-notification-btn').onclick = () => { row.remove(); updateAddNotificationButtonVisibility(); };
+        row.querySelectorAll('input, select').forEach(el => el.addEventListener('input', updateAddNotificationButtonVisibility));
+        updateAddNotificationButtonVisibility();
     };
-    addNotificationLink.onclick = (e) => { e.preventDefault(); createNotificationRow(); };
+
+    addNotificationBtn.onclick = createNotificationRow;
+    
     let startPicker, endPicker;
-    const fpConfig = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "es" };
-    startPicker = flatpickr("#event-start", { ...fpConfig, defaultDate: new Date(), onChange: function(selectedDates) { if (selectedDates[0] && !document.getElementById('event-all-day').checked) { endPicker.setDate(new Date(selectedDates[0].getTime() + 3600000)); } } });
-    endPicker = flatpickr("#event-end", { ...fpConfig, defaultDate: new Date(Date.now() + 3600000) });
-    document.getElementById('event-all-day').addEventListener('change', (e) => { const isAllDay = e.target.checked; const newConfig = { enableTime: !isAllDay, dateFormat: isAllDay ? "Y-m-d" : "Y-m-d H:i" }; startPicker.set(newConfig); endPicker.set(newConfig); if (isAllDay) { endPicker.setDate(startPicker.selectedDates[0] || new Date()); } });
+    const baseConfig = { locale: "es", time_24hr: true };
+    const dateTimeConfig = { ...baseConfig, enableTime: true, dateFormat: "Y-m-d H:i" };
+    const dateConfig = { ...baseConfig, enableTime: false, dateFormat: "Y-m-d" };
+    
+    startPicker = flatpickr("#event-start", { ...dateTimeConfig, defaultDate: new Date() });
+    endPicker = flatpickr("#event-end", { ...dateTimeConfig, defaultDate: new Date(Date.now() + 3600000) });
+
+    document.getElementById('event-all-day').addEventListener('change', (e) => {
+        const isAllDay = e.target.checked;
+        const newConfig = isAllDay ? dateConfig : dateTimeConfig;
+        
+        const currentStartDate = startPicker.selectedDates[0] || new Date();
+        const currentEndDate = endPicker.selectedDates[0] || new Date(Date.now() + 3600000);
+
+        startPicker.set(newConfig);
+        endPicker.set(newConfig);
+
+        startPicker.setDate(currentStartDate);
+        if (isAllDay) {
+            endPicker.setDate(currentStartDate); 
+        } else {
+            endPicker.setDate(currentEndDate);
+        }
+    });
+
     const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
     function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
     summaryInput.oninput = validate;
-    saveBtn.onclick = saveEvent;
+    saveBtn.onclick = () => saveEvent(returnPath);
     validate();
+    updateAddNotificationButtonVisibility();
 }
 
-async function saveEvent() {
+async function saveEvent(returnPath) {
     const reminders = [];
+    let notificationsValid = true;
     document.querySelectorAll('.notification-row').forEach(row => {
         const quantity = parseInt(row.querySelector('.event-reminder-quantity').value, 10);
         const unit = row.querySelector('.event-reminder-unit').value;
         const method = row.querySelector('.event-reminder-method').value;
-        let minutes = 0;
-        if (quantity > 0 && unit && method) {
-            switch(unit) {
-                case 'minutes': minutes = quantity; break;
-                case 'hours':   minutes = quantity * 60; break;
-                case 'days':    minutes = quantity * 24 * 60; break;
-                case 'weeks':   minutes = quantity * 7 * 24 * 60; break;
-            }
-            reminders.push({ method: method, minutes: minutes });
+        if (!quantity || !unit || !method) {
+            notificationsValid = false;
+            return;
         }
+        let minutes = 0;
+        switch(unit) {
+            case 'minutes': minutes = quantity; break;
+            case 'hours':   minutes = quantity * 60; break;
+            case 'days':    minutes = quantity * 24 * 60; break;
+        }
+        reminders.push({ method: method, minutes: minutes });
     });
+
+    if (!notificationsValid) {
+        showToast("Completa o elimina las notificaciones vacías.", true);
+        return;
+    }
+
+    const isAllDay = document.getElementById('event-all-day').checked;
+    const startDate = document.getElementById('event-start')._flatpickr.selectedDates[0];
+    const endDate = document.getElementById('event-end')._flatpickr.selectedDates[0];
+
+    if (!startDate || !endDate) {
+        showToast("Las fechas de inicio y fin son obligatorias.", true);
+        return;
+    }
+    if (endDate < startDate) {
+        showToast("La fecha de fin no puede ser anterior a la de inicio.", true);
+        return;
+    }
+
     const eventData = {
         summary: document.getElementById('event-summary').value.trim(),
-        start: document.getElementById('event-start')._flatpickr.selectedDates[0].toISOString(),
-        end: document.getElementById('event-end')._flatpickr.selectedDates[0].toISOString(),
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
         description: document.getElementById('event-description').value,
-        isAllDay: document.getElementById('event-all-day').checked,
+        isAllDay: isAllDay,
         reminders: reminders
     };
+    
     if (new Date(eventData.start).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) {
-        appData.counts.calendarTodayCount++;
+        appData.counts.calendarTodayCount = (appData.counts.calendarTodayCount || 0) + 1;
     }
-    goBack();
+    
+    if (returnPath === renderDashboard) {
+        renderDashboard(); // Forzar redibujado del home con el nuevo badge
+    } else {
+        goBack();
+    }
     showToast('Evento creado');
+    
     try {
         const res = await fetchWithTimeout(gasWebhookURL, { chat_ID: chatId, Type: 'add_calendar_event', eventData });
         const result = await res.json();
@@ -1084,6 +1146,7 @@ async function saveEvent() {
         initializeApp();
     }
 }
+
 function renderSearchCalendarForm() {
     navigationHistory.push(renderCalendarView);
     updateBackButton();
@@ -1101,13 +1164,12 @@ function renderSearchCalendarForm() {
 async function executeSearchCalendar() {
     const query = document.getElementById('calendar-search-query').value.trim();
     if (!query) { showToast('Introduce un término para buscar.', true); return; }
-    showSpinner();
-    try {
-        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: query });
-        const events = await res.json();
-        if (events.error) throw new Error(events.error);
-        renderCalendarView(events);
-    } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
+    
+    // Al buscar, guardamos la función de búsqueda en el historial para poder volver a ella.
+    navigationHistory.push(renderSearchCalendarForm);
+    updateBackButton();
+    
+    await renderCalendarView(query);
 }
 
 // ==================================================
