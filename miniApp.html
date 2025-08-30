@@ -190,6 +190,7 @@
 // ==================================================
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
+
 // --- NUEVO SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
 
@@ -212,9 +213,14 @@ function updateBackButton() {
     }
 }
 // --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
+
 const tg = window.Telegram?.WebApp;
-if (tg) { tg.expand(); if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } }
-if (tg.BackButton) { tg.BackButton.onClick(goBack); }
+if (tg) { 
+    tg.expand(); 
+    if (tg.BackButton) { tg.BackButton.onClick(goBack); }
+    if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
+}
+
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
@@ -347,7 +353,7 @@ function updateChefTabStyle() {
     }
 }
 
-window.confirmDelete = function(type, id, returnPath = null) {
+window.confirmDelete = function(type, id) {
     const itemElement = document.getElementById(`item-${id}`);
     if (!itemElement) return;
 
@@ -355,7 +361,7 @@ window.confirmDelete = function(type, id, returnPath = null) {
 
     if (itemElement.classList.contains('form-card')) {
         actionsContainer = itemElement.querySelector('.button-group');
-        menuButton = null; // No hay menú en el formulario de edición
+        menuButton = null; 
     } else {
         actionsContainer = itemElement.querySelector('.list-item-actions');
         menuButton = actionsContainer.querySelector('.generic-menu-btn');
@@ -364,13 +370,12 @@ window.confirmDelete = function(type, id, returnPath = null) {
         if (menuButton) menuButton.style.display = 'none';
     }
     
-    // Limpia botones de confirmación previos si existen
     actionsContainer.querySelectorAll('.confirm-btn-yes, .confirm-btn-no').forEach(btn => btn.remove());
     
     const confirmBtnYes = document.createElement('button');
     confirmBtnYes.className = 'confirm-btn-yes';
     confirmBtnYes.textContent = 'Sí, Eliminar';
-    confirmBtnYes.onclick = (e) => { e.stopPropagation(); executeDelete(type, id, returnPath); };
+    confirmBtnYes.onclick = (e) => { e.stopPropagation(); executeDelete(type, id); };
 
     const confirmBtnNo = document.createElement('button');
     confirmBtnNo.className = 'confirm-btn-no';
@@ -386,8 +391,7 @@ window.confirmDelete = function(type, id, returnPath = null) {
     actionsContainer.appendChild(confirmBtnYes);
 }
 
-
-async function executeDelete(type, id, returnPath = null) {
+async function executeDelete(type, id) {
     let payload = { chat_ID: chatId };
     let successMessage = '';
     
@@ -397,7 +401,7 @@ async function executeDelete(type, id, returnPath = null) {
                 payload.Type = 'delete_reminder'; payload.tracking_code = id; successMessage = 'Recordatorio eliminado';
                 const reminderIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
                 if (reminderIndex > -1) { appData.remindersList.splice(reminderIndex, 1); appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1); }
-                if(returnPath) returnPath(); else renderRemindersList();
+                renderRemindersList();
                 break;
             case 'shopping_item':
                 payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado';
@@ -408,13 +412,13 @@ async function executeDelete(type, id, returnPath = null) {
                     else { appData.counts.shoppingBoughtCount = Math.max(0, appData.counts.shoppingBoughtCount - 1); }
                     appData.shoppingList.splice(itemIndex, 1);
                 }
-                if(returnPath) returnPath(); else renderShoppingList();
+                renderShoppingList();
                 break;
             case 'note':
                 payload.Type = 'delete_note'; payload.note_id = id; successMessage = 'Nota eliminada';
                 const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === id);
                 if (noteIndex > -1) { appData.notesList.splice(noteIndex, 1); appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1); }
-                if(returnPath) returnPath(); else renderNotesList();
+                renderNotesList();
                 break;
             case 'calendar_event':
                 payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado';
@@ -428,10 +432,9 @@ async function executeDelete(type, id, returnPath = null) {
                     }
                     appData.calendarEvents.splice(eventIndex, 1);
                 }
-                renderDashboard();
-                if(returnPath) returnPath(); else renderCalendarView();
+                renderCalendarView();
                 break;
-case 'gasto':
+            case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
                 const gastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === id);
                 if (gastoIndex > -1) {
@@ -440,11 +443,14 @@ case 'gasto':
                     const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
                     const nuevosGastosTotal = gastosActualesNum - importeARestar;
                     appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    
                     gastosEncontrados.splice(gastoIndex, 1);
                 }
                 goBack();
                 break;
+            default: return;
+        }
+
+    } catch(e) { showToast('Error local al procesar.', true); return; }
 
     try {
         const res = await fetchWithTimeout(gasWebhookURL, payload);
@@ -457,30 +463,12 @@ case 'gasto':
     }
 }
 
-case 'gasto':
-                payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
-                const gastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === id);
-                if (gastoIndex > -1) {
-                    const gastoToDelete = gastosEncontrados[gastoIndex];
-                    const importeARestar = parseFloat(gastoToDelete.Importe);
-                    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
-                    const nuevosGastosTotal = gastosActualesNum - importeARestar;
-                    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    
-                    gastosEncontrados.splice(gastoIndex, 1);
-                }
-                goBack();
-                break;
-function manageBackButton(show, onClickHandler) {
-    // Esta función ahora es un alias para la nueva lógica, para mantener la compatibilidad.
-    updateBackButton();
-}
-
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
 function renderReminderForm() {
-  manageBackButton(true, renderDashboard);
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
   mainContentArea.innerHTML = `
     <div class="list-container">
       <div class="list-header"><h2>📝 Nuevo Recordatorio</h2></div>
@@ -518,7 +506,7 @@ async function saveReminder() {
   appData.counts.remindersCount++;
   const tempId = 'temp-' + Date.now();
   appData.remindersList.unshift({ 'Fecha': new Date().toLocaleString(), 'Descripcion': description, 'Categoria': category, 'tracking_code': tempId });
-  renderDashboard();
+  goBack();
   showToast('Recordatorio creado');
   try { 
     const res = await fetchWithTimeout(gasWebhookURL, payload); 
@@ -533,8 +521,10 @@ async function saveReminder() {
     initializeApp();
   }
 }
+
 function renderRemindersList() {
-  manageBackButton(true, renderDashboard);
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
   const reminders = appData.remindersList || [];
   let listHtml = (reminders.length > 0) ? reminders.map(item => `
     <li class="list-item" id="item-${item.tracking_code}">
@@ -590,7 +580,8 @@ async function editReminderDescription(item) {
 // --- MÓDULO: COMPRAS ---
 // ==================================================
 function renderShoppingList() {
-  manageBackButton(true, renderDashboard);
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
   const items = appData.shoppingList || [];
   const pendingItems = items.filter(item => item['2'] === 'Pendiente');
   const boughtItems = items.filter(item => item['2'] === 'Comprado');
@@ -719,8 +710,9 @@ function toggleSelectedItemsToPending() {
     .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
 
-function renderAddArticleForm(returnPath = renderShoppingList) {
-  manageBackButton(true, returnPath);
+function renderAddArticleForm() {
+  navigationHistory.push(renderShoppingList);
+  updateBackButton();
   mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><h2>➕ Añadir Artículo</h2></div>
@@ -744,7 +736,7 @@ async function addArticle() {
   appData.counts.shoppingPendingCount++;
   const tempId = 'temp-' + Date.now();
   appData.shoppingList.unshift({ '1': description, '2': 'Pendiente', '3': tempId, '4': '', '5': cycle });
-  renderShoppingList();
+  goBack();
   showToast('Artículo añadido');
   try {
       const res = await fetchWithTimeout(gasWebhookURL, payload);
@@ -754,7 +746,8 @@ async function addArticle() {
 }
 
 function renderEditShoppingItemForm(item) {
-    manageBackButton(true, renderShoppingList);
+    navigationHistory.push(renderShoppingList);
+    updateBackButton();
     mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><h2>✏️ Editar Artículo</h2></div>
@@ -776,7 +769,7 @@ async function saveEditedShoppingItem(trackingCode) {
     const originalItem = { ...appData.shoppingList[itemIndex] };
     appData.shoppingList[itemIndex]['1'] = newDescription;
     appData.shoppingList[itemIndex]['5'] = newCycle;
-    renderShoppingList();
+    goBack();
     const payload = { Type: 'edit_shopping_item', chat_ID: chatId, tracking_code: trackingCode, new_description: newDescription, new_cycle: parseInt(newCycle) };
     try {
         const res = await fetchWithTimeout(gasWebhookURL, payload);
@@ -792,7 +785,8 @@ async function saveEditedShoppingItem(trackingCode) {
 // --- MÓDULO: NOTAS ---
 // ==================================================
 function renderNotesList() {
-    manageBackButton(true, renderDashboard);
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
     const notes = appData.notesList || [];
     let listHtml = (notes.length > 0) ? notes.map(note => `
             <li class="list-item" id="item-${note.Nota_ID}">
@@ -815,7 +809,7 @@ function renderNotesList() {
                                 <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
                                 <ul class="list-style-none" id="notes-list">${listHtml}</ul>
                              </div>`;
-    document.getElementById('create-new-note-btn').onclick = () => renderNoteForm(null, renderNotesList);
+    document.getElementById('create-new-note-btn').onclick = renderNoteForm;
     document.getElementById('notes-list').addEventListener('click', e => {
         const target = e.target.closest('.dropdown-item');
         if (!target) return;
@@ -829,9 +823,10 @@ function renderNotesList() {
         }
     });
 }
-function renderNoteForm(note = null, returnPath = renderNotesList) {
-    manageBackButton(true, returnPath);
-    const isEditing = note !== null;
+function renderNoteForm(note = null) {
+    navigationHistory.push(renderNotesList);
+    updateBackButton();
+    const isEditing = note && note.Nota_ID;
     mainContentArea.innerHTML = `<div class="list-container">
                                 <div class="list-header"><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
                                 <div class="form-card">
@@ -867,7 +862,7 @@ async function saveNote() {
         const originalNote = { ...appData.notesList[itemIndex] };
         appData.notesList[itemIndex].Titulo = title;
         appData.notesList[itemIndex].Descripcion = description;
-        renderNotesList();
+        goBack();
         showToast('Nota guardada');
         try {
             const res = await fetchWithTimeout(gasWebhookURL, payload);
@@ -882,7 +877,7 @@ async function saveNote() {
         appData.counts.notesCount++;
         const tempId = 'temp-' + Date.now();
         appData.notesList.unshift({ Nota_ID: tempId, Titulo: title, Descripcion: description, Fecha: new Date().toLocaleDateString('es-ES') });
-        renderNotesList();
+        goBack();
         showToast('Nota creada');
         try {
             const res = await fetchWithTimeout(gasWebhookURL, payload);
@@ -903,7 +898,8 @@ async function saveNote() {
 // --- MÓDULO: CALENDARIO ---
 // ==================================================
 async function renderCalendarView(eventsToShow = null) {
-    manageBackButton(true, renderDashboard);
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
     showSpinner();
     try {
         let events = eventsToShow;
@@ -959,7 +955,7 @@ async function renderCalendarView(eventsToShow = null) {
                                   </div>
                                   <ul class="list-style-none" id="calendar-list">${listHtml}</ul>
                                 </div>`;
-        document.getElementById('add-event-btn').onclick = () => renderEventForm(renderCalendarView);
+        document.getElementById('add-event-btn').onclick = () => renderEventForm();
         document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
         document.getElementById('calendar-list').addEventListener('click', (e) => {
             const target = e.target.closest('.dropdown-item');
@@ -990,8 +986,9 @@ function updateAddNotificationLinkVisibility() {
     link.style.display = isLastRowFilled ? 'block' : 'none';
 }
 
-function renderEventForm(returnPath = renderCalendarView) {
-    manageBackButton(true, returnPath);
+function renderEventForm() {
+    navigationHistory.push(renderCalendarView);
+    updateBackButton();
     mainContentArea.innerHTML = `
       <div class="list-container"><div class="list-header"><h2>➕ Nuevo Evento</h2></div>
       <div class="form-card">
@@ -1008,7 +1005,7 @@ function renderEventForm(returnPath = renderCalendarView) {
             <button id="cancel-event-btn" class="cancel">Cancelar</button>
           </div>
       </div></div>`;
-    document.getElementById('cancel-event-btn').onclick = renderDashboard;
+    document.getElementById('cancel-event-btn').onclick = goBack;
     const addNotificationLink = document.getElementById('add-notification-link');
     const notificationsContainer = document.getElementById('notifications-container');
     const createNotificationRow = () => {
@@ -1076,7 +1073,7 @@ async function saveEvent() {
     if (new Date(eventData.start).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]) {
         appData.counts.calendarTodayCount++;
     }
-    renderDashboard();
+    goBack();
     showToast('Evento creado');
     try {
         const res = await fetchWithTimeout(gasWebhookURL, { chat_ID: chatId, Type: 'add_calendar_event', eventData });
@@ -1088,7 +1085,8 @@ async function saveEvent() {
     }
 }
 function renderSearchCalendarForm() {
-    manageBackButton(true, renderCalendarView);
+    navigationHistory.push(renderCalendarView);
+    updateBackButton();
     mainContentArea.innerHTML = `
         <div class="list-container"><div class="list-header"><h2>🔎 Buscar en Calendario</h2></div>
         <div class="form-card">
@@ -1111,6 +1109,10 @@ async function executeSearchCalendar() {
         renderCalendarView(events);
     } catch (err) { showToast(err.message, true); } finally { hideSpinner(); }
 }
+
+// ==================================================
+// --- MÓDULO: GASTOS ---
+// ==================================================
 let gastosEncontrados = [];
 let pieChartInstance = null, dailyChartInstance = null, monthlyChartInstance = null;
 
@@ -1126,7 +1128,6 @@ const categoriasGastos = {
 function renderInstructionScreen() {
     navigationHistory.push(renderDashboard);
     updateBackButton();
-
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"></div>
@@ -1147,7 +1148,7 @@ function renderScanTicketView() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
-    fileInput.capture = 'environment';
+	fileInput.capture = 'environment';
     fileInput.style.display = 'none';
     fileInput.onchange = (event) => {
         const file = event.target.files[0];
@@ -1203,11 +1204,8 @@ document.getElementById('preview-cancel-btn').onclick = () => {
 document.getElementById('preview-send-btn').onclick = handleImageScan;
 
 function renderAddGastoForm(initialData = null) {
-    if (navigationHistory[navigationHistory.length - 1] !== renderDashboard) {
-        navigationHistory.push(renderDashboard);
-    }
+    navigationHistory.push(renderDashboard);
     updateBackButton();
-
     const data = initialData ? initialData.datos : {};
     const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
     mainContentArea.innerHTML = `
@@ -1246,8 +1244,12 @@ function renderAddGastoForm(initialData = null) {
                     const hours = parseInt(timeParts[0], 10);
                     const minutes = parseInt(timeParts[1], 10);
                     defaultDate = new Date(year, month, day, hours, minutes);
-                } else { defaultDate = new Date(year, month, day); }
-            } else { defaultDate = new Date(year, month, day); }
+                } else {
+                   defaultDate = new Date(year, month, day);
+                }
+            } else {
+                defaultDate = new Date(year, month, day);
+            }
         }
     }
     flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es", onChange: validateGastoForm });
@@ -1314,104 +1316,126 @@ async function saveGasto() {
 }
 
 function renderGastoChart() {
-    navigationHistory.push(renderDashboard);
-    updateBackButton();
-    const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
-    mainContentArea.innerHTML = `
-        <div class="list-container">
-        <div class="list-header"><h2>Análisis de Gastos</h2></div>
-        <div class="form-card">
-            <label>Detalle por Mes</label>
-            <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
-            <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
-            <ul class="gasto-legend" id="gasto-legend-container"></ul>
-            <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
-            <div class="gasto-chart-container" id="chart-container-daily" style="position: relative; height:300px; display:none;"><canvas id="dailyChartCanvas"></canvas></div>
-            <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
-            <div class="gasto-chart-container" id="chart-container-monthly" style="position: relative; height:300px; display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
-        </div>
-        </div>`;
-    document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
+  const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+  mainContentArea.innerHTML = `
+    <div class="list-container">
+      <div class="list-header"><h2>Análisis de Gastos</h2></div>
+      <div class="form-card">
+        <label>Detalle por Mes</label>
+        <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
+        <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
+        <ul class="gasto-legend" id="gasto-legend-container"></ul>
+        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
+        <div class="gasto-chart-container" id="chart-container-daily" style="position: relative; height:300px; display:none;"><canvas id="dailyChartCanvas"></canvas></div>
+        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
+        <div class="gasto-chart-container" id="chart-container-monthly" style="position: relative; height:300px; display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
+      </div>
+    </div>`;
+  document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
 }
 
 async function fetchAndDisplayGastoChart(event) {
-    const mesAnio = event.target.value;
-    if (pieChartInstance) pieChartInstance.destroy();
-    if (dailyChartInstance) dailyChartInstance.destroy();
-    if (monthlyChartInstance) monthlyChartInstance.destroy();
-    document.getElementById('gasto-legend-container').innerHTML = '';
-    ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
-    if (!mesAnio) return;
-    showSpinner();
-    try {
-        const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        
-        Chart.register(ChartDataLabels);
-        const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-        
-        if (data.pieData && data.pieData.data && data.pieData.data.length > 0) {
-        document.getElementById('chart-container-pie').style.display = 'block';
-        const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
-        pieChartInstance = new Chart(pieCtx, {
-            type: 'pie',
-            data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
-            options: {
-            responsive: true, maintainAspectRatio: true,
-            plugins: {
-                title: { display: true, text: data.tituloPie, font: { size: 18 } },
-                legend: { display: false },
+  const mesAnio = event.target.value;
+  if (pieChartInstance) pieChartInstance.destroy();
+  if (dailyChartInstance) dailyChartInstance.destroy();
+  if (monthlyChartInstance) monthlyChartInstance.destroy();
+  document.getElementById('gasto-legend-container').innerHTML = '';
+  ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
+  if (!mesAnio) return;
+  showSpinner();
+  try {
+    const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
+    const res = await fetchWithTimeout(gasWebhookURL, payload);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    Chart.register(ChartDataLabels);
+    const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+    
+    if (data.pieData && data.pieData.data && data.pieData.data.length > 0) {
+      document.getElementById('chart-container-pie').style.display = 'block';
+      const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
+      pieChartInstance = new Chart(pieCtx, {
+        type: 'pie',
+        data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          plugins: {
+            title: { display: true, text: data.tituloPie, font: { size: 18 } },
+            legend: { display: false },
+            datalabels: {
+              formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (total === 0) return '0%'; return (value / total * 100).toFixed(0) + '%'; },
+              color: '#fff', font: { weight: 'bold', size: 16 }
+            }
+          }
+        }
+      });
+      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe}</strong></div></li>`).join('');
+    }
+    
+    if (data.dailyData && data.dailyData.data && data.dailyData.data.length > 0) {
+      document.getElementById('hr1').style.display = 'block';
+      document.getElementById('chart-container-daily').style.display = 'block';
+      const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
+      dailyChartInstance = new Chart(dailyCtx, {
+        type: 'line',
+        data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
+      });
+    }
+    
+    if (data.monthlyData && data.monthlyData.data && data.monthlyData.data.length > 1) {
+      document.getElementById('hr2').style.display = 'block';
+      document.getElementById('chart-container-monthly').style.display = 'block';
+      const monthlyDataPoints = data.monthlyData.data.map((y, x) => ({ x, y }));
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      monthlyDataPoints.forEach(p => { sumX += p.x; sumY += p.y; sumXY += p.x * p.y; sumX2 += p.x * p.x; });
+      const n = monthlyDataPoints.length;
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+      const trendlineData = monthlyDataPoints.map
+(p => slope * p.x + intercept);
+      const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
+      monthlyChartInstance = new Chart(monthlyCtx, {
+        type: 'bar',
+        data: {
+          labels: data.monthlyData.labels,
+          datasets: [
+            { label: 'Gasto Mensual', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
+            {
+                label: 'Tendencia',
+                data: trendlineData,
+                type: 'line',
+                borderColor: '#FF6384',
+                fill: false,
+                pointRadius: 0,
+                yAxisID: 'y1',
                 datalabels: {
-                formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (total === 0) return '0%'; return (value / total * 100).toFixed(0) + '%'; },
-                color: '#fff', font: { weight: 'bold', size: 16 }
+                  formatter: (value) => Math.round(value),
+                  align: 'end',
+                  anchor: 'end',
+                  color: '#666',
+                  font: {
+                    weight: 'bold'
+                  }
                 }
             }
-            }
-        });
-        document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe}</strong></div></li>`).join('');
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } },
+          scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
         }
-        
-        if (data.dailyData && data.dailyData.data && data.dailyData.data.length > 0) {
-        document.getElementById('hr1').style.display = 'block';
-        document.getElementById('chart-container-daily').style.display = 'block';
-        const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
-        dailyChartInstance = new Chart(dailyCtx, {
-            type: 'line',
-            data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
-        });
-        }
-        
-        if (data.monthlyData && data.monthlyData.data && data.monthlyData.data.length > 1) {
-        document.getElementById('hr2').style.display = 'block';
-        document.getElementById('chart-container-monthly').style.display = 'block';
-        const monthlyDataPoints = data.monthlyData.data.map((y, x) => ({ x, y }));
-        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-        monthlyDataPoints.forEach(p => { sumX += p.x; sumY += p.y; sumXY += p.x * p.y; sumX2 += p.x * p.x; });
-        const n = monthlyDataPoints.length;
-        const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-        const intercept = (sumY - slope * sumX) / n;
-        const trendlineData = monthlyDataPoints.map(p => slope * p.x + intercept);
-        const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
-        monthlyChartInstance = new Chart(monthlyCtx, {
-            type: 'bar',
-            data: {
-            labels: data.monthlyData.labels,
-            datasets: [
-                { label: 'Gasto Mensual', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
-                { label: 'Tendencia', data: trendlineData, type: 'line', borderColor: '#FF6384', fill: false, pointRadius: 0, yAxisID: 'y1', datalabels: { formatter: (value) => Math.round(value), align: 'end', anchor: 'end', color: '#666', font: { weight: 'bold' } } }
-            ]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } }, scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } } }
-        });
-        }
-    } catch (err) { 
-        showToast(err.message, true); 
-    } finally { 
-        hideSpinner(); 
+      });
     }
+  } catch (err) { 
+      showToast(err.message, true); 
+  } finally { 
+      hideSpinner(); 
+  }
 }
 
 function renderGastosSearchScreen(gastos = null) {
@@ -1529,7 +1553,9 @@ function renderEditGastoForm(gasto) {
         if (selectedCategory && categoriasGastos[selectedCategory]) {
             subcategoriaSelect.innerHTML += categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
             subcategoriaSelect.disabled = false;
-        } else { subcategoriaSelect.disabled = true; }
+        } else {
+            subcategoriaSelect.disabled = true;
+        }
         validateChanges();
     };
 
@@ -1571,15 +1597,13 @@ async function saveEditedGasto(idUnico) {
     }
 }
 
-// Renombramos la vieja función para que apunte a la nueva, por si se llama desde otra parte.
-const renderSearchGastosForm = () => renderGastosSearchAndResultsScreen();
-
 // ==================================================
 // --- MÓDULO: CHEF ASISTENTE (VERSIÓN FINAL) ---
 // ==================================================
 function renderChefPage() {
     setActiveTab('tab-chef');
-    manageBackButton(true, renderDashboard);
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
 
     mainContentArea.innerHTML = `
         <div class="chef-container">
@@ -1633,7 +1657,7 @@ function renderChefPage() {
         </div>`;
 
     flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
-    document.getElementById('chef-cancel-btn').onclick = renderDashboard;
+    document.getElementById('chef-cancel-btn').onclick = goBack;
     
     let selectedFiles = [];
 
@@ -1786,7 +1810,7 @@ Si no hay postre, el campo "postre" debe ser null. Si no hay ingredientes a comp
 }
 
 function renderChefResults(sugerencias) {
-    manageBackButton(true, renderDashboard);
+    updateBackButton();
     let html = '<div class="chef-container">';
     if (!sugerencias || sugerencias.length === 0) {
         html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
@@ -1873,7 +1897,8 @@ async function addIngredientsToShoppingList(buttonElement) {
 // ==================================================
 function renderSettings() {
     setActiveTab('tab-settings');
-    manageBackButton(true, renderDashboard);
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
     initialUserSettings = JSON.parse(JSON.stringify(appData.settings || {}));
     
     mainContentArea.innerHTML = `
@@ -1977,7 +2002,7 @@ function renderSettings() {
     });
 
     document.getElementById('settings-save-btn').onclick = saveSettings;
-    document.getElementById('settings-cancel-btn').onclick = renderDashboard;
+    document.getElementById('settings-cancel-btn').onclick = goBack;
     document.getElementById('settings-sync-btn').onclick = syncCounts;
 }
 function validateSettings() {
@@ -2053,7 +2078,8 @@ async function syncCounts() {
 
 function renderExportPage() {
     setActiveTab('tab-export');
-    manageBackButton(true, renderDashboard);
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
     mainContentArea.innerHTML = `
         <div class="export-container">
             <h2 class="settings-section-title">📊 Exportar Gastos</h2>
@@ -2073,7 +2099,7 @@ function renderExportPage() {
     const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
     flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
-    document.getElementById('export-cancel-btn').onclick = renderDashboard;
+    document.getElementById('export-cancel-btn').onclick = goBack;
     document.getElementById('export-confirm-btn').onclick = executeExport;
 }
 
@@ -2105,7 +2131,8 @@ async function executeExport() {
 // ==================================================
 function renderDashboard() {
   setActiveTab('tab-home');
-  manageBackButton(false);
+  navigationHistory = []; // Limpiamos el historial al volver al Home.
+  updateBackButton();
   const counts = appData.counts;
   const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
 
@@ -2137,18 +2164,18 @@ function renderDashboard() {
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
   document.getElementById('list-reminders-link').onclick = renderRemindersList;
   document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-  document.getElementById('add-shopping-item-link').onclick = () => renderAddArticleForm(renderDashboard);
-  document.getElementById('add-note-link').onclick = () => renderNoteForm(null, renderDashboard);
+  document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+  document.getElementById('add-note-link').onclick = () => renderNoteForm();
   document.getElementById('list-notes-link').onclick = renderNotesList;
-  document.getElementById('add-event-link').onclick = () => renderEventForm(renderDashboard);
+  document.getElementById('add-event-link').onclick = () => renderEventForm();
   document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
-  document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm(null, renderDashboard);
+  document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
   document.getElementById('list-gastos-link').onclick = () => {
-    navigationHistory.push(renderDashboard);
-    updateBackButton();
-    renderGastosSearchScreen();
-};
+      navigationHistory.push(renderDashboard);
+      updateBackButton();
+      renderGastosSearchScreen();
+  };
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
   
   if (isPremium) {
