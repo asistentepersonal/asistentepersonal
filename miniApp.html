@@ -897,31 +897,38 @@ async function saveNote() {
 // ==================================================
 // --- MÓDULO: CALENDARIO ---
 // ==================================================
-let lastCalendarSearchQuery = null;
+let lastCalendarSearchQuery = null; // Memoria para la última búsqueda
 
-async function renderCalendarView(searchQuery = null) {
+// Función principal para mostrar la vista del calendario
+async function renderCalendarView(searchQuery = null, useCache = false) {
     navigationHistory.push(renderDashboard);
     updateBackButton();
-    showSpinner();
+    
+    if (!useCache) { // Solo muestra el spinner si vamos a buscar datos nuevos
+        showSpinner();
+    }
 
     try {
         let events;
-        if (searchQuery) {
+        if (useCache && !searchQuery) {
+            events = appData.calendarEvents; // Usa los eventos ya cargados
+        } else if (searchQuery) {
             const res = await fetchWithTimeout(gasWebhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: searchQuery });
             events = await res.json();
             if (events.error) throw new Error(events.error);
             lastCalendarSearchQuery = searchQuery;
-        } else {
+        } else { // Carga por defecto (próximos 30 días)
             const startDate = new Date();
             const endDate = new Date();
             endDate.setDate(startDate.getDate() + 30);
             const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
             events = await res.json();
             if (events.error) throw new Error(events.error);
-            appData.calendarEvents = events;
+            appData.calendarEvents = events; // Actualiza la caché principal
             lastCalendarSearchQuery = null;
         }
 
+        // Sub-función para dibujar la lista de eventos
         const groupAndRenderEvents = (evs) => {
             if (!evs || evs.length === 0) {
                 const message = searchQuery ? `No se encontraron eventos para "${searchQuery}".` : "No tienes eventos en los próximos 30 días.";
@@ -961,15 +968,16 @@ async function renderCalendarView(searchQuery = null) {
             }
             return html;
         };
-        let listHtml = groupAndRenderEvents(events);
+        
         mainContentArea.innerHTML = `<div class="list-container">
                                   <div class="list-header"><h2>Calendario</h2></div>
                                   <div class="add-article-btn-container">
                                     <button class="add-article-btn" id="add-event-btn">Añadir Evento</button>
                                     <button class="add-article-btn" id="search-event-btn">Buscar</button>
                                   </div>
-                                  <ul class="list-style-none" id="calendar-list">${listHtml}</ul>
+                                  <ul class="list-style-none" id="calendar-list">${groupAndRenderEvents(events)}</ul>
                                 </div>`;
+                                
         document.getElementById('add-event-btn').onclick = () => renderEventForm(null, renderCalendarView);
         document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
         document.getElementById('calendar-list').addEventListener('click', (e) => {
@@ -981,13 +989,15 @@ async function renderCalendarView(searchQuery = null) {
                 confirmDelete('calendar_event', eventId);
             } else if (action === 'edit-calendar-event') {
                 const event = appData.calendarEvents.find(ev => ev.id === eventId);
-                if (event) renderEventForm(event, renderCalendarView);
+                if (event) renderEventForm(event, () => renderCalendarView(lastCalendarSearchQuery));
             }
         });
     } catch (err) {
         mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`;
     } finally {
-        hideSpinner();
+        if (!useCache) {
+            hideSpinner();
+        }
     }
 }
 
@@ -1038,17 +1048,17 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
     const createNotificationRow = (reminder = null) => {
         const row = document.createElement('div');
         row.className = 'notification-row';
-        let quantity = 10, unit = 'minutes';
+        let quantity = '', unit = '';
         if(reminder){
              if (reminder.minutes % (24 * 60) === 0) { unit = 'days'; quantity = reminder.minutes / (24 * 60); }
              else if (reminder.minutes % 60 === 0) { unit = 'hours'; quantity = reminder.minutes / 60; }
              else { unit = 'minutes'; quantity = reminder.minutes; }
         }
         row.innerHTML = `
-            <select class="event-reminder-method"><option value="" disabled>Tipo</option><option value="popup" ${reminder && reminder.method ==='popup' ? 'selected':''}>Notificación</option><option value="email" ${reminder && reminder.method ==='email' ? 'selected':''}>Email</option></select>
-            <input type="number" class="event-reminder-quantity" value="${quantity}" min="1" />
-            <select class="event-reminder-unit"><option value="" disabled>Unidad</option><option value="minutes" ${unit ==='minutes'?'selected':''}>min</option><option value="hours" ${unit==='hours'?'selected':''}>hrs</option><option value="days" ${unit==='days'?'selected':''}>días</option></select>
-            <button class="remove-notification-btn">&times;</button>
+            <select class="event-reminder-method"><option value="" selected disabled>Tipo</option><option value="popup" ${reminder && reminder.method ==='popup' ? 'selected':''}>Notificación</option><option value="email" ${reminder && reminder.method ==='email' ? 'selected':''}>Email</option></select>
+            <input type="number" class="event-reminder-quantity" value="${quantity}" min="1" placeholder="10"/>
+            <select class="event-reminder-unit"><option value="" selected disabled>Unidad</option><option value="minutes" ${unit ==='minutes'?'selected':''}>min</option><option value="hours" ${unit==='hours'?'selected':''}>hrs</option><option value="days" ${unit==='days'?'selected':''}>días</option></select>
+            <button class="remove-notification-btn">🗑️</button>
         `;
         notificationsContainer.appendChild(row);
         row.querySelector('.remove-notification-btn').onclick = () => { row.remove(); updateAddNotificationButtonVisibility(); };
@@ -1068,7 +1078,7 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
     startPicker = flatpickr("#event-start", { 
         ...(initialIsAllDay ? dateConfig : dateTimeConfig),
         defaultDate: isEditing ? new Date(event.start.dateTime || event.start.date) : new Date(),
-        onChange: function(selectedDates, dateStr, instance) {
+        onChange: function(selectedDates) {
             if (selectedDates[0] && !document.getElementById('event-all-day').checked) {
                 const currentEndDate = endPicker.selectedDates[0];
                 const newEndDate = new Date(selectedDates[0].getTime() + 3600000);
@@ -1100,7 +1110,6 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
     saveBtn.onclick = () => saveEvent(event, returnPath);
     validate();
 
-    // Si estamos editando, poblamos las notificaciones existentes
     if (isEditing && event.reminders && event.reminders.overrides) {
         event.reminders.overrides.forEach(rem => createNotificationRow(rem));
     }
@@ -1108,8 +1117,7 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
 }
 
 async function saveEvent(eventToEdit = null, returnPath) {
-    // Lógica de guardado (común para crear y editar)
-    // ... (resto de la función)
+    // Lógica de guardado (resto de la función)
 }
 
 function renderSearchCalendarForm() {
@@ -1129,10 +1137,8 @@ function renderSearchCalendarForm() {
 async function executeSearchCalendar() {
     const query = document.getElementById('calendar-search-query').value.trim();
     if (!query) { showToast('Introduce un término para buscar.', true); return; }
-    
     navigationHistory.push(renderSearchCalendarForm);
     updateBackButton();
-    
     await renderCalendarView(query);
 }
 
@@ -2194,7 +2200,7 @@ function renderDashboard() {
   document.getElementById('add-note-link').onclick = () => renderNoteForm();
   document.getElementById('list-notes-link').onclick = renderNotesList;
   document.getElementById('add-event-link').onclick = () => renderEventForm();
-  document.getElementById('view-calendar-link').onclick = () => renderCalendarView();
+  document.getElementById('view-calendar-link').onclick = () => renderCalendarView(null, true);
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
   document.getElementById('list-gastos-link').onclick = () => {
