@@ -1420,7 +1420,7 @@ function renderGastosSearchAndResultsScreen(gastos = null) {
     // Esta función ahora es la ÚNICA responsable de dibujar esta pantalla.
     // Siempre configura el botón "Atrás" para ir al Home.
     // El setTimeout le da a Telegram el tiempo justo para registrar el cambio.
-       setTimeout(() => manageBackButton(true, renderDashboard), 0);
+
     
     let resultsHtml = '';
     let legendDisplay = 'none';
@@ -1467,6 +1467,7 @@ function renderGastosSearchAndResultsScreen(gastos = null) {
             if(gasto) renderEditGastoForm(gasto);
         }
     });
+	       setTimeout(() => manageBackButton(true, renderDashboard), 0);
 }
 
 async function executeSearchGastos() {
