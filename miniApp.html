@@ -2036,7 +2036,7 @@ function renderSettings() {
 
             <h2 class="settings-section-title">💾 Gestión de Datos</h2>
             <div class="form-card">
-                <button id="settings-sync-btn" class="add-article-btn" style="width:100%; max-width:100%;">Corregir Contadores</button>
+                <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%;">Corregir Contadores</button>
             </div>
              
             <div class="form-card" style="margin-top: 20px;">
@@ -2100,7 +2100,6 @@ function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     let hasChanged = false;
     if (document.getElementById('settings-nombre').value !== (initialUserSettings['Nombre'] || '')) hasChanged = true;
-    if (document.getElementById('settings-email').value !== (initialUserSettings['Email'] || '')) hasChanged = true;
     if (document.getElementById('settings-ciudad').value !== (initialUserSettings['Ciudad'] || '')) hasChanged = true;
     if (document.getElementById('settings-pais').value !== (initialUserSettings['Pais'] || '')) hasChanged = true;
     if (document.getElementById('settings-theme').value !== (initialUserSettings['Tema'] || 'auto')) hasChanged = true;
@@ -2109,6 +2108,11 @@ function validateSettings() {
     if (document.getElementById('settings-informe-tarde-activo').checked !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) hasChanged = true;
     if (document.getElementById('settings-franja-tarde').value != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true;
     if (document.getElementById('settings-alerta-inventario').checked !== (initialUserSettings['Alerta_Inventario'] === 'SI')) hasChanged = true;
+    // --- NUEVAS COMPROBACIONES ---
+    if (document.getElementById('settings-informe-mensual-activo').checked !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) hasChanged = true;
+    if (document.getElementById('settings-dia-informe-mensual').value != (initialUserSettings['Dia_Informe_Mensual'] || '1')) hasChanged = true;
+    if (document.getElementById('settings-hora-informe-mensual').value != (initialUserSettings['Hora_Informe_Mensual'] || '12')) hasChanged = true;
+    
     saveBtn.disabled = !hasChanged;
     saveBtn.classList.toggle('enabled', hasChanged);
 }
@@ -2116,8 +2120,9 @@ function validateSettings() {
 async function saveSettings() {
     showSpinner();
     const settingsToUpdate = {};
+    
+    // Recopila todos los posibles cambios
     const newName = document.getElementById('settings-nombre').value; if (newName !== (initialUserSettings['Nombre'] || '')) settingsToUpdate['Nombre'] = newName;
-    const newEmail = document.getElementById('settings-email').value; if (newEmail !== (initialUserSettings['Email'] || '')) settingsToUpdate['Email'] = newEmail;
     const newCiudad = document.getElementById('settings-ciudad').value; if (newCiudad !== (initialUserSettings['Ciudad'] || '')) settingsToUpdate['Ciudad'] = newCiudad;
     const newPais = document.getElementById('settings-pais').value; if (newPais !== (initialUserSettings['Pais'] || '')) settingsToUpdate['Pais'] = newPais;
     const newTheme = document.getElementById('settings-theme').value; if (newTheme !== (initialUserSettings['Tema'] || 'auto')) settingsToUpdate['Tema'] = newTheme;
@@ -2126,21 +2131,36 @@ async function saveSettings() {
     const newTardeActivo = document.getElementById('settings-informe-tarde-activo').checked; if (newTardeActivo !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) settingsToUpdate['Informe_Tarde_Activo'] = newTardeActivo ? 'SI' : 'NO';
     const newFranjaTarde = document.getElementById('settings-franja-tarde').value; if (newFranjaTarde != (initialUserSettings['Franja_Informe_Tarde'] || '20')) settingsToUpdate['Franja_Informe_Tarde'] = newFranjaTarde;
     const newAlerta = document.getElementById('settings-alerta-inventario').checked; if (newAlerta !== (initialUserSettings['Alerta_Inventario'] === 'SI')) settingsToUpdate['Alerta_Inventario'] = newAlerta ? 'SI' : 'NO';
+    // --- NUEVOS CAMPOS A GUARDAR ---
+    const newMensualActivo = document.getElementById('settings-informe-mensual-activo').checked; if (newMensualActivo !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) settingsToUpdate['Informe_Mensual_Activo'] = newMensualActivo ? 'SI' : 'NO';
+    const newDiaMensual = document.getElementById('settings-dia-informe-mensual').value; if (newDiaMensual != (initialUserSettings['Dia_Informe_Mensual'] || '1')) settingsToUpdate['Dia_Informe_Mensual'] = newDiaMensual;
+    const newHoraMensual = document.getElementById('settings-hora-informe-mensual').value; if (newHoraMensual != (initialUserSettings['Hora_Informe_Mensual'] || '12')) settingsToUpdate['Hora_Informe_Mensual'] = newHoraMensual;
+
     if (Object.keys(settingsToUpdate).length === 0) {
         hideSpinner();
         showToast("No hay cambios para guardar.");
         return;
     }
+
     try {
         const payload = { Type: 'save_user_settings', chat_ID: chatId, settings: settingsToUpdate };
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
+        
         if (data.error) throw new Error(data.error);
+
+        // Actualización parcial sin recargar la página
         Object.assign(appData.settings, settingsToUpdate);
+        if (settingsToUpdate['Time Zone']) { // Si la validación de ubicación actualizó la zona horaria
+            appData.settings['Time Zone'] = settingsToUpdate['Time Zone'];
+            document.getElementById('settings-zona-horaria').value = settingsToUpdate['Time Zone'];
+        }
         initialUserSettings = JSON.parse(JSON.stringify(appData.settings));
-        showToast("Ajustes guardados con éxito.");
+        
+        showToast(data.message || "Ajustes guardados con éxito.");
         document.getElementById('settings-save-btn').disabled = true;
         document.getElementById('settings-save-btn').classList.remove('enabled');
+
     } catch (err) {
         showToast(`Error al guardar: ${err.message}`, true);
     } finally {
