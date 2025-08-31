@@ -229,6 +229,12 @@ let chatId = tg?.initDataUnsafe?.user?.id;
 if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
 let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false };
+let dataStatus = {
+    reminders: 'loading', // Estados posibles: 'loading', 'loaded', 'error'
+    shopping: 'loading',
+    notes: 'loading',
+    gastos: 'loading'
+};
 let initialUserSettings = {};
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
@@ -284,44 +290,57 @@ async function initializeApp() {
     const initialData = await initialRes.json();
     if (initialData.error) throw new Error(initialData.error); 
     
-    // Guardamos los datos iniciales y dibujamos la pantalla principal
     appData.counts = initialData.counts;
     appData.settings = initialData.settings;
     appData.isPremium = initialData.isPremium;
     
     updateChefTabStyle();
-    renderDashboard(); // La app ya es visible para el usuario
-    hideSpinner(); // Ocultamos el spinner principal
+    renderDashboard(); 
+    hideSpinner();
 
     // --- FASE 2: Carga asíncrona de las listas en segundo plano ---
-    // Se piden todas las listas a la vez. No esperamos a que una termine para pedir la siguiente.
-    const remindersPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_reminders_list_only', chat_ID: chatId }).then(res => res.json());
-    const shoppingPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_shopping_list_only', chat_ID: chatId }).then(res => res.json());
-    const notesPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_notes_list_only', chat_ID: chatId }).then(res => res.json());
+    fetchWithTimeout(gasWebhookURL, { Type: 'get_reminders_list_only', chat_ID: chatId })
+        .then(res => res.json())
+        .then(data => {
+            if (data && !data.error) {
+                appData.remindersList = data;
+                dataStatus.reminders = 'loaded';
+            } else { dataStatus.reminders = 'error'; }
+        }).catch(() => dataStatus.reminders = 'error');
 
-    // Procesamos los resultados a medida que llegan
-    remindersPromise.then(data => {
-        if (data && !data.error) {
-            appData.remindersList = data;
-            // Opcional: Podríamos tener una función que actualice solo el contador si es necesario
-        }
-    });
+    fetchWithTimeout(gasWebhookURL, { Type: 'get_shopping_list_only', chat_ID: chatId })
+        .then(res => res.json())
+        .then(data => {
+            if (data && !data.error) {
+                appData.shoppingList = data;
+                dataStatus.shopping = 'loaded';
+            } else { dataStatus.shopping = 'error'; }
+        }).catch(() => dataStatus.shopping = 'error');
 
-    shoppingPromise.then(data => {
-        if (data && !data.error) {
-            appData.shoppingList = data;
-        }
-    });
-
-    notesPromise.then(data => {
-        if (data && !data.error) {
-            appData.notesList = data;
-        }
-    });
+    fetchWithTimeout(gasWebhookURL, { Type: 'get_notes_list_only', chat_ID: chatId })
+        .then(res => res.json())
+        .then(data => {
+            if (data && !data.error) {
+                appData.notesList = data;
+                dataStatus.notes = 'loaded';
+            } else { dataStatus.notes = 'error'; }
+        }).catch(() => dataStatus.notes = 'error');
+        
+    fetchWithTimeout(gasWebhookURL, { Type: 'get_gastos_metadata_only', chat_ID: chatId })
+        .then(res => res.json())
+        .then(data => {
+            if (data && !data.error) {
+                appData.counts.gastosMesActual = data.totalMesActual;
+                appData.counts.mesesActivosGastos = data.mesesActivos;
+                dataStatus.gastos = 'loaded';
+                // Actualizamos el contador en la vista si el dashboard sigue visible
+                const gastoBadge = document.querySelector('#dashboard-gastos-badge');
+                if(gastoBadge) gastoBadge.textContent = (data.totalMesActual || '0,00').split(',')[0];
+            } else { dataStatus.gastos = 'error'; }
+        }).catch(() => dataStatus.gastos = 'error');
 
   } catch (err) { 
     hideSpinner();
-    console.error('Error en carga inicial:', err); 
     showToast(`Error al cargar datos: ${err.message}`, true); 
     mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`; 
   }
@@ -558,6 +577,19 @@ async function saveReminder() {
 function renderRemindersList() {
   navigationHistory.push(renderDashboard);
   updateBackButton();
+
+  if (dataStatus.reminders === 'loading') {
+    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><div id="spinner" class="spinner" style="display:block; position:relative; top:auto; left:auto; transform:none; margin-top: 40px;"></div></div>`;
+    // Reintentamos mostrar la lista en medio segundo
+    setTimeout(renderRemindersList, 500);
+    return;
+  }
+
+  if (dataStatus.reminders === 'error') {
+    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar los recordatorios.</div>`;
+    return;
+  }
+
   const reminders = appData.remindersList || [];
   let listHtml = (reminders.length > 0) ? reminders.map(item => `
     <li class="list-item" id="item-${item.tracking_code}">
@@ -574,6 +606,7 @@ function renderRemindersList() {
       </div>
     </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
   mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
+  
   document.getElementById('reminders-list').addEventListener('click', (e) => {
     const target = e.target.closest('.dropdown-item');
     if (!target) return;
@@ -615,6 +648,18 @@ async function editReminderDescription(item) {
 function renderShoppingList() {
   navigationHistory.push(renderDashboard);
   updateBackButton();
+
+  if (dataStatus.shopping === 'loading') {
+    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Lista de las Compras</h2></div><div id="spinner" class="spinner" style="display:block; position:relative; top:auto; left:auto; transform:none; margin-top: 40px;"></div></div>`;
+    setTimeout(renderShoppingList, 500);
+    return;
+  }
+
+  if (dataStatus.shopping === 'error') {
+    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la lista de compras.</div>`;
+    return;
+  }
+
   const items = appData.shoppingList || [];
   const pendingItems = items.filter(item => item['2'] === 'Pendiente');
   const boughtItems = items.filter(item => item['2'] === 'Comprado');
@@ -820,6 +865,18 @@ async function saveEditedShoppingItem(trackingCode) {
 function renderNotesList() {
     navigationHistory.push(renderDashboard);
     updateBackButton();
+
+    if (dataStatus.notes === 'loading') {
+        mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Mis Notas</h2></div><div id="spinner" class="spinner" style="display:block; position:relative; top:auto; left:auto; transform:none; margin-top: 40px;"></div></div>`;
+        setTimeout(renderNotesList, 500);
+        return;
+    }
+
+    if (dataStatus.notes === 'error') {
+        mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar las notas.</div>`;
+        return;
+    }
+
     const notes = appData.notesList || [];
     let listHtml = (notes.length > 0) ? notes.map(note => `
             <li class="list-item" id="item-${note.Nota_ID}">
@@ -2275,7 +2332,7 @@ async function executeExport() {
 // ==================================================
 function renderDashboard() {
   setActiveTab('tab-home');
-  navigationHistory = []; // Limpiamos el historial al volver al Home.
+  navigationHistory = []; 
   updateBackButton();
   const counts = appData.counts;
   const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
@@ -2301,7 +2358,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
-	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+	  <div class="card clickable-card"><div id="dashboard-gastos-badge" class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${chefCardHtml}
     </div>`;
   
