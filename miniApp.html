@@ -1950,17 +1950,15 @@ function renderSettings() {
     
     mainContentArea.innerHTML = `
         <div class="settings-container">
-            <h2 class="settings-section-title">👤 Perfil y Apariencia</h2>
+            <h2 class="settings-section-title">👤 Perfil de Usuario</h2>
             <div class="form-card">
-                <label>Nombre de Usuario</label>
+                <label>Nombre</label>
                 <input type="text" id="settings-nombre" placeholder="Tu nombre" />
-                <label>Email (para Calendario y Exportaciones)</label>
-                <input type="email" id="settings-email" placeholder="tu@email.com" />
                 <label>Ciudad</label>
                 <input type="text" id="settings-ciudad" placeholder="Ej: Barcelona" />
                 <label>País</label>
                 <input type="text" id="settings-pais" placeholder="Ej: España" />
-                 <div class="settings-item">
+                <div class="settings-item" style="padding-top:15px;">
                     <span class="settings-item-label">Tema de la App</span>
                     <div class="settings-item-control">
                         <select id="settings-theme">
@@ -1972,57 +1970,76 @@ function renderSettings() {
                 </div>
             </div>
 
+            <h2 class="settings-section-title">📄 Información de la Cuenta</h2>
+            <div class="form-card">
+                <label>Email de Registro (no editable)</label>
+                <input type="email" id="settings-email" readonly />
+                <label>Fecha de Activación (no editable)</label>
+                <input type="text" id="settings-fecha-activacion" readonly />
+                <label>Zona Horaria Detectada (no editable)</label>
+                <input type="text" id="settings-zona-horaria" readonly />
+            </div>
+
             <h2 class="settings-section-title">🔔 Informes y Alertas</h2>
             <div class="form-card">
+                <!-- Informe Diario Matutino -->
                 <div class="settings-item">
                     <span class="settings-item-label">Informe Matutino</span>
-                    <div class="settings-item-control">
-                        <label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label>
-                    </div>
+                    <label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label>
                 </div>
-                 <div class="settings-item">
+                <div class="settings-item">
                     <span class="settings-item-label">Hora del Informe</span>
-                    <div class="settings-item-control">
-                        <select id="settings-franja-manana">
-                            <option value="1">A primera hora (6:00)</option>
-                            <option value="2">Habitual (7:00)</option>
-                            <option value="3">Media mañana (8:00)</option>
-                            <option value="4">Tarde (9:00)</option>
-                        </select>
-                    </div>
+                    <select id="settings-franja-manana">
+                        <option value="1">A primera hora (6:00)</option>
+                        <option value="2">Habitual (7:00)</option>
+                        <option value="3">Media mañana (8:00)</option>
+                        <option value="4">Tarde (9:00)</option>
+                    </select>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
+                <!-- Informe del Tiempo (Tarde) -->
                 <div class="settings-item">
                     <span class="settings-item-label">Informe del Tiempo (Tarde)</span>
-                    <div class="settings-item-control">
-                        <label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label>
-                    </div>
+                    <label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label>
                 </div>
-                 <div class="settings-item">
+                <div class="settings-item">
                     <span class="settings-item-label">Hora del Informe</span>
-                    <div class="settings-item-control">
-                         <select id="settings-franja-tarde">
-                            <option value="19">19:00</option>
-                            <option value="20">20:00</option>
-                            <option value="21">21:00</option>
-                        </select>
-                    </div>
+                    <select id="settings-franja-tarde">
+                        <option value="19">19:00</option><option value="20">20:00</option><option value="21">21:00</option>
+                    </select>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
-                 <div class="settings-item">
+                <!-- Informe Mensual de Gastos -->
+                <div class="settings-item">
+                    <span class="settings-item-label">Informe Mensual de Gastos</span>
+                    <label class="switch"><input type="checkbox" id="settings-informe-mensual-activo"><span class="slider"></span></label>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-item-label">Día de Envío</span>
+                    <select id="settings-dia-informe-mensual">
+                        ${[...Array(10).keys()].map(i => `<option value="${i + 1}">${i + 1}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-item-label">Hora de Envío</span>
+                    <select id="settings-hora-informe-mensual">
+                        ${[...Array(15).keys()].map(i => `<option value="${i + 8}">${(i + 8).toString().padStart(2, '0')}:00</option>`).join('')}
+                    </select>
+                </div>
+                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
+                <!-- Alertas de Compra -->
+                <div class="settings-item">
                     <span class="settings-item-label">Alertas de Compra Inteligente</span>
-                    <div class="settings-item-control">
-                        <label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label>
-                    </div>
+                    <label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label>
                 </div>
             </div>
 
-             <h2 class="settings-section-title">💾 Gestión de Datos</h2>
-             <div class="form-card">
-                 <button id="settings-sync-btn" class="add-article-btn" style="width:100%; max-width:100%;">Corregir Contadores</button>
-             </div>
+            <h2 class="settings-section-title">💾 Gestión de Datos</h2>
+            <div class="form-card">
+                <button id="settings-sync-btn" class="add-article-btn" style="width:100%; max-width:100%;">Corregir Contadores</button>
+            </div>
              
-             <div class="form-card" style="margin-top: 20px;">
+            <div class="form-card" style="margin-top: 20px;">
                 <div class="button-group">
                     <button id="settings-cancel-btn" class="cancel">Cancelar</button>
                     <button id="settings-save-btn" disabled>Guardar Ajustes</button>
@@ -2031,26 +2048,53 @@ function renderSettings() {
         </div>
     `;
 
-    document.getElementById('settings-nombre').value = appData.settings['Nombre'] || '';
-    document.getElementById('settings-email').value = appData.settings['Email'] || '';
-    document.getElementById('settings-ciudad').value = appData.settings['Ciudad'] || '';
-    document.getElementById('settings-pais').value = appData.settings['Pais'] || '';
-    document.getElementById('settings-theme').value = appData.settings['Tema'] || 'auto';
-    document.getElementById('settings-informe-manana-activo').checked = (appData.settings['Informe_Mañana_Activo'] === 'SI');
-    document.getElementById('settings-franja-manana').value = appData.settings['Franja_Informe_Mañana'] || '2';
-    document.getElementById('settings-informe-tarde-activo').checked = (appData.settings['Informe_Tarde_Activo'] === 'SI');
-    document.getElementById('settings-franja-tarde').value = appData.settings['Franja_Informe_Tarde'] || '20';
-    document.getElementById('settings-alerta-inventario').checked = (appData.settings['Alerta_Inventario'] === 'SI');
-    
-    const controls = document.querySelectorAll('#settings-nombre, #settings-email, #settings-ciudad, #settings-pais, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-alerta-inventario');
-    controls.forEach(control => {
-        control.addEventListener('input', validateSettings);
-        control.addEventListener('change', validateSettings);
-    });
+// --- INICIO DEL NUEVO BLOQUE ---
 
-    document.getElementById('settings-save-btn').onclick = saveSettings;
-    document.getElementById('settings-cancel-btn').onclick = goBack;
-    document.getElementById('settings-sync-btn').onclick = syncCounts;
+// 1. Rellenar todos los campos con los datos del usuario
+document.getElementById('settings-nombre').value = appData.settings['Nombre'] || '';
+document.getElementById('settings-ciudad').value = appData.settings['Ciudad'] || '';
+document.getElementById('settings-pais').value = appData.settings['Pais'] || '';
+document.getElementById('settings-theme').value = appData.settings['Tema'] || 'auto';
+
+// Campos de solo lectura
+document.getElementById('settings-email').value = appData.settings['Email'] || 'No disponible';
+const fechaActivacion = appData.settings['Fecha_Activacion'] 
+    ? new Date(appData.settings['Fecha_Activacion']).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
+    : 'No disponible';
+document.getElementById('settings-fecha-activacion').value = fechaActivacion;
+document.getElementById('settings-zona-horaria').value = appData.settings['Time Zone'] || 'No disponible';
+
+// Informes y Alertas (existentes)
+document.getElementById('settings-informe-manana-activo').checked = (appData.settings['Informe_Mañana_Activo'] === 'SI');
+document.getElementById('settings-franja-manana').value = appData.settings['Franja_Informe_Mañana'] || '2';
+document.getElementById('settings-informe-tarde-activo').checked = (appData.settings['Informe_Tarde_Activo'] === 'SI');
+document.getElementById('settings-franja-tarde').value = appData.settings['Franja_Informe_Tarde'] || '20';
+document.getElementById('settings-alerta-inventario').checked = (appData.settings['Alerta_Inventario'] === 'SI');
+
+// Nuevos Ajustes del Informe Mensual
+document.getElementById('settings-informe-mensual-activo').checked = (appData.settings['Informe_Mensual_Activo'] === 'SI');
+document.getElementById('settings-dia-informe-mensual').value = appData.settings['Dia_Informe_Mensual'] || '1';
+document.getElementById('settings-hora-informe-mensual').value = appData.settings['Hora_Informe_Mensual'] || '12';
+
+// 2. Asignar los listeners para detectar cambios en TODOS los controles
+const controls = document.querySelectorAll(
+    '#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, ' +
+    '#settings-informe-manana-activo, #settings-franja-manana, ' +
+    '#settings-informe-tarde-activo, #settings-franja-tarde, ' +
+    '#settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, ' +
+    '#settings-alerta-inventario'
+);
+controls.forEach(control => {
+    control.addEventListener('input', validateSettings);
+    control.addEventListener('change', validateSettings);
+});
+
+// 3. Asignar los botones de acción principales
+document.getElementById('settings-save-btn').onclick = saveSettings;
+document.getElementById('settings-cancel-btn').onclick = goBack;
+document.getElementById('settings-sync-btn').onclick = syncCounts;
+
+// --- FIN DEL NUEVO BLOQUE ---
 }
 function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
