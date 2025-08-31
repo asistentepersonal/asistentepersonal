@@ -1,3 +1,4 @@
+html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -168,7 +169,6 @@
 <body>
   <div id="spinner" class="spinner"></div>
   <div id="main-content-area">
-  <button id="custom-back-btn" style="display:none; position: fixed; top: 10px; left: 10px; z-index: 101; background: var(--card-bg); border: none; font-size: 1.8rem; color: var(--muted); cursor: pointer; padding: 5px; border-radius: 50%; width: 40px; height: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">&#8592;</button>
   </div>
     <div class="tabs">
     <div class="tab active" id="tab-home">🏠 Home</div>
@@ -186,7 +186,59 @@
   </div>
   
 <script>
+// --- SISTEMA DE NAVEGACIÓN Y ARRANQUE - VERSIÓN 2025 ---
+let navigationHistory = [];
+const tg = window.Telegram?.WebApp;
 
+function goBack() {
+    if (navigationHistory.length > 0) {
+        const previousStep = navigationHistory.pop();
+        if (typeof previousStep === 'function') {
+            previousStep();
+        }
+    }
+    updateBackButton();
+}
+
+function updateBackButton() {
+    if (!tg) return;
+    if (navigationHistory.length > 0) {
+        tg.BackButton.show();
+    } else {
+        tg.BackButton.hide();
+    }
+}
+
+// El código se ejecuta solo cuando el DOM está listo
+document.addEventListener('DOMContentLoaded', () => {
+    if (tg) {
+        // SECUENCIA CORRECTA:
+        // 1. Configurar los temas y eventos PRIMERO.
+        tg.onEvent('backButtonClicked', goBack);
+        if (tg.themeParams) { 
+            document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
+            document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
+            document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333');
+            document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555');
+            document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3');
+            document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
+        }
+        
+        // 2. Expandir la app.
+        tg.expand();
+        
+        // 3. Iniciar nuestra lógica de carga de datos.
+        initializeApp();
+        
+        // 4. Decirle a Telegram que ya está todo listo (AL FINAL).
+        tg.ready();
+
+    } else {
+        // Si no estamos en Telegram, iniciar de todas formas para desarrollo.
+        initializeApp();
+    }
+});
+// --- FIN DEL SISTEMA DE ARRANQUE ---
 
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
@@ -1097,7 +1149,7 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
     addNotificationBtn.onclick = () => createNotificationRow();
     
     const baseConfig = { time_24hr: true, locale: flatpickr.l10ns.es };
-    const dateTimeConfig = { ...baseConfig, enableTime: true, dateFormat: "Y-m-d H:i" };
+    const dateTimeConfig = { ...baseConfig, enableTime: true, dateFormat: "Y-m-d H-i" };
     const dateConfig = { ...baseConfig, enableTime: false, dateFormat: "Y-m-d" };
     const initialIsAllDay = isEditing && !event.start.dateTime;
     
@@ -2389,6 +2441,8 @@ document.getElementById('tab-chef').onclick = () => {
     }
 };
 
+// La llamada a initializeApp() ahora se gestiona dentro del nuevo
+// bloque document.addEventListener('DOMContentLoaded') que añadimos al principio.
 </script>
 </body>
 </html>
