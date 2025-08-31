@@ -228,15 +228,13 @@ let selectedImageFile = null;
 let chatId = tg?.initDataUnsafe?.user?.id;
 if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
-let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false };
+let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false, isSecondaryDataLoaded: false };
 let initialUserSettings = {};
+let secondaryDataPromise = null; // Guardará la promesa de la carga en segundo plano
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
 
-function showSpinner(message = '') { 
-    spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : '';
-    spinner.style.display = 'block'; 
-}
+function showSpinner(message = '') { spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : ''; spinner.style.display = 'block'; }
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
 
@@ -244,26 +242,18 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   const controller = new AbortController();
   const timeout = isMakeWebhook ? 60000 : 30000;
   const id = setTimeout(() => controller.abort(), timeout);
-  
   let options = { method: 'POST', signal: controller.signal };
   if (isMakeWebhook) {
       const formData = new FormData();
       formData.append('prompt', payloadObject.prompt);
-      if (payloadObject.image_count !== undefined) {
-          formData.append('image_count', payloadObject.image_count);
-      }
-      if (payloadObject.images && payloadObject.images.length > 0) {
-        payloadObject.images.forEach(imageFile => {
-            formData.append('images', imageFile, imageFile.name);
-        });
-      }
+      if (payloadObject.image_count !== undefined) { formData.append('image_count', payloadObject.image_count); }
+      if (payloadObject.images && payloadObject.images.length > 0) { payloadObject.images.forEach(imageFile => { formData.append('images', imageFile, imageFile.name); }); }
       options.body = formData;
   } else {
       const formData = new FormData();
       formData.append("postData", JSON.stringify(payloadObject));
       options.body = formData;
   }
-  
   try {
     const response = await fetch(resource, options);
     clearTimeout(id);
@@ -276,22 +266,48 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   }
 }
 
-async function initializeApp() { 
-  showSpinner(); 
-  try { 
-    const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
-    const data = await res.json(); 
-    if (data.error) throw new Error(data.error); 
-    appData = data; 
+async function initializeApp() {
+  showSpinner();
+  try {
+    // --- FASE 1: Carga Rápida ---
+    const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
+    const initialData = await initialRes.json();
+    if (initialData.error) throw new Error(initialData.error);
+
+    appData.counts = initialData.counts;
+    appData.settings = initialData.settings;
+    appData.isPremium = initialData.isPremium;
+
     updateChefTabStyle();
-    renderDashboard(); 
-  } catch (err) { 
-    console.error('Error en carga inicial:', err); 
-    showToast(`Error al cargar datos: ${err.message}`, true); 
-    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`; 
-  } finally { 
-    hideSpinner(); 
-  } 
+    renderDashboard();
+    hideSpinner();
+
+    // --- FASE 2: Carga en Segundo Plano ---
+    secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
+      .then(res => res.json())
+      .then(secondaryData => {
+        if (secondaryData.error) {
+          showToast("Error cargando datos de fondo: " + secondaryData.error, true);
+          return;
+        }
+        appData.remindersList = secondaryData.remindersList;
+        appData.shoppingList = secondaryData.shoppingList;
+        appData.notesList = secondaryData.notesList;
+        appData.calendarEvents = secondaryData.calendarEvents;
+        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+        appData.isSecondaryDataLoaded = true;
+        
+        // Actualiza solo el contador del calendario sin redibujar todo
+        const calendarBadge = document.getElementById('calendar-badge');
+        if(calendarBadge) calendarBadge.textContent = secondaryData.calendarTodayCount || 0;
+      });
+
+  } catch (err) {
+    console.error('Error en carga inicial:', err);
+    showToast(`Error al cargar datos: ${err.message}`, true);
+    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`;
+    hideSpinner();
+  }
 }
 
 function setActiveTab(activeTabId) { 
@@ -522,7 +538,8 @@ async function saveReminder() {
   }
 }
 
-function renderRemindersList() {
+async function renderRemindersList() {
+  if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
   navigationHistory.push(renderDashboard);
   updateBackButton();
   const reminders = appData.remindersList || [];
@@ -555,31 +572,11 @@ function renderRemindersList() {
   });
 }
 
-async function editReminderDescription(item) {
-  const newDescription = prompt('Editar descripción del recordatorio:', item.Descripcion);
-  if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item.Descripcion) {
-    const originalDescription = item.Descripcion;
-    const itemIndex = appData.remindersList.findIndex(r => r.tracking_code === item.tracking_code);
-    if (itemIndex === -1) return;
-    appData.remindersList[itemIndex].Descripcion = newDescription.trim();
-    renderRemindersList();
-    try {
-      const payload = { Type: 'edit_reminder_description', chat_ID: chatId, tracking_code: item.tracking_code, new_description: newDescription.trim() };
-      const res = await fetchWithTimeout(gasWebhookURL, payload);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-    } catch (err) {
-      showToast(`Error: ${err.message}. No se actualizó.`, true);
-      appData.remindersList[itemIndex].Descripcion = originalDescription;
-      renderRemindersList();
-    }
-  }
-}
-
 // ==================================================
 // --- MÓDULO: COMPRAS ---
 // ==================================================
-function renderShoppingList() {
+async function renderShoppingList() {
+  if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
   navigationHistory.push(renderDashboard);
   updateBackButton();
   const items = appData.shoppingList || [];
@@ -784,7 +781,8 @@ async function saveEditedShoppingItem(trackingCode) {
 // ==================================================
 // --- MÓDULO: NOTAS ---
 // ==================================================
-function renderNotesList() {
+async function renderNotesList() {
+    if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
     navigationHistory.push(renderDashboard);
     updateBackButton();
     const notes = appData.notesList || [];
@@ -900,6 +898,7 @@ async function saveNote() {
 let lastCalendarSearchQuery = null;
 
 async function renderCalendarView(searchQuery = null, useCache = false) {
+    if (!appData.isSecondaryDataLoaded && !searchQuery) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
     navigationHistory.push(renderDashboard);
     updateBackButton();
     
@@ -2267,7 +2266,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
-      <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
 	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${chefCardHtml}
     </div>`;
