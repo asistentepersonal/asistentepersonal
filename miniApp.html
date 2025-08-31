@@ -277,21 +277,54 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 async function initializeApp() { 
-  showSpinner(); 
-  try { 
-    const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
-    const data = await res.json(); 
-    if (data.error) throw new Error(data.error); 
-    appData = data; 
+  showSpinner();
+  try {
+    // --- FASE 1: Carga inicial ultrarrápida ---
+    const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_data', chat_ID: chatId }); 
+    const initialData = await initialRes.json();
+    if (initialData.error) throw new Error(initialData.error); 
+    
+    // Guardamos los datos iniciales y dibujamos la pantalla principal
+    appData.counts = initialData.counts;
+    appData.settings = initialData.settings;
+    appData.isPremium = initialData.isPremium;
+    
     updateChefTabStyle();
-    renderDashboard(); 
+    renderDashboard(); // La app ya es visible para el usuario
+    hideSpinner(); // Ocultamos el spinner principal
+
+    // --- FASE 2: Carga asíncrona de las listas en segundo plano ---
+    // Se piden todas las listas a la vez. No esperamos a que una termine para pedir la siguiente.
+    const remindersPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_reminders_list_only', chat_ID: chatId }).then(res => res.json());
+    const shoppingPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_shopping_list_only', chat_ID: chatId }).then(res => res.json());
+    const notesPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_notes_list_only', chat_ID: chatId }).then(res => res.json());
+
+    // Procesamos los resultados a medida que llegan
+    remindersPromise.then(data => {
+        if (data && !data.error) {
+            appData.remindersList = data;
+            // Opcional: Podríamos tener una función que actualice solo el contador si es necesario
+        }
+    });
+
+    shoppingPromise.then(data => {
+        if (data && !data.error) {
+            appData.shoppingList = data;
+        }
+    });
+
+    notesPromise.then(data => {
+        if (data && !data.error) {
+            appData.notesList = data;
+        }
+    });
+
   } catch (err) { 
+    hideSpinner();
     console.error('Error en carga inicial:', err); 
     showToast(`Error al cargar datos: ${err.message}`, true); 
     mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`; 
-  } finally { 
-    hideSpinner(); 
-  } 
+  }
 }
 
 function setActiveTab(activeTabId) { 
