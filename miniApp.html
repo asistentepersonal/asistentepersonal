@@ -168,6 +168,7 @@
 <body>
   <div id="spinner" class="spinner"></div>
   <div id="main-content-area">
+  <button id="custom-back-btn" style="display:none; position: fixed; top: 10px; left: 10px; z-index: 101; background: var(--card-bg); border: none; font-size: 1.8rem; color: var(--muted); cursor: pointer; padding: 5px; border-radius: 50%; width: 40px; height: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">&#8592;</button>
   </div>
     <div class="tabs">
     <div class="tab active" id="tab-home">🏠 Home</div>
@@ -191,7 +192,7 @@
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
 
-// --- NUEVO SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
+// --- NUEVO SISTEMA DE NAVEGACIÓN (HISTORIAL) - VERSIÓN MODERNA ---
 let navigationHistory = [];
 const tg = window.Telegram?.WebApp;
 
@@ -207,6 +208,7 @@ function goBack() {
 
 function updateBackButton() {
     if (!tg) return;
+    // El objeto BackButton se sigue usando para controlar la visibilidad
     if (navigationHistory.length > 0) {
         tg.BackButton.show();
     } else {
@@ -215,10 +217,10 @@ function updateBackButton() {
 }
 
 if (tg) {
-    tg.ready(); // Informa a Telegram que la app está lista
+    tg.ready(); // Informa a Telegram que la app está completamente lista
     tg.expand(); 
 
-    // Método moderno para gestionar el botón "Atrás"
+    // MÉTODO MODERNO: Se usa el receptor de eventos global para el clic
     tg.onEvent('backButtonClicked', goBack);
 
     if (tg.themeParams) { 
@@ -230,6 +232,7 @@ if (tg) {
         document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
     } 
 }
+// --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
 // --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
 
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
