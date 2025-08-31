@@ -1,3 +1,4 @@
+html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -206,10 +207,12 @@ function goBack() {
 
 function updateBackButton() {
     if (!tg || !tg.BackButton) return;
-    if (navigationHistory.length > 0) {
-        tg.BackButton.show();
-    } else {
-        tg.BackButton.hide();
+    if (tg.isVersionAtLeast('6.1') && tg.BackButton) {
+        if (navigationHistory.length > 0) {
+            tg.BackButton.show();
+        } else {
+            tg.BackButton.hide();
+        }
     }
 }
 // --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
@@ -217,7 +220,7 @@ function updateBackButton() {
 const tg = window.Telegram?.WebApp;
 if (tg) { 
     tg.expand(); 
-    if (tg.BackButton) { tg.BackButton.onClick(goBack); }
+    if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
     if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
 }
 
@@ -230,7 +233,7 @@ if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Tele
 
 let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false, isSecondaryDataLoaded: false };
 let initialUserSettings = {};
-let secondaryDataPromise = null; // Guardará la promesa de la carga en segundo plano
+let secondaryDataPromise = null;
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
 
@@ -269,7 +272,6 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 async function initializeApp() {
   showSpinner();
   try {
-    // --- FASE 1: Carga Rápida ---
     const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
     const initialData = await initialRes.json();
     if (initialData.error) throw new Error(initialData.error);
@@ -282,7 +284,6 @@ async function initializeApp() {
     renderDashboard();
     hideSpinner();
 
-    // --- FASE 2: Carga en Segundo Plano ---
     secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
       .then(res => res.json())
       .then(secondaryData => {
@@ -295,11 +296,14 @@ async function initializeApp() {
         appData.notesList = secondaryData.notesList;
         appData.calendarEvents = secondaryData.calendarEvents;
         appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+        appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
         appData.isSecondaryDataLoaded = true;
         
-        // Actualiza solo el contador del calendario sin redibujar todo
         const calendarBadge = document.getElementById('calendar-badge');
         if(calendarBadge) calendarBadge.textContent = secondaryData.calendarTodayCount || 0;
+        const gastosBadge = document.getElementById('gastos-badge');
+        if(gastosBadge) gastosBadge.textContent = (secondaryData.gastosMesActual || '0,00').split(',')[0];
       });
 
   } catch (err) {
@@ -570,6 +574,27 @@ async function renderRemindersList() {
       confirmDelete('reminder', trackingCode);
     }
   });
+}
+
+async function editReminderDescription(item) {
+  const newDescription = prompt('Editar descripción del recordatorio:', item.Descripcion);
+  if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item.Descripcion) {
+    const originalDescription = item.Descripcion;
+    const itemIndex = appData.remindersList.findIndex(r => r.tracking_code === item.tracking_code);
+    if (itemIndex === -1) return;
+    appData.remindersList[itemIndex].Descripcion = newDescription.trim();
+    renderRemindersList();
+    try {
+      const payload = { Type: 'edit_reminder_description', chat_ID: chatId, tracking_code: item.tracking_code, new_description: newDescription.trim() };
+      const res = await fetchWithTimeout(gasWebhookURL, payload);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+    } catch (err) {
+      showToast(`Error: ${err.message}. No se actualizó.`, true);
+      appData.remindersList[itemIndex].Descripcion = originalDescription;
+      renderRemindersList();
+    }
+  }
 }
 
 // ==================================================
@@ -2047,15 +2072,11 @@ function renderSettings() {
         </div>
     `;
 
-// --- INICIO DEL NUEVO BLOQUE ---
-
-// 1. Rellenar todos los campos con los datos del usuario
 document.getElementById('settings-nombre').value = appData.settings['Nombre'] || '';
 document.getElementById('settings-ciudad').value = appData.settings['Ciudad'] || '';
 document.getElementById('settings-pais').value = appData.settings['Pais'] || '';
 document.getElementById('settings-theme').value = appData.settings['Tema'] || 'auto';
 
-// Campos de solo lectura
 document.getElementById('settings-email').value = appData.settings['Email'] || 'No disponible';
 const fechaActivacion = appData.settings['Fecha_Activacion'] 
     ? new Date(appData.settings['Fecha_Activacion']).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
@@ -2063,19 +2084,16 @@ const fechaActivacion = appData.settings['Fecha_Activacion']
 document.getElementById('settings-fecha-activacion').value = fechaActivacion;
 document.getElementById('settings-zona-horaria').value = appData.settings['Time Zone'] || 'No disponible';
 
-// Informes y Alertas (existentes)
 document.getElementById('settings-informe-manana-activo').checked = (appData.settings['Informe_Mañana_Activo'] === 'SI');
 document.getElementById('settings-franja-manana').value = appData.settings['Franja_Informe_Mañana'] || '2';
 document.getElementById('settings-informe-tarde-activo').checked = (appData.settings['Informe_Tarde_Activo'] === 'SI');
 document.getElementById('settings-franja-tarde').value = appData.settings['Franja_Informe_Tarde'] || '20';
 document.getElementById('settings-alerta-inventario').checked = (appData.settings['Alerta_Inventario'] === 'SI');
 
-// Nuevos Ajustes del Informe Mensual
 document.getElementById('settings-informe-mensual-activo').checked = (appData.settings['Informe_Mensual_Activo'] === 'SI');
 document.getElementById('settings-dia-informe-mensual').value = appData.settings['Dia_Informe_Mensual'] || '1';
 document.getElementById('settings-hora-informe-mensual').value = appData.settings['Hora_Informe_Mensual'] || '12';
 
-// 2. Asignar los listeners para detectar cambios en TODOS los controles
 const controls = document.querySelectorAll(
     '#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, ' +
     '#settings-informe-manana-activo, #settings-franja-manana, ' +
@@ -2088,12 +2106,10 @@ controls.forEach(control => {
     control.addEventListener('change', validateSettings);
 });
 
-// 3. Asignar los botones de acción principales
 document.getElementById('settings-save-btn').onclick = saveSettings;
 document.getElementById('settings-cancel-btn').onclick = goBack;
 document.getElementById('settings-sync-btn').onclick = syncCounts;
 
-// --- FIN DEL NUEVO BLOQUE ---
 }
 function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
@@ -2107,7 +2123,6 @@ function validateSettings() {
     if (document.getElementById('settings-informe-tarde-activo').checked !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) hasChanged = true;
     if (document.getElementById('settings-franja-tarde').value != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true;
     if (document.getElementById('settings-alerta-inventario').checked !== (initialUserSettings['Alerta_Inventario'] === 'SI')) hasChanged = true;
-    // --- NUEVAS COMPROBACIONES ---
     if (document.getElementById('settings-informe-mensual-activo').checked !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) hasChanged = true;
     if (document.getElementById('settings-dia-informe-mensual').value != (initialUserSettings['Dia_Informe_Mensual'] || '1')) hasChanged = true;
     if (document.getElementById('settings-hora-informe-mensual').value != (initialUserSettings['Hora_Informe_Mensual'] || '12')) hasChanged = true;
@@ -2120,7 +2135,6 @@ async function saveSettings() {
     showSpinner();
     const settingsToUpdate = {};
     
-    // Recopila todos los posibles cambios
     const newName = document.getElementById('settings-nombre').value; if (newName !== (initialUserSettings['Nombre'] || '')) settingsToUpdate['Nombre'] = newName;
     const newCiudad = document.getElementById('settings-ciudad').value; if (newCiudad !== (initialUserSettings['Ciudad'] || '')) settingsToUpdate['Ciudad'] = newCiudad;
     const newPais = document.getElementById('settings-pais').value; if (newPais !== (initialUserSettings['Pais'] || '')) settingsToUpdate['Pais'] = newPais;
@@ -2130,7 +2144,6 @@ async function saveSettings() {
     const newTardeActivo = document.getElementById('settings-informe-tarde-activo').checked; if (newTardeActivo !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) settingsToUpdate['Informe_Tarde_Activo'] = newTardeActivo ? 'SI' : 'NO';
     const newFranjaTarde = document.getElementById('settings-franja-tarde').value; if (newFranjaTarde != (initialUserSettings['Franja_Informe_Tarde'] || '20')) settingsToUpdate['Franja_Informe_Tarde'] = newFranjaTarde;
     const newAlerta = document.getElementById('settings-alerta-inventario').checked; if (newAlerta !== (initialUserSettings['Alerta_Inventario'] === 'SI')) settingsToUpdate['Alerta_Inventario'] = newAlerta ? 'SI' : 'NO';
-    // --- NUEVOS CAMPOS A GUARDAR ---
     const newMensualActivo = document.getElementById('settings-informe-mensual-activo').checked; if (newMensualActivo !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) settingsToUpdate['Informe_Mensual_Activo'] = newMensualActivo ? 'SI' : 'NO';
     const newDiaMensual = document.getElementById('settings-dia-informe-mensual').value; if (newDiaMensual != (initialUserSettings['Dia_Informe_Mensual'] || '1')) settingsToUpdate['Dia_Informe_Mensual'] = newDiaMensual;
     const newHoraMensual = document.getElementById('settings-hora-informe-mensual').value; if (newHoraMensual != (initialUserSettings['Hora_Informe_Mensual'] || '12')) settingsToUpdate['Hora_Informe_Mensual'] = newHoraMensual;
@@ -2148,9 +2161,8 @@ async function saveSettings() {
         
         if (data.error) throw new Error(data.error);
 
-        // Actualización parcial sin recargar la página
         Object.assign(appData.settings, settingsToUpdate);
-        if (settingsToUpdate['Time Zone']) { // Si la validación de ubicación actualizó la zona horaria
+        if (settingsToUpdate['Time Zone']) {
             appData.settings['Time Zone'] = settingsToUpdate['Time Zone'];
             document.getElementById('settings-zona-horaria').value = settingsToUpdate['Time Zone'];
         }
@@ -2241,7 +2253,7 @@ async function executeExport() {
 // ==================================================
 function renderDashboard() {
   setActiveTab('tab-home');
-  navigationHistory = []; // Limpiamos el historial al volver al Home.
+  navigationHistory = [];
   updateBackButton();
   const counts = appData.counts;
   const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
@@ -2267,7 +2279,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
-	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="gastos-badge">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${chefCardHtml}
     </div>`;
   
