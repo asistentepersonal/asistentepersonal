@@ -193,6 +193,7 @@
 
 // --- NUEVO SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
+const tg = window.Telegram?.WebApp;
 
 function goBack() {
     if (navigationHistory.length > 0) {
@@ -205,21 +206,31 @@ function goBack() {
 }
 
 function updateBackButton() {
-    if (!tg || !tg.BackButton) return;
+    if (!tg) return;
     if (navigationHistory.length > 0) {
         tg.BackButton.show();
     } else {
         tg.BackButton.hide();
     }
 }
-// --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
 
-const tg = window.Telegram?.WebApp;
-if (tg) { 
+if (tg) {
+    tg.ready(); // Informa a Telegram que la app está lista
     tg.expand(); 
-    if (tg.BackButton) { tg.BackButton.onClick(goBack); }
-    if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
+
+    // Método moderno para gestionar el botón "Atrás"
+    tg.onEvent('backButtonClicked', goBack);
+
+    if (tg.themeParams) { 
+        document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
+        document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
+        document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333');
+        document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555');
+        document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3');
+        document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
+    } 
 }
+// --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
 
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
