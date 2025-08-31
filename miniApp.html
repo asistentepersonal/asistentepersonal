@@ -186,54 +186,7 @@
   </div>
   
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-    
-// ==================================================
-// --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
-// ==================================================
 
-// --- NUEVO SISTEMA DE NAVEGACIÓN (HISTORIAL) - VERSIÓN MODERNA ---
-let navigationHistory = [];
-const tg = window.Telegram?.WebApp;
-
-function goBack() {
-    if (navigationHistory.length > 0) {
-        const previousStep = navigationHistory.pop();
-        if (typeof previousStep === 'function') {
-            previousStep();
-        }
-    }
-    updateBackButton();
-}
-
-function updateBackButton() {
-    if (!tg) return;
-    // El objeto BackButton se sigue usando para controlar la visibilidad
-    if (navigationHistory.length > 0) {
-        tg.BackButton.show();
-    } else {
-        tg.BackButton.hide();
-    }
-}
-
-if (tg) {
-    tg.ready(); // Informa a Telegram que la app está completamente lista
-    tg.expand(); 
-
-    // MÉTODO MODERNO: Se usa el receptor de eventos global para el clic
-    tg.onEvent('backButtonClicked', goBack);
-
-    if (tg.themeParams) { 
-        document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
-        document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
-        document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333');
-        document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555');
-        document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3');
-        document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
-    } 
-}
-// --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
-// --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
 
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
@@ -532,9 +485,8 @@ async function executeDelete(type, id) {
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
-function renderReminderForm() {
-  navigationHistory.push(renderDashboard);
-  updateBackButton();
+function renderReminderForm(isFromHistory = false) {
+if (!isFromHistory) { history.pushState({ page: 'reminderForm' }, ''); }
   mainContentArea.innerHTML = `
     <div class="list-container">
       <div class="list-header"><h2>📝 Nuevo Recordatorio</h2></div>
@@ -588,9 +540,8 @@ async function saveReminder() {
   }
 }
 
-function renderRemindersList() {
-  navigationHistory.push(renderDashboard);
-  updateBackButton();
+function renderRemindersList(isFromHistory = false) {
+if (!isFromHistory) { history.pushState({ page: 'remindersList' }, ''); }
 
   if (dataStatus.reminders === 'loading') {
     mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><div id="spinner" class="spinner" style="display:block; position:relative; top:auto; left:auto; transform:none; margin-top: 40px;"></div></div>`;
@@ -659,9 +610,8 @@ async function editReminderDescription(item) {
 // ==================================================
 // --- MÓDULO: COMPRAS ---
 // ==================================================
-function renderShoppingList() {
-  navigationHistory.push(renderDashboard);
-  updateBackButton();
+function renderShoppingList(isFromHistory = false) {
+if (!isFromHistory) { history.pushState({ page: 'shoppingList' }, ''); }
 
   if (dataStatus.shopping === 'loading') {
     mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Lista de las Compras</h2></div><div id="spinner" class="spinner" style="display:block; position:relative; top:auto; left:auto; transform:none; margin-top: 40px;"></div></div>`;
@@ -802,9 +752,8 @@ function toggleSelectedItemsToPending() {
     .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
 
-function renderAddArticleForm() {
-  navigationHistory.push(renderShoppingList);
-  updateBackButton();
+function renderAddArticleForm(isFromHistory = false) {
+if (!isFromHistory) { history.pushState({ page: 'addArticleForm' }, ''); }
   mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><h2>➕ Añadir Artículo</h2></div>
@@ -2344,9 +2293,8 @@ async function executeExport() {
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
-function renderDashboard() {
+function renderDashboard(isFromHistory = false) {
   setActiveTab('tab-home');
-  navigationHistory = []; 
   updateBackButton();
   const counts = appData.counts;
   const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
