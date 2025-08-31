@@ -185,9 +185,14 @@
   </div>
   
 <script>
-// --- SISTEMA DE NAVEGACIÓN Y ARRANQUE - VERSIÓN 2025 ---
+    document.addEventListener('DOMContentLoaded', () => {
+    
+// ==================================================
+// --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
+// ==================================================
+
+// --- NUEVO SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
-const tg = window.Telegram?.WebApp;
 
 function goBack() {
     if (navigationHistory.length > 0) {
@@ -200,44 +205,21 @@ function goBack() {
 }
 
 function updateBackButton() {
-    if (!tg) return;
+    if (!tg || !tg.BackButton) return;
     if (navigationHistory.length > 0) {
         tg.BackButton.show();
     } else {
         tg.BackButton.hide();
     }
 }
+// --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
 
-// El código se ejecuta solo cuando el DOM está listo
-document.addEventListener('DOMContentLoaded', () => {
-    if (tg) {
-        // SECUENCIA CORRECTA:
-        // 1. Configurar los temas y eventos PRIMERO.
-        tg.onEvent('backButtonClicked', goBack);
-        if (tg.themeParams) { 
-            document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa');
-            document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff');
-            document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333');
-            document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555');
-            document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3');
-            document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
-        }
-        
-        // 2. Expandir la app.
-        tg.expand();
-        
-        // 3. Iniciar nuestra lógica de carga de datos.
-        initializeApp();
-        
-        // 4. Decirle a Telegram que ya está todo listo (AL FINAL).
-        tg.ready();
-
-    } else {
-        // Si no estamos en Telegram, iniciar de todas formas para desarrollo.
-        initializeApp();
-    }
-});
-// --- FIN DEL SISTEMA DE ARRANQUE ---
+const tg = window.Telegram?.WebApp;
+if (tg) { 
+    tg.expand(); 
+    if (tg.BackButton) { tg.BackButton.onClick(goBack); }
+    if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
+}
 
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
@@ -247,12 +229,6 @@ let chatId = tg?.initDataUnsafe?.user?.id;
 if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
 
 let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false };
-let dataStatus = {
-    reminders: 'loading', // Estados posibles: 'loading', 'loaded', 'error'
-    shopping: 'loading',
-    notes: 'loading',
-    gastos: 'loading'
-};
 let initialUserSettings = {};
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
@@ -301,67 +277,21 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 async function initializeApp() { 
-  showSpinner();
-  try {
-    // --- FASE 1: Carga inicial ultrarrápida ---
-    const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_data', chat_ID: chatId }); 
-    const initialData = await initialRes.json();
-    if (initialData.error) throw new Error(initialData.error); 
-    
-    appData.counts = initialData.counts;
-    appData.settings = initialData.settings;
-    appData.isPremium = initialData.isPremium;
-    
+  showSpinner(); 
+  try { 
+    const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_full_dashboard', chat_ID: chatId }); 
+    const data = await res.json(); 
+    if (data.error) throw new Error(data.error); 
+    appData = data; 
     updateChefTabStyle();
     renderDashboard(); 
-    hideSpinner();
-
-    // --- FASE 2: Carga asíncrona de las listas en segundo plano ---
-    fetchWithTimeout(gasWebhookURL, { Type: 'get_reminders_list_only', chat_ID: chatId })
-        .then(res => res.json())
-        .then(data => {
-            if (data && !data.error) {
-                appData.remindersList = data;
-                dataStatus.reminders = 'loaded';
-            } else { dataStatus.reminders = 'error'; }
-        }).catch(() => dataStatus.reminders = 'error');
-
-    fetchWithTimeout(gasWebhookURL, { Type: 'get_shopping_list_only', chat_ID: chatId })
-        .then(res => res.json())
-        .then(data => {
-            if (data && !data.error) {
-                appData.shoppingList = data;
-                dataStatus.shopping = 'loaded';
-            } else { dataStatus.shopping = 'error'; }
-        }).catch(() => dataStatus.shopping = 'error');
-
-    fetchWithTimeout(gasWebhookURL, { Type: 'get_notes_list_only', chat_ID: chatId })
-        .then(res => res.json())
-        .then(data => {
-            if (data && !data.error) {
-                appData.notesList = data;
-                dataStatus.notes = 'loaded';
-            } else { dataStatus.notes = 'error'; }
-        }).catch(() => dataStatus.notes = 'error');
-        
-    fetchWithTimeout(gasWebhookURL, { Type: 'get_gastos_metadata_only', chat_ID: chatId })
-        .then(res => res.json())
-        .then(data => {
-            if (data && !data.error) {
-                appData.counts.gastosMesActual = data.totalMesActual;
-                appData.counts.mesesActivosGastos = data.mesesActivos;
-                dataStatus.gastos = 'loaded';
-                // Actualizamos el contador en la vista si el dashboard sigue visible
-                const gastoBadge = document.querySelector('#dashboard-gastos-badge');
-                if(gastoBadge) gastoBadge.textContent = (data.totalMesActual || '0,00').split(',')[0];
-            } else { dataStatus.gastos = 'error'; }
-        }).catch(() => dataStatus.gastos = 'error');
-
   } catch (err) { 
-    hideSpinner();
+    console.error('Error en carga inicial:', err); 
     showToast(`Error al cargar datos: ${err.message}`, true); 
     mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`; 
-  }
+  } finally { 
+    hideSpinner(); 
+  } 
 }
 
 function setActiveTab(activeTabId) { 
@@ -536,8 +466,9 @@ async function executeDelete(type, id) {
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
-function renderReminderForm(isFromHistory = false) {
-if (!isFromHistory) { history.pushState({ page: 'reminderForm' }, ''); }
+function renderReminderForm() {
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
   mainContentArea.innerHTML = `
     <div class="list-container">
       <div class="list-header"><h2>📝 Nuevo Recordatorio</h2></div>
@@ -591,21 +522,9 @@ async function saveReminder() {
   }
 }
 
-function renderRemindersList(isFromHistory = false) {
-if (!isFromHistory) { history.pushState({ page: 'remindersList' }, ''); }
-
-  if (dataStatus.reminders === 'loading') {
-    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><div id="spinner" class="spinner" style="display:block; position:relative; top:auto; left:auto; transform:none; margin-top: 40px;"></div></div>`;
-    // Reintentamos mostrar la lista en medio segundo
-    setTimeout(renderRemindersList, 500);
-    return;
-  }
-
-  if (dataStatus.reminders === 'error') {
-    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar los recordatorios.</div>`;
-    return;
-  }
-
+function renderRemindersList() {
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
   const reminders = appData.remindersList || [];
   let listHtml = (reminders.length > 0) ? reminders.map(item => `
     <li class="list-item" id="item-${item.tracking_code}">
@@ -622,7 +541,6 @@ if (!isFromHistory) { history.pushState({ page: 'remindersList' }, ''); }
       </div>
     </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
   mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
-  
   document.getElementById('reminders-list').addEventListener('click', (e) => {
     const target = e.target.closest('.dropdown-item');
     if (!target) return;
@@ -661,20 +579,9 @@ async function editReminderDescription(item) {
 // ==================================================
 // --- MÓDULO: COMPRAS ---
 // ==================================================
-function renderShoppingList(isFromHistory = false) {
-if (!isFromHistory) { history.pushState({ page: 'shoppingList' }, ''); }
-
-  if (dataStatus.shopping === 'loading') {
-    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Lista de las Compras</h2></div><div id="spinner" class="spinner" style="display:block; position:relative; top:auto; left:auto; transform:none; margin-top: 40px;"></div></div>`;
-    setTimeout(renderShoppingList, 500);
-    return;
-  }
-
-  if (dataStatus.shopping === 'error') {
-    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la lista de compras.</div>`;
-    return;
-  }
-
+function renderShoppingList() {
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
   const items = appData.shoppingList || [];
   const pendingItems = items.filter(item => item['2'] === 'Pendiente');
   const boughtItems = items.filter(item => item['2'] === 'Comprado');
@@ -803,8 +710,9 @@ function toggleSelectedItemsToPending() {
     .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
 }
 
-function renderAddArticleForm(isFromHistory = false) {
-if (!isFromHistory) { history.pushState({ page: 'addArticleForm' }, ''); }
+function renderAddArticleForm() {
+  navigationHistory.push(renderShoppingList);
+  updateBackButton();
   mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><h2>➕ Añadir Artículo</h2></div>
@@ -879,18 +787,6 @@ async function saveEditedShoppingItem(trackingCode) {
 function renderNotesList() {
     navigationHistory.push(renderDashboard);
     updateBackButton();
-
-    if (dataStatus.notes === 'loading') {
-        mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Mis Notas</h2></div><div id="spinner" class="spinner" style="display:block; position:relative; top:auto; left:auto; transform:none; margin-top: 40px;"></div></div>`;
-        setTimeout(renderNotesList, 500);
-        return;
-    }
-
-    if (dataStatus.notes === 'error') {
-        mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar las notas.</div>`;
-        return;
-    }
-
     const notes = appData.notesList || [];
     let listHtml = (notes.length > 0) ? notes.map(note => `
             <li class="list-item" id="item-${note.Nota_ID}">
@@ -1148,7 +1044,7 @@ function renderEventForm(event = null, returnPath = renderCalendarView) {
     addNotificationBtn.onclick = () => createNotificationRow();
     
     const baseConfig = { time_24hr: true, locale: flatpickr.l10ns.es };
-    const dateTimeConfig = { ...baseConfig, enableTime: true, dateFormat: "Y-m-d H-i" };
+    const dateTimeConfig = { ...baseConfig, enableTime: true, dateFormat: "Y-m-d H:i" };
     const dateConfig = { ...baseConfig, enableTime: false, dateFormat: "Y-m-d" };
     const initialIsAllDay = isEditing && !event.start.dateTime;
     
@@ -2344,8 +2240,9 @@ async function executeExport() {
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
-function renderDashboard(isFromHistory = false) {
+function renderDashboard() {
   setActiveTab('tab-home');
+  navigationHistory = []; // Limpiamos el historial al volver al Home.
   updateBackButton();
   const counts = appData.counts;
   const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
@@ -2371,7 +2268,7 @@ function renderDashboard(isFromHistory = false) {
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
-	  <div class="card clickable-card"><div id="dashboard-gastos-badge" class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${chefCardHtml}
     </div>`;
   
@@ -2440,9 +2337,9 @@ document.getElementById('tab-chef').onclick = () => {
     }
 };
 
-// La llamada a initializeApp() ahora se gestiona dentro del nuevo
-// bloque document.addEventListener('DOMContentLoaded') que añadimos al principio.
+initializeApp();
+
+});
 </script>
 </body>
 </html>
-
