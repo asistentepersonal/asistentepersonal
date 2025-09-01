@@ -272,6 +272,2529 @@ function updateDashboardBadges() {
 // --- FIN: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
 
 // --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
+let isSyncing = false;
+
+async function handleVisibilityChange() {
+    // Si la app no está maximizada o ya está en proceso de sincronización, no hacemos nada.
+    if (!tg.isExpanded || isSyncing) return;
+
+    isSyncing = true;
+    showSpinner(); // Bloquea la UI para evitar interacciones mientras comprobamos.
+
+    try {
+        const syncCheckData = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+        if (syncCheckData.error) throw new Error(syncCheckData.error);
+
+        // 1. Comprobación de Versión del HTML
+        if (syncCheckData.version && syncCheckData.version !== currentHtmlVersion) {
+            // Versión desactualizada. Forzamos una recarga completa para obtener el nuevo HTML.
+            window.location.reload(true);
+            return; // Detenemos la ejecución aquí.
+        }
+
+        // 2. Comprobación de Contadores
+        const oldCountsString = JSON.stringify(appData.counts);
+        const newCountsString = JSON.stringify(syncCheckData.counts);
+
+        if (oldCountsString !== newCountsString) {
+            // Hay cambios. Actualizamos contadores y luego pedimos los datos completos.
+            appData.counts = syncCheckData.counts;
+            updateDashboardBadges(); // Actualiza las insignias en la UI al instante.
+
+            // Ahora, pedimos solo los datos secundarios (las listas).
+            const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+            if (secondaryData.error) throw new Error(secondaryData.error);
+            
+            // Actualizamos silenciosamente los datos en memoria.
+            appData.remindersList = secondaryData.remindersList;
+            appData.shoppingList = secondaryData.shoppingList;
+            appData.notesList = secondaryData.notesList;
+            appData.calendarEvents = secondaryData.calendarEvents;
+            appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+            appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+            appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+            appData.isSecondaryDataLoaded = true;
+            
+            // Volvemos a renderizar las insignias por si cambiaron los datos de gastos/calendario.
+            updateDashboardBadges();
+            showToast("Datos sincronizados.");
+        }
+        // Si no hay cambios en la versión ni en los contadores, no hacemos nada.
+
+    } catch (err) {
+        console.error("Error durante la sincronización inteligente:", err);
+        showToast("Error al sincronizar: " + err.message, true);
+    } finally {
+        // En cualquier caso, ocultamos el spinner y permitimos futuras sincronizaciones.
+        hideSpinner();
+        isSyncing = false;
+    }
+}
+
+function updateDashboardBadges() {
+    const counts = appData.counts;
+    // Nos aseguramos de que el dashboard esté visible antes de intentar actualizarlo.
+    const remindersBadge = document.getElementById('reminders-badge');
+    if (remindersBadge) remindersBadge.textContent = counts.remindersCount || 0;
+
+    const shoppingPendingBadge = document.getElementById('shopping-pending-badge');
+    if (shoppingPendingBadge) shoppingPendingBadge.textContent = counts.shoppingPendingCount || 0;
+
+    const shoppingBoughtBadge = document.getElementById('shopping-bought-badge');
+    if (shoppingBoughtBadge) shoppingBoughtBadge.textContent = counts.shoppingBoughtCount || 0;
+
+    const notesBadge = document.getElementById('notes-badge');
+    if (notesBadge) notesBadge.textContent = counts.notesCount || 0;
+
+    const calendarBadge = document.getElementById('calendar-badge');
+    if (calendarBadge) calendarBadge.textContent = counts.calendarTodayCount || 0;
+
+    const gastosBadge = document.getElementById('gastos-badge');
+    if (gastosBadge) gastosBadge.textContent = (counts.gastosMesActual || '--').split(',')[0];
+}
+// --- FIN: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
+
+
+// --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
+let navigationHistory = [];
+
+function goBack() {
+    if (navigationHistory.length > 0) {
+        const previousStep = navigationHistory.pop();
+        if (typeof previousStep === 'function') {
+            previousStep();
+        }
+    }
+    updateBackButton();
+}
+
+function updateBackButton() {
+    if (!tg || !tg.BackButton) return;
+    if (tg.isVersionAtLeast('6.1') && tg.BackButton) {
+        if (navigationHistory.length > 0) {
+            tg.BackButton.show();
+        } else {
+            tg.BackButton.hide();
+        }
+    }
+}
+
+const tg = window.Telegram?.WebApp;
+if (tg) { 
+    tg.expand(); 
+    if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
+    if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
+    
+    // Registramos nuestra nueva función de sincronización inteligente.
+    tg.onEvent('viewportChanged', handleVisibilityChange);
+}
+
+const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
+const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
+const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
+let selectedImageFile = null;
+let chatId = tg?.initDataUnsafe?.user?.id;
+if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
+
+let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false, isSecondaryDataLoaded: false };
+let initialUserSettings = {};
+let secondaryDataPromise = null;
+const mainContentArea = document.getElementById('main-content-area');
+const spinner = document.getElementById('spinner');
+
+function showSpinner(message = '') { spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : ''; spinner.style.display = 'block'; }
+function hideSpinner() { spinner.style.display = 'none'; }
+function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
+
+async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) {
+  const controller = new AbortController();
+  const timeout = isMakeWebhook ? 60000 : 30000;
+  const id = setTimeout(() => controller.abort(), timeout);
+  let options = { method: 'POST', signal: controller.signal };
+  if (isMakeWebhook) {
+      const formData = new FormData();
+      formData.append('prompt', payloadObject.prompt);
+      if (payloadObject.image_count !== undefined) { formData.append('image_count', payloadObject.image_count); }
+      if (payloadObject.images && payloadObject.images.length > 0) { payloadObject.images.forEach(imageFile => { formData.append('images', imageFile, imageFile.name); }); }
+      options.body = formData;
+  } else {
+      const formData = new FormData();
+      formData.append("postData", JSON.stringify(payloadObject));
+      options.body = formData;
+  }
+  try {
+    const response = await fetch(resource, options);
+    clearTimeout(id);
+    if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') throw new Error('La solicitud tardó demasiado.');
+    throw error;
+  }
+}
+
+async function initializeApp() {
+  showSpinner();
+  try {
+    secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
+      .then(res => res.json())
+      .then(secondaryData => {
+        if (secondaryData.error) {
+          showToast("Error cargando datos de fondo: " + secondaryData.error, true);
+          return;
+        }
+        appData.remindersList = secondaryData.remindersList;
+        appData.shoppingList = secondaryData.shoppingList;
+        appData.notesList = secondaryData.notesList;
+        appData.calendarEvents = secondaryData.calendarEvents;
+        
+        // --- CORRECCIÓN ---
+        // Se actualizan los contadores de la carga secundaria por separado para no contaminar el objeto de comparación
+        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+        appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+        appData.isSecondaryDataLoaded = true;
+        
+        updateDashboardBadges();
+      });
+
+    const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
+    const initialData = await initialRes.json();
+    if (initialData.error) throw new Error(initialData.error);
+
+    // --- CORRECCIÓN ---
+    // Guardamos una copia limpia de los contadores iniciales para la comparación en el futuro
+    initialCountsForSync = initialData.counts; 
+    appData.counts = initialData.counts;
+    appData.settings = initialData.settings;
+    appData.isPremium = initialData.isPremium;
+
+    updateChefTabStyle();
+    renderDashboard();
+    hideSpinner();
+
+  } catch (err) {
+    console.error('Error en carga inicial:', err);
+    showToast(`Error al cargar datos: ${err.message}`, true);
+    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`;
+    hideSpinner();
+  }
+}
+
+function setActiveTab(activeTabId) { 
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); 
+  const activeTab = document.getElementById(activeTabId); 
+  if (activeTab) activeTab.classList.add('active'); 
+}
+
+document.body.addEventListener('click', (e) => {
+    const menuBtn = e.target.closest('.card-menu-btn, .generic-menu-btn');
+    
+    if (!menuBtn && !e.target.closest('.dropdown-menu')) {
+        document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+        return;
+    }
+
+    if (menuBtn) {
+        e.stopPropagation();
+        const menuId = menuBtn.dataset.menuId;
+        const menu = document.getElementById(menuId);
+
+        if (menu) {
+            const isShown = menu.classList.contains('show');
+            
+            document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                if (m.id !== menuId) m.classList.remove('show');
+            });
+
+            if (isShown) {
+                menu.classList.remove('show');
+            } else {
+                const buttonRect = menuBtn.getBoundingClientRect();
+                const windowHeight = window.innerHeight;
+
+                if (buttonRect.top > (windowHeight / 2)) {
+                    menu.classList.add('up');
+                } else {
+                    menu.classList.remove('up');
+                }
+                
+                menu.classList.add('show');
+            }
+        }
+    }
+});
+
+function updateChefTabStyle() {
+    const chefTab = document.getElementById('tab-chef');
+    if (!chefTab) return;
+    
+    const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
+    
+    if (isPremium) {
+        chefTab.classList.remove('tab-premium-locked');
+        chefTab.innerHTML = '🧑‍🍳 Chef';
+    } else {
+        chefTab.classList.add('tab-premium-locked');
+        chefTab.innerHTML = '⭐ Chef';
+    }
+}
+
+window.confirmDelete = function(type, id) {
+    const itemElement = document.getElementById(`item-${id}`);
+    if (!itemElement) return;
+
+    let actionsContainer, menuButton;
+
+    if (itemElement.classList.contains('form-card')) {
+        actionsContainer = itemElement.querySelector('.button-group');
+        menuButton = null; 
+    } else {
+        actionsContainer = itemElement.querySelector('.list-item-actions');
+        menuButton = actionsContainer.querySelector('.generic-menu-btn');
+        const dropdown = actionsContainer.querySelector('.dropdown-menu');
+        if (dropdown) dropdown.classList.remove('show');
+        if (menuButton) menuButton.style.display = 'none';
+    }
+    
+    actionsContainer.querySelectorAll('.confirm-btn-yes, .confirm-btn-no').forEach(btn => btn.remove());
+    
+    const confirmBtnYes = document.createElement('button');
+    confirmBtnYes.className = 'confirm-btn-yes';
+    confirmBtnYes.textContent = 'Sí, Eliminar';
+    confirmBtnYes.onclick = (e) => { e.stopPropagation(); executeDelete(type, id); };
+
+    const confirmBtnNo = document.createElement('button');
+    confirmBtnNo.className = 'confirm-btn-no';
+    confirmBtnNo.textContent = 'No';
+    confirmBtnNo.onclick = (e) => { 
+        e.stopPropagation(); 
+        if(menuButton) menuButton.style.display = 'block'; 
+        confirmBtnYes.remove(); 
+        confirmBtnNo.remove(); 
+    };
+    
+    actionsContainer.appendChild(confirmBtnNo);
+    actionsContainer.appendChild(confirmBtnYes);
+}
+
+async function executeDelete(type, id) {
+    let payload = { chat_ID: chatId };
+    let successMessage = '';
+    
+    try {
+        switch(type) {
+            case 'reminder':
+                payload.Type = 'delete_reminder'; payload.tracking_code = id; successMessage = 'Recordatorio eliminado';
+                const reminderIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
+                if (reminderIndex > -1) { appData.remindersList.splice(reminderIndex, 1); appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1); }
+                renderRemindersList();
+                break;
+            case 'shopping_item':
+                payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado';
+                const itemIndex = appData.shoppingList.findIndex(i => i['3'] === id);
+                if (itemIndex > -1) {
+                    const item = appData.shoppingList[itemIndex];
+                    if (item['2'] === 'Pendiente') { appData.counts.shoppingPendingCount = Math.max(0, appData.counts.shoppingPendingCount - 1); } 
+                    else { appData.counts.shoppingBoughtCount = Math.max(0, appData.counts.shoppingBoughtCount - 1); }
+                    appData.shoppingList.splice(itemIndex, 1);
+                }
+                renderShoppingList();
+                break;
+            case 'note':
+                payload.Type = 'delete_note'; payload.note_id = id; successMessage = 'Nota eliminada';
+                const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === id);
+                if (noteIndex > -1) { appData.notesList.splice(noteIndex, 1); appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1); }
+                renderNotesList();
+                break;
+            case 'calendar_event':
+                payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado';
+                const eventIndex = appData.calendarEvents.findIndex(e => e.id === id);
+                if (eventIndex > -1) {
+                    const event = appData.calendarEvents[eventIndex];
+                    const eventDateStr = event.start.dateTime || event.start.date;
+                    if (eventDateStr) {
+                      const eventDate = new Date(eventDateStr).toISOString().split('T')[0];
+                      if (eventDate === new Date().toISOString().split('T')[0]) { appData.counts.calendarTodayCount = Math.max(0, appData.counts.calendarTodayCount - 1); }
+                    }
+                    appData.calendarEvents.splice(eventIndex, 1);
+                }
+                renderCalendarView();
+                break;
+            case 'gasto':
+                payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
+                const gastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === id);
+                if (gastoIndex > -1) {
+                    const gastoToDelete = gastosEncontrados[gastoIndex];
+                    const importeARestar = parseFloat(gastoToDelete.Importe);
+                    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
+                    const nuevosGastosTotal = gastosActualesNum - importeARestar;
+                    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    gastosEncontrados.splice(gastoIndex, 1);
+                }
+                goBack();
+                break;
+            default: return;
+        }
+
+    } catch(e) { showToast('Error local al procesar.', true); return; }
+
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showToast(successMessage);
+    } catch (err) {
+        showToast(`Error: ${err.message}. Restaurando...`, true);
+        initializeApp();
+    }
+}
+
+// ==================================================
+// --- MÓDULO: RECORDATORIOS ---
+// ==================================================
+function renderReminderForm() {
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
+  mainContentArea.innerHTML = `
+    <div class="list-container">
+      <div class="list-header"><h2>📝 Nuevo Recordatorio</h2></div>
+      <div class="form-card">
+        <label>Descripción</label><textarea id="text" rows="3" required></textarea>
+        <label>Fecha y hora</label><input type="text" id="time" required/>
+        <label>Tipo</label>
+        <div class="radio-group" id="reminder-type-group">
+          <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
+          <label><input type="radio" name="category" value="Diario"/> Diario</label>
+          <label><input type="radio" name="category" value="Recurrente"/> Recurrente</label>
+        </div>
+        <div id="recurrent-hours-container">
+          <label>Repetir cada...</label>
+          <select id="recurrent-hours">${[...Array(11).keys()].map(i => `<option value="${i + 2}">${i + 2} horas</option>`).join('')}</select>
+        </div>
+        <button id="sendBtn" disabled>Crear Recordatorio</button>
+      </div>
+    </div>`;
+  const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
+  flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H-i", defaultDate: new Date(), locale: "es", minDate: "today" });
+  function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
+  function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
+  textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
+  sendBtn.onclick = saveReminder;
+  toggleRecurrentField(); validate();
+}
+
+async function saveReminder() {
+  const category = document.querySelector('input[name="category"]:checked').value;
+  const description = document.getElementById('text').value.trim();
+  const time = document.getElementById('time')._flatpickr.selectedDates[0];
+  const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null;
+  const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
+  appData.counts.remindersCount++;
+  const tempId = 'temp-' + Date.now();
+  appData.remindersList.unshift({ 'Fecha': new Date().toLocaleString(), 'Descripcion': description, 'Categoria': category, 'tracking_code': tempId });
+  goBack();
+  showToast('Recordatorio creado');
+  try { 
+    const res = await fetchWithTimeout(gasWebhookURL, payload); 
+    const data = await res.json(); 
+    if(data.error) throw new Error(data.error); 
+    if (data.tracking_code) {
+        const tempReminder = appData.remindersList.find(r => r.tracking_code === tempId);
+        if (tempReminder) tempReminder.tracking_code = data.tracking_code;
+    }
+  } catch (err) { 
+    showToast(`Error: ${err.message}. No se guardó.`, true); 
+    initializeApp();
+  }
+}
+
+async function renderRemindersList() {
+  if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
+  const reminders = appData.remindersList || [];
+  let listHtml = (reminders.length > 0) ? reminders.map(item => `
+    <li class="list-item" id="item-${item.tracking_code}">
+      <div class="list-item-content">
+        <span class="list-item-title">${item.Descripcion}</span>
+        <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+      </div>
+      <div class="list-item-actions">
+        <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
+        <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
+          <a class="dropdown-item" data-action="edit-reminder" data-tracking-code="${item.tracking_code}">Editar Texto</a>
+          <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
+        </div>
+      </div>
+    </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+  mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
+  document.getElementById('reminders-list').addEventListener('click', (e) => {
+    const target = e.target.closest('.dropdown-item');
+    if (!target) return;
+    const action = target.dataset.action;
+    const trackingCode = target.dataset.trackingCode;
+    if (action === 'edit-reminder') {
+      const item = appData.remindersList.find(r => r.tracking_code === trackingCode);
+      if (item) editReminderDescription(item);
+    } else if (action === 'delete-reminder') {
+      confirmDelete('reminder', trackingCode);
+    }
+  });
+}
+
+async function editReminderDescription(item) {
+  const newDescription = prompt('Editar descripción del recordatorio:', item.Descripcion);
+  if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item.Descripcion) {
+    const originalDescription = item.Descripcion;
+    const itemIndex = appData.remindersList.findIndex(r => r.tracking_code === item.tracking_code);
+    if (itemIndex === -1) return;
+    appData.remindersList[itemIndex].Descripcion = newDescription.trim();
+    renderRemindersList();
+    try {
+      const payload = { Type: 'edit_reminder_description', chat_ID: chatId, tracking_code: item.tracking_code, new_description: newDescription.trim() };
+      const res = await fetchWithTimeout(gasWebhookURL, payload);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+    } catch (err) {
+      showToast(`Error: ${err.message}. No se actualizó.`, true);
+      appData.remindersList[itemIndex].Descripcion = originalDescription;
+      renderRemindersList();
+    }
+  }
+}
+
+// ==================================================
+// --- MÓDULO: COMPRAS ---
+// ==================================================
+async function renderShoppingList() {
+  if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
+  const items = appData.shoppingList || [];
+  const pendingItems = items.filter(item => item['2'] === 'Pendiente');
+  const boughtItems = items.filter(item => item['2'] === 'Comprado');
+  let listHtml = '';
+  const createItemHTML = (item) => {
+    const isPending = item['2'] === 'Pendiente';
+    if (isPending) {
+      return `
+        <li class="shopping-item" id="item-${item['3']}">
+            <button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="Pendiente" data-cycle="${item['5'] || 0}"><span>${item['1']}</span></button>
+            <div class="list-item-actions">
+                <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
+                <div class="dropdown-menu" id="menu-item-${item['3']}">
+                    <a class="dropdown-item" data-action="edit-shopping-item" data-tracking-code="${item['3']}">Editar</a>
+                    <a class="dropdown-item" data-action="delete-shopping-item" data-tracking-code="${item['3']}">Eliminar</a>
+                </div>
+            </div>
+        </li>`;
+    } else {
+      return `
+        <li class="shopping-item" id="item-${item['3']}">
+            <div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}"></div>
+            <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="Comprado" data-cycle="${item['5'] || 0}">
+                <span>${item['1']}</span>
+                ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
+            </button>
+            <div class="list-item-actions">
+                <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
+                <div class="dropdown-menu" id="menu-item-${item['3']}">
+                    <a class="dropdown-item" data-action="edit-shopping-item" data-tracking-code="${item['3']}">Editar</a>
+                    <a class="dropdown-item" data-action="delete-shopping-item" data-tracking-code="${item['3']}">Eliminar</a>
+                </div>
+            </div>
+        </li>`;
+    }
+  };
+  if (pendingItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>'; listHtml += pendingItems.map(createItemHTML).join(''); }
+  if (boughtItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>'; listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`; listHtml += boughtItems.map(createItemHTML).join(''); }
+  if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
+  mainContentArea.innerHTML = `
+      <div class="list-container">
+          <div class="list-header"><h2>Lista de las Compras</h2></div>
+          <ul class="list-style-none" id="shopping-list-ul">${listHtml}</ul>
+          <div class="add-article-btn-container">
+              <button class="add-article-btn" id="add-shopping-item-btn">Añadir Artículo</button>
+              <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
+          </div>
+      </div>`;
+  document.getElementById('shopping-list-ul').addEventListener('click', handleShoppingItemInteractions);
+  document.getElementById('add-shopping-item-btn').onclick = renderAddArticleForm;
+  const selectAllCheckbox = document.getElementById('select-all-checkbox');
+  if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
+  document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
+  document.getElementById('multi-select-toggle-btn').onclick = toggleSelectedItemsToPending;
+  updateMultiSelectButtonState();
+}
+
+function handleShoppingItemInteractions(event) {
+  const toggleButton = event.target.closest('.shopping-item-toggle-btn');
+  if (toggleButton) {
+      const trackingCode = toggleButton.dataset.trackingCode;
+      const currentStatus = toggleButton.dataset.currentStatus;
+      const cycle = parseInt(toggleButton.dataset.cycle, 10);
+      
+      if (currentStatus === 'Pendiente' && cycle === 0) {
+          optimisticDeleteItemPermanently(trackingCode);
+      } else {
+          const newStatus = currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+          optimisticToggleShoppingItemStatus(trackingCode, newStatus);
+      }
+      return;
+  }
+  const menuItem = event.target.closest('.dropdown-item');
+  if(menuItem) {
+    const action = menuItem.dataset.action;
+    const trackingCode = menuItem.dataset.trackingCode;
+    if (action === 'edit-shopping-item') {
+      const item = appData.shoppingList.find(i => i['3'] === trackingCode);
+      if(item) renderEditShoppingItemForm(item);
+    } else if (action === 'delete-shopping-item') {
+      confirmDelete('shopping_item', trackingCode);
+    }
+  }
+}
+
+function optimisticDeleteItemPermanently(trackingCode) {
+    const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
+    if (itemIndex === -1) return;
+    appData.shoppingList.splice(itemIndex, 1);
+    appData.counts.shoppingPendingCount--;
+    renderShoppingList();
+    showToast('Artículo de un solo uso eliminado.');
+    fetchWithTimeout(gasWebhookURL, { Type: 'delete_item_shopping_list', chat_ID: chatId, tracking_code: trackingCode })
+        .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
+        .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
+}
+
+function optimisticToggleShoppingItemStatus(trackingCode, newStatus) {
+  const itemIndex = appData.shoppingList.findIndex(item => item['3'] === trackingCode);
+  if (itemIndex === -1) return;
+  appData.shoppingList[itemIndex]['2'] = newStatus;
+  if (newStatus === 'Comprado') { appData.shoppingList[itemIndex]['4'] = new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); appData.counts.shoppingPendingCount--; appData.counts.shoppingBoughtCount++; } else { appData.shoppingList[itemIndex]['4'] = ''; appData.counts.shoppingPendingCount++; appData.counts.shoppingBoughtCount--; }
+  renderShoppingList();
+  fetchWithTimeout(gasWebhookURL, { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus })
+      .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
+      .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
+}
+
+function updateMultiSelectButtonState() {
+  const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
+  if (!multiSelectToggleButton) return;
+  const selectedCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
+  multiSelectToggleButton.disabled = selectedCount === 0;
+  multiSelectToggleButton.textContent = selectedCount > 0 ? `Marcar ${selectedCount} para comprar` : 'Marcar para comprar';
+}
+
+function toggleSelectedItemsToPending() {
+  const trackingCodes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
+  if (trackingCodes.length === 0) return;
+  trackingCodes.forEach(code => { const itemIndex = appData.shoppingList.findIndex(item => item['3'] === code); if (itemIndex !== -1) { appData.shoppingList[itemIndex]['2'] = 'Pendiente'; appData.shoppingList[itemIndex]['4'] = ''; } });
+  appData.counts.shoppingPendingCount += trackingCodes.length;
+  appData.counts.shoppingBoughtCount -= trackingCodes.length;
+  renderShoppingList();
+  fetchWithTimeout(gasWebhookURL, { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes })
+    .then(res => res.json()).then(data => { if (data.error) throw new Error(data.error); })
+    .catch(err => { showToast(`Error: ${err.message}. No se sincronizó.`, true); initializeApp(); });
+}
+
+function renderAddArticleForm() {
+  navigationHistory.push(renderShoppingList);
+  updateBackButton();
+  mainContentArea.innerHTML = `
+      <div class="list-container">
+          <div class="list-header"><h2>➕ Añadir Artículo</h2></div>
+          <div class="form-card">
+              <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required></textarea>
+              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="0" min="0" step="1" required />
+              <button id="add-article-send-btn" disabled>Añadir</button>
+          </div>
+      </div>`;
+  const sendBtn = document.getElementById('add-article-send-btn');
+  const descriptionInput = document.getElementById('article-description');
+  descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
+  sendBtn.onclick = addArticle;
+}
+
+async function addArticle() {
+  const description = document.getElementById('article-description').value.trim();
+  const cycle = document.getElementById('article-cycle').value || 0;
+  if (!description) return;
+  const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
+  appData.counts.shoppingPendingCount++;
+  const tempId = 'temp-' + Date.now();
+  appData.shoppingList.unshift({ '1': description, '2': 'Pendiente', '3': tempId, '4': '', '5': cycle });
+  goBack();
+  showToast('Artículo añadido');
+  try {
+      const res = await fetchWithTimeout(gasWebhookURL, payload);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+  } catch (err) { showToast(`Error: ${err.message}. No se añadió.`, true); initializeApp(); }
+}
+
+function renderEditShoppingItemForm(item) {
+    navigationHistory.push(renderShoppingList);
+    updateBackButton();
+    mainContentArea.innerHTML = `
+      <div class="list-container">
+          <div class="list-header"><h2>✏️ Editar Artículo</h2></div>
+          <div class="form-card">
+              <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
+              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
+              <button id="edit-article-send-btn" class="enabled">Guardar Cambios</button>
+          </div>
+      </div>`;
+    document.getElementById('edit-article-send-btn').onclick = () => saveEditedShoppingItem(item['3']);
+}
+
+async function saveEditedShoppingItem(trackingCode) {
+    const newDescription = document.getElementById('article-description').value.trim();
+    const newCycle = document.getElementById('article-cycle').value || 0;
+    if (!newDescription) return;
+    const itemIndex = appData.shoppingList.findIndex(i => i['3'] === trackingCode);
+    if (itemIndex === -1) return;
+    const originalItem = { ...appData.shoppingList[itemIndex] };
+    appData.shoppingList[itemIndex]['1'] = newDescription;
+    appData.shoppingList[itemIndex]['5'] = newCycle;
+    goBack();
+    const payload = { Type: 'edit_shopping_item', chat_ID: chatId, tracking_code: trackingCode, new_description: newDescription, new_cycle: parseInt(newCycle) };
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+    } catch (err) {
+        showToast(`Error: ${err.message}. No se guardó.`, true);
+        appData.shoppingList[itemIndex] = originalItem;
+        renderShoppingList();
+    }
+}
+// ==================================================
+// --- MÓDULO: NOTAS ---
+// ==================================================
+async function renderNotesList() {
+    if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    const notes = appData.notesList || [];
+    let listHtml = (notes.length > 0) ? notes.map(note => `
+            <li class="list-item" id="item-${note.Nota_ID}">
+                <div class="list-item-content">
+                    <span class="list-item-title">${note.Titulo}</span>
+                    <span class="list-item-subtitle">${note.Fecha}</span>
+                    <p style="margin-top: 8px; white-space: pre-wrap; word-wrap: break-word;">${note.Descripcion}</p>
+                </div>
+                <div class="list-item-actions">
+                    <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
+                    <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
+                        <a class="dropdown-item" data-action="edit-note" data-note-id="${note.Nota_ID}">Editar</a>
+                        <a class="dropdown-item" data-action="delete-note" data-note-id="${note.Nota_ID}">Eliminar</a>
+                    </div>
+                </div>
+            </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+    
+    mainContentArea.innerHTML = `<div class="list-container">
+                                <div class="list-header"><h2>Mis Notas</h2></div>
+                                <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
+                                <ul class="list-style-none" id="notes-list">${listHtml}</ul>
+                             </div>`;
+    document.getElementById('create-new-note-btn').onclick = renderNoteForm;
+    document.getElementById('notes-list').addEventListener('click', e => {
+        const target = e.target.closest('.dropdown-item');
+        if (!target) return;
+        const action = target.dataset.action;
+        const noteId = target.dataset.noteId;
+        if (action === 'edit-note') {
+            const note = appData.notesList.find(n => n.Nota_ID === noteId);
+            if (note) renderNoteForm(note);
+        } else if (action === 'delete-note') {
+            confirmDelete('note', noteId);
+        }
+    });
+}
+function renderNoteForm(note = null) {
+    navigationHistory.push(renderNotesList);
+    updateBackButton();
+    const isEditing = note && note.Nota_ID;
+    mainContentArea.innerHTML = `<div class="list-container">
+                                <div class="list-header"><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
+                                <div class="form-card">
+                                    <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
+                                    <label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea>
+                                    <button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
+                                </div>
+                             </div>`;
+    const titleInput = document.getElementById('note-title');
+    const descriptionInput = document.getElementById('note-description');
+    const saveBtn = document.getElementById('save-note-btn');
+    function validate() {
+        const isEnabled = titleInput.value.trim() !== '' && descriptionInput.value.trim() !== '';
+        saveBtn.disabled = !isEnabled;
+        saveBtn.classList.toggle('enabled', isEnabled);
+    }
+    titleInput.oninput = validate;
+    descriptionInput.oninput = validate;
+    saveBtn.onclick = saveNote;
+    validate();
+}
+
+async function saveNote() {
+    const saveBtn = document.getElementById('save-note-btn');
+    const title = document.getElementById('note-title').value.trim();
+    const description = document.getElementById('note-description').value.trim();
+    const noteId = saveBtn.dataset.noteId;
+    const isEditing = !!noteId;
+    const payload = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', note_id: noteId, title: title, description: description };
+    if (isEditing) {
+        const itemIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
+        if (itemIndex === -1) return;
+        const originalNote = { ...appData.notesList[itemIndex] };
+        appData.notesList[itemIndex].Titulo = title;
+        appData.notesList[itemIndex].Descripcion = description;
+        goBack();
+        showToast('Nota guardada');
+        try {
+            const res = await fetchWithTimeout(gasWebhookURL, payload);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+        } catch (err) {
+            showToast(`Error: ${err.message}. No se pudo guardar.`, true);
+            appData.notesList[itemIndex] = originalNote;
+            renderNotesList();
+        }
+    } else {
+        appData.counts.notesCount++;
+        const tempId = 'temp-' + Date.now();
+        appData.notesList.unshift({ Nota_ID: tempId, Titulo: title, Descripcion: description, Fecha: new Date().toLocaleDateString('es-ES') });
+        goBack();
+        showToast('Nota creada');
+        try {
+            const res = await fetchWithTimeout(gasWebhookURL, payload);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            if(data.newNoteId){
+                const tempNote = appData.notesList.find(n => n.Nota_ID === tempId);
+                if(tempNote) tempNote.Nota_ID = data.newNoteId;
+            }
+        } catch (err) {
+            showToast(`Error: ${err.message}. No se pudo crear la nota.`, true);
+            initializeApp();
+        }
+    }
+}
+
+// ==================================================
+// --- MÓDULO: CALENDARIO ---
+// ==================================================
+let lastCalendarSearchQuery = null;
+
+async function renderCalendarView(searchQuery = null, useCache = false) {
+    if (!appData.isSecondaryDataLoaded && !searchQuery) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    
+    if (!useCache) { showSpinner(); }
+
+    try {
+        let events;
+        if (useCache && !searchQuery) {
+            events = appData.calendarEvents;
+        } else if (searchQuery) {
+            const res = await fetchWithTimeout(gasWebhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: searchQuery });
+            events = await res.json(); if (events.error) throw new Error(events.error);
+            appData.calendarEvents = events;
+            lastCalendarSearchQuery = searchQuery;
+        } else {
+            const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
+            const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+            events = await res.json(); if (events.error) throw new Error(events.error);
+            appData.calendarEvents = events;
+            lastCalendarSearchQuery = null;
+        }
+
+        const groupAndRenderEvents = (evs) => {
+            if (!evs || evs.length === 0) {
+                const message = searchQuery ? `No se encontraron eventos para "${searchQuery}".` : "No tienes eventos en los próximos 30 días.";
+                return `<div class="no-data-msg">🗓️<br>${message}</div>`;
+            }
+            const eventsByDay = evs.reduce((acc, event) => {
+                const dateKey = event.start.dateTime || event.start.date; if (!dateKey) return acc;
+                const day = new Date(dateKey).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+                if (!acc[day]) acc[day] = []; acc[day].push(event); return acc;
+            }, {});
+            let html = '';
+            for (const day in eventsByDay) {
+                html += `<h3 class="day-header">${day}</h3>`;
+                html += Object.values(eventsByDay[day]).map(event => {
+                    const isAllDay = !event.start.dateTime;
+                    const startTime = isAllDay ? 'Todo el día' : new Date(event.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    const endTime = isAllDay ? '' : ' - ' + new Date(event.end.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    return `<li class="list-item" id="item-${event.id}">
+                              <div class="list-item-content" onclick="this.parentElement.classList.toggle('open')">
+                                <span class="list-item-title">${event.summary}</span>
+                                <span class="list-item-subtitle">${startTime}${endTime}</span>
+                                <div class="event-description">${event.description || ''}</div>
+                              </div>
+                              <div class="list-item-actions">
+                                <button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button>
+                                <div class="dropdown-menu" id="menu-item-${event.id}">
+                                  <a class="dropdown-item" data-action="edit-calendar-event" data-event-id="${event.id}">Editar</a>
+                                  <a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a>
+                                  ${event.htmlLink ? `<a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a>` : ''}
+                                </div>
+                              </div></li>`;
+                }).join('');
+            }
+            return html;
+        };
+        
+        mainContentArea.innerHTML = `<div class="list-container">
+                                  <div class="list-header"><h2>Calendario</h2></div>
+                                  <div class="add-article-btn-container">
+                                    <button class="add-article-btn" id="add-event-btn">Añadir Evento</button>
+                                    <button class="add-article-btn" id="search-event-btn">Buscar</button>
+                                  </div>
+                                  <ul class="list-style-none" id="calendar-list">${groupAndRenderEvents(events)}</ul></div>`;
+                                
+        document.getElementById('add-event-btn').onclick = () => renderEventForm(null, () => renderCalendarView(null, true));
+        document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
+        document.getElementById('calendar-list').addEventListener('click', (e) => {
+            const target = e.target.closest('.dropdown-item'); if (!target || target.href) return;
+            const action = target.dataset.action; const eventId = target.dataset.eventId;
+            if (action === 'delete-calendar-event') { confirmDelete('calendar_event', eventId);
+            } else if (action === 'edit-calendar-event') {
+                const event = appData.calendarEvents.find(ev => ev.id === eventId);
+                if (event) renderEventForm(event, () => renderCalendarView(lastCalendarSearchQuery, true));
+            }
+        });
+    } catch (err) { mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`;
+    } finally { if (!useCache) { hideSpinner(); } }
+}
+
+function renderEventForm(event = null, returnPath = renderCalendarView) {
+    navigationHistory.push(() => returnPath(null, true));
+    updateBackButton();
+    
+    const isEditing = event !== null;
+
+    mainContentArea.innerHTML = `
+      <div class="list-container"><div class="list-header"><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
+      <div class="form-card" id="item-${isEditing ? event.id : 'new'}">
+          <label>Título</label><input type="text" id="event-summary" value="${isEditing ? event.summary.replace('[ASIST_OK] ', '') : ''}" required />
+          <label><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;" ${isEditing && !event.start.dateTime ? 'checked' : ''}> Todo el día</label>
+          <label>Inicio</label><input type="text" id="event-start">
+          <label>Fin</label><input type="text" id="event-end">
+          <label>Notificarme</label>
+          <div id="notifications-container"></div>
+          <div class="add-article-btn-container" style="padding: 10px 0;">
+            <button id="add-notification-btn" class="add-article-btn" style="width:100%; max-width:100%;" disabled>➕ Añadir Notificación</button>
+          </div>
+          <label>Descripción</label><textarea id="event-description" rows="4">${isEditing ? (event.description || '') : ''}</textarea>
+          <div class="button-group">
+            <button id="save-event-btn" class="enabled" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button>
+            <button id="cancel-event-btn" class="cancel">Cancelar</button>
+          </div></div></div>`;
+
+    document.getElementById('cancel-event-btn').onclick = goBack;
+    const addNotificationBtn = document.getElementById('add-notification-btn');
+    const notificationsContainer = document.getElementById('notifications-container');
+
+    const updateAddNotificationButtonVisibility = () => {
+        const rows = notificationsContainer.querySelectorAll('.notification-row');
+        const lastRow = rows.length > 0 ? rows[rows.length - 1] : null; let isLastRowFilled = true;
+        if (lastRow) {
+            const method = lastRow.querySelector('.event-reminder-method').value;
+            const quantity = lastRow.querySelector('.event-reminder-quantity').value;
+            const unit = lastRow.querySelector('.event-reminder-unit').value;
+            isLastRowFilled = method && quantity.trim() !== '' && parseInt(quantity, 10) > 0 && unit;
+        }
+        addNotificationBtn.style.display = 'block'; addNotificationBtn.disabled = !isLastRowFilled;
+        addNotificationBtn.classList.toggle('enabled', isLastRowFilled);
+    };
+    
+    const createNotificationRow = (reminder = null) => {
+        const row = document.createElement('div'); row.className = 'notification-row';
+        let quantity = '', unit = '';
+        if(reminder){
+             if (reminder.minutes % (24 * 60) === 0) { unit = 'days'; quantity = reminder.minutes / (24 * 60); }
+             else if (reminder.minutes % 60 === 0) { unit = 'hours'; quantity = reminder.minutes / 60; }
+             else { unit = 'minutes'; quantity = reminder.minutes; }
+        }
+        row.innerHTML = `
+            <select class="event-reminder-method"><option value="" selected disabled>Tipo</option><option value="popup" ${reminder && reminder.method ==='popup' ? 'selected':''}>Notificación</option><option value="email" ${reminder && reminder.method ==='email' ? 'selected':''}>Email</option></select>
+            <input type="number" class="event-reminder-quantity" value="${quantity}" min="1" placeholder="10"/>
+            <select class="event-reminder-unit"><option value="" selected disabled>Unidad</option><option value="minutes" ${unit ==='minutes'?'selected':''}>min</option><option value="hours" ${unit==='hours'?'selected':''}>hrs</option><option value="days" ${unit==='days'?'selected':''}>días</option></select>
+            <button class="remove-notification-btn">🗑️</button>`;
+        notificationsContainer.appendChild(row);
+        row.querySelector('.remove-notification-btn').onclick = () => { row.remove(); updateAddNotificationButtonVisibility(); };
+        row.querySelectorAll('input, select').forEach(el => el.addEventListener('input', updateAddNotificationButtonVisibility));
+        updateAddNotificationButtonVisibility();
+    };
+
+    addNotificationBtn.onclick = () => createNotificationRow();
+    
+    const baseConfig = { time_24hr: true, locale: flatpickr.l10ns.es };
+    const dateTimeConfig = { ...baseConfig, enableTime: true, dateFormat: "Y-m-d H:i" };
+    const dateConfig = { ...baseConfig, enableTime: false, dateFormat: "Y-m-d" };
+    const initialIsAllDay = isEditing && !event.start.dateTime;
+    
+    const startPicker = flatpickr("#event-start", { 
+        ...(initialIsAllDay ? dateConfig : dateTimeConfig),
+        defaultDate: isEditing ? new Date(event.start.dateTime || event.start.date) : new Date(),
+        onChange: function(selectedDates) {
+            if (selectedDates[0] && !document.getElementById('event-all-day').checked) {
+                const endPicker = document.getElementById('event-end')._flatpickr;
+                const currentEndDate = endPicker.selectedDates[0];
+                const newEndDate = new Date(selectedDates[0].getTime() + 3600000);
+                if (!currentEndDate || newEndDate > currentEndDate) { endPicker.setDate(newEndDate); }
+            }
+        }
+    });
+    const endPicker = flatpickr("#event-end", { 
+        ...(initialIsAllDay ? dateConfig : dateTimeConfig),
+        defaultDate: isEditing ? new Date(event.end.dateTime || event.end.date) : new Date(Date.now() + 3600000)
+    });
+
+    document.getElementById('event-all-day').addEventListener('change', (e) => {
+        const isAllDay = e.target.checked; const newConfig = isAllDay ? dateConfig : dateTimeConfig;
+        const currentStartDate = startPicker.selectedDates[0] || new Date();
+        let currentEndDate = endPicker.selectedDates[0] || new Date(Date.now() + 3600000);
+        if(isAllDay && currentEndDate < currentStartDate) currentEndDate = currentStartDate;
+        startPicker.set(newConfig); endPicker.set(newConfig);
+        startPicker.setDate(currentStartDate); endPicker.setDate(currentEndDate);
+    });
+
+    const summaryInput = document.getElementById('event-summary'), saveBtn = document.getElementById('save-event-btn');
+    function validate() { saveBtn.disabled = summaryInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); }
+    summaryInput.oninput = validate;
+    validate();
+    saveBtn.onclick = () => saveEvent(event);
+
+    if (isEditing && event.reminders && event.reminders.overrides) {
+        event.reminders.overrides.forEach(rem => createNotificationRow(rem));
+    }
+    updateAddNotificationButtonVisibility();
+}
+
+async function saveEvent(eventToEdit = null) {
+    const isEditing = eventToEdit !== null;
+    const reminders = []; let notificationsValid = true;
+    document.querySelectorAll('.notification-row').forEach(row => {
+        const quantity = parseInt(row.querySelector('.event-reminder-quantity').value, 10);
+        const unit = row.querySelector('.event-reminder-unit').value;
+        const method = row.querySelector('.event-reminder-method').value;
+        if (!quantity || !unit || !method) { notificationsValid = false; return; }
+        let minutes = 0;
+        if (unit === 'days') minutes = quantity * 24 * 60; else if (unit === 'hours') minutes = quantity * 60; else minutes = quantity;
+        reminders.push({ method: method, minutes: minutes });
+    });
+
+    if (!notificationsValid) { showToast("Completa o elimina las notificaciones vacías.", true); return; }
+
+    const isAllDay = document.getElementById('event-all-day').checked;
+    const startDate = document.getElementById('event-start')._flatpickr.selectedDates[0];
+    const endDate = document.getElementById('event-end')._flatpickr.selectedDates[0];
+
+    if (!startDate || !endDate) { showToast("Las fechas son obligatorias.", true); return; }
+    if (endDate < startDate) { showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
+
+    const eventData = {
+        summary: document.getElementById('event-summary').value.trim(), start: startDate.toISOString(), end: endDate.toISOString(),
+        description: document.getElementById('event-description').value, isAllDay: isAllDay, reminders: reminders,
+        eventId: isEditing ? eventToEdit.id : null
+    };
+    
+    const isToday = (dateStr) => dateStr.slice(0, 10) === new Date().toISOString().slice(0, 10);
+    if (isEditing) {
+        const wasToday = isToday(eventToEdit.start.dateTime || eventToEdit.start.date);
+        const isNowToday = isToday(eventData.start);
+        if (wasToday && !isNowToday) appData.counts.calendarTodayCount--;
+        if (!wasToday && isNowToday) appData.counts.calendarTodayCount++;
+    } else {
+        if (isToday(eventData.start)) { appData.counts.calendarTodayCount = (appData.counts.calendarTodayCount || 0) + 1; }
+    }
+    
+    goBack();
+    showToast(isEditing ? 'Evento actualizado' : 'Evento creado');
+    
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, { chat_ID: chatId, Type: 'miniapp_save_calendar_event', eventData });
+        const result = await res.json(); if (result.error) throw new Error(result.error);
+    } catch (err) {
+        showToast(`Error: ${err.message}. No se guardó.`, true);
+        initializeApp();
+    }
+}
+
+function renderSearchCalendarForm() {
+    navigationHistory.push(() => renderCalendarView(null, true));
+    updateBackButton();
+    mainContentArea.innerHTML = `
+        <div class="list-container"><div class="list-header"><h2>🔎 Buscar en Calendario</h2></div>
+        <div class="form-card">
+            <label>Término de búsqueda</label>
+            <input type="text" id="calendar-search-query" placeholder="Ej: Reunión, Dentista..." required />
+            <button id="search-calendar-btn" class="enabled">Buscar</button>
+        </div></div>`;
+    document.getElementById('search-calendar-btn').onclick = executeSearchCalendar;
+}
+
+async function executeSearchCalendar() {
+    const query = document.getElementById('calendar-search-query').value.trim();
+    if (!query) { showToast('Introduce un término para buscar.', true); return; }
+    navigationHistory.push(renderSearchCalendarForm);
+    updateBackButton();
+    await renderCalendarView(query);
+}
+
+// ==================================================
+// --- MÓDULO: GASTOS ---
+// ==================================================
+let gastosEncontrados = [];
+let pieChartInstance = null, dailyChartInstance = null, monthlyChartInstance = null;
+
+const categoriasGastos = {
+    "🏠 Gastos del hogar": ["🔑 Alquiler o hipoteca", "💡 Servicios (agua, luz, gas, electricidad)", "🌐 Internet y teléfono", "🔧 Mantenimiento y reparaciones", "🛋️ Mobiliario y electrodomésticos"],
+    "🧾 Gastos personales": ["🛒 Alimentación y supermercado", "👕 Ropa y calzado", "💊 Salud (seguros, medicamentos, Farmacia, consultas)", "🎓 Educación y formación", "💈 Cuidado personal (peluquería, cosmética)"],
+    "🚗 Transporte": ["⛽ Combustible", "🚌 Transporte público", "🛡️ Seguro del vehículo", "🛠️ Mantenimiento y reparaciones", "🅿️ Estacionamiento y peajes"],
+    "🍽️ Entretenimiento y ocio": ["☕ Restaurantes y cafés", "🎭 Cine, teatro, conciertos", "📺 Suscripciones (Netflix, Spotify, etc.)", "✈️ Vacaciones y viajes", "⚽ Actividades deportivas o hobbies"],
+    "💼 Finanzas y seguros": ["💳 Préstamos o créditos", "📈 Ahorros e inversiones", "📄 Seguros (vida, hogar, salud, etc.)", "💸 Impuestos y tasas"],
+    "🎁 Otros": ["🎉 Regalos y celebraciones", "❤️ Donaciones o caridad", "🐾 Mascotas (comida, veterinario, etc.)"]
+};
+
+function renderInstructionScreen() {
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"></div>
+            <div class="scan-instruction-screen">
+                <h2>Escanear un Ticket de Gasto</h2>
+                <ol>
+                    <li>Primero, <strong>saca una foto nítida</strong> de tu ticket con la cámara de tu móvil.</li>
+                    <li>Asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
+                    <li>Luego, <strong>pulsa el botón de abajo</strong> para seleccionarla de tu galería.</li>
+                </ol>
+                <button class="add-article-btn" id="select-photo-btn">Seleccionar Foto de la Galería</button>
+            </div>
+        </div>`;
+    document.getElementById('select-photo-btn').onclick = renderScanTicketView;
+}
+
+function renderScanTicketView() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+	fileInput.capture = 'environment';
+    fileInput.style.display = 'none';
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        selectedImageFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('image-preview-element').src = e.target.result;
+            document.getElementById('image-preview-overlay').style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+    };
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    document.body.removeChild(fileInput);
+}
+
+async function handleImageScan() {
+    if (!selectedImageFile) {
+        showToast('No se ha seleccionado ninguna imagen.', true);
+        return;
+    }
+    document.getElementById('image-preview-overlay').style.display = 'none';
+    showSpinner();
+    const formData = new FormData();
+    formData.append('file', selectedImageFile, selectedImageFile.name);
+    try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 60000);
+        const response = await fetch(makeTicketWebhookUrl, { method: 'POST', body: formData, signal: controller.signal });
+        clearTimeout(id);
+        if (!response.ok) { throw new Error(`Error del servidor de Make: ${response.status}`); }
+        const resultText = await response.text();
+        const resultJson = JSON.parse(resultText);
+        if(resultJson.tipo && resultJson.tipo.toUpperCase() === 'GASTO') {
+            renderAddGastoForm(resultJson);
+        } else {
+            throw new Error(resultJson.datos.motivo || 'El ticket no parece ser un gasto válido.');
+        }
+    } catch (error) {
+        console.error('Error al escanear el ticket:', error);
+        showToast(`Error al procesar: ${error.message}`, true);
+    } finally {
+        hideSpinner();
+        selectedImageFile = null;
+    }
+}
+
+document.getElementById('preview-cancel-btn').onclick = () => {
+    document.getElementById('image-preview-overlay').style.display = 'none';
+    selectedImageFile = null;
+};
+document.getElementById('preview-send-btn').onclick = handleImageScan;
+
+function renderAddGastoForm(initialData = null) {
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    const data = initialData ? initialData.datos : {};
+    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${data.categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>💰 Nuevo Gasto</h2></div>
+            <div class="form-card" id="item-new">
+                <label>Importe</label> <input type="number" id="gasto-importe" placeholder="Ej: 15.50" step="0.01" value="${data.importe_total || ''}" required />
+                <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" placeholder="Ej: Supermercado" value="${data.establecimiento || ''}" required />
+                <label>Categoría</label>
+                <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
+                <label>Subcategoría</label>
+                <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona una subcategoría --</option></select>
+                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <div class="button-group">
+                    <button id="cancel-gasto-btn" class="cancel">Cancelar</button>
+                    <button id="save-gasto-btn" disabled>Registrar Gasto</button>
+                </div>
+            </div>
+        </div>`;
+
+    document.getElementById('cancel-gasto-btn').onclick = goBack;
+    const categoriaSelect = document.getElementById('gasto-categoria'), subcategoriaSelect = document.getElementById('gasto-subcategoria'), saveBtn = document.getElementById('save-gasto-btn');
+    const elementsToValidate = [ document.getElementById('gasto-importe'), document.getElementById('gasto-establecimiento'), document.getElementById('gasto-fecha'), categoriaSelect, subcategoriaSelect ];
+    function validateGastoForm() { const allValid = elementsToValidate.every(el => el.value && el.value.trim() !== ''); saveBtn.disabled = !allValid; saveBtn.classList.toggle('enabled', allValid); }
+    let defaultDate = new Date();
+    if(data.fecha) {
+        const dateTimeParts = data.fecha.split(' ');
+        const dateParts = dateTimeParts[0].split('/');
+        if(dateParts.length === 3) {
+            const year = parseInt(dateParts[2], 10);
+            const month = parseInt(dateParts[1], 10) - 1;
+            const day = parseInt(dateParts[0], 10);
+            if(dateTimeParts.length > 1) {
+                const timeParts = dateTimeParts[1].split(':');
+                if(timeParts.length >= 2) {
+                    const hours = parseInt(timeParts[0], 10);
+                    const minutes = parseInt(timeParts[1], 10);
+                    defaultDate = new Date(year, month, day, hours, minutes);
+                } else {
+                   defaultDate = new Date(year, month, day);
+                }
+            } else {
+                defaultDate = new Date(year, month, day);
+            }
+        }
+    }
+    flatpickr("#gasto-fecha", { defaultDate: defaultDate, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es", onChange: validateGastoForm });
+    elementsToValidate.forEach(el => el.oninput = validateGastoForm);
+    categoriaSelect.onchange = () => {
+        const selectedCategory = categoriaSelect.value;
+        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
+        if (selectedCategory && categoriasGastos[selectedCategory]) {
+            const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}" ${data.subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
+            subcategoriaSelect.innerHTML += subcategoriasOptions;
+            subcategoriaSelect.disabled = false;
+        } else { subcategoriaSelect.disabled = true; }
+        validateGastoForm();
+    };
+    saveBtn.onclick = () => saveGasto();
+    if (initialData) {
+        categoriaSelect.dispatchEvent(new Event('change'));
+        if(data.subcategoria) { subcategoriaSelect.value = data.subcategoria; }
+    }
+    validateGastoForm();
+}
+
+async function saveGasto() {
+    try {
+        const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+        const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
+        const establecimiento = document.getElementById('gasto-establecimiento').value;
+        const categoria = document.getElementById('gasto-categoria').value;
+        const subcategoria = document.getElementById('gasto-subcategoria').value;
+        const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
+        const anio = fechaGastoObj.getFullYear();
+        const mesAnioTexto = `${mes}/${anio}`;
+        const payload = {
+            Type: 'add_gasto',
+            chat_ID: chatId,
+            datos: {
+                Importe: importe, Establecimiento: establecimiento, categoria: categoria, sub_categoria: subcategoria,
+                Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto,
+                ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+            }
+        };
+        const hoy = new Date();
+        const mesActual = ('0' + (hoy.getMonth() + 1)).slice(-2);
+        const anioActual = hoy.getFullYear();
+        if (mesAnioTexto === `${mesActual}/${anioActual}`) {
+            const gastosActualesStr = appData.counts.gastosMesActual || '0,00';
+            const gastosActualesNum = parseFloat(gastosActualesStr.replace(/\./g, '').replace(',', '.'));
+            const nuevosGastos = gastosActualesNum + importe;
+            appData.counts.gastosMesActual = nuevosGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        goBack();
+        showToast('Gasto registrado. Guardando...');
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) {
+            showToast(`Error del servidor: ${data.error}`, true);
+            initializeApp(); 
+        }
+    } catch (err) {
+        console.error("Error en saveGasto():", err);
+        showToast(`Error: ${err.message}.`, true);
+        initializeApp(); 
+    }
+}
+
+function renderGastoChart() {
+  navigationHistory.push(renderDashboard);
+  updateBackButton();
+  const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+  mainContentArea.innerHTML = `
+    <div class="list-container">
+      <div class="list-header"><h2>Análisis de Gastos</h2></div>
+      <div class="form-card">
+        <label>Detalle por Mes</label>
+        <select id="gasto-chart-mes-select"><option value="">-- Selecciona un mes para ver gráficos --</option>${mesesOptions}</select>
+        <div class="gasto-chart-container" id="chart-container-pie" style="margin-top:20px; display:none;"><canvas id="pieChartCanvas"></canvas></div>
+        <ul class="gasto-legend" id="gasto-legend-container"></ul>
+        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr1">
+        <div class="gasto-chart-container" id="chart-container-daily" style="position: relative; height:300px; display:none;"><canvas id="dailyChartCanvas"></canvas></div>
+        <hr style="margin: 25px 0; border-top: 1px solid #eee; display:none;" id="hr2">
+        <div class="gasto-chart-container" id="chart-container-monthly" style="position: relative; height:300px; display:none;"><canvas id="monthlyChartCanvas"></canvas></div>
+      </div>
+    </div>`;
+  document.getElementById('gasto-chart-mes-select').onchange = fetchAndDisplayGastoChart;
+}
+
+async function fetchAndDisplayGastoChart(event) {
+  const mesAnio = event.target.value;
+  if (pieChartInstance) pieChartInstance.destroy();
+  if (dailyChartInstance) dailyChartInstance.destroy();
+  if (monthlyChartInstance) monthlyChartInstance.destroy();
+  document.getElementById('gasto-legend-container').innerHTML = '';
+  ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
+  if (!mesAnio) return;
+  showSpinner();
+  try {
+    const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
+    const res = await fetchWithTimeout(gasWebhookURL, payload);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    Chart.register(ChartDataLabels);
+    const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+    
+    if (data.pieData && data.pieData.data && data.pieData.data.length > 0) {
+      document.getElementById('chart-container-pie').style.display = 'block';
+      const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
+      pieChartInstance = new Chart(pieCtx, {
+        type: 'pie',
+        data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          plugins: {
+            title: { display: true, text: data.tituloPie, font: { size: 18 } },
+            legend: { display: false },
+            datalabels: {
+              formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (total === 0) return '0%'; return (value / total * 100).toFixed(0) + '%'; },
+              color: '#fff', font: { weight: 'bold', size: 16 }
+            }
+          }
+        }
+      });
+      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe}</strong></div></li>`).join('');
+    }
+    
+    if (data.dailyData && data.dailyData.data && data.dailyData.data.length > 0) {
+      document.getElementById('hr1').style.display = 'block';
+      document.getElementById('chart-container-daily').style.display = 'block';
+      const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
+      dailyChartInstance = new Chart(dailyCtx, {
+        type: 'line',
+        data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
+      });
+    }
+    
+    if (data.monthlyData && data.monthlyData.data && data.monthlyData.data.length > 1) {
+      document.getElementById('hr2').style.display = 'block';
+      document.getElementById('chart-container-monthly').style.display = 'block';
+      const monthlyDataPoints = data.monthlyData.data.map((y, x) => ({ x, y }));
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      monthlyDataPoints.forEach(p => { sumX += p.x; sumY += p.y; sumXY += p.x * p.y; sumX2 += p.x * p.x; });
+      const n = monthlyDataPoints.length;
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+      const trendlineData = monthlyDataPoints.map
+(p => slope * p.x + intercept);
+      const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
+      monthlyChartInstance = new Chart(monthlyCtx, {
+        type: 'bar',
+        data: {
+          labels: data.monthlyData.labels,
+          datasets: [
+            { label: 'Gasto Mensual', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
+            {
+                label: 'Tendencia',
+                data: trendlineData,
+                type: 'line',
+                borderColor: '#FF6384',
+                fill: false,
+                pointRadius: 0,
+                yAxisID: 'y1',
+                datalabels: {
+                  formatter: (value) => Math.round(value),
+                  align: 'end',
+                  anchor: 'end',
+                  color: '#666',
+                  font: {
+                    weight: 'bold'
+                  }
+                }
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } },
+          scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
+        }
+      });
+    }
+  } catch (err) { 
+      showToast(err.message, true); 
+  } finally { 
+      hideSpinner(); 
+  }
+}
+
+function renderGastosSearchScreen(gastos = null) {
+    let resultsHtml = '';
+    let legendDisplay = 'none';
+
+    if (gastos) {
+        if (gastos.length > 0) {
+            resultsHtml = gastos.map(g => `<li class="list-item clickable" data-id-unico="${g.ID_Unico}"><div class="list-item-content"><span class="list-item-title">${g.Establecimiento} - ${g.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span><span class="list-item-subtitle">${g.Subcategoria || g.Categoria} - ${g.Fecha}</span></div></li>`).join('');
+            resultsHtml = `<ul class="list-style-none">${resultsHtml}</ul>`;
+            legendDisplay = 'block';
+        } else {
+            resultsHtml = `<div class="no-data-msg" style="padding: 20px;">No se encontraron gastos.</div>`;
+        }
+    }
+
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
+            <div class="form-card">
+                <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
+                <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
+                <button id="search-gasto-btn" class="enabled">Buscar</button>
+            </div>
+            <p style="text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 15px; display: ${legendDisplay};">Pulsa sobre un gasto para ver/editarlo</p>
+            <div id="gastos-search-results" style="margin-top: 10px;">${resultsHtml}</div>
+        </div>`;
+        
+    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
+    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
+    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
+    
+    document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
+    
+    document.getElementById('gastos-search-results').addEventListener('click', (e) => {
+        const item = e.target.closest('.list-item.clickable');
+        if (item) {
+            const idUnico = item.dataset.idUnico;
+            const gasto = gastosEncontrados.find(g => g.ID_Unico === idUnico);
+            if(gasto) {
+                navigationHistory.push(() => renderGastosSearchScreen(gastosEncontrados));
+                updateBackButton();
+                renderEditGastoForm(gasto);
+            }
+        }
+    });
+}
+
+async function executeSearchGastos() {
+    const startDate = document.getElementById('gasto-fecha-inicio').value;
+    const endDate = document.getElementById('gasto-fecha-fin').value;
+    if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
+    
+    const payload = { Type: 'get_gastos_fecha', chat_ID: chatId, datos: { fecha_start: startDate, fecha_end: endDate } };
+    showSpinner();
+    
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        gastosEncontrados = data.gastos || [];
+        renderGastosSearchScreen(gastosEncontrados);
+    } catch (err) {
+        showToast(err.message, true);
+        renderGastosSearchScreen([]);
+    } finally {
+        hideSpinner();
+    }
+}
+
+function renderEditGastoForm(gasto) {
+    updateBackButton();
+    
+    const categoriasOptions = Object.keys(categoriasGastos).map(cat => `<option value="${cat}" ${gasto.Categoria === cat ? 'selected' : ''}>${cat}</option>`).join('');
+    const subcategoriasOptions = (categoriasGastos[gasto.Categoria] || []).map(sub => `<option value="${sub}" ${gasto.Subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
+    
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>✏️ Ver/Editar Gasto</h2></div>
+            <div class="form-card" id="item-${gasto.ID_Unico}">
+                <label>Importe</label> <input type="number" id="gasto-importe" value="${gasto.Importe}" step="0.01" required />
+                <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.Establecimiento}" required />
+                <label>Categoría</label> <select id="gasto-categoria" required>${categoriasOptions}</select>
+                <label>Subcategoría</label> <select id="gasto-subcategoria" required>${subcategoriasOptions}</select>
+                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <div class="button-group">
+                    <button id="delete-gasto-btn" class="cancel">Eliminar</button>
+                    <button id="save-gasto-btn" disabled>Guardar Cambios</button>
+                </div>
+            </div>
+        </div>`;
+    
+    const fechaPicker = flatpickr("#gasto-fecha", { defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
+    const categoriaSelect = document.getElementById('gasto-categoria');
+    const subcategoriaSelect = document.getElementById('gasto-subcategoria');
+    const importeInput = document.getElementById('gasto-importe');
+    const establecimientoInput = document.getElementById('gasto-establecimiento');
+    const saveBtn = document.getElementById('save-gasto-btn');
+    
+    const initialValues = { importe: importeInput.value, establecimiento: establecimientoInput.value, categoria: categoriaSelect.value, subcategoria: subcategoriaSelect.value, fecha: fechaPicker.input.value };
+
+    function validateChanges() {
+        const currentValues = { importe: importeInput.value, establecimiento: establecimientoInput.value, categoria: categoriaSelect.value, subcategoria: subcategoriaSelect.value, fecha: fechaPicker.input.value };
+        const hasChanged = JSON.stringify(initialValues) !== JSON.stringify(currentValues);
+        saveBtn.disabled = !hasChanged;
+        saveBtn.classList.toggle('enabled', hasChanged);
+    }
+
+    [importeInput, establecimientoInput, categoriaSelect, subcategoriaSelect].forEach(el => el.addEventListener('input', validateChanges));
+    fechaPicker.config.onChange.push(validateChanges);
+    
+    categoriaSelect.onchange = () => {
+        const selectedCategory = categoriaSelect.value;
+        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
+        if (selectedCategory && categoriasGastos[selectedCategory]) {
+            subcategoriaSelect.innerHTML += categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
+            subcategoriaSelect.disabled = false;
+        } else {
+            subcategoriaSelect.disabled = true;
+        }
+        validateChanges();
+    };
+
+    document.getElementById('save-gasto-btn').onclick = () => saveEditedGasto(gasto.ID_Unico);
+    document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico);
+}
+
+async function saveEditedGasto(idUnico) {
+    const originalGastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === idUnico);
+    if (originalGastoIndex === -1) return;
+
+    const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
+    const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
+    const nuevaCategoria = document.getElementById('gasto-categoria').value;
+    const nuevaSubcategoria = document.getElementById('gasto-subcategoria').value;
+    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+
+    const diferencia = nuevoImporte - parseFloat(gastosEncontrados[originalGastoIndex].Importe);
+    if (diferencia !== 0) {
+        const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
+        appData.counts.gastosMesActual = (gastosActualesNum + diferencia).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    
+    gastosEncontrados[originalGastoIndex] = { ...gastosEncontrados[originalGastoIndex], Importe: nuevoImporte, Establecimiento: nuevoEstablecimiento, Categoria: nuevaCategoria, Subcategoria: nuevaSubcategoria, Fecha: fechaGastoObj.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) };
+
+    showToast('Gasto actualizado. Guardando...');
+    
+    goBack();
+
+    try {
+        const mesAnioTexto = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2) + '/' + fechaGastoObj.getFullYear();
+        const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: nuevoEstablecimiento, categoria: nuevaCategoria, sub_categoria: nuevaSubcategoria, Fecha: fechaGastoObj.toISOString(), mesAnio: mesAnioTexto } };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+    } catch (err) {
+        showToast(`Error de sincronización: ${err.message}. Restaurando...`, true);
+        initializeApp();
+    }
+}
+
+// ==================================================
+// --- MÓDULO: CHEF ASISTENTE (VERSIÓN FINAL) ---
+// ==================================================
+function renderChefPage() {
+    setActiveTab('tab-chef');
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <div class="chef-container">
+            <h2 class="settings-section-title">🧑‍🍳 Chef Asistente</h2>
+            <div class="form-card">
+                <div class="chef-item">
+                    <label>Tipo de Comida</label>
+                    <select id="chef-tipo-comida">
+                        <option value="Desayuno">🍳 Desayuno</option>
+                        <option value="Almuerzo" selected>🥗 Almuerzo</option>
+                        <option value="Merienda">🥪 Merienda</option>
+                        <option value="Cena">🍝 Cena</option>
+                    </select>
+                </div>
+                <div class="chef-item">
+                    <label>Hora Aproximada</label>
+                    <input type="text" id="chef-hora" style="width: 100px; text-align: center;"/>
+                </div>
+                <div class="chef-item">
+                    <label>Nº de Comensales</label>
+                    <input type="number" id="chef-comensales" value="1" min="1" style="width: 80px; text-align: center;"/>
+                </div>
+                <div class="chef-item">
+                    <label>Estilo de Cocina</label>
+                    <select id="chef-estilo">
+                        <option value="Sorpréndeme">✨ Sorpréndeme</option>
+                        <option value="Rápida">🏃 Rápida</option>
+                        <option value="Casera">🏡 Casera</option>
+                        <option value="Saludable">💪 Saludable</option>
+                    </select>
+                </div>
+                <div class="chef-item">
+                    <label>¿Incluir Postre?</label>
+                    <label class="switch"><input type="checkbox" id="chef-postre"><span class="slider"></span></label>
+                </div>
+                <div class="chef-item">
+                    <label>Solo con lo que tengo</label>
+                    <label class="switch"><input type="checkbox" id="chef-solo-nevera"><span class="slider"></span></label>
+                </div>
+                <label style="margin-top: 20px;">Tu Petición Especial</label>
+                <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
+                
+                <div id="chef-image-previews"></div>
+                <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto de Ingredientes</button>
+
+                <div class="button-group">
+                    <button id="chef-cancel-btn" class="cancel">Cancelar/Salir</button>
+                    <button id="chef-submit-btn" class="enabled">Obtener Sugerencias</button>
+                </div>
+            </div>
+        </div>`;
+
+    flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
+    document.getElementById('chef-cancel-btn').onclick = goBack;
+    
+    let selectedFiles = [];
+
+    const previewsContainer = document.getElementById('chef-image-previews');
+    const addPhotoButton = document.getElementById('chef-add-photo-btn');
+
+    const updatePreviews = () => {
+        previewsContainer.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const previewItem = document.createElement('div');
+                previewItem.className = 'preview-item';
+                previewItem.innerHTML = `
+                    <img src="${e.target.result}" class="preview-image" alt="preview">
+                    <button class="delete-preview-btn" data-index="${index}">&times;</button>
+                `;
+                previewsContainer.appendChild(previewItem);
+            };
+            reader.readAsDataURL(file);
+        });
+        addPhotoButton.style.display = selectedFiles.length < 2 ? 'block' : 'none';
+    };
+
+    previewsContainer.addEventListener('click', (event) => {
+        if (event.target.classList.contains('delete-preview-btn')) {
+            const index = parseInt(event.target.dataset.index, 10);
+            selectedFiles.splice(index, 1);
+            updatePreviews();
+        }
+    });
+
+    addPhotoButton.onclick = () => {
+        if (selectedFiles.length >= 2) {
+            showToast("Puedes subir un máximo de 2 fotos.", true);
+            return;
+        }
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.capture = 'environment';
+        fileInput.onchange = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                handleChefImageSelection(file, (confirmedFile) => {
+                    selectedFiles.push(confirmedFile);
+                    updatePreviews();
+                });
+            }
+        };
+        fileInput.click();
+    };
+    
+    document.getElementById('chef-submit-btn').onclick = () => {
+        if(selectedFiles.length === 0) {
+            showToast("Por favor, sube una foto de tus ingredientes.", true);
+            return;
+        }
+        executeChefRequest(selectedFiles);
+    };
+}
+
+function handleChefImageSelection(file, callback) {
+    const overlay = document.getElementById('image-preview-overlay');
+    const imgElement = document.getElementById('image-preview-element');
+    const sendBtn = document.getElementById('preview-send-btn');
+    const cancelBtn = document.getElementById('preview-cancel-btn');
+
+    sendBtn.textContent = "Usar esta Foto";
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imgElement.src = e.target.result;
+        overlay.style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+
+    const cleanup = () => {
+        overlay.style.display = 'none';
+        sendBtn.onclick = handleImageScan; 
+        cancelBtn.onclick = () => {
+            document.getElementById('image-preview-overlay').style.display = 'none';
+            selectedImageFile = null;
+        };
+        sendBtn.textContent = "Enviar";
+    };
+
+    sendBtn.onclick = () => {
+        callback(file);
+        cleanup();
+    };
+    
+    cancelBtn.onclick = () => {
+        cleanup();
+    };
+}
+
+async function executeChefRequest(files) {
+    showSpinner("Un momento, el Chef está trabajando...");
+    
+    const tipoComida = document.getElementById('chef-tipo-comida').value;
+    const hora = document.getElementById('chef-hora').value;
+    const comensales = document.getElementById('chef-comensales').value;
+    const estilo = document.getElementById('chef-estilo').value;
+    const conPostre = document.getElementById('chef-postre').checked;
+    const soloNevera = document.getElementById('chef-solo-nevera').checked;
+    const peticionUsuario = document.getElementById('chef-peticion').value;
+
+    try {
+        const contextRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_user_context', chat_ID: chatId, hora_comida: hora });
+        const userContextForChef = await contextRes.json();
+        if (userContextForChef.error) throw new Error(userContextForChef.error);
+
+        let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
+Contexto del Entorno del Usuario:
+Ubicación: ${userContextForChef.ciudad || 'desconocida'}, ${userContextForChef.pais || 'desconocido'}.
+Estación del Año: ${userContextForChef.estacion}.
+Clima a la hora de la comida (${hora}): ${userContextForChef.clima_hora_especifica}.
+Contexto de la Petición:
+Tipo de Comida: ${tipoComida} ${conPostre ? '(con Postre incluido)' : ''}
+Número de Comensales: ${comensales}
+Estilo de Cocina Deseado: ${estilo}
+Petición Específica del Usuario: "${peticionUsuario || 'Ninguna'}"
+Restricciones Dietéticas del Usuario: ${userContextForChef.preferencias_dieteticas || 'Ninguna especificada'}.
+Condición de ingredientes: ${soloNevera ? 'El usuario solicita usar EXCLUSIVAMENTE los ingredientes de la foto, sin comprar nada más.' : 'El usuario está dispuesto a comprar ingredientes si es necesario.'}
+Análisis de Ingredientes:
+Analiza las imágenes adjuntas de la nevera/despensa del usuario. Lista en primer lugar los ingredientes principales que identificas.
+Tu Tarea:
+Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Menciona el clima en tu descripción para hacerla más personal. Tu respuesta DEBE estar en formato JSON, siguiendo estrictamente esta estructura:
+{"sugerencias": [{"titulo_receta": "Nombre Receta 1","descripcion": "Texto apetitoso.","ingredientes_detectados": ["Ingrediente 1"],"ingredientes_a_comprar": [{"nombre": "Ingrediente 3", "cantidad": "1 ud"}],"postre": {"titulo": "Nombre Postre","descripcion": "Descripción.","ingredientes_a_comprar": []}},{"titulo_receta": "Nombre Receta 2","descripcion": "Texto apetitoso.","ingredientes_detectados": [],"ingredientes_a_comprar": [],"postre": null}]}
+Instrucciones Adicionales:
+Si no hay postre, el campo "postre" debe ser null. Si no hay ingredientes a comprar, el array debe estar vacío. Sé realista.`;
+
+        const makeRes = await fetchWithTimeout(chefWebhookURL, { 
+            prompt: prompt, 
+            images: files, 
+            image_count: files.length
+        }, true);
+
+        const responseText = await makeRes.text();
+        const data = JSON.parse(responseText);
+        
+        showToast("¡Aquí tienes tus sugerencias!");
+        renderChefResults(data.sugerencias);
+
+    } catch(err) {
+        showToast(err.message, true);
+    } finally {
+        hideSpinner();
+    }
+}
+
+function renderChefResults(sugerencias) {
+    updateBackButton();
+    let html = '<div class="chef-container">';
+    if (!sugerencias || sugerencias.length === 0) {
+        html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
+    } else {
+        sugerencias.forEach((sug, index) => {
+            html += `
+            <div class="recipe-card" id="recipe-${index}">
+                <div class="recipe-header"><h3 class="recipe-title">${sug.titulo_receta}</h3></div>
+                <div class="recipe-body">
+                    <p class="recipe-description">${sug.descripcion}</p>
+                    <h4 class="recipe-subtitle">Ingredientes que ya tienes:</h4>
+                    <ul class="recipe-ingredient-list">
+                        ${(sug.ingredientes_detectados || []).map(ing => `<li>✅ ${ing}</li>`).join('')}
+                    </ul>
+                    ${sug.ingredientes_a_comprar && sug.ingredientes_a_comprar.length > 0 ? `
+                        <h4 class="recipe-subtitle" style="margin-top:15px;">Necesitarás comprar:</h4>
+                        <ul class="recipe-ingredient-list buy">
+                           ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} (${ing.cantidad})"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
+                        </ul>
+                        <button class="add-article-btn" data-action="add-ingredients" style="width:100%; max-width:100%; margin-top:15px;">Añadir seleccionados a la compra</button>
+                    ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
+                    <button class="add-article-btn" data-action="copy-recipe" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;">Copiar Receta</button>
+                </div>
+            </div>`;
+        });
+    }
+    html += `<div class="form-card" style="margin-top: 20px;"><button data-action="go-home" class="cancel" style="width:100%; max-width:100%; opacity:1; cursor:pointer;">Volver a Inicio</button></div>`;
+    html += '</div>';
+    
+    mainContentArea.innerHTML = html;
+    mainContentArea.removeEventListener('click', handleChefResultsClicks);
+    mainContentArea.addEventListener('click', handleChefResultsClicks);
+}
+
+function handleChefResultsClicks(event) {
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+    const action = button.dataset.action;
+    switch(action) {
+        case 'add-ingredients': addIngredientsToShoppingList(button); break;
+        case 'copy-recipe': copyToClipboard(button); break;
+        case 'go-home': renderDashboard(); break;
+    }
+}
+
+function copyToClipboard(buttonElement) {
+    const recipeCard = buttonElement.closest('.recipe-card');
+    const title = recipeCard.querySelector('.recipe-title').innerText;
+    const description = recipeCard.querySelector('.recipe-description').innerText;
+    let textToCopy = `Receta: ${title}\n\n${description}\n\n`;
+    const detectedIngredients = Array.from(recipeCard.querySelectorAll('.recipe-ingredient-list:not(.buy) li')).map(li => `- ${li.innerText.replace('✅ ', '')}`);
+    if(detectedIngredients.length > 0) textToCopy += `Ingredientes en casa:\n${detectedIngredients.join('\n')}\n\n`;
+    const toBuyIngredients = Array.from(recipeCard.querySelectorAll('.recipe-ingredient-list.buy li')).map(li => `- ${li.innerText.trim()}`);
+    if(toBuyIngredients.length > 0) textToCopy += `Ingredientes a comprar:\n${toBuyIngredients.join('\n')}`;
+    navigator.clipboard.writeText(textToCopy).then(() => { showToast('Receta copiada al portapapeles'); }).catch(err => { showToast('Error al copiar la receta', true); });
+}
+
+async function addIngredientsToShoppingList(buttonElement) {
+    const recipeCard = buttonElement.closest('.recipe-card');
+    const checkboxes = recipeCard.querySelectorAll('.buy-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showToast("No has seleccionado ningún ingrediente.", true);
+        return;
+    }
+    const itemsToAdd = Array.from(checkboxes).map(cb => cb.dataset.itemName);
+    showSpinner();
+    try {
+        const payload = { Type: 'add_multiple_shopping_items', chat_ID: chatId, items: itemsToAdd };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        itemsToAdd.forEach(item => { appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}${Math.random()}`, '4': '', '5': 0 }); });
+        appData.counts.shoppingPendingCount += itemsToAdd.length;
+        showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
+        buttonElement.style.display = 'none';
+    } catch(err) {
+        showToast(err.message, true);
+    } finally {
+        hideSpinner();
+    }
+}
+// ==================================================
+// --- MÓDULO: AJUSTES ---
+// ==================================================
+function renderSettings() {
+    setActiveTab('tab-settings');
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    initialUserSettings = JSON.parse(JSON.stringify(appData.settings || {}));
+    
+    mainContentArea.innerHTML = `
+        <div class="settings-container">
+            <h2 class="settings-section-title">👤 Perfil de Usuario</h2>
+            <div class="form-card">
+                <label>Nombre</label>
+                <input type="text" id="settings-nombre" placeholder="Tu nombre" />
+                <label>Ciudad</label>
+                <input type="text" id="settings-ciudad" placeholder="Ej: Barcelona" />
+                <label>País</label>
+                <input type="text" id="settings-pais" placeholder="Ej: España" />
+                <div class="settings-item" style="padding-top:15px;">
+                    <span class="settings-item-label">Tema de la App</span>
+                    <div class="settings-item-control">
+                        <select id="settings-theme">
+                            <option value="auto">Automático (Telegram)</option>
+                            <option value="light">Claro</option>
+                            <option value="dark">Oscuro</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="settings-section-title">📄 Información de la Cuenta</h2>
+            <div class="form-card">
+                <label>Email de Registro (no editable)</label>
+                <input type="email" id="settings-email" readonly />
+                <label>Fecha de Activación (no editable)</label>
+                <input type="text" id="settings-fecha-activacion" readonly />
+                <label>Zona Horaria Detectada (no editable)</label>
+                <input type="text" id="settings-zona-horaria" readonly />
+            </div>
+
+            <h2 class="settings-section-title">🔔 Informes y Alertas</h2>
+            <div class="form-card">
+                <!-- Informe Diario Matutino -->
+                <div class="settings-item">
+                    <span class="settings-item-label">Informe Matutino</span>
+                    <label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-item-label">Hora del Informe</span>
+                    <select id="settings-franja-manana">
+                        <option value="1">A primera hora (6:00)</option>
+                        <option value="2">Habitual (7:00)</option>
+                        <option value="3">Media mañana (8:00)</option>
+                        <option value="4">Tarde (9:00)</option>
+                    </select>
+                </div>
+                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
+                <!-- Informe del Tiempo (Tarde) -->
+                <div class="settings-item">
+                    <span class="settings-item-label">Informe del Tiempo (Tarde)</span>
+                    <label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-item-label">Hora del Informe</span>
+                    <select id="settings-franja-tarde">
+                        <option value="19">19:00</option><option value="20">20:00</option><option value="21">21:00</option>
+                    </select>
+                </div>
+                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
+                <!-- Informe Mensual de Gastos -->
+                <div class="settings-item">
+                    <span class="settings-item-label">Informe Mensual de Gastos</span>
+                    <label class="switch"><input type="checkbox" id="settings-informe-mensual-activo"><span class="slider"></span></label>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-item-label">Día de Envío</span>
+                    <select id="settings-dia-informe-mensual">
+                        ${[...Array(10).keys()].map(i => `<option value="${i + 1}">${i + 1}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-item-label">Hora de Envío</span>
+                    <select id="settings-hora-informe-mensual">
+                        ${[...Array(15).keys()].map(i => `<option value="${i + 8}">${(i + 8).toString().padStart(2, '0')}:00</option>`).join('')}
+                    </select>
+                </div>
+                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
+                <!-- Alertas de Compra -->
+                <div class="settings-item">
+                    <span class="settings-item-label">Alertas de Compra Inteligente</span>
+                    <label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <h2 class="settings-section-title">💾 Gestión de Datos</h2>
+            <div class="form-card">
+                <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%;">Corregir Contadores</button>
+            </div>
+             
+            <div class="form-card" style="margin-top: 20px;">
+                <div class="button-group">
+                    <button id="settings-cancel-btn" class="cancel">Cancelar</button>
+                    <button id="settings-save-btn" disabled>Guardar Ajustes</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+document.getElementById('settings-nombre').value = appData.settings['Nombre'] || '';
+document.getElementById('settings-ciudad').value = appData.settings['Ciudad'] || '';
+document.getElementById('settings-pais').value = appData.settings['Pais'] || '';
+document.getElementById('settings-theme').value = appData.settings['Tema'] || 'auto';
+
+document.getElementById('settings-email').value = appData.settings['Email'] || 'No disponible';
+const fechaActivacion = appData.settings['Fecha_Activacion'] 
+    ? new Date(appData.settings['Fecha_Activacion']).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
+    : 'No disponible';
+document.getElementById('settings-fecha-activacion').value = fechaActivacion;
+document.getElementById('settings-zona-horaria').value = appData.settings['Time Zone'] || 'No disponible';
+
+document.getElementById('settings-informe-manana-activo').checked = (appData.settings['Informe_Mañana_Activo'] === 'SI');
+document.getElementById('settings-franja-manana').value = appData.settings['Franja_Informe_Mañana'] || '2';
+document.getElementById('settings-informe-tarde-activo').checked = (appData.settings['Informe_Tarde_Activo'] === 'SI');
+document.getElementById('settings-franja-tarde').value = appData.settings['Franja_Informe_Tarde'] || '20';
+document.getElementById('settings-alerta-inventario').checked = (appData.settings['Alerta_Inventario'] === 'SI');
+
+document.getElementById('settings-informe-mensual-activo').checked = (appData.settings['Informe_Mensual_Activo'] === 'SI');
+document.getElementById('settings-dia-informe-mensual').value = appData.settings['Dia_Informe_Mensual'] || '1';
+document.getElementById('settings-hora-informe-mensual').value = appData.settings['Hora_Informe_Mensual'] || '12';
+
+const controls = document.querySelectorAll(
+    '#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, ' +
+    '#settings-informe-manana-activo, #settings-franja-manana, ' +
+    '#settings-informe-tarde-activo, #settings-franja-tarde, ' +
+    '#settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, ' +
+    '#settings-alerta-inventario'
+);
+controls.forEach(control => {
+    control.addEventListener('input', validateSettings);
+    control.addEventListener('change', validateSettings);
+});
+
+document.getElementById('settings-save-btn').onclick = saveSettings;
+document.getElementById('settings-cancel-btn').onclick = goBack;
+document.getElementById('settings-sync-btn').onclick = syncCounts;
+
+}
+function validateSettings() {
+    const saveBtn = document.getElementById('settings-save-btn');
+    let hasChanged = false;
+    if (document.getElementById('settings-nombre').value !== (initialUserSettings['Nombre'] || '')) hasChanged = true;
+    if (document.getElementById('settings-ciudad').value !== (initialUserSettings['Ciudad'] || '')) hasChanged = true;
+    if (document.getElementById('settings-pais').value !== (initialUserSettings['Pais'] || '')) hasChanged = true;
+    if (document.getElementById('settings-theme').value !== (initialUserSettings['Tema'] || 'auto')) hasChanged = true;
+    if (document.getElementById('settings-informe-manana-activo').checked !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) hasChanged = true;
+    if (document.getElementById('settings-franja-manana').value != (initialUserSettings['Franja_Informe_Mañana'] || '2')) hasChanged = true;
+    if (document.getElementById('settings-informe-tarde-activo').checked !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) hasChanged = true;
+    if (document.getElementById('settings-franja-tarde').value != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true;
+    if (document.getElementById('settings-alerta-inventario').checked !== (initialUserSettings['Alerta_Inventario'] === 'SI')) hasChanged = true;
+    if (document.getElementById('settings-informe-mensual-activo').checked !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) hasChanged = true;
+    if (document.getElementById('settings-dia-informe-mensual').value != (initialUserSettings['Dia_Informe_Mensual'] || '1')) hasChanged = true;
+    if (document.getElementById('settings-hora-informe-mensual').value != (initialUserSettings['Hora_Informe_Mensual'] || '12')) hasChanged = true;
+    
+    saveBtn.disabled = !hasChanged;
+    saveBtn.classList.toggle('enabled', hasChanged);
+}
+
+async function saveSettings() {
+    showSpinner();
+    const settingsToUpdate = {};
+    
+    const newName = document.getElementById('settings-nombre').value; if (newName !== (initialUserSettings['Nombre'] || '')) settingsToUpdate['Nombre'] = newName;
+    const newCiudad = document.getElementById('settings-ciudad').value; if (newCiudad !== (initialUserSettings['Ciudad'] || '')) settingsToUpdate['Ciudad'] = newCiudad;
+    const newPais = document.getElementById('settings-pais').value; if (newPais !== (initialUserSettings['Pais'] || '')) settingsToUpdate['Pais'] = newPais;
+    const newTheme = document.getElementById('settings-theme').value; if (newTheme !== (initialUserSettings['Tema'] || 'auto')) settingsToUpdate['Tema'] = newTheme;
+    const newMananaActivo = document.getElementById('settings-informe-manana-activo').checked; if (newMananaActivo !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) settingsToUpdate['Informe_Mañana_Activo'] = newMananaActivo ? 'SI' : 'NO';
+    const newFranjaManana = document.getElementById('settings-franja-manana').value; if (newFranjaManana != (initialUserSettings['Franja_Informe_Mañana'] || '2')) settingsToUpdate['Franja_Informe_Mañana'] = newFranjaManana;
+    const newTardeActivo = document.getElementById('settings-informe-tarde-activo').checked; if (newTardeActivo !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) settingsToUpdate['Informe_Tarde_Activo'] = newTardeActivo ? 'SI' : 'NO';
+    const newFranjaTarde = document.getElementById('settings-franja-tarde').value; if (newFranjaTarde != (initialUserSettings['Franja_Informe_Tarde'] || '20')) settingsToUpdate['Franja_Informe_Tarde'] = newFranjaTarde;
+    const newAlerta = document.getElementById('settings-alerta-inventario').checked; if (newAlerta !== (initialUserSettings['Alerta_Inventario'] === 'SI')) settingsToUpdate['Alerta_Inventario'] = newAlerta ? 'SI' : 'NO';
+    const newMensualActivo = document.getElementById('settings-informe-mensual-activo').checked; if (newMensualActivo !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) settingsToUpdate['Informe_Mensual_Activo'] = newMensualActivo ? 'SI' : 'NO';
+    const newDiaMensual = document.getElementById('settings-dia-informe-mensual').value; if (newDiaMensual != (initialUserSettings['Dia_Informe_Mensual'] || '1')) settingsToUpdate['Dia_Informe_Mensual'] = newDiaMensual;
+    const newHoraMensual = document.getElementById('settings-hora-informe-mensual').value; if (newHoraMensual != (initialUserSettings['Hora_Informe_Mensual'] || '12')) settingsToUpdate['Hora_Informe_Mensual'] = newHoraMensual;
+
+    if (Object.keys(settingsToUpdate).length === 0) {
+        hideSpinner();
+        showToast("No hay cambios para guardar.");
+        return;
+    }
+
+    try {
+        const payload = { Type: 'save_user_settings', chat_ID: chatId, settings: settingsToUpdate };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        
+        if (data.error) throw new Error(data.error);
+
+        Object.assign(appData.settings, settingsToUpdate);
+        if (settingsToUpdate['Time Zone']) {
+            appData.settings['Time Zone'] = settingsToUpdate['Time Zone'];
+            document.getElementById('settings-zona-horaria').value = settingsToUpdate['Time Zone'];
+        }
+        initialUserSettings = JSON.parse(JSON.stringify(appData.settings));
+        
+        showToast(data.message || "Ajustes guardados con éxito.");
+        document.getElementById('settings-save-btn').disabled = true;
+        document.getElementById('settings-save-btn').classList.remove('enabled');
+
+    } catch (err) {
+        showToast(`Error al guardar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
+}
+
+async function syncCounts() {
+    showSpinner();
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (data.success && data.counts) {
+            Object.assign(appData.counts, data.counts);
+            showToast("Contadores resincronizados con éxito.");
+        } else {
+            throw new Error("Respuesta inesperada del servidor.");
+        }
+    } catch (err) {
+        showToast(`Error al sincronizar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
+}
+
+function renderExportPage() {
+    setActiveTab('tab-export');
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    mainContentArea.innerHTML = `
+        <div class="export-container">
+            <h2 class="settings-section-title">📊 Exportar Gastos</h2>
+            <div class="form-card">
+                <p style="font-size:0.9rem; color:var(--muted); margin-bottom:15px;">Selecciona el rango de fechas para la exportación. Recibirás el archivo en tu email.</p>
+                <label>Fecha de Inicio</label>
+                <input type="text" id="export-start-date" required />
+                <label>Fecha de Fin</label>
+                <input type="text" id="export-end-date" required />
+                <div class="button-group">
+                    <button id="export-cancel-btn" class="cancel">Cancelar</button>
+                    <button id="export-confirm-btn" class="enabled">Generar y Enviar</button>
+                </div>
+            </div>
+        </div>
+    `;
+    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
+    flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
+    flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
+    document.getElementById('export-cancel-btn').onclick = goBack;
+    document.getElementById('export-confirm-btn').onclick = executeExport;
+}
+
+async function executeExport() {
+    showSpinner();
+    const startDate = document.getElementById('export-start-date').value;
+    const endDate = document.getElementById('export-end-date').value;
+    if (!startDate || !endDate) {
+        hideSpinner();
+        showToast("Por favor, selecciona ambas fechas.", true);
+        return;
+    }
+    try {
+        const payload = { Type: 'export_gastos', chat_ID: chatId, startDate: startDate, endDate: endDate };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showToast(data.message || "Petición de exportación enviada. Revisa tu email.");
+        renderDashboard();
+    } catch (err) {
+        showToast(`Error al exportar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
+}
+
+// ==================================================
+// --- CONECTOR E INICIO DE LA APP ---
+// ==================================================
+function renderDashboard() {
+  setActiveTab('tab-home');
+  navigationHistory = [];
+  updateBackButton();
+  const counts = appData.counts;
+  const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
+
+  let chefCardHtml = `
+    <div class="card clickable-card" id="chef-card">
+        <div class="card-icon">🧑‍🍳</div>
+        <div class="card-title">Chef Asistente</div>
+    </div>`;
+
+  if (!isPremium) {
+      chefCardHtml = `
+        <div class="card" style="opacity: 0.5; cursor: not-allowed;">
+            <div class="card-icon">🔒</div>
+            <div class="card-title">Chef Asistente</div>
+            <div style="font-size: 0.8rem; color: var(--muted); margin-top: 4px;">Función Premium</div>
+        </div>`;
+  }
+
+  mainContentArea.innerHTML = `
+    <div class="grid">
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
+	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="gastos-badge">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+      ${chefCardHtml}
+    </div>`;
+  
+  document.getElementById('add-reminder-link').onclick = renderReminderForm;
+  document.getElementById('list-reminders-link').onclick = renderRemindersList;
+  document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+  document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+  document.getElementById('add-note-link').onclick = () => renderNoteForm();
+  document.getElementById('list-notes-link').onclick = renderNotesList;
+  document.getElementById('add-event-link').onclick = () => renderEventForm();
+  document.getElementById('view-calendar-link').onclick = () => renderCalendarView(null, true);
+  document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
+  document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
+  document.getElementById('list-gastos-link').onclick = () => {
+      navigationHistory.push(renderDashboard);
+      updateBackButton();
+      renderGastosSearchScreen();
+  };
+  document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
+  
+  if (isPremium) {
+      document.getElementById('chef-card').onclick = renderChefPage;
+  }
+
+  document.querySelectorAll('.clickable-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+          if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
+          if (e.currentTarget.id === 'chef-card' && !isPremium) return;
+          e.stopPropagation();
+          const menuBtn = card.querySelector('.card-menu-btn');
+          if (menuBtn) {
+            const menuId = menuBtn.dataset.menuId;
+            const menu = document.getElementById(menuId);
+            if (menu) {
+                const isShown = menu.classList.contains('show');
+                document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                    if (m.id !== menuId) m.classList.remove('show');
+                });
+                if (isShown) {
+                    menu.classList.remove('show');
+                } else {
+                    const buttonRect = menuBtn.getBoundingClientRect();
+                    const windowHeight = window.innerHeight;
+
+                    if (buttonRect.top > (windowHeight / 2)) {
+                        menu.classList.add('up');
+                    } else {
+                        menu.classList.remove('up');
+                    }
+                    
+                    menu.classList.add('show');
+                }
+            }
+          }
+      });
+  });
+}
+
+// Lógica de pestañas
+document.getElementById('tab-home').onclick = renderDashboard;
+document.getElementById('tab-settings').onclick = renderSettings;
+document.getElementById('tab-export').onclick = renderExportPage;
+document.getElementById('tab-chef').onclick = () => {
+    if (String(appData.settings.Premium).toLowerCase() === 'si') {
+        renderChefPage();
+    }
+};
+
+initializeApp();
+
+});
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - Mini App Telegram</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <style>
+    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px;}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:20px;}
+    .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
+    .card.clickable-card { cursor: pointer; }
+    .card-icon{font-size:2.5rem;margin-bottom:8px;}
+    .card-title{font-size:1.2rem;margin-bottom:4px;}
+    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
+    .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
+    .card-badge.green{background-color:#28a745;}
+    .card-badge.red{background-color:#e74c3c;}
+    .card-badge-group .card-badge{position:static;}
+    .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
+    .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
+    .dropdown-menu.show { display: block; }
+    .dropdown-menu.up { top: auto; bottom: 100%; margin-bottom: 5px; }
+    .dropdown-item { padding: 12px 20px; color: var(--text) !important; background-color: var(--card-bg, #fff) !important; cursor: pointer; display: block; text-align: left; transition: background-color 0.2s, color 0.2s; }
+    .dropdown-item:hover { background-color: var(--primary, #4a76f3) !important; color: var(--action-text, #fff) !important; }
+    .tabs{position:fixed;bottom:0;left:0;width:100%;display:flex;background:var(--card-bg);box-shadow:0 -2px 8px rgba(0,0,0,0.1);z-index: 100;}
+    .tab{flex:1;text-align:center;padding:12px 0;font-size:1rem;color:var(--muted);cursor:pointer;}
+    .tab.active{color:var(--badge-color);}
+    .form-container, .list-container, .settings-container, .export-container, .chef-container {max-width:480px;margin:20px auto;padding:10px;}
+    .form-card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);padding:24px;}
+    .form-card label{display:block;margin-top:12px;font-weight:600;color:var(--text);}
+    .form-card textarea,.form-card input, .form-card select, .form-card .radio-group{width:100%;margin-top:8px;}
+    .form-card textarea,.form-card input, .form-card select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;color:var(--text); background-color: var(--bg, #f5f7fa);}
+    .form-card .input-error { border-color: var(--error-bg) !important; }
+    .radio-group{display:flex;gap:10px;align-items:center; flex-wrap: wrap;}
+    .radio-group label{font-weight:400;color:var(--text);margin-top:0;}
+    .form-card button{margin-top:20px;width:100%;padding:12px;background:var(--action-bg);color:var(--action-text);border:none;border-radius:8px;font-size:1rem;cursor:not-allowed;opacity:.6;transition:opacity .2s,background .2s;}
+    .form-card button.enabled{cursor:pointer;opacity:1;}
+    .form-card .button-group { display: flex; gap: 10px; margin-top: 20px; }
+    .form-card .button-group button { flex: 1; margin-top: 0; }
+    .form-card button.cancel { background-color: var(--delete-bg); opacity: 1; cursor: pointer; }
+    .toast{visibility:hidden;width:90%;max-width:480px;background:var(--action-bg);color:var(--action-text);text-align:center;border-radius:8px;padding:12px;position:fixed;left:50%;bottom:80px;transform:translateX(-50%);z-index:1000;font-size:1rem;}
+    .toast.error{background:var(--error-bg);}
+    .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
+    .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 2s linear infinite;z-index:1001; text-align: center;}
+    @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
+    @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
+    .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
+    .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
+    .list-header h2 { font-size: 1.4rem; margin: 0; }
+    .list-style-none { list-style: none; padding: 0; margin: 0; }
+    .list-item { background: var(--card-bg); border-radius: 10px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between; }
+    .list-item-content { display: flex; flex-direction: column; flex-grow: 1; text-align: left;}
+    .list-item-title { font-size: 1.1rem; font-weight: 500; }
+    .list-item-subtitle { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+    .list-item-actions { display: flex; align-items: center; gap: 5px; position: relative; flex-shrink: 0; }
+    .generic-menu-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; }
+    .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
+    .confirm-btn-yes { background-color: var(--confirm-yes-bg); color: var(--delete-text); }
+    .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
+    .no-data-msg { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; font-size: 1.2rem; line-height: 1.5; }
+    #recurrent-hours-container { display: none; margin-top: 15px; }
+    .shopping-list-header-row { display: flex; align-items: center; justify-content: flex-end; padding: 0 10px 10px 10px; color: var(--muted); font-size: 0.9rem; }
+    .shopping-list-header-row input[type="checkbox"] { margin-left: 5px; }
+    .shopping-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .shopping-item-checkbox-wrapper { flex-shrink: 0; }
+    .shopping-item input[type="checkbox"] { width: 20px; height: 20px; }
+    .shopping-item-toggle-btn { flex-grow: 1; padding: 10px 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; color: var(--list-item-text); cursor: pointer; text-align: left; }
+    .shopping-item-toggle-btn.pending { background-color: var(--pending-bg); }
+    .shopping-item-toggle-btn.bought { background-color: var(--bought-bg); }
+    .shopping-item-toggle-btn .item-date { font-size: 0.75rem; opacity: 0.8; margin-top: 5px; display:block; }
+    .add-article-btn-container { padding: 10px; text-align: center; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .add-article-btn, .multi-select-action-btn { background-color: var(--primary); color: var(--action-text); padding: 12px 20px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; flex-grow: 1; max-width: 250px; }
+    .multi-select-action-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+    .shopping-list-section-title { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 10px 10px 10px; padding-top: 10px; border-top: 1px solid #eee; text-align: left; }
+    .shopping-list-section-title:first-of-type { border-top: none; margin-top: 0; }
+    .note-item { background: var(--card-bg); border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; }
+    .note-header { display: flex; align-items: center; justify-content: space-between; padding: 15px; }
+    .note-header-interactive { flex-grow: 1; padding-right: 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+    .note-title-section { display: flex; flex-direction: column; text-align: left; }
+    .note-title { font-size: 1.1rem; font-weight: 500; }
+    .note-date { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+    .note-description { padding: 0 15px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; white-space: pre-wrap; word-wrap: break-word; text-align: left; }
+    .note-item.open .note-description { max-height: 500px; padding: 0 15px 15px; }
+    .expand-arrow { font-size: 1.5rem; color: var(--muted); transition: transform 0.3s ease; }
+    .note-item.open .expand-arrow { transform: rotate(180deg); }
+    .day-header { font-size: 1.2rem; font-weight: 600; color: var(--text); margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #eee; text-align: left;}
+    .event-description { white-space: pre-wrap; word-wrap: break-word; text-align: left; color: var(--text); margin-top: 10px; display: none; }
+    .list-item.open .event-description { display: block; }
+    .gasto-chart-container { text-align: center; margin-top: 15px; }
+    .gasto-chart-container canvas { max-width: 100%; }
+    .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+    .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
+    .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
+    .notification-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+    .notification-row .event-reminder-method { flex: 2 1 auto; min-width: 120px; }
+    .notification-row .event-reminder-quantity { flex: 1 1 60px; text-align: right; }
+    .notification-row .event-reminder-unit { flex: 2 1 auto; min-width: 90px; }
+    .notification-row .remove-notification-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 0 5px; flex-shrink: 0; line-height: 1; }
+    .notification-row select, .notification-row input { margin-top: 0 !important; width: auto; }
+    #image-preview-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    #image-preview-element { max-width: 90%; max-height: 70%; object-fit: contain; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+    #image-preview-actions { display: flex; gap: 20px; margin-top: 20px; width: 100%; max-width: 400px; }
+    #image-preview-actions button { flex: 1; padding: 15px; font-size: 1.2rem; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; }
+    #preview-send-btn { background-color: var(--action-bg); color: var(--action-text); }
+    #preview-cancel-btn { background-color: var(--delete-bg); color: var(--delete-text); }
+    .scan-instruction-screen { text-align: center; padding: 40px 20px; display: flex; flex-direction: column; justify-content: center; height: 100vh; }
+    .scan-instruction-screen h2 { font-size: 1.6rem; margin-bottom: 20px; }
+    .scan-instruction-screen ol { text-align: left; margin: 0 auto 30px auto; max-width: 300px; }
+    .scan-instruction-screen li { margin-bottom: 10px; line-height: 1.5; }
+    .scan-instruction-screen .add-article-btn { max-width: 100%; }
+    .dropdown-item { background-color: var(--menu-bg, #fff); }
+    .form-card textarea, .form-card input, .form-card select { background-color: var(--card-bg, #fff); color: var(--text, #333); border: 1px solid var(--muted, #ddd); }
+    .dropdown-menu { background-color: var(--card-bg, #fff); }
+    .settings-section-title { font-size: 1.3rem; font-weight: 600; color: var(--text); margin: 25px 0 15px 0; padding-bottom: 10px; border-bottom: 1px solid #eee; text-align: left;}
+    .settings-section-title:first-of-type { margin-top: 0; }
+    .settings-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
+    .settings-item-label { font-size: 1.1rem; }
+    .settings-item-control { flex-shrink: 0; margin-left: 15px; }
+    .settings-item-control input, .settings-item-control select { margin-top:0 !important; width: auto; max-width: 150px;}
+    .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
+    .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: var(--primary); }
+    input:checked + .slider:before { transform: translateX(22px); }
+    .chef-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+    .chef-item label { margin-top:0; }
+    #chef-peticion-ayuda { font-size: 0.85rem; color: var(--muted); margin-top: 5px; display: block; }
+    .recipe-card { background: var(--card-bg); border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .recipe-header { padding: 15px; border-bottom: 1px solid #eee; }
+    .recipe-title { font-size: 1.2rem; font-weight: 600; }
+    .recipe-body { padding: 15px; }
+    .recipe-description { margin-bottom: 15px; line-height: 1.5; }
+    .recipe-subtitle { font-size: 1rem; font-weight: 500; margin-bottom: 8px; }
+    .recipe-ingredient-list li { list-style: none; margin-bottom: 5px; }
+    .recipe-ingredient-list.buy li { display: flex; align-items: center; }
+    .recipe-ingredient-list.buy input { margin-right: 10px; width: 18px; height: 18px; }
+    #chef-image-previews { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+    .preview-item { position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; }
+    .preview-image { width: 100%; height: 100%; object-fit: cover; }
+    .delete-preview-btn { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; background-color: rgba(231, 76, 60, 0.9); color: white; border: none; border-radius: 50%; font-size: 14px; line-height: 22px; text-align: center; cursor: pointer; font-weight: bold; }
+    .tab-premium-locked {
+        cursor: not-allowed;
+        opacity: 0.6;
+        pointer-events: none; /* Bloquea los clics */
+    }
+    .list-item.clickable {
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .list-item.clickable:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div id="spinner" class="spinner"></div>
+  <div id="main-content-area">
+  </div>
+    <div class="tabs">
+    <div class="tab active" id="tab-home">🏠 Home</div>
+    <div class="tab" id="tab-chef">🧑‍🍳 Chef</div>
+    <div class="tab" id="tab-export">📊 Exportar Gastos</div>
+    <div class="tab" id="tab-settings">⚙️ Ajustes</div>
+  </div>
+  <div id="toast" class="toast"></div>
+  <div id="image-preview-overlay" style="display: none;">
+    <img id="image-preview-element" src="" alt="Vista previa del ticket" />
+    <div id="image-preview-actions">
+        <button id="preview-cancel-btn">Cancelar</button>
+        <button id="preview-send-btn">Enviar</button>
+    </div>
+  </div>
+  
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+    
+// ==================================================
+// --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
+// ==================================================
+// --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
+const currentHtmlVersion = "1.1.2"; // Esta versión debe coincidir con la del backend
+let isSyncing = false;
+let initialCountsForSync = {}; // Almacenará una copia limpia de los contadores para comparación
+
+async function handleVisibilityChange() {
+    if (!tg.isExpanded || isSyncing) return;
+    isSyncing = true;
+    showSpinner();
+
+    // Función de comparación robusta que ignora el orden de las propiedades
+    const areCountsDifferent = (countsA, countsB) => {
+        const keysA = Object.keys(countsA);
+        const keysB = Object.keys(countsB);
+
+        if (keysA.length !== keysB.length) return true;
+
+        for (let key of keysA) {
+            if (countsA[key] !== countsB[key]) return true;
+        }
+        return false;
+    };
+
+    try {
+        const syncCheckData = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+        if (syncCheckData.error) throw new Error(syncCheckData.error);
+
+        // 1. Comprobación de Versión
+        if (syncCheckData.version && syncCheckData.version !== currentHtmlVersion) {
+            window.location.reload(true);
+            return;
+        }
+
+        // 2. Comprobación de Contadores (USANDO LA NUEVA FUNCIÓN ROBUSTA)
+        if (areCountsDifferent(initialCountsForSync, syncCheckData.counts)) {
+            initialCountsForSync = syncCheckData.counts;
+            appData.counts = { ...appData.counts, ...syncCheckData.counts };
+            updateDashboardBadges();
+
+            const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+            if (secondaryData.error) throw new Error(secondaryData.error);
+            
+            appData.remindersList = secondaryData.remindersList;
+            appData.shoppingList = secondaryData.shoppingList;
+            appData.notesList = secondaryData.notesList;
+            appData.calendarEvents = secondaryData.calendarEvents;
+            
+            appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+            appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+            appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+            appData.isSecondaryDataLoaded = true;
+            
+            updateDashboardBadges();
+            showToast("Datos sincronizados.");
+        }
+    } catch (err) {
+        console.error("Error durante la sincronización inteligente:", err);
+        showToast("Error al sincronizar: " + err.message, true);
+    } finally {
+        hideSpinner();
+        isSyncing = false;
+    }
+}
+
+function updateDashboardBadges() {
+    const counts = appData.counts;
+    const remindersBadge = document.getElementById('reminders-badge');
+    if (remindersBadge) remindersBadge.textContent = counts.remindersCount || 0;
+    const shoppingPendingBadge = document.getElementById('shopping-pending-badge');
+    if (shoppingPendingBadge) shoppingPendingBadge.textContent = counts.shoppingPendingCount || 0;
+    const shoppingBoughtBadge = document.getElementById('shopping-bought-badge');
+    if (shoppingBoughtBadge) shoppingBoughtBadge.textContent = counts.shoppingBoughtCount || 0;
+    const notesBadge = document.getElementById('notes-badge');
+    if (notesBadge) notesBadge.textContent = counts.notesCount || 0;
+    const calendarBadge = document.getElementById('calendar-badge');
+    if (calendarBadge) calendarBadge.textContent = counts.calendarTodayCount || 0;
+    const gastosBadge = document.getElementById('gastos-badge');
+    if (gastosBadge) gastosBadge.textContent = (counts.gastosMesActual || '--').split(',')[0];
+}
+// --- FIN: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
+
+// --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
 const currentHtmlVersion = "1.1.2"; // Esta versión debe coincidir con la del backend
 let isSyncing = false;
 
@@ -2523,4 +5046,5 @@ initializeApp();
 </script>
 </body>
 </html>
+
 
