@@ -195,66 +195,71 @@ const currentHtmlVersion = "1.1.2"; // Esta versión debe coincidir con la del b
 let isSyncing = false;
 let initialCountsForSync = {}; // Almacenará una copia limpia de los contadores para comparación
 
-async function handleVisibilityChange(event) { // <--- AÑADIDO el argumento 'event'
-    // CORRECCIÓN: Usamos el argumento para asegurarnos de que la app está REALMENTE expandida
-    if (!event.isStateStable || !tg.isExpanded || isSyncing) {
-        return; 
+async function handleVisibilityChange(event) {
+    // En lugar de usar event.isStateStable, que es inconsistente,
+    // nos basamos en una variable de estado propia para saber si la app estaba previamente minimizada.
+    // El evento solo debe actuar cuando pasamos de minimizado a expandido.
+    const isCurrentlyExpanded = tg.isExpanded;
+    const wasPreviouslyExpanded = document.body.dataset.isExpanded === 'true';
+
+    if (isCurrentlyExpanded && !wasPreviouslyExpanded) {
+        // --- INICIO DE LA LÓGICA DE ACTUALIZACIÓN ---
+        if (isSyncing) return;
+        isSyncing = true;
+        showSpinner();
+
+        const areCountsDifferent = (countsA, countsB) => {
+            if (!countsA || !countsB) return true;
+            const keysA = Object.keys(countsA);
+            const keysB = Object.keys(countsB);
+            if (keysA.length !== keysB.length) return true;
+            for (let key of keysA) {
+                if (countsA[key] !== countsB[key]) return true;
+            }
+            return false;
+        };
+
+        try {
+            const syncCheckData = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+            if (syncCheckData.error) throw new Error(syncCheckData.error);
+
+            if (syncCheckData.version && syncCheckData.version !== currentHtmlVersion) {
+                window.location.reload(true);
+                return;
+            }
+
+            if (areCountsDifferent(initialCountsForSync, syncCheckData.counts)) {
+                initialCountsForSync = syncCheckData.counts;
+                appData.counts = { ...appData.counts, ...syncCheckData.counts };
+                updateDashboardBadges();
+
+                const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+                if (secondaryData.error) throw new Error(secondaryData.error);
+                
+                appData.remindersList = secondaryData.remindersList;
+                appData.shoppingList = secondaryData.shoppingList;
+                appData.notesList = secondaryData.notesList;
+                appData.calendarEvents = secondaryData.calendarEvents;
+                appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+                appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+                appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+                appData.isSecondaryDataLoaded = true;
+                
+                updateDashboardBadges();
+                showToast("Datos sincronizados.");
+            }
+        } catch (err) {
+            console.error("Error durante la sincronización inteligente:", err);
+            showToast("Error al sincronizar: " + err.message, true);
+        } finally {
+            hideSpinner();
+            isSyncing = false;
+        }
+        // --- FIN DE LA LÓGICA DE ACTUALIZACIÓN ---
     }
-
-    isSyncing = true;
-    showSpinner();
-
-    // Función de comparación robusta que ignora el orden de las propiedades
-    const areCountsDifferent = (countsA, countsB) => {
-        if (!countsA || !countsB) return true; // Si alguno no existe, son diferentes
-        const keysA = Object.keys(countsA);
-        const keysB = Object.keys(countsB);
-        if (keysA.length !== keysB.length) return true;
-        for (let key of keysA) {
-            if (countsA[key] !== countsB[key]) return true;
-        }
-        return false;
-    };
-
-    try {
-        const syncCheckData = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
-        if (syncCheckData.error) throw new Error(syncCheckData.error);
-
-        // 1. Comprobación de Versión
-        if (syncCheckData.version && syncCheckData.version !== currentHtmlVersion) {
-            window.location.reload(true);
-            return;
-        }
-
-        // 2. Comprobación de Contadores con la función robusta
-        if (areCountsDifferent(initialCountsForSync, syncCheckData.counts)) {
-            initialCountsForSync = syncCheckData.counts;
-            appData.counts = { ...appData.counts, ...syncCheckData.counts };
-            updateDashboardBadges();
-
-            const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
-            if (secondaryData.error) throw new Error(secondaryData.error);
-            
-            appData.remindersList = secondaryData.remindersList;
-            appData.shoppingList = secondaryData.shoppingList;
-            appData.notesList = secondaryData.notesList;
-            appData.calendarEvents = secondaryData.calendarEvents;
-            
-            appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
-            appData.counts.gastosMesActual = secondaryData.gastosMesActual;
-            appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
-            appData.isSecondaryDataLoaded = true;
-            
-            updateDashboardBadges();
-            showToast("Datos sincronizados.");
-        }
-    } catch (err) {
-        console.error("Error durante la sincronización inteligente:", err);
-        showToast("Error al sincronizar: " + err.message, true);
-    } finally {
-        hideSpinner();
-        isSyncing = false;
-    }
+    
+    // Actualizamos el estado para la próxima vez que se dispare el evento.
+    document.body.dataset.isExpanded = isCurrentlyExpanded;
 }
 
 function updateDashboardBadges() {
@@ -371,8 +376,6 @@ async function initializeApp() {
         appData.notesList = secondaryData.notesList;
         appData.calendarEvents = secondaryData.calendarEvents;
         
-        // --- CORRECCIÓN ---
-        // Se actualizan los contadores de la carga secundaria por separado para no contaminar el objeto de comparación
         appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
         appData.counts.gastosMesActual = secondaryData.gastosMesActual;
         appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
@@ -385,8 +388,6 @@ async function initializeApp() {
     const initialData = await initialRes.json();
     if (initialData.error) throw new Error(initialData.error);
 
-    // --- CORRECCIÓN ---
-    // Guardamos una copia limpia de los contadores iniciales para la comparación en el futuro
     initialCountsForSync = initialData.counts; 
     appData.counts = initialData.counts;
     appData.settings = initialData.settings;
@@ -395,6 +396,10 @@ async function initializeApp() {
     updateChefTabStyle();
     renderDashboard();
     hideSpinner();
+
+    // --- LÍNEA AÑADIDA ---
+    // Guardamos el estado inicial de la ventana para futuras comparaciones
+    document.body.dataset.isExpanded = tg.isExpanded;
 
   } catch (err) {
     console.error('Error en carga inicial:', err);
