@@ -190,9 +190,89 @@
 // ==================================================
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
-
 // --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
 const currentHtmlVersion = "1.1.1"; // Esta versión debe coincidir con la del backend
+let isSyncing = false;
+let initialCountsForSync = {}; // Almacenará una copia limpia de los contadores para comparación
+
+async function handleVisibilityChange() {
+    if (!tg.isExpanded || isSyncing) return;
+    isSyncing = true;
+    showSpinner();
+
+    // Función de comparación robusta que ignora el orden de las propiedades
+    const areCountsDifferent = (countsA, countsB) => {
+        const keysA = Object.keys(countsA);
+        const keysB = Object.keys(countsB);
+
+        if (keysA.length !== keysB.length) return true;
+
+        for (let key of keysA) {
+            if (countsA[key] !== countsB[key]) return true;
+        }
+        return false;
+    };
+
+    try {
+        const syncCheckData = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+        if (syncCheckData.error) throw new Error(syncCheckData.error);
+
+        // 1. Comprobación de Versión
+        if (syncCheckData.version && syncCheckData.version !== currentHtmlVersion) {
+            window.location.reload(true);
+            return;
+        }
+
+        // 2. Comprobación de Contadores (USANDO LA NUEVA FUNCIÓN ROBUSTA)
+        if (areCountsDifferent(initialCountsForSync, syncCheckData.counts)) {
+            initialCountsForSync = syncCheckData.counts;
+            appData.counts = { ...appData.counts, ...syncCheckData.counts };
+            updateDashboardBadges();
+
+            const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+            if (secondaryData.error) throw new Error(secondaryData.error);
+            
+            appData.remindersList = secondaryData.remindersList;
+            appData.shoppingList = secondaryData.shoppingList;
+            appData.notesList = secondaryData.notesList;
+            appData.calendarEvents = secondaryData.calendarEvents;
+            
+            appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+            appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+            appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+            appData.isSecondaryDataLoaded = true;
+            
+            updateDashboardBadges();
+            showToast("Datos sincronizados.");
+        }
+    } catch (err) {
+        console.error("Error durante la sincronización inteligente:", err);
+        showToast("Error al sincronizar: " + err.message, true);
+    } finally {
+        hideSpinner();
+        isSyncing = false;
+    }
+}
+
+function updateDashboardBadges() {
+    const counts = appData.counts;
+    const remindersBadge = document.getElementById('reminders-badge');
+    if (remindersBadge) remindersBadge.textContent = counts.remindersCount || 0;
+    const shoppingPendingBadge = document.getElementById('shopping-pending-badge');
+    if (shoppingPendingBadge) shoppingPendingBadge.textContent = counts.shoppingPendingCount || 0;
+    const shoppingBoughtBadge = document.getElementById('shopping-bought-badge');
+    if (shoppingBoughtBadge) shoppingBoughtBadge.textContent = counts.shoppingBoughtCount || 0;
+    const notesBadge = document.getElementById('notes-badge');
+    if (notesBadge) notesBadge.textContent = counts.notesCount || 0;
+    const calendarBadge = document.getElementById('calendar-badge');
+    if (calendarBadge) calendarBadge.textContent = counts.calendarTodayCount || 0;
+    const gastosBadge = document.getElementById('gastos-badge');
+    if (gastosBadge) gastosBadge.textContent = (counts.gastosMesActual || '--').split(',')[0];
+}
+// --- FIN: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
+
+// --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
+const currentHtmlVersion = "1.1.2"; // Esta versión debe coincidir con la del backend
 let isSyncing = false;
 
 async function handleVisibilityChange() {
@@ -358,7 +438,6 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 async function initializeApp() {
   showSpinner();
   try {
-    // FASE 1: Se lanza la petición de datos secundarios INMEDIATAMENTE
     secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
       .then(res => res.json())
       .then(secondaryData => {
@@ -370,26 +449,30 @@ async function initializeApp() {
         appData.shoppingList = secondaryData.shoppingList;
         appData.notesList = secondaryData.notesList;
         appData.calendarEvents = secondaryData.calendarEvents;
+        
+        // --- CORRECCIÓN ---
+        // Se actualizan los contadores de la carga secundaria por separado para no contaminar el objeto de comparación
         appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
         appData.counts.gastosMesActual = secondaryData.gastosMesActual;
         appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
         appData.isSecondaryDataLoaded = true;
         
-        // Actualizamos las insignias que dependen de esta carga
         updateDashboardBadges();
       });
 
-    // FASE 2: Mientras la otra petición viaja, pedimos la inicial y dibujamos la pantalla
     const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
     const initialData = await initialRes.json();
     if (initialData.error) throw new Error(initialData.error);
 
+    // --- CORRECCIÓN ---
+    // Guardamos una copia limpia de los contadores iniciales para la comparación en el futuro
+    initialCountsForSync = initialData.counts; 
     appData.counts = initialData.counts;
     appData.settings = initialData.settings;
     appData.isPremium = initialData.isPremium;
 
     updateChefTabStyle();
-    renderDashboard(); // Esto será casi instantáneo
+    renderDashboard();
     hideSpinner();
 
   } catch (err) {
