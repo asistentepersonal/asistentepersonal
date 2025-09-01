@@ -191,33 +191,18 @@
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
 // --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
-const currentHtmlVersion = "1.1.4"; // Esta versión debe coincidir con la del backend
+const currentHtmlVersion = "1.1.5"; // Esta versión debe coincidir con la del backend
 let isSyncing = false;
 let initialCountsForSync = {}; // Almacenará una copia limpia de los contadores para comparación
 
 async function handleVisibilityChange(event) {
-    // En lugar de usar event.isStateStable, que es inconsistente,
-    // nos basamos en una variable de estado propia para saber si la app estaba previamente minimizada.
-    // El evento solo debe actuar cuando pasamos de minimizado a expandido.
     const isCurrentlyExpanded = tg.isExpanded;
     const wasPreviouslyExpanded = document.body.dataset.isExpanded === 'true';
 
     if (isCurrentlyExpanded && !wasPreviouslyExpanded) {
-        // --- INICIO DE LA LÓGICA DE ACTUALIZACIÓN ---
         if (isSyncing) return;
         isSyncing = true;
         showSpinner();
-
-        const areCountsDifferent = (countsA, countsB) => {
-            if (!countsA || !countsB) return true;
-            const keysA = Object.keys(countsA);
-            const keysB = Object.keys(countsB);
-            if (keysA.length !== keysB.length) return true;
-            for (let key of keysA) {
-                if (countsA[key] !== countsB[key]) return true;
-            }
-            return false;
-        };
 
         try {
             const syncCheckData = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
@@ -228,37 +213,27 @@ async function handleVisibilityChange(event) {
                 return;
             }
 
-            if (areCountsDifferent(initialCountsForSync, syncCheckData.counts)) {
-                initialCountsForSync = syncCheckData.counts;
-                appData.counts = syncCheckData.counts;
-                updateDashboardBadges();
+            const oldCountsString = JSON.stringify(initialCountsForSync);
+            const newCountsString = JSON.stringify(syncCheckData.counts);
 
-                const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
-                if (secondaryData.error) throw new Error(secondaryData.error);
-                
-                appData.remindersList = secondaryData.remindersList;
-                appData.shoppingList = secondaryData.shoppingList;
-                appData.notesList = secondaryData.notesList;
-                appData.calendarEvents = secondaryData.calendarEvents;
-                appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
-                appData.counts.gastosMesActual = secondaryData.gastosMesActual;
-                appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
-                appData.isSecondaryDataLoaded = true;
-                
-                updateDashboardBadges();
+            if (oldCountsString !== newCountsString) {
+                // Hay un cambio real. Forzamos una recarga completa y limpia.
+                // Esto reinicializará 'initialCountsForSync' con los nuevos valores.
+                initializeApp(); 
                 showToast("Datos sincronizados.");
+            } else {
+                // No hay cambios, simplemente ocultamos el spinner.
+                hideSpinner();
             }
         } catch (err) {
             console.error("Error durante la sincronización inteligente:", err);
             showToast("Error al sincronizar: " + err.message, true);
-        } finally {
             hideSpinner();
+        } finally {
             isSyncing = false;
         }
-        // --- FIN DE LA LÓGICA DE ACTUALIZACIÓN ---
     }
     
-    // Actualizamos el estado para la próxima vez que se dispare el evento.
     document.body.dataset.isExpanded = isCurrentlyExpanded;
 }
 
