@@ -1,4 +1,3 @@
-html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -192,7 +191,92 @@ html
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
 
-// --- NUEVO SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
+// --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
+const currentHtmlVersion = "1.1.0"; // Esta versión debe coincidir con la del backend
+let isSyncing = false;
+
+async function handleVisibilityChange() {
+    // Si la app no está maximizada o ya está en proceso de sincronización, no hacemos nada.
+    if (!tg.isExpanded || isSyncing) return;
+
+    isSyncing = true;
+    showSpinner(); // Bloquea la UI para evitar interacciones mientras comprobamos.
+
+    try {
+        const syncCheckData = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+        if (syncCheckData.error) throw new Error(syncCheckData.error);
+
+        // 1. Comprobación de Versión del HTML
+        if (syncCheckData.version && syncCheckData.version !== currentHtmlVersion) {
+            // Versión desactualizada. Forzamos una recarga completa para obtener el nuevo HTML.
+            window.location.reload(true);
+            return; // Detenemos la ejecución aquí.
+        }
+
+        // 2. Comprobación de Contadores
+        const oldCountsString = JSON.stringify(appData.counts);
+        const newCountsString = JSON.stringify(syncCheckData.counts);
+
+        if (oldCountsString !== newCountsString) {
+            // Hay cambios. Actualizamos contadores y luego pedimos los datos completos.
+            appData.counts = syncCheckData.counts;
+            updateDashboardBadges(); // Actualiza las insignias en la UI al instante.
+
+            // Ahora, pedimos solo los datos secundarios (las listas).
+            const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+            if (secondaryData.error) throw new Error(secondaryData.error);
+            
+            // Actualizamos silenciosamente los datos en memoria.
+            appData.remindersList = secondaryData.remindersList;
+            appData.shoppingList = secondaryData.shoppingList;
+            appData.notesList = secondaryData.notesList;
+            appData.calendarEvents = secondaryData.calendarEvents;
+            appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+            appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+            appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+            appData.isSecondaryDataLoaded = true;
+            
+            // Volvemos a renderizar las insignias por si cambiaron los datos de gastos/calendario.
+            updateDashboardBadges();
+            showToast("Datos sincronizados.");
+        }
+        // Si no hay cambios en la versión ni en los contadores, no hacemos nada.
+
+    } catch (err) {
+        console.error("Error durante la sincronización inteligente:", err);
+        showToast("Error al sincronizar: " + err.message, true);
+    } finally {
+        // En cualquier caso, ocultamos el spinner y permitimos futuras sincronizaciones.
+        hideSpinner();
+        isSyncing = false;
+    }
+}
+
+function updateDashboardBadges() {
+    const counts = appData.counts;
+    // Nos aseguramos de que el dashboard esté visible antes de intentar actualizarlo.
+    const remindersBadge = document.getElementById('reminders-badge');
+    if (remindersBadge) remindersBadge.textContent = counts.remindersCount || 0;
+
+    const shoppingPendingBadge = document.getElementById('shopping-pending-badge');
+    if (shoppingPendingBadge) shoppingPendingBadge.textContent = counts.shoppingPendingCount || 0;
+
+    const shoppingBoughtBadge = document.getElementById('shopping-bought-badge');
+    if (shoppingBoughtBadge) shoppingBoughtBadge.textContent = counts.shoppingBoughtCount || 0;
+
+    const notesBadge = document.getElementById('notes-badge');
+    if (notesBadge) notesBadge.textContent = counts.notesCount || 0;
+
+    const calendarBadge = document.getElementById('calendar-badge');
+    if (calendarBadge) calendarBadge.textContent = counts.calendarTodayCount || 0;
+
+    const gastosBadge = document.getElementById('gastos-badge');
+    if (gastosBadge) gastosBadge.textContent = (counts.gastosMesActual || '--').split(',')[0];
+}
+// --- FIN: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
+
+
+// --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
 
 function goBack() {
@@ -215,7 +299,6 @@ function updateBackButton() {
         }
     }
 }
-// --- FIN DEL NUEVO SISTEMA DE NAVEGACIÓN ---
 
 const tg = window.Telegram?.WebApp;
 if (tg) { 
@@ -223,19 +306,8 @@ if (tg) {
     if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
     if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
     
-    // --- NUEVO: ESCUCHADOR DE EVENTOS DE VISIBILIDAD ---
-    // Esta función se ejecutará cada vez que la Mini App se maximice
-    const handleViewportChange = (isExpanded) => {
-        // Solo actuamos si la app se ha expandido (hecho visible)
-        if (isExpanded) {
-            // La acción más segura es recargar todos los datos para asegurar que todo esté sincronizado.
-            // Esto mostrará brevemente el spinner, pero garantiza la consistencia de los datos.
-            initializeApp();
-        }
-    };
-    
-    // Registramos nuestra función para que Telegram la llame cuando ocurra el evento.
-    tg.onEvent('viewportChanged', handleViewportChange);
+    // Registramos nuestra nueva función de sincronización inteligente.
+    tg.onEvent('viewportChanged', handleVisibilityChange);
 }
 
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
@@ -286,16 +358,14 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 async function initializeApp() {
   showSpinner();
   try {
-    // --- FASE 1: Se lanza la petición de datos secundarios INMEDIATAMENTE ---
-    // No esperamos a que termine, solo guardamos la "promesa" de que llegará.
+    // FASE 1: Se lanza la petición de datos secundarios INMEDIATAMENTE
     secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
       .then(res => res.json())
       .then(secondaryData => {
         if (secondaryData.error) {
           showToast("Error cargando datos de fondo: " + secondaryData.error, true);
-          return; // Si falla, no continuamos.
+          return;
         }
-        // Cuando lleguen los datos, los guardamos y actualizamos los contadores visuales.
         appData.remindersList = secondaryData.remindersList;
         appData.shoppingList = secondaryData.shoppingList;
         appData.notesList = secondaryData.notesList;
@@ -305,13 +375,11 @@ async function initializeApp() {
         appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
         appData.isSecondaryDataLoaded = true;
         
-        const calendarBadge = document.getElementById('calendar-badge');
-        if(calendarBadge) calendarBadge.textContent = secondaryData.calendarTodayCount || 0;
-        const gastosBadge = document.getElementById('gastos-badge');
-        if(gastosBadge) gastosBadge.textContent = (secondaryData.gastosMesActual || '--').split(',')[0];
+        // Actualizamos las insignias que dependen de esta carga
+        updateDashboardBadges();
       });
 
-    // --- FASE 2: Mientras la otra petición viaja, pedimos la inicial y dibujamos la pantalla ---
+    // FASE 2: Mientras la otra petición viaja, pedimos la inicial y dibujamos la pantalla
     const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
     const initialData = await initialRes.json();
     if (initialData.error) throw new Error(initialData.error);
@@ -321,7 +389,7 @@ async function initializeApp() {
     appData.isPremium = initialData.isPremium;
 
     updateChefTabStyle();
-    renderDashboard(); // Esto será casi instantáneo.
+    renderDashboard(); // Esto será casi instantáneo
     hideSpinner();
 
   } catch (err) {
@@ -2293,9 +2361,9 @@ function renderDashboard() {
 
   mainContentArea.innerHTML = `
     <div class="grid">
-      <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
-      <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green">${counts.shoppingPendingCount || 0}</div><div class="card-badge red">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
-      <div class="card clickable-card"><div class="card-badge red" style="left:12px;">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
 	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="gastos-badge">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${chefCardHtml}
