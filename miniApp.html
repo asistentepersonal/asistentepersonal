@@ -222,6 +222,20 @@ if (tg) {
     tg.expand(); 
     if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
     if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
+    
+    // --- NUEVO: ESCUCHADOR DE EVENTOS DE VISIBILIDAD ---
+    // Esta función se ejecutará cada vez que la Mini App se maximice
+    const handleViewportChange = (isExpanded) => {
+        // Solo actuamos si la app se ha expandido (hecho visible)
+        if (isExpanded) {
+            // La acción más segura es recargar todos los datos para asegurar que todo esté sincronizado.
+            // Esto mostrará brevemente el spinner, pero garantiza la consistencia de los datos.
+            initializeApp();
+        }
+    };
+    
+    // Registramos nuestra función para que Telegram la llame cuando ocurra el evento.
+    tg.onEvent('viewportChanged', handleViewportChange);
 }
 
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
