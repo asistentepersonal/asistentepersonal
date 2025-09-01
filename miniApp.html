@@ -272,25 +272,16 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 async function initializeApp() {
   showSpinner();
   try {
-    const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
-    const initialData = await initialRes.json();
-    if (initialData.error) throw new Error(initialData.error);
-
-    appData.counts = initialData.counts;
-    appData.settings = initialData.settings;
-    appData.isPremium = initialData.isPremium;
-
-    updateChefTabStyle();
-    renderDashboard();
-    hideSpinner();
-
+    // --- FASE 1: Se lanza la petición de datos secundarios INMEDIATAMENTE ---
+    // No esperamos a que termine, solo guardamos la "promesa" de que llegará.
     secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
       .then(res => res.json())
       .then(secondaryData => {
         if (secondaryData.error) {
           showToast("Error cargando datos de fondo: " + secondaryData.error, true);
-          return;
+          return; // Si falla, no continuamos.
         }
+        // Cuando lleguen los datos, los guardamos y actualizamos los contadores visuales.
         appData.remindersList = secondaryData.remindersList;
         appData.shoppingList = secondaryData.shoppingList;
         appData.notesList = secondaryData.notesList;
@@ -303,8 +294,21 @@ async function initializeApp() {
         const calendarBadge = document.getElementById('calendar-badge');
         if(calendarBadge) calendarBadge.textContent = secondaryData.calendarTodayCount || 0;
         const gastosBadge = document.getElementById('gastos-badge');
-        if(gastosBadge) gastosBadge.textContent = (secondaryData.gastosMesActual || '0,00').split(',')[0];
+        if(gastosBadge) gastosBadge.textContent = (secondaryData.gastosMesActual || '--').split(',')[0];
       });
+
+    // --- FASE 2: Mientras la otra petición viaja, pedimos la inicial y dibujamos la pantalla ---
+    const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
+    const initialData = await initialRes.json();
+    if (initialData.error) throw new Error(initialData.error);
+
+    appData.counts = initialData.counts;
+    appData.settings = initialData.settings;
+    appData.isPremium = initialData.isPremium;
+
+    updateChefTabStyle();
+    renderDashboard(); // Esto será casi instantáneo.
+    hideSpinner();
 
   } catch (err) {
     console.error('Error en carga inicial:', err);
