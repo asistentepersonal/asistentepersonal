@@ -230,7 +230,7 @@ async function handleVisibilityChange(event) {
 
             if (areCountsDifferent(initialCountsForSync, syncCheckData.counts)) {
                 initialCountsForSync = syncCheckData.counts;
-                appData.counts = { ...appData.counts, ...syncCheckData.counts };
+                appData.counts = syncCheckData.counts;
                 updateDashboardBadges();
 
                 const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
@@ -376,6 +376,8 @@ async function initializeApp() {
         appData.notesList = secondaryData.notesList;
         appData.calendarEvents = secondaryData.calendarEvents;
         
+        // --- CORRECCIÓN ---
+        // Se actualizan los contadores de la carga secundaria por separado para no contaminar el objeto de comparación
         appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
         appData.counts.gastosMesActual = secondaryData.gastosMesActual;
         appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
@@ -388,6 +390,8 @@ async function initializeApp() {
     const initialData = await initialRes.json();
     if (initialData.error) throw new Error(initialData.error);
 
+    // --- CORRECCIÓN ---
+    // Guardamos una copia limpia de los contadores iniciales para la comparación en el futuro
     initialCountsForSync = initialData.counts; 
     appData.counts = initialData.counts;
     appData.settings = initialData.settings;
@@ -396,10 +400,6 @@ async function initializeApp() {
     updateChefTabStyle();
     renderDashboard();
     hideSpinner();
-
-    // --- LÍNEA AÑADIDA ---
-    // Guardamos el estado inicial de la ventana para futuras comparaciones
-    document.body.dataset.isExpanded = tg.isExpanded;
 
   } catch (err) {
     console.error('Error en carga inicial:', err);
