@@ -365,26 +365,32 @@ async function initializeApp() {
   showSpinner();
   try {
     secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
-      .then(res => res.json())
-      .then(secondaryData => {
-        if (secondaryData.error) {
-          showToast("Error cargando datos de fondo: " + secondaryData.error, true);
-          return;
-        }
-        appData.remindersList = secondaryData.remindersList;
-        appData.shoppingList = secondaryData.shoppingList;
-        appData.notesList = secondaryData.notesList;
-        appData.calendarEvents = secondaryData.calendarEvents;
-        
-        // --- CORRECCIÓN ---
-        // Se actualizan los contadores de la carga secundaria por separado para no contaminar el objeto de comparación
-        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
-        appData.counts.gastosMesActual = secondaryData.gastosMesActual;
-        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
-        appData.isSecondaryDataLoaded = true;
-        
-        updateDashboardBadges();
-      });
+  .then(res => res.json())
+  .then(secondaryData => {
+    if (secondaryData.error) {
+      showToast("Error cargando datos de fondo: " + secondaryData.error, true);
+      return;
+    }
+    appData.remindersList = secondaryData.remindersList;
+    appData.shoppingList = secondaryData.shoppingList;
+    appData.notesList = secondaryData.notesList;
+    appData.calendarEvents = secondaryData.calendarEvents;
+    
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Se fusionan los datos secundarios en el objeto de visualización 'appData.counts',
+    // pero NUNCA se toca 'initialCountsForSync', que permanece puro para la comparación.
+    const secondaryCounts = {
+        calendarTodayCount: secondaryData.calendarTodayCount,
+        gastosMesActual: secondaryData.gastosMesActual,
+        mesesActivosGastos: secondaryData.mesesActivosGastos
+    };
+    appData.counts = { ...appData.counts, ...secondaryCounts };
+    // --- FIN DE LA CORRECCIÓN ---
+
+    appData.isSecondaryDataLoaded = true;
+    
+    updateDashboardBadges();
+  });
 
     const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
     const initialData = await initialRes.json();
