@@ -195,18 +195,21 @@ const currentHtmlVersion = "1.1.2"; // Esta versión debe coincidir con la del b
 let isSyncing = false;
 let initialCountsForSync = {}; // Almacenará una copia limpia de los contadores para comparación
 
-async function handleVisibilityChange() {
-    if (!tg.isExpanded || isSyncing) return;
+async function handleVisibilityChange(event) { // <--- AÑADIDO el argumento 'event'
+    // CORRECCIÓN: Usamos el argumento para asegurarnos de que la app está REALMENTE expandida
+    if (!event.isStateStable || !tg.isExpanded || isSyncing) {
+        return; 
+    }
+
     isSyncing = true;
     showSpinner();
 
     // Función de comparación robusta que ignora el orden de las propiedades
     const areCountsDifferent = (countsA, countsB) => {
+        if (!countsA || !countsB) return true; // Si alguno no existe, son diferentes
         const keysA = Object.keys(countsA);
         const keysB = Object.keys(countsB);
-
         if (keysA.length !== keysB.length) return true;
-
         for (let key of keysA) {
             if (countsA[key] !== countsB[key]) return true;
         }
@@ -223,7 +226,7 @@ async function handleVisibilityChange() {
             return;
         }
 
-        // 2. Comprobación de Contadores (USANDO LA NUEVA FUNCIÓN ROBUSTA)
+        // 2. Comprobación de Contadores con la función robusta
         if (areCountsDifferent(initialCountsForSync, syncCheckData.counts)) {
             initialCountsForSync = syncCheckData.counts;
             appData.counts = { ...appData.counts, ...syncCheckData.counts };
