@@ -191,7 +191,7 @@
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
 // --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
-const currentHtmlVersion = "1.1.5"; // Esta versión debe coincidir con la del backend
+const currentHtmlVersion = "1.1.6"; // Esta versión debe coincidir con la del backend
 let isSyncing = false;
 let initialCountsForSync = {}; // Almacenará una copia limpia de los contadores para comparación
 
@@ -337,57 +337,71 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 async function initializeApp() {
-  showSpinner();
-  try {
-    secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
-  .then(res => res.json())
-  .then(secondaryData => {
-    if (secondaryData.error) {
-      showToast("Error cargando datos de fondo: " + secondaryData.error, true);
-      return;
+    showSpinner();
+    let changesDetected = false;
+    let isFirstLoad = !appData.isSecondaryDataLoaded;
+
+    try {
+        // --- INICIA LA NUEVA LÓGICA INTELIGENTE ---
+        
+        // 1. Lanzamos la petición de datos secundarios EN PARALELO y guardamos su promesa.
+        // No la esperamos, solo dejamos que viaje.
+        const secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
+            .then(res => res.json());
+
+        // 2. Lanzamos y ESPERAMOS la petición inicial (rápida) que trae los contadores.
+        const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
+        const initialData = await initialRes.json();
+        if (initialData.error) throw new Error(initialData.error);
+
+        // 3. Comparamos los contadores nuevos con los que ya teníamos (si los había).
+        if (isFirstLoad || JSON.stringify(appData.counts) !== JSON.stringify(initialData.counts)) {
+            changesDetected = true;
+        }
+
+        // 4. Si es la primera carga o detectamos cambios, actualizamos los datos base y el dashboard.
+        if (changesDetected) {
+            appData.counts = initialData.counts;
+            appData.settings = initialData.settings;
+            appData.isPremium = initialData.isPremium;
+            updateChefTabStyle();
+            renderDashboard();
+        }
+
+        // 5. Ahora, gestionamos la promesa de los datos secundarios.
+        const secondaryData = await secondaryDataPromise; // Esperamos a que llegue.
+        if (secondaryData.error) {
+            showToast("Error cargando detalles: " + secondaryData.error, true);
+        } else {
+            // Si hubo cambios, actualizamos todo el contenido detallado.
+            if (changesDetected) {
+                appData.remindersList = secondaryData.remindersList;
+                appData.shoppingList = secondaryData.shoppingList;
+                appData.notesList = secondaryData.notesList;
+                appData.calendarEvents = secondaryData.calendarEvents;
+                
+                // Actualizamos los contadores que solo vienen en la secundaria (gastos y calendario)
+                appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+                appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+                appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+                
+                // Re-renderizamos los badges por si acaso
+                const calendarBadge = document.getElementById('calendar-badge');
+                if(calendarBadge) calendarBadge.textContent = secondaryData.calendarTodayCount || 0;
+                const gastosBadge = document.getElementById('gastos-badge');
+                if(gastosBadge) gastosBadge.textContent = (secondaryData.gastosMesActual || '--').split(',')[0];
+            }
+        }
+        
+        appData.isSecondaryDataLoaded = true; // Marcamos que la carga está completa.
+        hideSpinner(); // Ocultamos el spinner al final de todo el proceso.
+
+    } catch (err) {
+        console.error('Error en carga inicial:', err);
+        showToast(`Error al cargar datos: ${err.message}`, true);
+        mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`;
+        hideSpinner();
     }
-    appData.remindersList = secondaryData.remindersList;
-    appData.shoppingList = secondaryData.shoppingList;
-    appData.notesList = secondaryData.notesList;
-    appData.calendarEvents = secondaryData.calendarEvents;
-    
-    // --- INICIO DE LA CORRECCIÓN ---
-    // Se fusionan los datos secundarios en el objeto de visualización 'appData.counts',
-    // pero NUNCA se toca 'initialCountsForSync', que permanece puro para la comparación.
-    const secondaryCounts = {
-        calendarTodayCount: secondaryData.calendarTodayCount,
-        gastosMesActual: secondaryData.gastosMesActual,
-        mesesActivosGastos: secondaryData.mesesActivosGastos
-    };
-    appData.counts = { ...appData.counts, ...secondaryCounts };
-    // --- FIN DE LA CORRECCIÓN ---
-
-    appData.isSecondaryDataLoaded = true;
-    
-    updateDashboardBadges();
-  });
-
-    const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
-    const initialData = await initialRes.json();
-    if (initialData.error) throw new Error(initialData.error);
-
-    // --- CORRECCIÓN ---
-    // Guardamos una copia limpia de los contadores iniciales para la comparación en el futuro
-    initialCountsForSync = initialData.counts; 
-    appData.counts = initialData.counts;
-    appData.settings = initialData.settings;
-    appData.isPremium = initialData.isPremium;
-
-    updateChefTabStyle();
-    renderDashboard();
-    hideSpinner();
-
-  } catch (err) {
-    console.error('Error en carga inicial:', err);
-    showToast(`Error al cargar datos: ${err.message}`, true);
-    mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`;
-    hideSpinner();
-  }
 }
 
 function setActiveTab(activeTabId) { 
