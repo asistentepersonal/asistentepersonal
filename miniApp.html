@@ -408,7 +408,9 @@ function updateChefTabStyle() {
     const chefTab = document.getElementById('tab-chef');
     if (!chefTab) return;
     
-    const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
+    // CORRECCIÓN CLAVE: Usamos 'appData.settings?.Premium'
+    // El '?' (optional chaining) evita el error si 'appData.settings' no existe.
+    const isPremium = String(appData.settings?.Premium).toLowerCase() === 'si';
     
     if (isPremium) {
         chefTab.classList.remove('tab-premium-locked');
@@ -2302,7 +2304,9 @@ function renderDashboard() {
   navigationHistory = [];
   updateBackButton();
   const counts = appData.counts;
-  const isPremium = String(appData.settings.Premium).toLowerCase() === 'si';
+  
+  // CORRECCIÓN CLAVE: Aplicamos la misma lógica segura aquí.
+  const isPremium = String(appData.settings?.Premium).toLowerCase() === 'si';
 
   let chefCardHtml = `
     <div class="card clickable-card" id="chef-card">
