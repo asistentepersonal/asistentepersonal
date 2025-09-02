@@ -337,28 +337,31 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 // Variable global para la versión actual del HTML.
-let currentAppVersion = "1.1.9";
+let currentAppVersion = "1.2.0";
 // Variable de "seguro" para evitar ejecuciones múltiples.
 let isInitializing = false;
 
 async function initializeApp() {
-    // SEGURO DE PUERTA: Si ya se está inicializando, no hacer nada.
+    // SEGURO DE PUERTA: Si ya se está inicializando, ignora la llamada duplicada.
     if (isInitializing) {
-        console.log("Inicialización ya en progreso. Se ignora la llamada duplicada.");
+        console.log("Ignorando llamada duplicada de inicialización.");
         return;
     }
-    // Cierra la puerta con seguro.
-    isInitializing = true;
+    isInitializing = true; // Cierra la puerta con seguro.
+
+    // Mostramos spinner solo si es la primera vez que se abre la app (sin caché).
+    const localData = JSON.parse(localStorage.getItem('appCache')) || { version: "0.0.0", counts: {} };
+    if (localData.version === "0.0.0") {
+        showSpinner();
+    }
 
     try {
-        const localData = JSON.parse(localStorage.getItem('appCache')) || { version: "0.0.0", counts: {} };
-        if (localData.version !== "0.0.0" && Object.keys(localData.counts).length > 0) {
-            if (!appData.isSecondaryDataLoaded) { // Solo renderiza si no está ya en pantalla
+        // Dibuja el dashboard al instante desde la caché si existe.
+        if (localData.version !== "0.0.0") {
+             if (!appData.isSecondaryDataLoaded) { // Evita redibujar si ya está visible.
                 appData.counts = localData.counts;
                 renderDashboard();
-            }
-        } else {
-            showSpinner();
+             }
         }
 
         const checkRes = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId });
@@ -369,9 +372,7 @@ async function initializeApp() {
         const countsMismatch = JSON.stringify(serverData.counts) !== JSON.stringify(localData.counts);
 
         if (versionMismatch || countsMismatch) {
-            if (document.getElementById('spinner').style.display === 'none') {
-                 showSpinner();
-            }
+            showSpinner(); // Muestra spinner porque SÍ vamos a recargar.
             console.log("CAMBIOS DETECTADOS: Recargando datos completos...");
 
             const initialDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
@@ -381,6 +382,7 @@ async function initializeApp() {
             if (initialData.error) throw new Error(initialData.error);
             if (secondaryData.error) throw new Error(secondaryData.error);
 
+            // Actualización completa de datos...
             appData.counts = initialData.counts;
             appData.settings = initialData.settings;
             appData.isPremium = initialData.isPremium;
@@ -396,19 +398,24 @@ async function initializeApp() {
             localStorage.setItem('appCache', JSON.stringify({ version: serverData.version, counts: serverData.counts }));
             updateChefTabStyle();
             renderDashboard();
+            hideSpinner();
+            showToast("¡Aplicación actualizada!"); // Toast de confirmación de cambios.
         } else {
+            // **LA MEJORA DE "FINURA":** No hay cambios.
             console.log("SIN CAMBIOS: Carga finalizada.");
             appData.isSecondaryDataLoaded = true;
+            // 1. Oculta el spinner INMEDIATAMENTE.
+            hideSpinner(); 
+            // 2. Muestra el toast verde de confirmación DESPUÉS.
+            showToast("Sincronizado. No hay cambios.");
         }
-        
-        hideSpinner();
 
     } catch (err) {
         console.error('Error en el ciclo de inicialización:', err);
         showToast(`Error al sincronizar: ${err.message}`, true);
-        mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`;
+        hideSpinner(); // Asegúrate de ocultar el spinner también en caso de error.
     } finally {
-        // Al terminar (con éxito o error), quita el seguro de la puerta.
+        // Al terminar, quita el seguro de la puerta para la próxima vez.
         isInitializing = false;
     }
 }
