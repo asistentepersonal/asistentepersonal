@@ -292,34 +292,32 @@ if (tg) {
     if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
     
     // --- SINCRONIZACIÓN INTELIGENTE AL MAXIMIZAR ---
-    tg.onEvent('viewportChanged', async (event) => {
-        // Solo nos interesa si la app se acaba de expandir (maximizar) y el estado es estable.
-        if (!event.isStateStable || !tg.isExpanded) return;
+tg.onEvent('viewportChanged', async (event) => {
+    // Si la app no está estable/maximizada, O SI SE ESTÁ INICIALIZANDO, no hacer nada.
+    // Esta es la comprobación clave que evita el conflicto.
+    if (!event.isStateStable || !tg.isExpanded || isInitializing) return;
 
-        console.log("App maximizada, comprobando cambios...");
-        try {
-            // Hacemos la comprobación rápida de siempre.
-            const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
-            if (serverCheck.error) throw new Error(serverCheck.error);
+    console.log("App maximizada, comprobando cambios...");
+    try {
+        const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+        if (serverCheck.error) throw new Error(serverCheck.error);
 
-            const localCache = JSON.parse(localStorage.getItem('appCache'));
-            const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
+        const localCache = JSON.parse(localStorage.getItem('appCache'));
+        const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
 
-            // Si los contadores son diferentes, forzamos una recarga completa de los datos.
-            if (countsMismatch) {
-                console.log("Cambios detectados al maximizar. Reiniciando app...");
-                // Marcamos que los datos secundarios ya no son válidos.
-                appData.isSecondaryDataLoaded = false;
-                // Llamamos a la función de inicio, que se encargará de todo el proceso de recarga.
-                initializeApp();
-            } else {
-                console.log("Sin cambios al maximizar.");
-            }
-        } catch (err) {
-            console.error("Error en la sincronización al maximizar:", err);
-            showToast("Error al sincronizar datos.", true);
+        if (countsMismatch) {
+            console.log("Cambios detectados al maximizar. Recargando la página para obtener datos frescos...");
+            // La forma más simple y robusta de asegurar datos 100% frescos es recargar la página.
+            localStorage.clear();
+            window.location.reload(true);
+        } else {
+            console.log("Sin cambios al maximizar.");
         }
-    });
+    } catch (err) {
+        console.error("Error en la sincronización al maximizar:", err);
+        showToast("Error al sincronizar datos.", true);
+    }
+});
 }
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
@@ -2444,7 +2442,7 @@ document.getElementById('tab-chef').onclick = () => {
         renderChefPage();
     }
 };
-
+initializeApp();
 });
 </script>
 </body>
