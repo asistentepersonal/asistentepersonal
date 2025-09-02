@@ -190,7 +190,7 @@
 // ==================================================
 // --- LÓGICA DE INICIO Y SINCRONIZACIÓN OPTIMIZADA ---
 // ==================================================
-const HTML_VERSION = "1.2.4"; // Definimos la versión del cliente aquí
+const HTML_VERSION = "1.2.5"; // Definimos la versión del cliente aquí
 
 async function initializeApp() {
     if (isInitializing) return;
@@ -1604,6 +1604,7 @@ async function fetchAndDisplayGastoChart(event) {
 }
 
 function renderGastosSearchScreen(gastos = null) {
+	updateBackButton();
     let resultsHtml = '';
     let legendDisplay = 'none';
 
@@ -2443,8 +2444,6 @@ document.getElementById('tab-chef').onclick = () => {
         renderChefPage();
     }
 };
-
-initializeApp();
 
 });
 </script>
