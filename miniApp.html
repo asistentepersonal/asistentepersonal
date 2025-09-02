@@ -191,7 +191,7 @@
 // --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
 // ==================================================
 // --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
-const currentHtmlVersion = "1.1.6"; // Esta versión debe coincidir con la del backend
+const currentHtmlVersion = "1.1.8"; // Esta versión debe coincidir con la del backend
 let isSyncing = false;
 let initialCountsForSync = {}; // Almacenará una copia limpia de los contadores para comparación
 
@@ -342,11 +342,11 @@ let currentAppVersion = "1.1.7";
 async function initializeApp() {
     // 1. Dibuja el dashboard INMEDIATAMENTE con los últimos datos guardados en la memoria del navegador.
     const localData = JSON.parse(localStorage.getItem('appCache')) || { version: "0.0.0", counts: {} };
-    if (localData.version !== "0.0.0") {
+    if (localData.version !== "0.0.0" && Object.keys(localData.counts).length > 0) {
         appData.counts = localData.counts;
         renderDashboard(); // Dibuja el esqueleto y los badges al instante.
     } else {
-        showSpinner(); // Muestra spinner solo si no hay nada en caché (la primera vez que el usuario abre la app).
+        showSpinner(); // Muestra spinner solo si no hay nada en caché (primera vez).
     }
 
     try {
@@ -361,24 +361,21 @@ async function initializeApp() {
 
         // 4. Si la versión o los contadores han cambiado, es necesario recargar todos los datos.
         if (versionMismatch || countsMismatch) {
-            // Si el spinner no estaba visible, lo mostramos ahora para indicar la actualización.
-            if (!document.getElementById('spinner').style.display || document.getElementById('spinner').style.display === 'none') {
-                 showSpinner();
+            if (document.getElementById('spinner').style.display === 'none') {
+                 showSpinner(); // Muestra el spinner si no estaba visible para indicar la actualización.
             }
             
             console.log("CAMBIOS DETECTADOS: Recargando datos completos...");
 
-            // Lanzamos las peticiones para obtener los datos completos en paralelo.
             const initialDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
             const secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
 
-            // Esperamos a que ambas terminen.
             const [initialData, secondaryData] = await Promise.all([initialDataPromise, secondaryDataPromise]);
 
             if (initialData.error) throw new Error(initialData.error);
             if (secondaryData.error) throw new Error(secondaryData.error);
 
-            // Actualizamos todos los datos de la app con la nueva información del servidor.
+            // Actualiza todos los datos de la app con la nueva información del servidor.
             appData.counts = initialData.counts;
             appData.settings = initialData.settings;
             appData.isPremium = initialData.isPremium;
@@ -392,15 +389,15 @@ async function initializeApp() {
             
             appData.isSecondaryDataLoaded = true;
 
-            // Guardamos los nuevos y flamantes datos en la memoria local para la próxima vez.
+            // Guarda los nuevos datos en la memoria local para la próxima vez.
             localStorage.setItem('appCache', JSON.stringify({ version: serverData.version, counts: serverData.counts }));
 
-            // Volvemos a dibujar la interfaz con los datos frescos.
+            // Vuelve a dibujar la interfaz con los datos frescos.
             updateChefTabStyle();
             renderDashboard();
         } else {
             console.log("SIN CAMBIOS: Carga finalizada.");
-            // Si no hay cambios, nos aseguramos de que la bandera de carga esté activa para que no se pidan datos de nuevo.
+            // Si no hay cambios, nos aseguramos de que la bandera de carga esté activa.
             appData.isSecondaryDataLoaded = true;
         }
         
