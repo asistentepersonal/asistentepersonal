@@ -193,79 +193,63 @@
 const HTML_VERSION = "1.2.4"; // Definimos la versión del cliente aquí
 
 async function initializeApp() {
-    // Si ya se está inicializando, no hacemos nada.
-    if (isInitializing) { 
-        console.log("Inicialización ya en curso. Omitiendo.");
-        return; 
-    }
+    if (isInitializing) return;
     isInitializing = true;
     console.log("Iniciando app...");
 
     try {
-        // 1. Cargar datos locales y dibujar la UI inmediatamente si existen.
         const localCache = JSON.parse(localStorage.getItem('appCache'));
-        if (localCache && !appData.isSecondaryDataLoaded) {
+        if (localCache) {
             appData.counts = localCache.counts;
-            appData.settings = localCache.settings;
+            appData.settings = localCache.settings || {}; // Asegura que settings sea un objeto
             appData.isPremium = localCache.isPremium;
             updateChefTabStyle();
             renderDashboard();
-            console.log("UI renderizada desde caché local.");
-        } else if (!appData.isSecondaryDataLoaded) {
-            showSpinner(); // Spinner solo en la primera carga absoluta sin caché.
+            console.log("UI renderizada desde caché.");
+        } else {
+            showSpinner();
         }
 
-        // 2. Comprobar si hay actualizaciones en el servidor.
         const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
         if (serverCheck.error) throw new Error(serverCheck.error);
 
-        // Forzamos una recarga completa de la página si la versión del HTML ha cambiado.
         if (serverCheck.version !== HTML_VERSION) {
-            console.log(`¡Nueva versión detectada! Servidor: ${serverCheck.version}, Cliente: ${HTML_VERSION}. Recargando...`);
-            localStorage.clear(); // Limpiamos la caché para evitar conflictos.
-            window.location.reload(true); // El 'true' fuerza la recarga desde el servidor.
-            return; // Detenemos la ejecución aquí.
+            localStorage.clear();
+            window.location.reload(true);
+            return;
         }
 
         const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
 
-        // 3. Si hay cambios en los contadores, recargar todos los datos. Si no, no hacer nada más.
         if (countsMismatch) {
-            console.log("Cambios en los contadores detectados. Obteniendo datos completos...");
-            showSpinner();
+            console.log("Cambios detectados. Obteniendo datos completos...");
+            if (!localCache) showSpinner(); // Muestra spinner si era la primera carga
 
-            const initialDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
-            const secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
-            
-            const [initialData, secondaryData] = await Promise.all([initialDataPromise, secondaryDataPromise]);
-
+            const initialData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
             if (initialData.error) throw new Error(initialData.error);
-            if (secondaryData.error) throw new Error(secondaryData.error);
             
-            appData.counts = { ...initialData.counts }; // Usamos los contadores precisos de la petición inicial.
-            appData.settings = initialData.settings;
+            appData.counts = initialData.counts;
+            appData.settings = initialData.settings || {}; // Asegura que settings sea un objeto
             appData.isPremium = initialData.isPremium;
-            appData.remindersList = secondaryData.remindersList;
-            appData.shoppingList = secondaryData.shoppingList;
-            appData.notesList = secondaryData.notesList;
-            appData.calendarEvents = secondaryData.calendarEvents;
             
+            // Los datos secundarios se cargarán bajo demanda con loadSecondaryData()
+            appData.isSecondaryDataLoaded = false; 
+
             localStorage.setItem('appCache', JSON.stringify({ 
                 version: serverCheck.version, 
                 counts: serverCheck.counts,
-                settings: initialData.settings,
-                isPremium: initialData.isPremium
+                settings: appData.settings,
+                isPremium: appData.isPremium
             }));
 
             updateChefTabStyle();
             renderDashboard();
             showToast("Datos sincronizados.");
-
         } else {
-            console.log("Sin cambios en los contadores. No se requiere recarga.");
+            console.log("Sin cambios. No se requiere recarga de datos.");
+            // Si no hay cambios y teníamos caché, asumimos que los datos secundarios tampoco han cambiado.
+            // Si el usuario los pide, la app los cargará.
         }
-        
-        appData.isSecondaryDataLoaded = true;
 
     } catch (err) {
         console.error("Error en initializeApp:", err);
