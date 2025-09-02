@@ -190,7 +190,7 @@
 // ==================================================
 // --- LÓGICA DE INICIO Y SINCRONIZACIÓN OPTIMIZADA ---
 // ==================================================
-const HTML_VERSION = "1.2.5"; // Definimos la versión del cliente aquí
+const HTML_VERSION = "1.2.6"; // Definimos la versión del cliente aquí
 
 async function initializeApp() {
     if (isInitializing) return;
@@ -611,24 +611,36 @@ async function saveReminder() {
   const category = document.querySelector('input[name="category"]:checked').value;
   const description = document.getElementById('text').value.trim();
   const time = document.getElementById('time')._flatpickr.selectedDates[0];
-  const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null;
+  const horas_recurrentes = category === 'Recuerrente' ? document.getElementById('recurrent-hours').value : null;
   const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
-  appData.counts.remindersCount++;
+  
+  // --- LÓGICA OPTIMISTA MEJORADA ---
   const tempId = 'temp-' + Date.now();
-  appData.remindersList.unshift({ 'Fecha': new Date().toLocaleString(), 'Descripcion': description, 'Categoria': category, 'tracking_code': tempId });
-  goBack();
+  const newReminder = { 
+      'Fecha': new Date(time).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }), 
+      'Descripcion': description, 
+      'Categoria': category, 
+      'tracking_code': tempId 
+  };
+  
+  appData.remindersList.unshift(newReminder); // Añadimos al principio de la lista
+  appData.counts.remindersCount++; // Actualizamos el contador local
+  
+  goBack(); // Volvemos al dashboard, que se redibujará con el contador actualizado
   showToast('Recordatorio creado');
+  
   try { 
     const res = await fetchWithTimeout(gasWebhookURL, payload); 
     const data = await res.json(); 
     if(data.error) throw new Error(data.error); 
+    // Reemplazamos el ID temporal con el real cuando llegue del servidor
     if (data.tracking_code) {
-        const tempReminder = appData.remindersList.find(r => r.tracking_code === tempId);
-        if (tempReminder) tempReminder.tracking_code = data.tracking_code;
+        const tempItem = appData.remindersList.find(r => r.tracking_code === tempId);
+        if (tempItem) tempItem.tracking_code = data.tracking_code;
     }
   } catch (err) { 
-    showToast(`Error: ${err.message}. No se guardó.`, true); 
-    initializeApp();
+    showToast(`Error: ${err.message}. Restaurando...`, true); 
+    initializeApp(); // Si falla, forzamos una resincronización completa
   }
 }
 
@@ -845,16 +857,27 @@ async function addArticle() {
   const cycle = document.getElementById('article-cycle').value || 0;
   if (!description) return;
   const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
-  appData.counts.shoppingPendingCount++;
+  
+  // --- LÓGICA OPTIMISTA MEJORADA ---
   const tempId = 'temp-' + Date.now();
-  appData.shoppingList.unshift({ '1': description, '2': 'Pendiente', '3': tempId, '4': '', '5': cycle });
+  const newItem = { '1': description, '2': 'Pendiente', '3': tempId, '4': '', '5': cycle };
+  
+  appData.shoppingList.unshift(newItem); // Añadimos al principio
+  appData.counts.shoppingPendingCount++; // Actualizamos contador
+  
   goBack();
   showToast('Artículo añadido');
+  
   try {
       const res = await fetchWithTimeout(gasWebhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-  } catch (err) { showToast(`Error: ${err.message}. No se añadió.`, true); initializeApp(); }
+      // Opcional: reemplazar ID temporal si el backend lo devuelve.
+      // En este caso no es crítico porque el tracking_code se genera en el backend.
+  } catch (err) { 
+      showToast(`Error: ${err.message}. Restaurando...`, true);
+      initializeApp();
+  }
 }
 
 function renderEditShoppingItemForm(item) {
@@ -970,39 +993,54 @@ async function saveNote() {
     const noteId = saveBtn.dataset.noteId;
     const isEditing = !!noteId;
     const payload = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', note_id: noteId, title: title, description: description };
+
     if (isEditing) {
         const itemIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
         if (itemIndex === -1) return;
         const originalNote = { ...appData.notesList[itemIndex] };
+        
+        // --- Lógica Optimista (Editar) ---
         appData.notesList[itemIndex].Titulo = title;
         appData.notesList[itemIndex].Descripcion = description;
+        
         goBack();
         showToast('Nota guardada');
+        
         try {
             const res = await fetchWithTimeout(gasWebhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
         } catch (err) {
-            showToast(`Error: ${err.message}. No se pudo guardar.`, true);
-            appData.notesList[itemIndex] = originalNote;
-            renderNotesList();
+            showToast(`Error: ${err.message}. Restaurando...`, true);
+            appData.notesList[itemIndex] = originalNote; // Revertimos el cambio
+            initializeApp();
         }
     } else {
-        appData.counts.notesCount++;
+        // --- LÓGICA OPTIMISTA MEJORADA (Crear) ---
         const tempId = 'temp-' + Date.now();
-        appData.notesList.unshift({ Nota_ID: tempId, Titulo: title, Descripcion: description, Fecha: new Date().toLocaleDateString('es-ES') });
+        const newNote = { 
+            Nota_ID: tempId, 
+            Titulo: title, 
+            Descripcion: description, 
+            Fecha: new Date().toLocaleDateString('es-ES') 
+        };
+
+        appData.notesList.unshift(newNote); // Añadimos al principio
+        appData.counts.notesCount++; // Actualizamos contador
+
         goBack();
         showToast('Nota creada');
+        
         try {
             const res = await fetchWithTimeout(gasWebhookURL, payload);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
             if(data.newNoteId){
-                const tempNote = appData.notesList.find(n => n.Nota_ID === tempId);
-                if(tempNote) tempNote.Nota_ID = data.newNoteId;
+                const tempItem = appData.notesList.find(n => n.Nota_ID === tempId);
+                if(tempItem) tempItem.Nota_ID = data.newNoteId;
             }
         } catch (err) {
-            showToast(`Error: ${err.message}. No se pudo crear la nota.`, true);
+            showToast(`Error: ${err.message}. Restaurando...`, true);
             initializeApp();
         }
     }
