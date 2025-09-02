@@ -337,45 +337,50 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 // Variable global para la versión actual del HTML.
-let currentAppVersion = "1.1.7";
+let currentAppVersion = "1.1.9";
+// Variable de "seguro" para evitar ejecuciones múltiples.
+let isInitializing = false;
 
 async function initializeApp() {
-    // 1. Dibuja el dashboard INMEDIATAMENTE con los últimos datos guardados en la memoria del navegador.
-    const localData = JSON.parse(localStorage.getItem('appCache')) || { version: "0.0.0", counts: {} };
-    if (localData.version !== "0.0.0" && Object.keys(localData.counts).length > 0) {
-        appData.counts = localData.counts;
-        renderDashboard(); // Dibuja el esqueleto y los badges al instante.
-    } else {
-        showSpinner(); // Muestra spinner solo si no hay nada en caché (primera vez).
+    // SEGURO DE PUERTA: Si ya se está inicializando, no hacer nada.
+    if (isInitializing) {
+        console.log("Inicialización ya en progreso. Se ignora la llamada duplicada.");
+        return;
     }
+    // Cierra la puerta con seguro.
+    isInitializing = true;
 
     try {
-        // 2. En segundo plano, pide al servidor la versión y contadores más recientes.
+        const localData = JSON.parse(localStorage.getItem('appCache')) || { version: "0.0.0", counts: {} };
+        if (localData.version !== "0.0.0" && Object.keys(localData.counts).length > 0) {
+            if (!appData.isSecondaryDataLoaded) { // Solo renderiza si no está ya en pantalla
+                appData.counts = localData.counts;
+                renderDashboard();
+            }
+        } else {
+            showSpinner();
+        }
+
         const checkRes = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId });
         const serverData = await checkRes.json();
         if (serverData.error) throw new Error(serverData.error);
 
-        // 3. Compara la versión del servidor con la que teníamos guardada en la memoria local.
         const versionMismatch = serverData.version !== localData.version;
         const countsMismatch = JSON.stringify(serverData.counts) !== JSON.stringify(localData.counts);
 
-        // 4. Si la versión o los contadores han cambiado, es necesario recargar todos los datos.
         if (versionMismatch || countsMismatch) {
             if (document.getElementById('spinner').style.display === 'none') {
-                 showSpinner(); // Muestra el spinner si no estaba visible para indicar la actualización.
+                 showSpinner();
             }
-            
             console.log("CAMBIOS DETECTADOS: Recargando datos completos...");
 
             const initialDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
             const secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
-
             const [initialData, secondaryData] = await Promise.all([initialDataPromise, secondaryDataPromise]);
 
             if (initialData.error) throw new Error(initialData.error);
             if (secondaryData.error) throw new Error(secondaryData.error);
 
-            // Actualiza todos los datos de la app con la nueva información del servidor.
             appData.counts = initialData.counts;
             appData.settings = initialData.settings;
             appData.isPremium = initialData.isPremium;
@@ -386,18 +391,13 @@ async function initializeApp() {
             appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
             appData.counts.gastosMesActual = secondaryData.gastosMesActual;
             appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
-            
             appData.isSecondaryDataLoaded = true;
 
-            // Guarda los nuevos datos en la memoria local para la próxima vez.
             localStorage.setItem('appCache', JSON.stringify({ version: serverData.version, counts: serverData.counts }));
-
-            // Vuelve a dibujar la interfaz con los datos frescos.
             updateChefTabStyle();
             renderDashboard();
         } else {
             console.log("SIN CAMBIOS: Carga finalizada.");
-            // Si no hay cambios, nos aseguramos de que la bandera de carga esté activa.
             appData.isSecondaryDataLoaded = true;
         }
         
@@ -407,7 +407,9 @@ async function initializeApp() {
         console.error('Error en el ciclo de inicialización:', err);
         showToast(`Error al sincronizar: ${err.message}`, true);
         mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`;
-        hideSpinner();
+    } finally {
+        // Al terminar (con éxito o error), quita el seguro de la puerta.
+        isInitializing = false;
     }
 }
 
