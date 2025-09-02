@@ -188,74 +188,95 @@
     document.addEventListener('DOMContentLoaded', () => {
     
 // ==================================================
-// --- NÚCLEO JAVASCRIPT (SETUP Y FUNCIONES GLOBALES) ---
+// --- LÓGICA DE INICIO Y SINCRONIZACIÓN OPTIMIZADA ---
 // ==================================================
-// --- INICIO: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
-const currentHtmlVersion = "1.1.8"; // Esta versión debe coincidir con la del backend
-let isSyncing = false;
-let initialCountsForSync = {}; // Almacenará una copia limpia de los contadores para comparación
+const HTML_VERSION = "1.2.3"; // Definimos la versión del cliente aquí
+let isInitializing = false; // "Seguro" para evitar ejecuciones múltiples
 
-async function handleVisibilityChange(event) {
-    const isCurrentlyExpanded = tg.isExpanded;
-    const wasPreviouslyExpanded = document.body.dataset.isExpanded === 'true';
-
-    if (isCurrentlyExpanded && !wasPreviouslyExpanded) {
-        if (isSyncing) return;
-        isSyncing = true;
-        showSpinner();
-
-        try {
-            const syncCheckData = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
-            if (syncCheckData.error) throw new Error(syncCheckData.error);
-
-            if (syncCheckData.version && syncCheckData.version !== currentHtmlVersion) {
-                window.location.reload(true);
-                return;
-            }
-
-            const oldCountsString = JSON.stringify(initialCountsForSync);
-            const newCountsString = JSON.stringify(syncCheckData.counts);
-
-            if (oldCountsString !== newCountsString) {
-                // Hay un cambio real. Forzamos una recarga completa y limpia.
-                // Esto reinicializará 'initialCountsForSync' con los nuevos valores.
-                initializeApp(); 
-                showToast("Datos sincronizados.");
-            } else {
-                // No hay cambios, simplemente ocultamos el spinner.
-                hideSpinner();
-            }
-        } catch (err) {
-            console.error("Error durante la sincronización inteligente:", err);
-            showToast("Error al sincronizar: " + err.message, true);
-            hideSpinner();
-        } finally {
-            isSyncing = false;
-        }
+async function initializeApp() {
+    // Si ya se está inicializando, no hacemos nada.
+    if (isInitializing) { 
+        console.log("Inicialización ya en curso. Omitiendo.");
+        return; 
     }
-    
-    document.body.dataset.isExpanded = isCurrentlyExpanded;
+    isInitializing = true;
+    console.log("Iniciando app...");
+
+    try {
+        // 1. Cargar datos locales y dibujar la UI inmediatamente si existen.
+        const localCache = JSON.parse(localStorage.getItem('appCache'));
+        if (localCache && !appData.isSecondaryDataLoaded) {
+            appData.counts = localCache.counts;
+            appData.settings = localCache.settings;
+            appData.isPremium = localCache.isPremium;
+            updateChefTabStyle();
+            renderDashboard();
+            console.log("UI renderizada desde caché local.");
+        } else if (!appData.isSecondaryDataLoaded) {
+            showSpinner(); // Spinner solo en la primera carga absoluta sin caché.
+        }
+
+        // 2. Comprobar si hay actualizaciones en el servidor.
+        const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+        if (serverCheck.error) throw new Error(serverCheck.error);
+
+        // Forzamos una recarga completa de la página si la versión del HTML ha cambiado.
+        if (serverCheck.version !== HTML_VERSION) {
+            console.log(`¡Nueva versión detectada! Servidor: ${serverCheck.version}, Cliente: ${HTML_VERSION}. Recargando...`);
+            localStorage.clear(); // Limpiamos la caché para evitar conflictos.
+            window.location.reload(true); // El 'true' fuerza la recarga desde el servidor.
+            return; // Detenemos la ejecución aquí.
+        }
+
+        const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
+
+        // 3. Si hay cambios en los contadores, recargar todos los datos. Si no, no hacer nada más.
+        if (countsMismatch) {
+            console.log("Cambios en los contadores detectados. Obteniendo datos completos...");
+            showSpinner();
+
+            const initialDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
+            const secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+            
+            const [initialData, secondaryData] = await Promise.all([initialDataPromise, secondaryDataPromise]);
+
+            if (initialData.error) throw new Error(initialData.error);
+            if (secondaryData.error) throw new Error(secondaryData.error);
+            
+            appData.counts = { ...initialData.counts }; // Usamos los contadores precisos de la petición inicial.
+            appData.settings = initialData.settings;
+            appData.isPremium = initialData.isPremium;
+            appData.remindersList = secondaryData.remindersList;
+            appData.shoppingList = secondaryData.shoppingList;
+            appData.notesList = secondaryData.notesList;
+            appData.calendarEvents = secondaryData.calendarEvents;
+            
+            localStorage.setItem('appCache', JSON.stringify({ 
+                version: serverCheck.version, 
+                counts: serverCheck.counts,
+                settings: initialData.settings,
+                isPremium: initialData.isPremium
+            }));
+
+            updateChefTabStyle();
+            renderDashboard();
+            showToast("Datos sincronizados.");
+
+        } else {
+            console.log("Sin cambios en los contadores. No se requiere recarga.");
+        }
+        
+        appData.isSecondaryDataLoaded = true;
+
+    } catch (err) {
+        console.error("Error en initializeApp:", err);
+        showToast(`Error de sincronización: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+        isInitializing = false;
+        console.log("Inicialización finalizada.");
+    }
 }
-
-function updateDashboardBadges() {
-    const counts = appData.counts;
-    const remindersBadge = document.getElementById('reminders-badge');
-    if (remindersBadge) remindersBadge.textContent = counts.remindersCount || 0;
-    const shoppingPendingBadge = document.getElementById('shopping-pending-badge');
-    if (shoppingPendingBadge) shoppingPendingBadge.textContent = counts.shoppingPendingCount || 0;
-    const shoppingBoughtBadge = document.getElementById('shopping-bought-badge');
-    if (shoppingBoughtBadge) shoppingBoughtBadge.textContent = counts.shoppingBoughtCount || 0;
-    const notesBadge = document.getElementById('notes-badge');
-    if (notesBadge) notesBadge.textContent = counts.notesCount || 0;
-    const calendarBadge = document.getElementById('calendar-badge');
-    if (calendarBadge) calendarBadge.textContent = counts.calendarTodayCount || 0;
-    const gastosBadge = document.getElementById('gastos-badge');
-    if (gastosBadge) gastosBadge.textContent = (counts.gastosMesActual || '--').split(',')[0];
-}
-// --- FIN: NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE ---
-
-
-
 
 // --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
