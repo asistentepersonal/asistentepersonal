@@ -336,69 +336,79 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   }
 }
 
+// Variable global para la versión actual del HTML.
+let currentAppVersion = "1.1.7";
+
 async function initializeApp() {
-    showSpinner();
-    let changesDetected = false;
-    let isFirstLoad = !appData.isSecondaryDataLoaded;
+    // 1. Dibuja el dashboard INMEDIATAMENTE con los últimos datos guardados en la memoria del navegador.
+    const localData = JSON.parse(localStorage.getItem('appCache')) || { version: "0.0.0", counts: {} };
+    if (localData.version !== "0.0.0") {
+        appData.counts = localData.counts;
+        renderDashboard(); // Dibuja el esqueleto y los badges al instante.
+    } else {
+        showSpinner(); // Muestra spinner solo si no hay nada en caché (la primera vez que el usuario abre la app).
+    }
 
     try {
-        // --- INICIA LA NUEVA LÓGICA INTELIGENTE ---
-        
-        // 1. Lanzamos la petición de datos secundarios EN PARALELO y guardamos su promesa.
-        // No la esperamos, solo dejamos que viaje.
-        const secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId })
-            .then(res => res.json());
+        // 2. En segundo plano, pide al servidor la versión y contadores más recientes.
+        const checkRes = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId });
+        const serverData = await checkRes.json();
+        if (serverData.error) throw new Error(serverData.error);
 
-        // 2. Lanzamos y ESPERAMOS la petición inicial (rápida) que trae los contadores.
-        const initialRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId });
-        const initialData = await initialRes.json();
-        if (initialData.error) throw new Error(initialData.error);
+        // 3. Compara la versión del servidor con la que teníamos guardada en la memoria local.
+        const versionMismatch = serverData.version !== localData.version;
+        const countsMismatch = JSON.stringify(serverData.counts) !== JSON.stringify(localData.counts);
 
-        // 3. Comparamos los contadores nuevos con los que ya teníamos (si los había).
-        if (isFirstLoad || JSON.stringify(appData.counts) !== JSON.stringify(initialData.counts)) {
-            changesDetected = true;
-        }
+        // 4. Si la versión o los contadores han cambiado, es necesario recargar todos los datos.
+        if (versionMismatch || countsMismatch) {
+            // Si el spinner no estaba visible, lo mostramos ahora para indicar la actualización.
+            if (!document.getElementById('spinner').style.display || document.getElementById('spinner').style.display === 'none') {
+                 showSpinner();
+            }
+            
+            console.log("CAMBIOS DETECTADOS: Recargando datos completos...");
 
-        // 4. Si es la primera carga o detectamos cambios, actualizamos los datos base y el dashboard.
-        if (changesDetected) {
+            // Lanzamos las peticiones para obtener los datos completos en paralelo.
+            const initialDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
+            const secondaryDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+
+            // Esperamos a que ambas terminen.
+            const [initialData, secondaryData] = await Promise.all([initialDataPromise, secondaryDataPromise]);
+
+            if (initialData.error) throw new Error(initialData.error);
+            if (secondaryData.error) throw new Error(secondaryData.error);
+
+            // Actualizamos todos los datos de la app con la nueva información del servidor.
             appData.counts = initialData.counts;
             appData.settings = initialData.settings;
             appData.isPremium = initialData.isPremium;
+            appData.remindersList = secondaryData.remindersList;
+            appData.shoppingList = secondaryData.shoppingList;
+            appData.notesList = secondaryData.notesList;
+            appData.calendarEvents = secondaryData.calendarEvents;
+            appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+            appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+            appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+            
+            appData.isSecondaryDataLoaded = true;
+
+            // Guardamos los nuevos y flamantes datos en la memoria local para la próxima vez.
+            localStorage.setItem('appCache', JSON.stringify({ version: serverData.version, counts: serverData.counts }));
+
+            // Volvemos a dibujar la interfaz con los datos frescos.
             updateChefTabStyle();
             renderDashboard();
-        }
-
-        // 5. Ahora, gestionamos la promesa de los datos secundarios.
-        const secondaryData = await secondaryDataPromise; // Esperamos a que llegue.
-        if (secondaryData.error) {
-            showToast("Error cargando detalles: " + secondaryData.error, true);
         } else {
-            // Si hubo cambios, actualizamos todo el contenido detallado.
-            if (changesDetected) {
-                appData.remindersList = secondaryData.remindersList;
-                appData.shoppingList = secondaryData.shoppingList;
-                appData.notesList = secondaryData.notesList;
-                appData.calendarEvents = secondaryData.calendarEvents;
-                
-                // Actualizamos los contadores que solo vienen en la secundaria (gastos y calendario)
-                appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
-                appData.counts.gastosMesActual = secondaryData.gastosMesActual;
-                appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
-                
-                // Re-renderizamos los badges por si acaso
-                const calendarBadge = document.getElementById('calendar-badge');
-                if(calendarBadge) calendarBadge.textContent = secondaryData.calendarTodayCount || 0;
-                const gastosBadge = document.getElementById('gastos-badge');
-                if(gastosBadge) gastosBadge.textContent = (secondaryData.gastosMesActual || '--').split(',')[0];
-            }
+            console.log("SIN CAMBIOS: Carga finalizada.");
+            // Si no hay cambios, nos aseguramos de que la bandera de carga esté activa para que no se pidan datos de nuevo.
+            appData.isSecondaryDataLoaded = true;
         }
         
-        appData.isSecondaryDataLoaded = true; // Marcamos que la carga está completa.
-        hideSpinner(); // Ocultamos el spinner al final de todo el proceso.
+        hideSpinner();
 
     } catch (err) {
-        console.error('Error en carga inicial:', err);
-        showToast(`Error al cargar datos: ${err.message}`, true);
+        console.error('Error en el ciclo de inicialización:', err);
+        showToast(`Error al sincronizar: ${err.message}`, true);
         mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar la aplicación.<br><small>${err.message}</small><br><br><button onclick="initializeApp()">Reintentar</button></div>`;
         hideSpinner();
     }
