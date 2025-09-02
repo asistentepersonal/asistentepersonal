@@ -308,10 +308,36 @@ if (tg) {
     if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
     if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
     
-    // Registramos nuestra nueva función de sincronización inteligente.
+    // --- SINCRONIZACIÓN INTELIGENTE AL MAXIMIZAR ---
+    tg.onEvent('viewportChanged', async (event) => {
+        // Solo nos interesa si la app se acaba de expandir (maximizar) y el estado es estable.
+        if (!event.isStateStable || !tg.isExpanded) return;
 
+        console.log("App maximizada, comprobando cambios...");
+        try {
+            // Hacemos la comprobación rápida de siempre.
+            const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+            if (serverCheck.error) throw new Error(serverCheck.error);
+
+            const localCache = JSON.parse(localStorage.getItem('appCache'));
+            const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
+
+            // Si los contadores son diferentes, forzamos una recarga completa de los datos.
+            if (countsMismatch) {
+                console.log("Cambios detectados al maximizar. Reiniciando app...");
+                // Marcamos que los datos secundarios ya no son válidos.
+                appData.isSecondaryDataLoaded = false;
+                // Llamamos a la función de inicio, que se encargará de todo el proceso de recarga.
+                initializeApp();
+            } else {
+                console.log("Sin cambios al maximizar.");
+            }
+        } catch (err) {
+            console.error("Error en la sincronización al maximizar:", err);
+            showToast("Error al sincronizar datos.", true);
+        }
+    });
 }
-
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxenwF0_F1yz0OJ7Kau7W2-HxqZqq5HIGD-GUdENpduign5J8xewfQJWBfGZpM04vHe/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
@@ -359,6 +385,41 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 
 // Variable global para la versión actual del HTML.
 let currentAppVersion = "1.2.2";
+// Variable de "seguro" para evitar ejecuciones múltiples.
+let isInitializing = false;
+
+// ==================================================
+// --- CARGADOR DE DATOS SECUNDARIOS (NUEVO) ---
+// ==================================================
+async function loadSecondaryData() {
+    if (appData.isSecondaryDataLoaded) return; // Si ya se cargaron, no hacer nada.
+    
+    console.log("Cargando datos secundarios por primera vez...");
+    showSpinner();
+    try {
+        const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+        if (secondaryData.error) throw new Error(secondaryData.error);
+
+        appData.remindersList = secondaryData.remindersList;
+        appData.shoppingList = secondaryData.shoppingList;
+        appData.notesList = secondaryData.notesList;
+        appData.calendarEvents = secondaryData.calendarEvents;
+        
+        // Actualizamos los contadores que vienen en esta petición para estar 100% sincronizados
+        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+        appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+
+        appData.isSecondaryDataLoaded = true; // Marcamos que ya tenemos los datos.
+        console.log("Datos secundarios cargados con éxito.");
+        
+    } catch (err) {
+        console.error("Error cargando datos secundarios:", err);
+        showToast(`Error al cargar datos: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
+}
 
 function setActiveTab(activeTabId) { 
   document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); 
@@ -591,7 +652,7 @@ async function saveReminder() {
 }
 
 async function renderRemindersList() {
-  if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
+  if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); }
   navigationHistory.push(renderDashboard);
   updateBackButton();
   const reminders = appData.remindersList || [];
@@ -649,7 +710,7 @@ async function editReminderDescription(item) {
 // --- MÓDULO: COMPRAS ---
 // ==================================================
 async function renderShoppingList() {
-  if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
+  if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); }
   navigationHistory.push(renderDashboard);
   updateBackButton();
   const items = appData.shoppingList || [];
@@ -855,7 +916,7 @@ async function saveEditedShoppingItem(trackingCode) {
 // --- MÓDULO: NOTAS ---
 // ==================================================
 async function renderNotesList() {
-    if (!appData.isSecondaryDataLoaded) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
+    if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); }
     navigationHistory.push(renderDashboard);
     updateBackButton();
     const notes = appData.notesList || [];
@@ -894,6 +955,7 @@ async function renderNotesList() {
         }
     });
 }
+
 function renderNoteForm(note = null) {
     navigationHistory.push(renderNotesList);
     updateBackButton();
@@ -970,87 +1032,88 @@ async function saveNote() {
 // ==================================================
 let lastCalendarSearchQuery = null;
 
-async function renderCalendarView(searchQuery = null, useCache = false) {
-    if (!appData.isSecondaryDataLoaded && !searchQuery) { showSpinner(); await secondaryDataPromise; hideSpinner(); }
+async function renderCalendarView(searchQuery = null) {
+    if (!searchQuery && !appData.isSecondaryDataLoaded) { await loadSecondaryData(); }
     navigationHistory.push(renderDashboard);
     updateBackButton();
     
-    if (!useCache) { showSpinner(); }
+    let eventsToRender;
 
-    try {
-        let events;
-        if (useCache && !searchQuery) {
-            events = appData.calendarEvents;
-        } else if (searchQuery) {
+    if (searchQuery) {
+        showSpinner();
+        try {
             const res = await fetchWithTimeout(gasWebhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: searchQuery });
-            events = await res.json(); if (events.error) throw new Error(events.error);
-            appData.calendarEvents = events;
+            const events = await res.json();
+            if (events.error) throw new Error(events.error);
+            eventsToRender = events;
             lastCalendarSearchQuery = searchQuery;
-        } else {
-            const startDate = new Date(); const endDate = new Date(); endDate.setDate(startDate.getDate() + 30);
-            const res = await fetchWithTimeout(gasWebhookURL, { Type: 'get_calendar_events', chat_ID: chatId, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
-            events = await res.json(); if (events.error) throw new Error(events.error);
-            appData.calendarEvents = events;
-            lastCalendarSearchQuery = null;
+        } catch (err) {
+            mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al buscar.<br><small>${err.message}</small></div>`;
+            hideSpinner();
+            return;
+        } finally {
+            hideSpinner();
         }
+    } else {
+        eventsToRender = appData.calendarEvents;
+        lastCalendarSearchQuery = null;
+    }
 
-        const groupAndRenderEvents = (evs) => {
-            if (!evs || evs.length === 0) {
-                const message = searchQuery ? `No se encontraron eventos para "${searchQuery}".` : "No tienes eventos en los próximos 30 días.";
-                return `<div class="no-data-msg">🗓️<br>${message}</div>`;
-            }
-            const eventsByDay = evs.reduce((acc, event) => {
-                const dateKey = event.start.dateTime || event.start.date; if (!dateKey) return acc;
-                const day = new Date(dateKey).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-                if (!acc[day]) acc[day] = []; acc[day].push(event); return acc;
-            }, {});
-            let html = '';
-            for (const day in eventsByDay) {
-                html += `<h3 class="day-header">${day}</h3>`;
-                html += Object.values(eventsByDay[day]).map(event => {
-                    const isAllDay = !event.start.dateTime;
-                    const startTime = isAllDay ? 'Todo el día' : new Date(event.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                    const endTime = isAllDay ? '' : ' - ' + new Date(event.end.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                    return `<li class="list-item" id="item-${event.id}">
-                              <div class="list-item-content" onclick="this.parentElement.classList.toggle('open')">
-                                <span class="list-item-title">${event.summary}</span>
-                                <span class="list-item-subtitle">${startTime}${endTime}</span>
-                                <div class="event-description">${event.description || ''}</div>
+    const groupAndRenderEvents = (evs) => {
+        if (!evs || evs.length === 0) {
+            const message = searchQuery ? `No se encontraron eventos para "${searchQuery}".` : "No tienes eventos en los próximos 30 días.";
+            return `<div class="no-data-msg">🗓️<br>${message}</div>`;
+        }
+        const eventsByDay = evs.reduce((acc, event) => {
+            const dateKey = event.start.dateTime || event.start.date; if (!dateKey) return acc;
+            const day = new Date(dateKey).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+            if (!acc[day]) acc[day] = []; acc[day].push(event); return acc;
+        }, {});
+        let html = '';
+        for (const day in eventsByDay) {
+            html += `<h3 class="day-header">${day}</h3>`;
+            html += Object.values(eventsByDay[day]).map(event => {
+                const isAllDay = !event.start.dateTime;
+                const startTime = isAllDay ? 'Todo el día' : new Date(event.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                const endTime = isAllDay ? '' : ' - ' + new Date(event.end.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                return `<li class="list-item" id="item-${event.id}">
+                          <div class="list-item-content" onclick="this.parentElement.classList.toggle('open')">
+                            <span class="list-item-title">${event.summary}</span>
+                            <span class="list-item-subtitle">${startTime}${endTime}</span>
+                            <div class="event-description">${event.description || ''}</div>
+                          </div>
+                          <div class="list-item-actions">
+                            <button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button>
+                            <div class="dropdown-menu" id="menu-item-${event.id}">
+                              <a class="dropdown-item" data-action="edit-calendar-event" data-event-id="${event.id}">Editar</a>
+                              <a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a>
+                              ${event.htmlLink ? `<a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a>` : ''}
+                            </div>
+                          </div></li>`;
+            }).join('');
+        }
+        return html;
+    };
+    
+    mainContentArea.innerHTML = `<div class="list-container">
+                              <div class="list-header"><h2>Calendario</h2></div>
+                              <div class="add-article-btn-container">
+                                <button class="add-article-btn" id="add-event-btn">Añadir Evento</button>
+                                <button class="add-article-btn" id="search-event-btn">Buscar</button>
                               </div>
-                              <div class="list-item-actions">
-                                <button class="generic-menu-btn" data-menu-id="menu-item-${event.id}">⋮</button>
-                                <div class="dropdown-menu" id="menu-item-${event.id}">
-                                  <a class="dropdown-item" data-action="edit-calendar-event" data-event-id="${event.id}">Editar</a>
-                                  <a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a>
-                                  ${event.htmlLink ? `<a class="dropdown-item" href="${event.htmlLink}" target="_blank">Ver en Google</a>` : ''}
-                                </div>
-                              </div></li>`;
-                }).join('');
-            }
-            return html;
-        };
-        
-        mainContentArea.innerHTML = `<div class="list-container">
-                                  <div class="list-header"><h2>Calendario</h2></div>
-                                  <div class="add-article-btn-container">
-                                    <button class="add-article-btn" id="add-event-btn">Añadir Evento</button>
-                                    <button class="add-article-btn" id="search-event-btn">Buscar</button>
-                                  </div>
-                                  <ul class="list-style-none" id="calendar-list">${groupAndRenderEvents(events)}</ul></div>`;
-                                
-        document.getElementById('add-event-btn').onclick = () => renderEventForm(null, () => renderCalendarView(null, true));
-        document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
-        document.getElementById('calendar-list').addEventListener('click', (e) => {
-            const target = e.target.closest('.dropdown-item'); if (!target || target.href) return;
-            const action = target.dataset.action; const eventId = target.dataset.eventId;
-            if (action === 'delete-calendar-event') { confirmDelete('calendar_event', eventId);
-            } else if (action === 'edit-calendar-event') {
-                const event = appData.calendarEvents.find(ev => ev.id === eventId);
-                if (event) renderEventForm(event, () => renderCalendarView(lastCalendarSearchQuery, true));
-            }
-        });
-    } catch (err) { mainContentArea.innerHTML = `<div class="no-data-msg">❌<br>Error al cargar el calendario.<br><small>${err.message}</small></div>`;
-    } finally { if (!useCache) { hideSpinner(); } }
+                              <ul class="list-style-none" id="calendar-list">${groupAndRenderEvents(eventsToRender)}</ul></div>`;
+                            
+    document.getElementById('add-event-btn').onclick = () => renderEventForm(null, () => renderCalendarView(null));
+    document.getElementById('search-event-btn').onclick = renderSearchCalendarForm;
+    document.getElementById('calendar-list').addEventListener('click', (e) => {
+        const target = e.target.closest('.dropdown-item'); if (!target || target.href) return;
+        const action = target.dataset.action; const eventId = target.dataset.eventId;
+        if (action === 'delete-calendar-event') { confirmDelete('calendar_event', eventId);
+        } else if (action === 'edit-calendar-event') {
+            const event = appData.calendarEvents.find(ev => ev.id === eventId);
+            if (event) renderEventForm(event, () => renderCalendarView(lastCalendarSearchQuery));
+        }
+    });
 }
 
 function renderEventForm(event = null, returnPath = renderCalendarView) {
