@@ -214,7 +214,7 @@
 // ==================================================
 // --- LÓGICA DE INICIO Y SINCRONIZACIÓN OPTIMIZADA ---
 // ==================================================
-const HTML_VERSION = "1.2.7"; // Definimos la versión del cliente aquí
+const HTML_VERSION = "1.2.8"; // Definimos la versión del cliente aquí
 
 async function initializeApp() {
     if (isInitializing) return;
@@ -1536,6 +1536,7 @@ async function fetchAndDisplayGastoChart(event) {
     
     Chart.register(ChartDataLabels);
     const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+    const moneda = appData.settings.Moneda || '€'; // Obtenemos la moneda
     
     if (data.pieData && data.pieData.data && data.pieData.data.length > 0) {
       document.getElementById('chart-container-pie').style.display = 'block';
@@ -1555,7 +1556,7 @@ async function fetchAndDisplayGastoChart(event) {
           }
         }
       });
-      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe} ${(appData.settings.Moneda || '€')}</strong></div></li>`).join('');
+      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe}</strong></div></li>`).join('');
     }
     
     if (data.dailyData && data.dailyData.data && data.dailyData.data.length > 0) {
@@ -1564,7 +1565,8 @@ async function fetchAndDisplayGastoChart(event) {
       const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
       dailyChartInstance = new Chart(dailyCtx, {
         type: 'line',
-        data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
+        // Usamos la moneda en la etiqueta
+        data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario (' + moneda + ')', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
       });
     }
@@ -1578,32 +1580,19 @@ async function fetchAndDisplayGastoChart(event) {
       const n = monthlyDataPoints.length;
       const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
       const intercept = (sumY - slope * sumX) / n;
-      const trendlineData = monthlyDataPoints.map
-(p => slope * p.x + intercept);
+      const trendlineData = monthlyDataPoints.map(p => slope * p.x + intercept);
       const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
       monthlyChartInstance = new Chart(monthlyCtx, {
         type: 'bar',
         data: {
           labels: data.monthlyData.labels,
           datasets: [
-            { label: 'Gasto Mensual', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
+            // Usamos la moneda en la etiqueta
+            { label: 'Gasto Mensual (' + moneda + ')', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
             {
-                label: 'Tendencia',
-                data: trendlineData,
-                type: 'line',
-                borderColor: '#FF6384',
-                fill: false,
-                pointRadius: 0,
-                yAxisID: 'y1',
-                datalabels: {
-                  formatter: (value) => Math.round(value),
-                  align: 'end',
-                  anchor: 'end',
-                  color: '#666',
-                  font: {
-                    weight: 'bold'
-                  }
-                }
+                label: 'Tendencia', data: trendlineData, type: 'line', borderColor: '#FF6384',
+                fill: false, pointRadius: 0, yAxisID: 'y1',
+                datalabels: { formatter: (value) => Math.round(value), align: 'end', anchor: 'end', color: '#666', font: { weight: 'bold' } }
             }
           ]
         },
@@ -2385,22 +2374,7 @@ function renderDashboard() {
   updateBackButton();
   const counts = appData.counts;
   
-  const isPremium = String(appData.settings?.Premium).toLowerCase() === 'si';
 
-  let chefCardHtml = `
-    <div class="card clickable-card" id="chef-card">
-        <div class="card-icon">🧑‍🍳</div>
-        <div class="card-title">Chef Asistente</div>
-    </div>`;
-
-  if (!isPremium) {
-      chefCardHtml = `
-        <div class="card" style="opacity: 0.5; cursor: not-allowed;">
-            <div class="card-icon">🔒</div>
-            <div class="card-title">Chef Asistente</div>
-            <div style="font-size: 0.8rem; color: var(--muted); margin-top: 4px;">Función Premium</div>
-        </div>`;
-  }
 
   mainContentArea.innerHTML = `
     <div class="grid">
@@ -2409,7 +2383,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card disabled-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>
 	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="gastos-badge">${(counts.gastosMesActual || '0,00').split(',')[0]} ${(appData.settings.Moneda || '€')}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
-      ${chefCardHtml}
+      <div class="card disabled-card" onclick="() => showToast('Función en desarrollo.')"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>
     </div>`;
   
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
@@ -2426,10 +2400,6 @@ function renderDashboard() {
       renderGastosSearchScreen();
   };
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-  
-  if (isPremium) {
-      document.getElementById('chef-card').onclick = renderChefPage;
-  }
   
   // --- LISTENER MODIFICADO PARA LA TARJETA DE CALENDARIO ---
   document.getElementById('calendar-card').onclick = () => showToast('Función en desarrollo.');
