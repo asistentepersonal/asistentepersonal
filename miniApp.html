@@ -163,6 +163,30 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
+    /* --- INICIO CÓDIGO NUEVO --- */
+    .card.disabled-card {
+        position: relative;
+        cursor: not-allowed;
+        overflow: hidden; /* Importante para la banda */
+    }
+    .card.disabled-card::before {
+        content: "En desarrollo";
+        position: absolute;
+        top: 25px;
+        right: -35px;
+        background-color: #f39c12; /* Color naranja */
+        color: white;
+        padding: 5px 30px;
+        transform: rotate(45deg);
+        font-size: 0.8rem;
+        font-weight: bold;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        z-index: 5;
+    }
+    .card.disabled-card .card-icon, .card.disabled-card .card-title, .card.disabled-card .card-badge {
+        opacity: 0.5;
+    }
+    /* --- FIN CÓDIGO NUEVO --- */
   </style>
 </head>
 <body>
@@ -190,7 +214,7 @@
 // ==================================================
 // --- LÓGICA DE INICIO Y SINCRONIZACIÓN OPTIMIZADA ---
 // ==================================================
-const HTML_VERSION = "1.2.6"; // Definimos la versión del cliente aquí
+const HTML_VERSION = "1.2.7"; // Definimos la versión del cliente aquí
 
 async function initializeApp() {
     if (isInitializing) return;
@@ -247,8 +271,6 @@ async function initializeApp() {
             showToast("Datos sincronizados.");
         } else {
             console.log("Sin cambios. No se requiere recarga de datos.");
-            // Si no hay cambios y teníamos caché, asumimos que los datos secundarios tampoco han cambiado.
-            // Si el usuario los pide, la app los cargará.
         }
 
     } catch (err) {
@@ -291,10 +313,7 @@ if (tg) {
     if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
     if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
     
-    // --- SINCRONIZACIÓN INTELIGENTE AL MAXIMIZAR ---
 tg.onEvent('viewportChanged', async (event) => {
-    // Si la app no está estable/maximizada, O SI SE ESTÁ INICIALIZANDO, no hacer nada.
-    // Esta es la comprobación clave que evita el conflicto.
     if (!event.isStateStable || !tg.isExpanded || isInitializing) return;
 
     console.log("App maximizada, comprobando cambios...");
@@ -307,7 +326,6 @@ tg.onEvent('viewportChanged', async (event) => {
 
         if (countsMismatch) {
             console.log("Cambios detectados al maximizar. Recargando la página para obtener datos frescos...");
-            // La forma más simple y robusta de asegurar datos 100% frescos es recargar la página.
             localStorage.clear();
             window.location.reload(true);
         } else {
@@ -364,16 +382,11 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   }
 }
 
-// Variable global para la versión actual del HTML.
-let currentAppVersion = "1.2.2";
-// Variable de "seguro" para evitar ejecuciones múltiples.
 let isInitializing = false;
 
-// ==================================================
-// --- CARGADOR DE DATOS SECUNDARIOS (NUEVO) ---
-// ==================================================
+// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
-    if (appData.isSecondaryDataLoaded) return; // Si ya se cargaron, no hacer nada.
+    if (appData.isSecondaryDataLoaded) return;
     
     console.log("Cargando datos secundarios por primera vez...");
     showSpinner();
@@ -381,17 +394,14 @@ async function loadSecondaryData() {
         const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
         if (secondaryData.error) throw new Error(secondaryData.error);
 
+        // --- OPTIMIZACIÓN APLICADA ---
+        // Solo actualizamos las listas, ya no vienen contadores aquí.
         appData.remindersList = secondaryData.remindersList;
         appData.shoppingList = secondaryData.shoppingList;
         appData.notesList = secondaryData.notesList;
         appData.calendarEvents = secondaryData.calendarEvents;
         
-        // Actualizamos los contadores que vienen en esta petición para estar 100% sincronizados
-        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
-        appData.counts.gastosMesActual = secondaryData.gastosMesActual;
-        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
-
-        appData.isSecondaryDataLoaded = true; // Marcamos que ya tenemos los datos.
+        appData.isSecondaryDataLoaded = true;
         console.log("Datos secundarios cargados con éxito.");
         
     } catch (err) {
@@ -450,8 +460,6 @@ function updateChefTabStyle() {
     const chefTab = document.getElementById('tab-chef');
     if (!chefTab) return;
     
-    // CORRECCIÓN CLAVE: Usamos 'appData.settings?.Premium'
-    // El '?' (optional chaining) evita el error si 'appData.settings' no existe.
     const isPremium = String(appData.settings?.Premium).toLowerCase() === 'si';
     
     if (isPremium) {
@@ -614,7 +622,6 @@ async function saveReminder() {
   const horas_recurrentes = category === 'Recuerrente' ? document.getElementById('recurrent-hours').value : null;
   const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
   
-  // --- LÓGICA OPTIMISTA MEJORADA ---
   const tempId = 'temp-' + Date.now();
   const newReminder = { 
       'Fecha': new Date(time).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }), 
@@ -623,24 +630,23 @@ async function saveReminder() {
       'tracking_code': tempId 
   };
   
-  appData.remindersList.unshift(newReminder); // Añadimos al principio de la lista
-  appData.counts.remindersCount++; // Actualizamos el contador local
+  appData.remindersList.unshift(newReminder);
+  appData.counts.remindersCount++;
   
-  goBack(); // Volvemos al dashboard, que se redibujará con el contador actualizado
+  goBack();
   showToast('Recordatorio creado');
   
   try { 
     const res = await fetchWithTimeout(gasWebhookURL, payload); 
     const data = await res.json(); 
     if(data.error) throw new Error(data.error); 
-    // Reemplazamos el ID temporal con el real cuando llegue del servidor
     if (data.tracking_code) {
         const tempItem = appData.remindersList.find(r => r.tracking_code === tempId);
         if (tempItem) tempItem.tracking_code = data.tracking_code;
     }
   } catch (err) { 
     showToast(`Error: ${err.message}. Restaurando...`, true); 
-    initializeApp(); // Si falla, forzamos una resincronización completa
+    initializeApp();
   }
 }
 
@@ -858,12 +864,11 @@ async function addArticle() {
   if (!description) return;
   const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
   
-  // --- LÓGICA OPTIMISTA MEJORADA ---
   const tempId = 'temp-' + Date.now();
   const newItem = { '1': description, '2': 'Pendiente', '3': tempId, '4': '', '5': cycle };
   
-  appData.shoppingList.unshift(newItem); // Añadimos al principio
-  appData.counts.shoppingPendingCount++; // Actualizamos contador
+  appData.shoppingList.unshift(newItem);
+  appData.counts.shoppingPendingCount++;
   
   goBack();
   showToast('Artículo añadido');
@@ -872,8 +877,6 @@ async function addArticle() {
       const res = await fetchWithTimeout(gasWebhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      // Opcional: reemplazar ID temporal si el backend lo devuelve.
-      // En este caso no es crítico porque el tracking_code se genera en el backend.
   } catch (err) { 
       showToast(`Error: ${err.message}. Restaurando...`, true);
       initializeApp();
@@ -999,7 +1002,6 @@ async function saveNote() {
         if (itemIndex === -1) return;
         const originalNote = { ...appData.notesList[itemIndex] };
         
-        // --- Lógica Optimista (Editar) ---
         appData.notesList[itemIndex].Titulo = title;
         appData.notesList[itemIndex].Descripcion = description;
         
@@ -1012,11 +1014,10 @@ async function saveNote() {
             if (data.error) throw new Error(data.error);
         } catch (err) {
             showToast(`Error: ${err.message}. Restaurando...`, true);
-            appData.notesList[itemIndex] = originalNote; // Revertimos el cambio
+            appData.notesList[itemIndex] = originalNote;
             initializeApp();
         }
     } else {
-        // --- LÓGICA OPTIMISTA MEJORADA (Crear) ---
         const tempId = 'temp-' + Date.now();
         const newNote = { 
             Nota_ID: tempId, 
@@ -1025,8 +1026,8 @@ async function saveNote() {
             Fecha: new Date().toLocaleDateString('es-ES') 
         };
 
-        appData.notesList.unshift(newNote); // Añadimos al principio
-        appData.counts.notesCount++; // Actualizamos contador
+        appData.notesList.unshift(newNote);
+        appData.counts.notesCount++;
 
         goBack();
         showToast('Nota creada');
@@ -2095,7 +2096,7 @@ async function addIngredientsToShoppingList(buttonElement) {
     }
 }
 // ==================================================
-// --- MÓDULO: AJUSTES ---
+// --- MÓDULO: AJUSTES (CON GUARDADO SEGURO) ---
 // ==================================================
 function renderSettings() {
     setActiveTab('tab-settings');
@@ -2262,8 +2263,9 @@ function validateSettings() {
     saveBtn.classList.toggle('enabled', hasChanged);
 }
 
+// --- FUNCIÓN DE GUARDADO MODIFICADA (NO OPTIMISTA) ---
 async function saveSettings() {
-    showSpinner();
+    showSpinner("Guardando...");
     const settingsToUpdate = {};
     
     const newName = document.getElementById('settings-nombre').value; if (newName !== (initialUserSettings['Nombre'] || '')) settingsToUpdate['Nombre'] = newName;
@@ -2292,6 +2294,7 @@ async function saveSettings() {
         
         if (data.error) throw new Error(data.error);
 
+        // SOLO si el servidor confirma, actualizamos los datos locales.
         Object.assign(appData.settings, settingsToUpdate);
         if (settingsToUpdate['Time Zone']) {
             appData.settings['Time Zone'] = settingsToUpdate['Time Zone'];
@@ -2388,7 +2391,6 @@ function renderDashboard() {
   updateBackButton();
   const counts = appData.counts;
   
-  // CORRECCIÓN CLAVE: Aplicamos la misma lógica segura aquí.
   const isPremium = String(appData.settings?.Premium).toLowerCase() === 'si';
 
   let chefCardHtml = `
@@ -2411,7 +2413,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
-      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-calendar">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Calendario</div><div class="dropdown-menu" id="menu-calendar"><a class="dropdown-item" id="add-event-link">Añadir Evento</a><a class="dropdown-item" id="view-calendar-link">Ver Calendario</a></div></div>
+      <div class="card disabled-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>
 	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="gastos-badge">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${chefCardHtml}
     </div>`;
@@ -2422,8 +2424,6 @@ function renderDashboard() {
   document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
   document.getElementById('add-note-link').onclick = () => renderNoteForm();
   document.getElementById('list-notes-link').onclick = renderNotesList;
-  document.getElementById('add-event-link').onclick = () => renderEventForm();
-  document.getElementById('view-calendar-link').onclick = () => renderCalendarView(null, true);
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
   document.getElementById('list-gastos-link').onclick = () => {
@@ -2436,6 +2436,9 @@ function renderDashboard() {
   if (isPremium) {
       document.getElementById('chef-card').onclick = renderChefPage;
   }
+  
+  // --- LISTENER MODIFICADO PARA LA TARJETA DE CALENDARIO ---
+  document.getElementById('calendar-card').onclick = () => showToast('Función en desarrollo.');
 
   document.querySelectorAll('.clickable-card').forEach(card => {
       card.addEventListener('click', (e) => {
