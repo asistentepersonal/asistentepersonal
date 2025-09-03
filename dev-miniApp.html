@@ -1555,7 +1555,7 @@ async function fetchAndDisplayGastoChart(event) {
           }
         }
       });
-      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe}</strong></div></li>`).join('');
+      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe} ${(appData.settings.Moneda || '€')}</strong></div></li>`).join('');
     }
     
     if (data.dailyData && data.dailyData.data && data.dailyData.data.length > 0) {
@@ -1628,7 +1628,7 @@ function renderGastosSearchScreen(gastos = null) {
 
     if (gastos) {
         if (gastos.length > 0) {
-            resultsHtml = gastos.map(g => `<li class="list-item clickable" data-id-unico="${g.ID_Unico}"><div class="list-item-content"><span class="list-item-title">${g.Establecimiento} - ${g.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} €</span><span class="list-item-subtitle">${g.Subcategoria || g.Categoria} - ${g.Fecha}</span></div></li>`).join('');
+            resultsHtml = gastos.map(g => `<li class="list-item clickable" data-id-unico="${g.ID_Unico}"><div class="list-item-content"><span class="list-item-title">${g.Establecimiento} - ${g.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} ${(appData.settings.Moneda || '€')}</span><span class="list-item-subtitle">${g.Subcategoria || g.Categoria} - ${g.Fecha}</span></div></li>`).join('');
             resultsHtml = `<ul class="list-style-none">${resultsHtml}</ul>`;
             legendDisplay = 'block';
         } else {
@@ -2115,11 +2115,14 @@ function renderSettings() {
                 <input type="text" id="settings-fecha-activacion" readonly />
                 <label>Zona Horaria Detectada (no editable)</label>
                 <input type="text" id="settings-zona-horaria" readonly />
+                <!-- INICIO DE CAMBIO: Campo Moneda añadido -->
+                <label>Moneda (detectada)</label>
+                <input type="text" id="settings-moneda" readonly />
+                <!-- FIN DE CAMBIO -->
             </div>
 
             <h2 class="settings-section-title">🔔 Informes y Alertas</h2>
             <div class="form-card">
-                <!-- Informe Diario Matutino -->
                 <div class="settings-item">
                     <span class="settings-item-label">Informe Matutino</span>
                     <label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label>
@@ -2134,7 +2137,6 @@ function renderSettings() {
                     </select>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
-                <!-- Informe del Tiempo (Tarde) -->
                 <div class="settings-item">
                     <span class="settings-item-label">Informe del Tiempo (Tarde)</span>
                     <label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label>
@@ -2146,7 +2148,6 @@ function renderSettings() {
                     </select>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
-                <!-- Informe Mensual de Gastos -->
                 <div class="settings-item">
                     <span class="settings-item-label">Informe Mensual de Gastos</span>
                     <label class="switch"><input type="checkbox" id="settings-informe-mensual-activo"><span class="slider"></span></label>
@@ -2164,16 +2165,10 @@ function renderSettings() {
                     </select>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
-                <!-- Alertas de Compra -->
                 <div class="settings-item">
                     <span class="settings-item-label">Alertas de Compra Inteligente</span>
                     <label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label>
                 </div>
-            </div>
-
-            <h2 class="settings-section-title">💾 Gestión de Datos</h2>
-            <div class="form-card">
-                <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%;">Corregir Contadores</button>
             </div>
              
             <div class="form-card" style="margin-top: 20px;">
@@ -2182,6 +2177,12 @@ function renderSettings() {
                     <button id="settings-save-btn" disabled>Guardar Ajustes</button>
                 </div>
             </div>
+
+            <!-- INICIO DE CAMBIO: Botón movido y renombrado -->
+            <div class="form-card" style="margin-top: 20px;">
+                 <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; background-color: var(--muted);">Sincronizar Contadores</button>
+            </div>
+            <!-- FIN DE CAMBIO -->
         </div>
     `;
 
@@ -2196,6 +2197,9 @@ const fechaActivacion = appData.settings['Fecha_Activacion']
     : 'No disponible';
 document.getElementById('settings-fecha-activacion').value = fechaActivacion;
 document.getElementById('settings-zona-horaria').value = appData.settings['Time Zone'] || 'No disponible';
+// INICIO DE CAMBIO: Poblar el campo Moneda
+document.getElementById('settings-moneda').value = appData.settings['Moneda'] || 'No disponible';
+// FIN DE CAMBIO
 
 document.getElementById('settings-informe-manana-activo').checked = (appData.settings['Informe_Mañana_Activo'] === 'SI');
 document.getElementById('settings-franja-manana').value = appData.settings['Franja_Informe_Mañana'] || '2';
@@ -2224,6 +2228,7 @@ document.getElementById('settings-cancel-btn').onclick = goBack;
 document.getElementById('settings-sync-btn').onclick = syncCounts;
 
 }
+
 function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     let hasChanged = false;
@@ -2275,17 +2280,25 @@ async function saveSettings() {
         
         if (data.error) throw new Error(data.error);
 
-        // SOLO si el servidor confirma, actualizamos los datos locales.
-        Object.assign(appData.settings, settingsToUpdate);
-        if (settingsToUpdate['Time Zone']) {
-            appData.settings['Time Zone'] = settingsToUpdate['Time Zone'];
-            document.getElementById('settings-zona-horaria').value = settingsToUpdate['Time Zone'];
+        // --- INICIO DE LA LÓGICA DE ACTUALIZACIÓN ---
+        if (data.success && data.updatedSettings) {
+            // 1. Actualizar la memoria interna de la app
+            Object.assign(appData.settings, data.updatedSettings);
+            initialUserSettings = JSON.parse(JSON.stringify(appData.settings));
+
+            // 2. Refrescar los campos de la pantalla con los datos del servidor
+            document.getElementById('settings-ciudad').value = appData.settings['Ciudad'] || '';
+            document.getElementById('settings-pais').value = appData.settings['Pais'] || '';
+            document.getElementById('settings-zona-horaria').value = appData.settings['Time Zone'] || 'No disponible';
+            document.getElementById('settings-moneda').value = appData.settings['Moneda'] || 'No disponible';
+            
+            showToast(data.message || "Ajustes guardados con éxito.");
+            document.getElementById('settings-save-btn').disabled = true;
+            document.getElementById('settings-save-btn').classList.remove('enabled');
+        } else {
+            throw new Error("La respuesta del servidor no fue la esperada.");
         }
-        initialUserSettings = JSON.parse(JSON.stringify(appData.settings));
-        
-        showToast(data.message || "Ajustes guardados con éxito.");
-        document.getElementById('settings-save-btn').disabled = true;
-        document.getElementById('settings-save-btn').classList.remove('enabled');
+        // --- FIN DE LA LÓGICA DE ACTUALIZACIÓN ---
 
     } catch (err) {
         showToast(`Error al guardar: ${err.message}`, true);
@@ -2395,7 +2408,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card disabled-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>
-	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="gastos-badge">${(counts.gastosMesActual || '0,00').split(',')[0]}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="gastos-badge">${(counts.gastosMesActual || '0,00').split(',')[0]} ${(appData.settings.Moneda || '€')}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${chefCardHtml}
     </div>`;
   
