@@ -219,63 +219,44 @@ const HTML_VERSION = "1.2.7"; // Definimos la versión del cliente aquí
 async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
-    console.log("Iniciando app...");
+    console.log("Iniciando app y verificando autorización...");
+    showSpinner(); // Siempre mostrar spinner al inicio
 
     try {
-        const localCache = JSON.parse(localStorage.getItem('appCache'));
-        if (localCache) {
-            appData.counts = localCache.counts;
-            appData.settings = localCache.settings || {}; // Asegura que settings sea un objeto
-            appData.isPremium = localCache.isPremium;
-            updateChefTabStyle();
-            renderDashboard();
-            console.log("UI renderizada desde caché.");
-        } else {
-            showSpinner();
+        // Paso 1: Llamada única para obtener datos iniciales y verificar autorización
+        const initialData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
+
+        // Paso 2: Comprobar si el usuario está autorizado
+        // Si settings es un objeto vacío o nulo, significa que no está en la hoja "Autorizados"
+        if (!initialData.settings || Object.keys(initialData.settings).length === 0) {
+            mainContentArea.innerHTML = `<div class="no-data-msg">🚫<br>Acceso no autorizado.<br><small>Por favor, inicia una suscripción para usar esta aplicación.</small></div>`;
+            document.querySelector('.tabs').style.display = 'none'; // Ocultar pestañas de navegación
+            hideSpinner();
+            return; // Detenemos la ejecución aquí
         }
+        
+        // Si llegamos aquí, el usuario está autorizado. Procedemos con la carga normal.
+        if (initialData.error) throw new Error(initialData.error);
+        
+        appData.counts = initialData.counts;
+        appData.settings = initialData.settings;
+        appData.isPremium = initialData.isPremium;
+        appData.isSecondaryDataLoaded = false;
 
-        const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
-        if (serverCheck.error) throw new Error(serverCheck.error);
+        // Guardamos los datos esenciales en la caché para futuras cargas rápidas
+        localStorage.setItem('appCache', JSON.stringify({ 
+            counts: appData.counts,
+            settings: appData.settings,
+            isPremium: appData.isPremium
+        }));
 
-        if (serverCheck.version !== HTML_VERSION) {
-            localStorage.clear();
-            window.location.reload(true);
-            return;
-        }
-
-        const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
-
-        if (countsMismatch) {
-            console.log("Cambios detectados. Obteniendo datos completos...");
-            if (!localCache) showSpinner(); // Muestra spinner si era la primera carga
-
-            const initialData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
-            if (initialData.error) throw new Error(initialData.error);
-            
-            appData.counts = initialData.counts;
-            appData.settings = initialData.settings || {}; // Asegura que settings sea un objeto
-            appData.isPremium = initialData.isPremium;
-            
-            // Los datos secundarios se cargarán bajo demanda con loadSecondaryData()
-            appData.isSecondaryDataLoaded = false; 
-
-            localStorage.setItem('appCache', JSON.stringify({ 
-                version: serverCheck.version, 
-                counts: serverCheck.counts,
-                settings: appData.settings,
-                isPremium: appData.isPremium
-            }));
-
-            updateChefTabStyle();
-            renderDashboard();
-            showToast("Datos sincronizados.");
-        } else {
-            console.log("Sin cambios. No se requiere recarga de datos.");
-        }
-
+        updateChefTabStyle();
+        renderDashboard();
+        
     } catch (err) {
         console.error("Error en initializeApp:", err);
-        showToast(`Error de sincronización: ${err.message}`, true);
+        showToast(`Error de inicialización: ${err.message}`, true);
+        mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>No se pudo conectar con el servidor. Inténtalo de nuevo más tarde.</small></div>`;
     } finally {
         hideSpinner();
         isInitializing = false;
