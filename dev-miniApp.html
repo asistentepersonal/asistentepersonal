@@ -214,7 +214,7 @@
 // ==================================================
 // --- LÓGICA DE INICIO Y SINCRONIZACIÓN OPTIMIZADA ---
 // ==================================================
-const HTML_VERSION = "1.2.8"; // Definimos la versión del cliente aquí
+const HTML_VERSION = "1.2.10"; // Definimos la versión del cliente aquí
 
 async function initializeApp() {
     if (isInitializing) return;
@@ -258,7 +258,13 @@ async function initializeApp() {
         showToast(`Error de inicialización: ${err.message}`, true);
         mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>No se pudo conectar con el servidor. Inténtalo de nuevo más tarde.</small></div>`;
     } finally {
-        hideSpinner();
+                hideSpinner();
+        
+        // --- INICIO DE LA MODIFICACIÓN TÉCNICA ---
+        // Después de la carga inicial, lanzamos la verificación en segundo plano
+        await checkForUpdatesAndSync();
+        // --- FIN DE LA MODIFICACIÓN TÉCNICA ---
+        
         isInitializing = false;
         console.log("Inicialización finalizada.");
     }
@@ -295,29 +301,13 @@ if (tg) {
     if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
     
 tg.onEvent('viewportChanged', async (event) => {
-    if (!event.isStateStable || !tg.isExpanded || isInitializing) return;
-
-    console.log("App maximizada, comprobando cambios...");
-    try {
-        const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
-        if (serverCheck.error) throw new Error(serverCheck.error);
-
-        const localCache = JSON.parse(localStorage.getItem('appCache'));
-        const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
-
-        if (countsMismatch) {
-            console.log("Cambios detectados al maximizar. Recargando la página para obtener datos frescos...");
-            localStorage.clear();
-            window.location.reload(true);
-        } else {
-            console.log("Sin cambios al maximizar.");
-        }
-    } catch (err) {
-        console.error("Error en la sincronización al maximizar:", err);
-        showToast("Error al sincronizar datos.", true);
-    }
+    // Solo nos interesa el momento en que la app está estable y maximizada
+    if (!event.isStateStable || !tg.isExpanded) return;
+    
+    // Delegamos toda la lógica a nuestra nueva función central
+    await checkForUpdatesAndSync();
 });
-}
+
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxqvE3PBr1LimNO5Lh4mDamOD2gyilHb2MI98sIX02soSFiWCuKBcESCKzGYHJWsbu4/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
@@ -2483,6 +2473,61 @@ function renderDashboard() {
           }
       });
   });
+}
+
+// ==================================================
+// --- NUEVA FUNCIÓN CENTRAL DE SINCRONIZACIÓN ---
+// ==================================================
+async function checkForUpdatesAndSync() {
+    console.log("Iniciando verificación de cambios en segundo plano...");
+    try {
+        // 1. Verificamos si hay cambios en los contadores
+        const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+        if (serverCheck.error) throw new Error(serverCheck.error);
+
+        const localCache = JSON.parse(localStorage.getItem('appCache'));
+        const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
+
+        // 2. Si hay diferencias, ejecutamos la sincronización completa
+        if (countsMismatch) {
+            console.log("Cambios detectados. Iniciando sincronización forzosa...");
+            showSpinner("Sincronizando tus últimos cambios...");
+
+            // 3. Llamamos a las dos funciones que traen TODOS los datos
+            const initialDataPromise = fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
+            const secondaryDataPromise = loadSecondaryData(); // loadSecondaryData ya muestra spinner, pero está bien tenerlo aquí
+
+            // Esperamos a que ambas promesas se resuelvan
+            const [initialDataResult, secondaryDataResult] = await Promise.all([initialDataPromise, secondaryDataPromise]);
+
+            // 4. Actualizamos los datos internos y la caché
+            if (initialDataResult && !initialDataResult.error) {
+                appData.counts = initialDataResult.counts;
+                appData.settings = initialDataResult.settings;
+                appData.isPremium = initialDataResult.isPremium;
+                localStorage.setItem('appCache', JSON.stringify({
+                    counts: appData.counts,
+                    settings: appData.settings,
+                    isPremium: appData.isPremium
+                }));
+            }
+            
+            // 5. Redibujamos el dashboard con la información fresca
+            renderDashboard();
+            hideSpinner();
+            showToast("¡Listo! Tu app está sincronizada.");
+            console.log("Sincronización forzosa completada.");
+        } else {
+            console.log("Sin cambios detectados. No se requiere sincronización.");
+        }
+    } catch (err) {
+        console.error("Error en checkForUpdatesAndSync:", err);
+        // Ocultamos el spinner si falló en medio de una sincronización
+        if (document.getElementById('spinner').style.display === 'block') {
+            hideSpinner();
+            showToast("Error al sincronizar datos.", true);
+        }
+    }
 }
 
 // Lógica de pestañas
