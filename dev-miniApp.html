@@ -297,16 +297,23 @@ function updateBackButton() {
 const tg = window.Telegram?.WebApp;
 if (tg) { 
     tg.expand(); 
-    if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
-    if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
+    if (tg.isVersionAtLeast('6.1') && tg.BackButton) { 
+        tg.BackButton.onClick(goBack); 
+    }
+    if (tg.themeParams) { 
+        document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); 
+        document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); 
+        document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); 
+        document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); 
+        document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); 
+        document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); 
+    } 
     
-tg.onEvent('viewportChanged', async (event) => {
-    // Solo nos interesa el momento en que la app está estable y maximizada
-    if (!event.isStateStable || !tg.isExpanded) return;
-    
-    // Delegamos toda la lógica a nuestra nueva función central
-    await checkForUpdatesAndSync();
-});
+    tg.onEvent('viewportChanged', async (event) => {
+        if (!event.isStateStable || !tg.isExpanded) return;
+        await checkForUpdatesAndSync();
+    });
+}
 
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxqvE3PBr1LimNO5Lh4mDamOD2gyilHb2MI98sIX02soSFiWCuKBcESCKzGYHJWsbu4/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
