@@ -1556,7 +1556,7 @@ async function fetchAndDisplayGastoChart(event) {
           }
         }
       });
-      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe}</strong></div></li>`).join('');
+      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe} ${moneda}</strong></div></li>`).join('');
     }
     
     if (data.dailyData && data.dailyData.data && data.dailyData.data.length > 0) {
@@ -1567,7 +1567,25 @@ async function fetchAndDisplayGastoChart(event) {
         type: 'line',
         // Usamos la moneda en la etiqueta
         data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario (' + moneda + ')', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false } } }
+        options: {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } },
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: function(context) {
+          let label = context.dataset.label || '';
+          if (label) { label += ': '; }
+          // Añadimos el símbolo de la moneda al valor formateado
+          label += context.formattedValue + ' ' + moneda;
+          return label;
+        }
+      }
+    }
+  }
+}
       });
     }
     
@@ -1596,11 +1614,26 @@ async function fetchAndDisplayGastoChart(event) {
             }
           ]
         },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } } },
-          scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
+    options: {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } },
+    tooltip: {
+      callbacks: {
+        label: function(context) {
+          // No mostramos tooltip para la línea de tendencia
+          if (context.dataset.type === 'line') { return null; }
+          let label = context.dataset.label || '';
+          if (label) { label += ': '; }
+          label += context.formattedValue + ' ' + moneda;
+          return label;
         }
+      }
+    }
+  },
+  scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
+}
       });
     }
   } catch (err) { 
