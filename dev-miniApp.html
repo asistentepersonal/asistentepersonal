@@ -193,6 +193,17 @@
     }
     /* --- FIN CÓDIGO NUEVO --- */
   </style>
+  <script>
+    // Configuración de Firebase para el cliente (conexión directa y segura)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBNldvtTk0JwwydigAmiI2k1RRZpYriK_E",
+      authDomain: "asistentepersonal-4ad2b.firebaseapp.com",
+      projectId: "asistentepersonal-4ad2b",
+      storageBucket: "asistentepersonal-4ad2b.firebasestorage.app",
+      messagingSenderId: "1068752893536",
+      appId: "1:1068752893536:web:ad23509d45dc7d448bf505"
+    };
+  </script>
 </head>
 <body>
   <div id="spinner" class="spinner"></div>
@@ -228,25 +239,21 @@ async function initializeApp() {
     showSpinner();
 
     try {
-        // --- INICIO DE CAMBIO ---
-        // Paso 1: Obtener la configuración de Firebase de forma segura desde Apps Script
-        console.log("Obteniendo configuración segura de Firebase...");
-        const firebaseConfigData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_firebase_config', chat_ID: chatId }).then(res => res.json());
-
-        if (firebaseConfigData.error) {
-            throw new Error(`Error de configuración: ${firebaseConfigData.error}`);
+        // --- INICIO DE CORRECCIÓN DEFINITIVA ---
+        // Paso 1: Inicializar Firebase usando la configuración local del HTML.
+        if (typeof firebaseConfig !== 'undefined') {
+            firebase.initializeApp(firebaseConfig);
+            window.db = firebase.firestore();
+            console.log("Firebase inicializado correctamente desde config local.");
+        } else {
+            throw new Error("La configuración de Firebase no está definida en el HTML.");
         }
-        
-        // Paso 2: Inicializar Firebase con la configuración recibida
-        firebase.initializeApp(firebaseConfigData.config);
-        window.db = firebase.firestore(); // Hacemos 'db' (la instancia de Firestore) global
-        console.log("Firebase inicializado correctamente.");
-        // --- FIN DE CAMBIO ---
+        // --- FIN DE CORRECCIÓN DEFINITIVA ---
 
-        // Paso 3: Llamada única para obtener datos iniciales y verificar autorización
+        // Paso 2: Ahora sí, llamar a Apps Script para obtener los datos del dashboard.
         const initialData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
 
-        // Paso 4: Comprobar si el usuario está autorizado
+        // Paso 3: Comprobar si el usuario está autorizado
         if (!initialData.settings || Object.keys(initialData.settings).length === 0) {
             mainContentArea.innerHTML = `<div class="no-data-msg">🚫<br>Acceso no autorizado.<br><small>Por favor, inicia una suscripción para usar esta aplicación.</small></div>`;
             document.querySelector('.tabs').style.display = 'none';
