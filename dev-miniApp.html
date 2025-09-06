@@ -1198,10 +1198,7 @@ async function saveNote() {
     const isEditing = !!noteId;
     const tempId = 'temp-' + Date.now();
 
-    // --- LÓGICA OPTIMISTA ---
-    goBack(); // Volver a la lista inmediatamente
-    showToast(isEditing ? 'Nota guardada' : 'Nota creada');
-
+    // --- LÓGICA OPTIMISTA MEJORADA ---
     if (isEditing) {
         // 1. Actualizar localmente al editar
         const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
@@ -1222,7 +1219,11 @@ async function saveNote() {
         renderDashboard(); // Actualiza el badge del dashboard inmediatamente
     }
     
-    // 2. Sincronizar con el backend en segundo plano
+    // 2. Volver y redibujar la lista para reflejar los cambios al instante.
+    goBack();
+    showToast(isEditing ? 'Nota guardada' : 'Nota creada');
+    
+    // 3. Sincronizar con el backend en segundo plano de forma limpia
     try {
         const payload = {
             chat_ID: chatId,
@@ -1239,9 +1240,15 @@ async function saveNote() {
         // Si es una nota nueva, actualizamos el ID temporal con el real de Firestore.
         if (!isEditing && result.newNoteId) {
             const tempNote = appData.notesList.find(n => n.Nota_ID === tempId);
-            if (tempNote) tempNote.Nota_ID = result.newNoteId;
+            if (tempNote) {
+                tempNote.Nota_ID = result.newNoteId;
+                // Opcional: Volver a renderizar la lista para actualizar el ID en el HTML
+                if (mainContentArea.querySelector('#notes-list')) {
+                    renderNotesList();
+                }
+            }
         }
-        console.log("Nota sincronizada con éxito a través de Apps Script.");
+        console.log("Nota sincronizada con éxito.");
 
     } catch (error) {
         console.error("Error sincronizando nota:", error);
