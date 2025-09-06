@@ -430,7 +430,11 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   const controller = new AbortController();
   const timeout = isMakeWebhook ? 60000 : 30000;
   const id = setTimeout(() => controller.abort(), timeout);
-  let options = { method: 'POST', signal: controller.signal };
+  let options = { 
+    method: 'POST', 
+    signal: controller.signal,
+    credentials: 'omit' // Por defecto, no enviar cookies u otros encabezados de credenciales
+  };
 
   if (isMakeWebhook) {
       const formData = new FormData();
@@ -438,25 +442,34 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
       if (payloadObject.image_count !== undefined) { formData.append('image_count', payloadObject.image_count); }
       if (payloadObject.images && payloadObject.images.length > 0) { payloadObject.images.forEach(imageFile => { formData.append('images', imageFile, imageFile.name); }); }
       options.body = formData;
-      // No Content-Type es necesario para FormData, el navegador lo configura automáticamente
+      // Para FormData, el navegador establece el Content-Type automáticamente como multipart/form-data
+      options.credentials = 'same-origin'; // Las webhooks de Make suelen ser cross-origin, pero algunas pueden necesitar esto.
+                                          // Para evitar problemas, lo ponemos en same-origin por ahora, si make.com necesita 'include', se cambia.
   } else {
-      // --- CAMBIO CLAVE AQUÍ: ENVIAR COMO URLSearchParams PARA EVITAR CORS EN APPS SCRIPT ---
+      // --- CAMBIO CLAVE AQUÍ: ENVIAR COMO URLSearchParams Y CONFIGURAR CREDENCIALES PARA APPS SCRIPT ---
       const params = new URLSearchParams();
       params.append("postData", JSON.stringify(payloadObject));
       options.body = params;
       options.headers = {
           'Content-Type': 'application/x-www-form-urlencoded'
       };
+      // Para Apps Script, es crucial usar 'omit' o 'include' si tu Apps Script
+      // está configurado para manejar credenciales de sesión.
+      // Para un despliegue de "Cualquiera" (que no requiere sesión), 'omit' es más seguro.
+      options.credentials = 'omit'; 
+      // Si en el futuro tu Apps Script necesita saber quién es el usuario de Google
+      // que hace la petición (no el de Telegram), esto cambiaría a 'include'.
+      // Pero para la funcionalidad actual de la MiniApp, 'omit' es correcto.
       // --- FIN DEL CAMBIO ---
   }
   try {
     const response = await fetch(resource, options);
     clearTimeout(id);
-    if (!response.ok) { // Apps Script devuelve 200 OK incluso con errores CORS, pero la promesa falla.
-      // Aquí el error ya se maneja a nivel de red, si no hay respuesta 200 real, fallará.
-      // El "net::ERR_FAILED 200 (OK)" que ves es porque la respuesta HTTP fue 200, pero el navegador bloqueó el acceso a ella.
-      // La clave es que el navegador pueda ACCEDER a la respuesta, no solo que sea 200.
-      throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+    if (!response.ok) { 
+      // Aunque Apps Script envíe 200, si la política CORS está mal,
+      // el navegador no dejará acceder a la respuesta. Esto lo detecta.
+      const errorText = await response.text();
+      throw new Error(`Error del servidor: ${response.status} ${response.statusText} - ${errorText}`);
     }
     return response;
   } catch (error) {
@@ -464,10 +477,14 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
     if (error.name === 'AbortError') {
       throw new Error('La solicitud tardó demasiado. (Timeout)');
     }
-    // Añadimos un log más específico para errores de red o CORS
     console.error("Error en fetchWithTimeout:", error.message, error);
     if (error.message.includes("blocked by CORS policy")) {
-        throw new Error("Error de conexión (CORS): Asegúrate de que tu Apps Script esté desplegado con 'Acceso: Cualquiera'.");
+        throw new Error("Error de conexión (CORS): Asegúrate de que tu Apps Script esté desplegado con 'Acceso: Cualquiera' y que la URL sea la de la aplicación web.");
+    }
+    // Añadimos una comprobación para el caso específico de TypeError 'Failed to fetch'
+    // que a menudo indica problemas de red subyacentes o configuraciones de proxy/firewall
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new Error('Error de red: No se pudo conectar con el servidor. Revisa tu conexión a internet o la URL del script.');
     }
     throw error;
   }
