@@ -1,4 +1,3 @@
-html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -17,9 +16,9 @@ html
   <!-- SDKs de Firebase para la Mini App -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     
-    // CONFIGURACIÓN DE TU PROYECTO FIREBASE
+    // CONFIGURACIÓN DE TU PROYECTO FIREBASE (De Config.gs en Apps Script)
     const firebaseConfig = {
       apiKey: "AIzaSyBNldvtTk0JwwydigAmiI2k1RRZpYriK_E",
       authDomain: "asistentepersonal-4ad2b.firebaseapp.com",
@@ -35,11 +34,13 @@ html
     window.db = getFirestore(app); // Hacemos 'db' global para usarlo en el script principal
 
     // Hacemos que las funciones de Firestore sean accesibles globalmente
+    // Renombrar 'query' a 'firestoreQuery' para evitar conflictos con 'query' de jQuery si se usa.
     window.firestore = {
       collection: collection,
       query: query,
       where: where,
-      onSnapshot: onSnapshot
+      onSnapshot: onSnapshot,
+      orderBy: orderBy
     };
   </script>
   
@@ -274,11 +275,12 @@ async function initializeApp() {
         appData.isSecondaryDataLoaded = false;
 
         // Guardamos los datos esenciales en la caché para futuras cargas rápidas
-        localStorage.setItem('appCache', JSON.stringify({ 
-            counts: appData.counts,
-            settings: appData.settings,
-            isPremium: appData.isPremium
-        }));
+        // NOTA: Se ha decidido eliminar el caché local para simplificar y confiar en Firestore
+        // localStorage.setItem('appCache', JSON.stringify({ 
+        //     counts: appData.counts,
+        //     settings: appData.settings,
+        //     isPremium: appData.isPremium
+        // }));
 
         updateChefTabStyle();
         renderDashboard();
@@ -322,48 +324,107 @@ const tg = window.Telegram?.WebApp;
 if (tg) { 
     tg.expand(); 
     if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
-    if (tg.themeParams) { document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); } 
+    if (tg.themeParams) { 
+        document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); 
+        document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); 
+        document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); 
+        document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); 
+        document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); 
+        document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); 
+    } 
     
-tg.onEvent('viewportChanged', async (event) => {
-    if (!event.isStateStable || !tg.isExpanded || isInitializing) return;
+    // Nueva lógica de sincronización al maximizar
+    tg.onEvent('viewportChanged', async (event) => {
+        if (!event.isStateStable || !tg.isExpanded || isInitializing) return;
 
-    console.log("App maximizada, comprobando cambios...");
-    try {
-        const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
-        if (serverCheck.error) throw new Error(serverCheck.error);
+        console.log("App maximizada, comprobando cambios...");
+        showSpinner("Sincronizando..."); // Mostrar spinner mientras comprueba
+        try {
+            const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'check_for_updates', chat_ID: chatId }).then(res => res.json());
+            if (serverCheck.error) throw new Error(serverCheck.error);
 
-        const localCache = JSON.parse(localStorage.getItem('appCache'));
-        const countsMismatch = localCache ? JSON.stringify(serverCheck.counts) !== JSON.stringify(localCache.counts) : true;
+            // Comparar la versión del HTML (que viene del Apps Script)
+            // Esto asume que Apps Script enviará la versión de su Config.gs
+            if (serverCheck.version !== HTML_VERSION) {
+                console.log("¡Nueva versión de la app disponible! Recargando...");
+                showToast("¡Nueva versión disponible! Recargando...", false);
+                window.location.reload(true); // Recarga forzada para obtener el nuevo HTML
+                return;
+            }
 
-        if (countsMismatch) {
-            console.log("Cambios detectados al maximizar. Recargando la página para obtener datos frescos...");
-            localStorage.clear();
-            window.location.reload(true);
-        } else {
-            console.log("Sin cambios al maximizar.");
+            // Comparar contadores para ver si hay cambios
+            const currentCountsJson = JSON.stringify(appData.counts); // Contadores actuales en el cliente
+            const serverCountsJson = JSON.stringify(serverCheck.counts); // Contadores del servidor
+
+            if (currentCountsJson !== serverCountsJson) {
+                console.log("Cambios en contadores detectados al maximizar. Actualizando...");
+                Object.assign(appData.counts, serverCheck.counts); // Actualiza los contadores en appData
+                renderDashboard(); // Re-renderiza el dashboard para reflejar los nuevos contadores
+                showToast("Datos sincronizados.", false);
+            } else {
+                console.log("Sin cambios en contadores al maximizar.");
+            }
+        } catch (err) {
+            console.error("Error en la sincronización al maximizar:", err);
+            showToast("Error al sincronizar datos.", true);
+        } finally {
+            hideSpinner(); // Ocultar spinner siempre al finalizar
         }
-    } catch (err) {
-        console.error("Error en la sincronización al maximizar:", err);
-        showToast("Error al sincronizar datos.", true);
-    }
-});
+    });
 }
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbxqvE3PBr1LimNO5Lh4mDamOD2gyilHb2MI98sIX02soSFiWCuKBcESCKzGYHJWsbu4/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
 let selectedImageFile = null;
 let chatId = tg?.initDataUnsafe?.user?.id;
-if (!chatId) { chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); }
+// MODIFICACIÓN: Si no hay chat_ID, el prompt es solo para desarrollo local
+if (!chatId) { 
+    if (window.location.href.includes("github.io") || window.location.href.includes("file://")) {
+        chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); 
+    } else {
+        // En producción o si no es desarrollo local y no hay chat_ID, mostrar mensaje de error
+        document.body.innerHTML = `<div class="no-data-msg">❌ Error: No se pudo obtener tu ID de Telegram. Abre la Mini App desde un bot de Telegram.</div>`;
+        throw new Error("Chat ID no disponible en entorno de producción.");
+    }
+}
 
-let appData = { counts: {}, remindersList: [], shoppingList: [], notesList: [], calendarEvents: [], settings: {}, isPremium: false, isSecondaryDataLoaded: false };
+
+let appData = { 
+    counts: { // Inicializar contadores con valores por defecto
+        remindersCount: 0, 
+        shoppingPendingCount: 0, 
+        shoppingBoughtCount: 0, 
+        notesCount: 0, 
+        calendarTodayCount: 0, 
+        gastosMesActual: '0,00', 
+        mesesActivosGastos: [] 
+    }, 
+    remindersList: [], 
+    shoppingList: [], 
+    notesList: [], 
+    calendarEvents: [], 
+    settings: {}, 
+    isPremium: false, 
+    isSecondaryDataLoaded: false 
+};
 let initialUserSettings = {};
 let secondaryDataPromise = null;
 const mainContentArea = document.getElementById('main-content-area');
 const spinner = document.getElementById('spinner');
 
-function showSpinner(message = '') { spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : ''; spinner.style.display = 'block'; }
+function showSpinner(message = '') { 
+    spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : ''; 
+    spinner.style.display = 'block'; 
+}
 function hideSpinner() { spinner.style.display = 'none'; }
-function showToast(msg, isError = false) { let toastTimer; clearTimeout(toastTimer); const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : ''); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); }
+function showToast(msg, isError = false) { 
+    let toastTimer; 
+    clearTimeout(toastTimer); 
+    const t = document.getElementById('toast'); 
+    t.textContent = msg; 
+    t.className = 'toast show' + (isError ? ' error' : ''); 
+    toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); 
+}
 
 async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) {
   const controller = new AbortController();
@@ -400,18 +461,21 @@ async function loadSecondaryData() {
     if (appData.isSecondaryDataLoaded) return;
     
     console.log("Cargando datos secundarios por primera vez...");
-    showSpinner();
+    showSpinner("Cargando listas...");
     try {
         const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
         if (secondaryData.error) throw new Error(secondaryData.error);
 
-        // --- OPTIMIZACIÓN APLICADA ---
-        // Solo actualizamos las listas, ya no vienen contadores aquí.
         appData.remindersList = secondaryData.remindersList;
-        appData.shoppingList = secondaryData.shoppingList;
+        // appData.shoppingList ya no se carga aquí, lo hará el oyente de Firestore
         appData.notesList = secondaryData.notesList;
         appData.calendarEvents = secondaryData.calendarEvents;
         
+        // Actualizamos contadores específicos que vienen de secondaryData
+        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+        appData.counts.gastosMesActual = secondaryData.gastosMesActual;
+        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+
         appData.isSecondaryDataLoaded = true;
         console.log("Datos secundarios cargados con éxito.");
         
@@ -534,14 +598,7 @@ async function executeDelete(type, id) {
                 break;
             case 'shopping_item':
                 payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado';
-                const itemIndex = appData.shoppingList.findIndex(i => i['3'] === id);
-                if (itemIndex > -1) {
-                    const item = appData.shoppingList[itemIndex];
-                    if (item['2'] === 'Pendiente') { appData.counts.shoppingPendingCount = Math.max(0, appData.counts.shoppingPendingCount - 1); } 
-                    else { appData.counts.shoppingBoughtCount = Math.max(0, appData.counts.shoppingBoughtCount - 1); }
-                    appData.shoppingList.splice(itemIndex, 1);
-                }
-                renderShoppingList();
+                // La lista se actualizará automáticamente a través del oyente de Firestore
                 break;
             case 'note':
                 payload.Type = 'delete_note'; payload.note_id = id; successMessage = 'Nota eliminada';
@@ -565,16 +622,7 @@ async function executeDelete(type, id) {
                 break;
             case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
-                const gastoIndex = gastosEncontrados.findIndex(g => g.ID_Unico === id);
-                if (gastoIndex > -1) {
-                    const gastoToDelete = gastosEncontrados[gastoIndex];
-                    const importeARestar = parseFloat(gastoToDelete.Importe);
-                    const gastosActualesNum = parseFloat(String(appData.counts.gastosMesActual).replace(/\./g, '').replace(',', '.'));
-                    const nuevosGastosTotal = gastosActualesNum - importeARestar;
-                    appData.counts.gastosMesActual = nuevosGastosTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    gastosEncontrados.splice(gastoIndex, 1);
-                }
-                goBack();
+                // La actualización de gastos y contadores se gestionará por el backend
                 break;
             default: return;
         }
@@ -586,6 +634,18 @@ async function executeDelete(type, id) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
+
+        // Forzar una resincronización de contadores del dashboard
+        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
+        if (syncCheck.success) {
+            appData.counts = syncCheck.counts; // Actualizar contadores localmente
+            // No renderDashboard aquí, ya que el delete/update puede venir desde una lista específica
+            // y el renderDashboard ya se encargará de refrescar los badges.
+            // La lista de compras se actualiza via Firestore listener.
+        } else {
+            initializeApp(); // Si falla la resincronización, recarga completa
+        }
+
     } catch (err) {
         showToast(`Error: ${err.message}. Restaurando...`, true);
         initializeApp();
@@ -630,88 +690,93 @@ async function saveReminder() {
   const category = document.querySelector('input[name="category"]:checked').value;
   const description = document.getElementById('text').value.trim();
   const time = document.getElementById('time')._flatpickr.selectedDates[0];
-  const horas_recurrentes = category === 'Recuerrente' ? document.getElementById('recurrent-hours').value : null;
+  const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null; // Corregido 'Recuerrente'
   const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
   
-  const tempId = 'temp-' + Date.now();
-  const newReminder = { 
-      'Fecha': new Date(time).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }), 
-      'Descripcion': description, 
-      'Categoria': category, 
-      'tracking_code': tempId 
-  };
-  
-  appData.remindersList.unshift(newReminder);
-  appData.counts.remindersCount++;
-  
+  // No hay actualización optimista en el cliente para recordatorios, esperamos la resincronización.
   goBack();
-  showToast('Recordatorio creado');
+  showToast('Recordatorio creado. Guardando...');
   
   try { 
     const res = await fetchWithTimeout(gasWebhookURL, payload); 
     const data = await res.json(); 
     if(data.error) throw new Error(data.error); 
-    if (data.tracking_code) {
-        const tempItem = appData.remindersList.find(r => r.tracking_code === tempId);
-        if (tempItem) tempItem.tracking_code = data.tracking_code;
+    showToast(data.message || 'Recordatorio creado con éxito');
+
+    // Forzar resincronización de contadores del dashboard
+    const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
+    if (syncCheck.success) {
+        appData.counts = syncCheck.counts; // Actualizar contadores localmente
+        // Si estamos en la lista de recordatorios, forzar una recarga de esa lista
+        if (mainContentArea.querySelector('#reminders-list')) {
+            await loadSecondaryData(); // Recarga los recordatorios
+            renderRemindersList();
+        }
+    } else {
+        initializeApp(); // Recarga completa si falla la resincronización
     }
+
   } catch (err) { 
-    showToast(`Error: ${err.message}. Restaurando...`, true); 
-    initializeApp();
+    showToast(`Error: ${err.message}.`, true); 
+    initializeApp(); // Recarga completa en caso de error
   }
 }
 
 async function renderRemindersList() {
-  if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); }
-  navigationHistory.push(renderDashboard);
-  updateBackButton();
-  const reminders = appData.remindersList || [];
-  let listHtml = (reminders.length > 0) ? reminders.map(item => `
-    <li class="list-item" id="item-${item.tracking_code}">
-      <div class="list-item-content">
-        <span class="list-item-title">${item.Descripcion}</span>
-        <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
-      </div>
-      <div class="list-item-actions">
-        <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
-        <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-          <a class="dropdown-item" data-action="edit-reminder" data-tracking-code="${item.tracking_code}">Editar Texto</a>
-          <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
-        </div>
-      </div>
-    </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-  mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
-  document.getElementById('reminders-list').addEventListener('click', (e) => {
-    const target = e.target.closest('.dropdown-item');
-    if (!target) return;
-    const action = target.dataset.action;
-    const trackingCode = target.dataset.trackingCode;
-    if (action === 'edit-reminder') {
-      const item = appData.remindersList.find(r => r.tracking_code === trackingCode);
-      if (item) editReminderDescription(item);
-    } else if (action === 'delete-reminder') {
-      confirmDelete('reminder', trackingCode);
-    }
-  });
+    // La lista de recordatorios se sigue cargando a través de loadSecondaryData (que llama a Apps Script)
+    if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); } 
+    
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    const reminders = appData.remindersList || []; 
+    let listHtml = (reminders.length > 0) ? reminders.map(item => `
+        <li class="list-item" id="item-${item.tracking_code}">
+            <div class="list-item-content">
+                <span class="list-item-title">${item.Descripcion}</span>
+                <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+            </div>
+            <div class="list-item-actions">
+                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
+                <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
+                    <a class="dropdown-item" data-action="edit-reminder" data-tracking-code="${item.tracking_code}">Editar Texto</a>
+                    <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
+                </div>
+            </div>
+        </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+    
+    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
+    document.getElementById('reminders-list').addEventListener('click', (e) => {
+        const target = e.target.closest('.dropdown-item');
+        if (!target) return;
+        const action = target.dataset.action;
+        const trackingCode = target.dataset.trackingCode;
+        if (action === 'edit-reminder') {
+            const item = appData.remindersList.find(r => r.tracking_code === trackingCode);
+            if (item) editReminderDescription(item);
+        } else if (action === 'delete-reminder') {
+            confirmDelete('reminder', trackingCode);
+        }
+    });
 }
 
 async function editReminderDescription(item) {
   const newDescription = prompt('Editar descripción del recordatorio:', item.Descripcion);
   if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item.Descripcion) {
-    const originalDescription = item.Descripcion;
-    const itemIndex = appData.remindersList.findIndex(r => r.tracking_code === item.tracking_code);
-    if (itemIndex === -1) return;
-    appData.remindersList[itemIndex].Descripcion = newDescription.trim();
-    renderRemindersList();
+    showToast('Guardando cambios...');
+    const payload = { Type: 'edit_reminder_description', chat_ID: chatId, tracking_code: item.tracking_code, new_description: newDescription.trim() };
     try {
-      const payload = { Type: 'edit_reminder_description', chat_ID: chatId, tracking_code: item.tracking_code, new_description: newDescription.trim() };
       const res = await fetchWithTimeout(gasWebhookURL, payload);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      showToast('Recordatorio actualizado.');
+      
+      // Recargar la lista para reflejar el cambio
+      await loadSecondaryData();
+      renderRemindersList();
+
     } catch (err) {
       showToast(`Error: ${err.message}. No se actualizó.`, true);
-      appData.remindersList[itemIndex].Descripcion = originalDescription;
-      renderRemindersList();
+      initializeApp(); // Recarga completa en caso de error
     }
   }
 }
@@ -719,7 +784,7 @@ async function editReminderDescription(item) {
 // ==================================================
 // --- MÓDULO: COMPRAS (ADAPTADO PARA FIRESTORE Y TIEMPO REAL) ---
 // ==================================================
-let unsubscribeShoppingList = null; // Variable para almacenar la función de desuscripción de Firestore
+// La variable unsubscribeShoppingList ya está declarada al inicio.
 
 async function renderShoppingList() {
     navigationHistory.push(renderDashboard);
@@ -752,11 +817,15 @@ async function renderShoppingList() {
         return;
     }
 
-    // Obtener el ID de la lista compartida del usuario (asumiendo que viene en settings o se puede buscar)
-    // Por ahora, asumimos que cada usuario tiene su propia lista de compras en `users/{chatId}/listaDeLaCompra`
-    // En un futuro, para la lista compartida, necesitaríamos obtener el `listaCompartida_id` del usuario.
+    // PATH DE LA SUBLCOLECCIÓN DE LA LISTA DE LA COMPRA DEL USUARIO
     const userShoppingListPath = `users/${chatId}/listaDeLaCompra`;
-    const q = window.firestore.query(window.firestore.collection(window.db, userShoppingListPath));
+    
+    // Consulta: ordenar por estado (Pendiente primero), luego por fecha descendente
+    const q = window.firestore.query(
+        window.firestore.collection(window.db, userShoppingListPath),
+        window.firestore.orderBy('estado', 'asc'), // 'Pendiente' antes que 'Comprado' si son strings
+        window.firestore.orderBy('fecha', 'desc') // Los más recientes primero
+    );
 
     unsubscribeShoppingList = window.firestore.onSnapshot(q, (snapshot) => {
         const items = [];
@@ -771,15 +840,6 @@ async function renderShoppingList() {
             });
         });
         
-        // Ordenar la lista (Pendientes primero, luego Comprados por fecha descendente)
-        items.sort((a, b) => {
-            if (a['2'] === 'Pendiente' && b['2'] === 'Comprado') return -1;
-            if (a['2'] === 'Comprado' && b['2'] === 'Pendiente') return 1;
-            const dateA = a['4'] ? new Date(a['4']).getTime() : 0;
-            const dateB = b['4'] ? new Date(b['4']).getTime() : 0;
-            return dateB - dateA; // Más reciente primero
-        });
-
         appData.shoppingList = items; // Actualizar los datos internos de la app
         renderShoppingListContent(items); // Renderizar el contenido de la lista con los datos en tiempo real
         updateShoppingCounts(items); // Actualizar los contadores en appData.counts y en el dashboard
@@ -799,7 +859,7 @@ function renderShoppingListContent(items) {
     const createItemHTML = (item) => {
         const isPending = item['2'] === 'Pendiente';
         return `
-            <li class="shopping-item" id="item-${item['3']}">
+            <li class="list-item" id="item-${item['3']}">
                 ${isPending ? 
                     `<button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="Pendiente" data-cycle="${item['5'] || 0}"><span>${item['1']}</span></button>` : 
                     `<div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}"></div>
@@ -852,67 +912,164 @@ function updateShoppingCounts(items) {
     if (boughtBadge) boughtBadge.textContent = bought;
 }
 
-// NOTA: optimisticDeleteItemPermanently, optimisticToggleShoppingItemStatus, 
-//       toggleSelectedItemsToPending se eliminarán o adaptarán para que los cambios 
-//       se reflejen a través del oyente de Firestore, no por manipulación DOM optimista.
-//       Por ahora se mantienen, pero serán el objetivo de refactorización para el tiempo real.
-
-// La función handleShoppingItemInteractions llamará a las funciones del backend para Firestore
-// que a su vez dispararán los cambios y el oyente de Firestore los reflejará.
-
-
-// ==================================================
-// --- MÓDULO: RECORDATORIOS (ACTUALIZADO CON FIRESTORE) ---
-// ==================================================
-async function renderRemindersList() {
-    // Ya no necesitamos loadSecondaryData() porque los oyentes de Firestore cargarán la lista de compras.
-    // Para los recordatorios y notas, seguiremos usando el flujo actual via Apps Script
-    // hasta que se decida si también necesitan tiempo real.
-    if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); } // Para otras listas
-    
-    navigationHistory.push(renderDashboard);
-    updateBackButton();
-    const reminders = appData.remindersList || []; // appData.remindersList se actualiza desde secondaryData
-    let listHtml = (reminders.length > 0) ? reminders.map(item => `
-        <li class="list-item" id="item-${item.tracking_code}">
-            <div class="list-item-content">
-                <span class="list-item-title">${item.Descripcion}</span>
-                <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
-            </div>
-            <div class="list-item-actions">
-                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
-                <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                    <a class="dropdown-item" data-action="edit-reminder" data-tracking-code="${item.tracking_code}">Editar Texto</a>
-                    <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
-                </div>
-            </div>
-        </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-    
-    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
-    document.getElementById('reminders-list').addEventListener('click', (e) => {
-        const target = e.target.closest('.dropdown-item');
-        if (!target) return;
-        const action = target.dataset.action;
-        const trackingCode = target.dataset.trackingCode;
-        if (action === 'edit-reminder') {
-            const item = appData.remindersList.find(r => r.tracking_code === trackingCode);
-            if (item) editReminderDescription(item);
-        } else if (action === 'delete-reminder') {
-            confirmDelete('reminder', trackingCode);
-        }
-    });
+function handleShoppingItemInteractions(event) {
+  const toggleButton = event.target.closest('.shopping-item-toggle-btn');
+  if (toggleButton) {
+      const trackingCode = toggleButton.dataset.trackingCode;
+      const currentStatus = toggleButton.dataset.currentStatus;
+      const cycle = parseInt(toggleButton.dataset.cycle, 10);
+      
+      if (currentStatus === 'Pendiente' && cycle === 0) {
+          executeDelete('shopping_item', trackingCode); // Eliminar directamente
+      } else {
+          const newStatus = currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+          toggleShoppingItemStatus(trackingCode, newStatus); // Llamar a la función del backend
+      }
+      return;
+  }
+  const menuItem = event.target.closest('.dropdown-item');
+  if(menuItem) {
+    const action = menuItem.dataset.action;
+    const trackingCode = menuItem.dataset.trackingCode;
+    if (action === 'edit-shopping-item') {
+      const item = appData.shoppingList.find(i => i['3'] === trackingCode);
+      if(item) renderEditShoppingItemForm(item);
+    } else if (action === 'delete-shopping-item') {
+      confirmDelete('shopping_item', trackingCode);
+    }
+  }
 }
-// saveReminder y editReminderDescription se mantienen, ya que los cambios se reflejan vía initializeApp o secondaryData
 
+// Llama al backend para cambiar el estado de un artículo
+async function toggleShoppingItemStatus(trackingCode, newStatus) {
+    showSpinner("Actualizando artículo...");
+    try {
+        const payload = { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showToast('Artículo actualizado.');
+        // El onSnapshot de Firestore detectará el cambio y renderShoppingListContent lo actualizará
+    } catch (err) {
+        showToast(`Error: ${err.message}.`, true);
+    } finally {
+        hideSpinner();
+    }
+}
+
+function updateMultiSelectButtonState() {
+  const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
+  if (!multiSelectToggleButton) return;
+  const selectedCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
+  multiSelectToggleButton.disabled = selectedCount === 0;
+  multiSelectToggleButton.textContent = selectedCount > 0 ? `Marcar ${selectedCount} para comprar` : 'Marcar para comprar';
+}
+
+// Llama al backend para cambiar el estado de múltiples artículos
+async function toggleSelectedItemsToPending() {
+  const trackingCodes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
+  if (trackingCodes.length === 0) return;
+  
+  showSpinner("Marcando artículos...");
+  try {
+      const payload = { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes };
+      const res = await fetchWithTimeout(gasWebhookURL, payload);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      showToast('Artículos marcados como pendientes.');
+      // El onSnapshot de Firestore detectará el cambio
+  } catch (err) {
+      showToast(`Error: ${err.message}.`, true);
+  } finally {
+      hideSpinner();
+  }
+}
+
+function renderAddArticleForm() {
+  navigationHistory.push(renderShoppingList);
+  updateBackButton();
+  mainContentArea.innerHTML = `
+      <div class="list-container">
+          <div class="list-header"><h2>➕ Añadir Artículo</h2></div>
+          <div class="form-card">
+              <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required></textarea>
+              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="0" min="0" step="1" required />
+              <button id="add-article-send-btn" disabled>Añadir</button>
+          </div>
+      </div>`;
+  const sendBtn = document.getElementById('add-article-send-btn');
+  const descriptionInput = document.getElementById('article-description');
+  descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
+  sendBtn.onclick = addArticle;
+}
+
+async function addArticle() {
+  const description = document.getElementById('article-description').value.trim();
+  const cycle = document.getElementById('article-cycle').value || 0;
+  if (!description) return;
+  const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
+  
+  showToast('Artículo añadido. Guardando...');
+  
+  try {
+      const res = await fetchWithTimeout(gasWebhookURL, payload);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      showToast('Artículo añadido con éxito.');
+      goBack(); // Volver a la lista, el oyente de Firestore la refrescará
+  } catch (err) { 
+      showToast(`Error: ${err.message}.`, true);
+      initializeApp(); // Recarga completa en caso de error
+  } finally {
+      hideSpinner();
+  }
+}
+
+function renderEditShoppingItemForm(item) {
+    navigationHistory.push(renderShoppingList);
+    updateBackButton();
+    mainContentArea.innerHTML = `
+      <div class="list-container">
+          <div class="list-header"><h2>✏️ Editar Artículo</h2></div>
+          <div class="form-card">
+              <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
+              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
+              <button id="edit-article-send-btn" class="enabled">Guardar Cambios</button>
+          </div>
+      </div>`;
+    document.getElementById('edit-article-send-btn').onclick = () => saveEditedShoppingItem(item['3']);
+}
+
+async function saveEditedShoppingItem(trackingCode) {
+    const newDescription = document.getElementById('article-description').value.trim();
+    const newCycle = document.getElementById('article-cycle').value || 0;
+    if (!newDescription) return;
+    
+    showToast('Guardando cambios...');
+    const payload = { Type: 'edit_shopping_item', chat_ID: chatId, tracking_code: trackingCode, new_description: newDescription, new_cycle: parseInt(newCycle) };
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showToast('Artículo actualizado.');
+        goBack(); // Volver a la lista, el oyente de Firestore la refrescará
+    } catch (err) {
+        showToast(`Error: ${err.message}.`, true);
+        initializeApp(); // Recarga completa en caso de error
+    } finally {
+        hideSpinner();
+    }
+}
 // ==================================================
 // --- MÓDULO: NOTAS (ACTUALIZADO CON FIRESTORE) ---
 // ==================================================
 async function renderNotesList() {
-    if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); } // Para otras listas
+    // Las notas se siguen cargando a través de loadSecondaryData (que llama a Apps Script)
+    if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); } 
     
     navigationHistory.push(renderDashboard);
     updateBackButton();
-    const notes = appData.notesList || []; // appData.notesList se actualiza desde secondaryData
+    const notes = appData.notesList || []; 
     let listHtml = (notes.length > 0) ? notes.map(note => `
             <li class="list-item" id="item-${note.Nota_ID}">
                 <div class="list-item-content">
@@ -948,26 +1105,85 @@ async function renderNotesList() {
         }
     });
 }
-// saveNote y editNote se mantienen, ya que los cambios se reflejan vía initializeApp o secondaryData
+
+function renderNoteForm(note = null) {
+    navigationHistory.push(renderNotesList);
+    updateBackButton();
+    const isEditing = note && note.Nota_ID;
+    mainContentArea.innerHTML = `<div class="list-container">
+                                <div class="list-header"><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
+                                <div class="form-card">
+                                    <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
+                                    <label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea>
+                                    <button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
+                                </div>
+                             </div>`;
+    const titleInput = document.getElementById('note-title');
+    const descriptionInput = document.getElementById('note-description');
+    const saveBtn = document.getElementById('save-note-btn');
+    function validate() {
+        const isEnabled = titleInput.value.trim() !== '' && descriptionInput.value.trim() !== '';
+        saveBtn.disabled = !isEnabled;
+        saveBtn.classList.toggle('enabled', isEnabled);
+    }
+    titleInput.oninput = validate;
+    descriptionInput.oninput = validate;
+    saveBtn.onclick = saveNote;
+    validate();
+}
+
+async function saveNote() {
+    const saveBtn = document.getElementById('save-note-btn');
+    const title = document.getElementById('note-title').value.trim();
+    const description = document.getElementById('note-description').value.trim();
+    const noteId = saveBtn.dataset.noteId;
+    const isEditing = !!noteId;
+    const payload = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', note_id: noteId, title: title, description: description };
+
+    showToast(isEditing ? 'Guardando cambios...' : 'Nota creada. Guardando...');
+        
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showToast(isEditing ? 'Nota guardada.' : 'Nota creada con éxito.');
+        goBack(); // Volver a la lista
+        
+        // Forzar resincronización de contadores y lista de notas
+        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
+        if (syncCheck.success) {
+            appData.counts = syncCheck.counts; // Actualizar contadores localmente
+            await loadSecondaryData(); // Recargar las notas
+            renderNotesList();
+        } else {
+            initializeApp(); // Recarga completa si falla la resincronización
+        }
+
+    } catch (err) {
+        showToast(`Error: ${err.message}.`, true);
+        initializeApp(); // Recarga completa en caso de error
+    }
+}
 
 // ==================================================
 // --- MÓDULO: CALENDARIO (ACTUALIZADO CON FIRESTORE) ---
 // ==================================================
-// Las funciones de calendario se mantienen con la lógica de Sheets/Google Calendar API,
-// pero las llamadas a getCalendarId() en el backend ahora leerán de Firestore.
-// Los eventos se cargarán vía secondaryData y se gestionarán con las funciones existentes.
+// Las funciones de calendario se mantienen con la lógica existente (Google Calendar API),
+// pero las llamadas al backend ahora usarán las funciones adaptadas a Firestore.
 
 let lastCalendarSearchQuery = null;
 
 async function renderCalendarView(searchQuery = null) {
+    // La lista de eventos se sigue cargando a través de loadSecondaryData (que llama a Apps Script)
     if (!searchQuery && !appData.isSecondaryDataLoaded) { await loadSecondaryData(); }
+    
     navigationHistory.push(renderDashboard);
     updateBackButton();
     
     let eventsToRender;
 
     if (searchQuery) {
-        showSpinner();
+        showSpinner("Buscando eventos...");
         try {
             const serverCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'search_calendar_events', chat_ID: chatId, query: searchQuery }).then(res => res.json());
             if (serverCheck.error) throw new Error(serverCheck.error);
@@ -1175,25 +1391,28 @@ async function saveEvent(eventToEdit = null) {
         eventId: isEditing ? eventToEdit.id : null
     };
     
-    const isToday = (dateStr) => dateStr.slice(0, 10) === new Date().toISOString().slice(0, 10);
-    if (isEditing) {
-        const wasToday = isToday(eventToEdit.start.dateTime || eventToEdit.start.date);
-        const isNowToday = isToday(eventData.start);
-        if (wasToday && !isNowToday) appData.counts.calendarTodayCount--;
-        if (!wasToday && isNowToday) appData.counts.calendarTodayCount++;
-    } else {
-        if (isToday(eventData.start)) { appData.counts.calendarTodayCount = (appData.counts.calendarTodayCount || 0) + 1; }
-    }
-    
+    // No actualizamos appData.counts aquí optimísticamente, esperamos la resincronización del dashboard
     goBack();
-    showToast(isEditing ? 'Evento actualizado' : 'Evento creado');
+    showToast(isEditing ? 'Evento actualizado. Guardando...' : 'Evento creado. Guardando...');
     
     try {
         const res = await fetchWithTimeout(gasWebhookURL, { chat_ID: chatId, Type: 'miniapp_save_calendar_event', eventData });
         const result = await res.json(); if (result.error) throw new Error(result.error);
+        showToast(isEditing ? 'Evento actualizado con éxito.' : 'Evento creado con éxito.');
+
+        // Forzar resincronización de contadores y recarga de la lista de eventos
+        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
+        if (syncCheck.success) {
+            appData.counts = syncCheck.counts; // Actualizar contadores localmente
+            await loadSecondaryData(); // Recargar los eventos
+            renderCalendarView();
+        } else {
+            initializeApp(); // Recarga completa si falla la resincronización
+        }
+
     } catch (err) {
-        showToast(`Error: ${err.message}. No se guardó.`, true);
-        initializeApp();
+        showToast(`Error: ${err.message}.`, true);
+        initializeApp(); // Recarga completa en caso de error
     }
 }
 
@@ -1390,10 +1609,6 @@ async function saveGasto() {
         const establecimiento = document.getElementById('gasto-establecimiento').value;
         const categoria = document.getElementById('gasto-categoria').value;
         const subcategoria = document.getElementById('gasto-subcategoria').value;
-        // Los campos mes y anio no se calculan aquí, se calculan en el backend
-        // const mes = ('0' + (fechaGastoObj.getMonth() + 1)).slice(-2);
-        // const anio = fechaGastoObj.getFullYear();
-        // const mesAnioTexto = `${mes}/${anio}`; // Este se calculará en el backend
         
         const payload = {
             Type: 'add_gasto',
@@ -1403,13 +1618,11 @@ async function saveGasto() {
                 Establecimiento: establecimiento, 
                 categoria: categoria, 
                 sub_categoria: subcategoria,
-                Fecha: fechaGastoObj.toISOString(), // Enviar fecha en formato ISO
-                // mesAnio: mesAnioTexto, // Ya no se envía, lo calcula el backend
+                Fecha: fechaGastoObj.toISOString(), 
                 ID_Unico: `G-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
             }
         };
         
-        // No actualizamos appData.counts aquí optimísticamente, esperamos la resincronización del dashboard
         goBack();
         showToast('Gasto registrado. Guardando...');
         
@@ -1417,18 +1630,14 @@ async function saveGasto() {
         const data = await res.json();
         if (data.error) {
             showToast(`Error del servidor: ${data.error}`, true);
-            initializeApp(); // Forzar recarga completa para resincronizar
+            initializeApp();
         } else {
-            // Si todo va bien, el dashboard se resincronizará automáticamente en la próxima apertura/maximización
-            // o lo forzamos si estamos en la vista de gastos.
-            // Para la mejor experiencia, forzamos una resincronización leve
-            // Esto podría ser un call a resyncUserCounts en el backend para actualizar solo los contadores de gastos
             const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
             if (syncCheck.success) {
-                appData.counts = syncCheck.counts; // Actualizar contadores localmente
-                renderDashboard(); // Volver al dashboard para reflejar cambios
+                appData.counts = syncCheck.counts; 
+                renderDashboard();
             } else {
-                initializeApp(); // Si falla la resincronización, recarga completa
+                initializeApp();
             }
         }
 
@@ -1442,7 +1651,6 @@ async function saveGasto() {
 function renderGastoChart() {
   navigationHistory.push(renderDashboard);
   updateBackButton();
-  // Los meses activos se cargarán como parte de initialData o secondaryData
   const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
   mainContentArea.innerHTML = `
     <div class="list-container">
@@ -1478,7 +1686,7 @@ async function fetchAndDisplayGastoChart(event) {
     
     Chart.register(ChartDataLabels);
     const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-    const moneda = appData.settings.Moneda || '€'; // Obtenemos la moneda
+    const moneda = appData.settings.Moneda || '€';
     
     if (data.pieData && data.pieData.data && data.pieData.data.length > 0) {
       document.getElementById('chart-container-pie').style.display = 'block';
@@ -1489,20 +1697,17 @@ async function fetchAndDisplayGastoChart(event) {
         options: {
   responsive: true, maintainAspectRatio: true,
   plugins: {
-    // FIX 1: Añadimos la moneda al TÍTULO principal
     title: { display: true, text: data.tituloPie + ' ' + moneda, font: { size: 18 } },
     legend: { display: false },
-    datalabels: { // Esto es para el porcentaje de dentro, lo dejamos como está
+    datalabels: {
       formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (total === 0) return '0%'; return (value / total * 100).toFixed(0) + '%'; },
       color: '#fff', font: { weight: 'bold', size: 16 }
     },
-    // FIX 2: Añadimos la moneda al TOOLTIP (la caja de info al pasar el ratón)
     tooltip: {
       callbacks: {
         label: function(context) {
           let label = context.label || '';
           if (label) { label += ': '; }
-          // Formateamos el número para asegurar la coma decimal y añadimos la moneda
           let value = parseFloat(context.raw).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           label += value + ' ' + moneda;
           return label;
@@ -1521,7 +1726,6 @@ async function fetchAndDisplayGastoChart(event) {
       const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
       dailyChartInstance = new Chart(dailyCtx, {
         type: 'line',
-        // Usamos la moneda en la etiqueta
         data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario (' + moneda + ')', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
         options: {
   responsive: true,
@@ -1534,7 +1738,6 @@ async function fetchAndDisplayGastoChart(event) {
         label: function(context) {
           let label = context.dataset.label || '';
           if (label) { label += ': '; }
-          // Añadimos el símbolo de la moneda al valor formateado
           label += context.formattedValue + ' ' + moneda;
           return label;
         }
@@ -1561,7 +1764,6 @@ async function fetchAndDisplayGastoChart(event) {
         data: {
           labels: data.monthlyData.labels,
           datasets: [
-            // Usamos la moneda en la etiqueta
             { label: 'Gasto Mensual (' + moneda + ')', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
             {
                 label: 'Tendencia', data: trendlineData, type: 'line', borderColor: '#FF6384',
@@ -1578,7 +1780,6 @@ async function fetchAndDisplayGastoChart(event) {
     tooltip: {
       callbacks: {
         label: function(context) {
-          // No mostramos tooltip para la línea de tendencia
           if (context.dataset.type === 'line') { return null; }
           let label = context.dataset.label || '';
           if (label) { label += ': '; }
@@ -1652,7 +1853,7 @@ async function executeSearchGastos() {
     if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
     
     const payload = { Type: 'get_gastos_fecha', chat_ID: chatId, datos: { fecha_start: startDate, fecha_end: endDate } };
-    showSpinner();
+    showSpinner("Buscando gastos...");
     
     try {
         const res = await fetchWithTimeout(gasWebhookURL, payload);
@@ -1726,8 +1927,6 @@ function renderEditGastoForm(gasto) {
 }
 
 async function saveEditedGasto(idUnico) {
-    // Ya no manipulamos gastosEncontrados directamente aquí porque el backend lo gestionará y el dashboard se resincronizará.
-    
     const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
     const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
     const nuevaCategoria = document.getElementById('gasto-categoria').value;
@@ -1736,28 +1935,24 @@ async function saveEditedGasto(idUnico) {
 
     showToast('Gasto actualizado. Guardando...');
     
-    // No usamos goBack() inmediatamente, esperamos la respuesta del servidor para resincronizar.
-
     try {
         const payload = { Type: 'edit_gasto', chat_ID: chatId, datos: { ID_Unico: idUnico, Importe: nuevoImporte, Establecimiento: nuevoEstablecimiento, categoria: nuevaCategoria, sub_categoria: nuevaSubcategoria, Fecha: fechaGastoObj.toISOString() } };
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        goBack(); // Volver solo si el servidor confirma
+        goBack(); 
         const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
         if (syncCheck.success) {
-            appData.counts = syncCheck.counts;
-            // No renderDashboard, sino renderGastosSearchScreen con los nuevos datos si estamos ahí.
-            // Para simplificar, forzamos una recarga completa, o una vuelta inteligente.
-            renderDashboard(); // Volver al dashboard, para que se recargue con los nuevos contadores.
+            appData.counts = syncCheck.counts; 
+            renderDashboard(); 
         } else {
-            initializeApp(); // Recarga completa si falla la resincronización de contadores
+            initializeApp(); 
         }
 
     } catch (err) {
         showToast(`Error de sincronización: ${err.message}.`, true);
-        initializeApp(); // Recarga completa en caso de error
+        initializeApp(); 
     }
 }
 // ==================================================
@@ -2045,12 +2240,21 @@ async function addIngredientsToShoppingList(buttonElement) {
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        itemsToAdd.forEach(item => { appData.shoppingList.unshift({ '1': item, '2': 'Pendiente', '3': `temp-${Date.now()}${Math.random()}`, '4': '', '5': 0 }); });
-        appData.counts.shoppingPendingCount += itemsToAdd.length;
         showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
         buttonElement.style.display = 'none';
+        
+        // Forzar resincronización de contadores del dashboard
+        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
+        if (syncCheck.success) {
+            appData.counts = syncCheck.counts; // Actualizar contadores localmente
+            // La lista de compras se actualizará vía Firestore listener, no necesita renderDashboard
+        } else {
+            initializeApp(); // Recarga completa si falla la resincronización
+        }
+
     } catch(err) {
         showToast(err.message, true);
+        initializeApp(); // Recarga completa en caso de error
     } finally {
         hideSpinner();
     }
@@ -2216,13 +2420,13 @@ function validateSettings() {
     if (document.getElementById('settings-pais').value !== (initialUserSettings['Pais'] || '')) hasChanged = true;
     if (document.getElementById('settings-theme').value !== (initialUserSettings['Tema'] || 'auto')) hasChanged = true;
     if (document.getElementById('settings-informe-manana-activo').checked !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) hasChanged = true;
-    if (document.getElementById('settings-franja-manana').value != (initialUserSettings['Franja_Informe_Mañana'] || '2')) hasChanged = true;
+    if (document.getElementById('settings-franja-manana').value != (initialUserSettings['Franja_Informe_Mañana'] || '2')) hasChanged = true; 
     if (document.getElementById('settings-informe-tarde-activo').checked !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) hasChanged = true;
-    if (document.getElementById('settings-franja-tarde').value != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true;
+    if (document.getElementById('settings-franja-tarde').value != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true; 
     if (document.getElementById('settings-alerta-inventario').checked !== (initialUserSettings['Alerta_Inventario'] === 'SI')) hasChanged = true;
     if (document.getElementById('settings-informe-mensual-activo').checked !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) hasChanged = true;
-    if (document.getElementById('settings-dia-informe-mensual').value != (initialUserSettings['Dia_Informe_Mensual'] || '1')) hasChanged = true;
-    if (document.getElementById('settings-hora-informe-mensual').value != (initialUserSettings['Hora_Informe_Mensual'] || '12')) hasChanged = true;
+    if (document.getElementById('settings-dia-informe-mensual').value != (initialUserSettings['Dia_Informe_Mensual'] || '1')) hasChanged = true; 
+    if (document.getElementById('settings-hora-informe-mensual').value != (initialUserSettings['Hora_Informe_Mensual'] || '12')) hasChanged = true; 
     
     saveBtn.disabled = !hasChanged;
     saveBtn.classList.toggle('enabled', hasChanged);
@@ -2238,13 +2442,13 @@ async function saveSettings() {
     const newPais = document.getElementById('settings-pais').value; if (newPais !== (initialUserSettings['Pais'] || '')) settingsToUpdate['Pais'] = newPais;
     const newTheme = document.getElementById('settings-theme').value; if (newTheme !== (initialUserSettings['Tema'] || 'auto')) settingsToUpdate['Tema'] = newTheme;
     const newMananaActivo = document.getElementById('settings-informe-manana-activo').checked; if (newMananaActivo !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) settingsToUpdate['Informe_Mañana_Activo'] = newMananaActivo ? 'SI' : 'NO';
-    const newFranjaManana = document.getElementById('settings-franja-manana').value; if (newFranjaManana != (initialUserSettings['Franja_Informe_Mañana'] || '2')) hasChanged = true; // Error de logica, no se debe llamar aqui
+    const newFranjaManana = document.getElementById('settings-franja-manana').value; if (newFranjaManana != (initialUserSettings['Franja_Informe_Mañana'] || '2')) settingsToUpdate['Franja_Informe_Mañana'] = newFranjaManana;
     const newTardeActivo = document.getElementById('settings-informe-tarde-activo').checked; if (newTardeActivo !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) settingsToUpdate['Informe_Tarde_Activo'] = newTardeActivo ? 'SI' : 'NO';
-    const newFranjaTarde = document.getElementById('settings-franja-tarde').value; if (newFranjaTarde != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true; // Error de logica, no se debe llamar aqui
+    const newFranjaTarde = document.getElementById('settings-franja-tarde').value; if (newFranjaTarde != (initialUserSettings['Franja_Informe_Tarde'] || '20')) settingsToUpdate['Franja_Informe_Tarde'] = newFranjaTarde;
     const newAlerta = document.getElementById('settings-alerta-inventario').checked; if (newAlerta !== (initialUserSettings['Alerta_Inventario'] === 'SI')) settingsToUpdate['Alerta_Inventario'] = newAlerta ? 'SI' : 'NO';
     const newMensualActivo = document.getElementById('settings-informe-mensual-activo').checked; if (newMensualActivo !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) settingsToUpdate['Informe_Mensual_Activo'] = newMensualActivo ? 'SI' : 'NO';
-    const newDiaMensual = document.getElementById('settings-dia-informe-mensual').value; if (newDiaMensual != (initialUserSettings['Dia_Informe_Mensual'] || '1')) hasChanged = true; // Error de logica, no se debe llamar aqui
-    const newHoraMensual = document.getElementById('settings-hora-informe-mensual').value; if (newHoraMensual != (initialUserSettings['Hora_Informe_Mensual'] || '12')) hasChanged = true; // Error de logica, no se debe llamar aqui
+    const newDiaMensual = document.getElementById('settings-dia-informe-mensual').value; if (newDiaMensual != (initialUserSettings['Dia_Informe_Mensual'] || '1')) settingsToUpdate['Dia_Informe_Mensual'] = newDiaMensual;
+    const newHoraMensual = document.getElementById('settings-hora-informe-mensual').value; if (newHoraMensual != (initialUserSettings['Hora_Informe_Mensual'] || '12')) settingsToUpdate['Hora_Informe_Mensual'] = newHoraMensual;
 
     if (Object.keys(settingsToUpdate).length === 0) {
         hideSpinner();
@@ -2259,13 +2463,10 @@ async function saveSettings() {
         
         if (data.error) throw new Error(data.error);
 
-        // --- INICIO DE LA LÓGICA DE ACTUALIZACIÓN ---
         if (data.success && data.updatedSettings) {
-            // 1. Actualizar la memoria interna de la app
             Object.assign(appData.settings, data.updatedSettings);
             initialUserSettings = JSON.parse(JSON.stringify(appData.settings));
 
-            // 2. Refrescar los campos de la pantalla con los datos del servidor
             document.getElementById('settings-ciudad').value = appData.settings['Ciudad'] || '';
             document.getElementById('settings-pais').value = appData.settings['Pais'] || '';
             document.getElementById('settings-zona-horaria').value = appData.settings['Time Zone'] || 'No disponible';
@@ -2277,7 +2478,6 @@ async function saveSettings() {
         } else {
             throw new Error("La respuesta del servidor no fue la esperada.");
         }
-        // --- FIN DE LA LÓGICA DE ACTUALIZACIÓN ---
 
     } catch (err) {
         showToast(`Error al guardar: ${err.message}`, true);
@@ -2287,7 +2487,7 @@ async function saveSettings() {
 }
 
 async function syncCounts() {
-    showSpinner();
+    showSpinner("Sincronizando contadores...");
     try {
         const res = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId });
         const data = await res.json();
@@ -2295,6 +2495,7 @@ async function syncCounts() {
         if (data.success && data.counts) {
             Object.assign(appData.counts, data.counts);
             showToast("Contadores resincronizados con éxito.");
+            renderDashboard(); // Re-renderizar el dashboard para mostrar los nuevos contadores
         } else {
             throw new Error("Respuesta inesperada del servidor.");
         }
@@ -2333,7 +2534,7 @@ function renderExportPage() {
 }
 
 async function executeExport() {
-    showSpinner();
+    showSpinner("Generando exportación...");
     const startDate = document.getElementById('export-start-date').value;
     const endDate = document.getElementById('export-end-date').value;
     if (!startDate || !endDate) {
@@ -2364,8 +2565,6 @@ function renderDashboard() {
   updateBackButton();
   const counts = appData.counts;
   
-
-
   mainContentArea.innerHTML = `
     <div class="grid">
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
