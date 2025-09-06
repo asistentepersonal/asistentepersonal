@@ -431,25 +431,44 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   const timeout = isMakeWebhook ? 60000 : 30000;
   const id = setTimeout(() => controller.abort(), timeout);
   let options = { method: 'POST', signal: controller.signal };
+
   if (isMakeWebhook) {
       const formData = new FormData();
       formData.append('prompt', payloadObject.prompt);
       if (payloadObject.image_count !== undefined) { formData.append('image_count', payloadObject.image_count); }
       if (payloadObject.images && payloadObject.images.length > 0) { payloadObject.images.forEach(imageFile => { formData.append('images', imageFile, imageFile.name); }); }
       options.body = formData;
+      // No Content-Type es necesario para FormData, el navegador lo configura automáticamente
   } else {
-      const formData = new FormData();
-      formData.append("postData", JSON.stringify(payloadObject));
-      options.body = formData;
+      // --- CAMBIO CLAVE AQUÍ: ENVIAR COMO URLSearchParams PARA EVITAR CORS EN APPS SCRIPT ---
+      const params = new URLSearchParams();
+      params.append("postData", JSON.stringify(payloadObject));
+      options.body = params;
+      options.headers = {
+          'Content-Type': 'application/x-www-form-urlencoded'
+      };
+      // --- FIN DEL CAMBIO ---
   }
   try {
     const response = await fetch(resource, options);
     clearTimeout(id);
-    if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+    if (!response.ok) { // Apps Script devuelve 200 OK incluso con errores CORS, pero la promesa falla.
+      // Aquí el error ya se maneja a nivel de red, si no hay respuesta 200 real, fallará.
+      // El "net::ERR_FAILED 200 (OK)" que ves es porque la respuesta HTTP fue 200, pero el navegador bloqueó el acceso a ella.
+      // La clave es que el navegador pueda ACCEDER a la respuesta, no solo que sea 200.
+      throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+    }
     return response;
   } catch (error) {
     clearTimeout(id);
-    if (error.name === 'AbortError') throw new Error('La solicitud tardó demasiado.');
+    if (error.name === 'AbortError') {
+      throw new Error('La solicitud tardó demasiado. (Timeout)');
+    }
+    // Añadimos un log más específico para errores de red o CORS
+    console.error("Error en fetchWithTimeout:", error.message, error);
+    if (error.message.includes("blocked by CORS policy")) {
+        throw new Error("Error de conexión (CORS): Asegúrate de que tu Apps Script esté desplegado con 'Acceso: Cualquiera'.");
+    }
     throw error;
   }
 }
