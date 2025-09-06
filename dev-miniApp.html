@@ -1163,61 +1163,6 @@ function renderNoteForm(note = null) {
     validate(); // Validar al inicio por si se está editando una nota
 }
 
-async function saveNote() {
-    const saveBtn = document.getElementById('save-note-btn');
-    const title = document.getElementById('note-title').value.trim();
-    const description = document.getElementById('note-description').value.trim();
-    const noteId = saveBtn.dataset.noteId;
-    const isEditing = !!noteId;
-
-    // --- LÓGICA OPTIMISTA ---
-    goBack(); // Volver a la lista inmediatamente
-    showToast(isEditing ? 'Nota guardada' : 'Nota creada');
-
-    if (isEditing) {
-        // 1. Actualizar localmente
-        const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
-        if (noteIndex > -1) {
-            appData.notesList[noteIndex].Titulo = title;
-            appData.notesList[noteIndex].Descripcion = description;
-        }
-    } else {
-        // 1. Añadir localmente y actualizar contador
-        const newNote = { 
-            Nota_ID: 'temp-' + Date.now(), 
-            Titulo: title, 
-            Descripcion: description, 
-            Fecha: new Date().toLocaleDateString('es-ES')
-        };
-        appData.notesList.unshift(newNote);
-        appData.counts.notesCount++;
-    }
-    
-    // 2. Sincronizar con Firestore en segundo plano
-    try {
-        const noteRef = isEditing 
-            ? db.collection(`users/${chatId}/notas`).doc(noteId)
-            : db.collection(`users/${chatId}/notas`).doc(); // Firestore genera el ID
-
-        const dataToSave = {
-            titulo: title,
-            descripcion: description,
-            fecha: new Date() // Siempre actualizamos la fecha al guardar
-        };
-        
-        await noteRef.set(dataToSave, { merge: true }); // set con merge crea o actualiza
-        console.log("Nota sincronizada con Firestore con éxito.");
-        
-        // Sincronizar el contador en el backend
-        await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId });
-
-    } catch (error) {
-        console.error("Error sincronizando nota con Firestore:", error);
-        showToast("Error de sincronización.", true);
-        // Si falla, forzamos una recarga completa para obtener el estado real
-        initializeApp();
-    }
-}
 
 function renderNoteForm(note = null) {
     navigationHistory.push(renderNotesList);
@@ -1251,30 +1196,57 @@ async function saveNote() {
     const description = document.getElementById('note-description').value.trim();
     const noteId = saveBtn.dataset.noteId;
     const isEditing = !!noteId;
-    const payload = { chat_ID: chatId, Type: isEditing ? 'edit_note' : 'add_note', note_id: noteId, title: title, description: description };
+    const tempId = 'temp-' + Date.now();
 
-    showToast(isEditing ? 'Guardando cambios...' : 'Nota creada. Guardando...');
-        
-    try {
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast(isEditing ? 'Nota guardada.' : 'Nota creada con éxito.');
-        goBack(); // Volver a la lista
-        
-        // Forzar resincronización de contadores y lista de notas
-        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
-        if (syncCheck.success) {
-            appData.counts = syncCheck.counts; // Actualizar contadores localmente
-            await loadSecondaryData(); // Recargar las notas
-            renderNotesList();
-        } else {
-            initializeApp(); // Recarga completa si falla la resincronización
+    // --- LÓGICA OPTIMISTA ---
+    goBack(); // Volver a la lista inmediatamente
+    showToast(isEditing ? 'Nota guardada' : 'Nota creada');
+
+    if (isEditing) {
+        // 1. Actualizar localmente al editar
+        const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
+        if (noteIndex > -1) {
+            appData.notesList[noteIndex].Titulo = title;
+            appData.notesList[noteIndex].Descripcion = description;
         }
+    } else {
+        // 1. Añadir localmente y actualizar contador al crear
+        const newNote = { 
+            Nota_ID: tempId, 
+            Titulo: title, 
+            Descripcion: description, 
+            Fecha: new Date().toLocaleDateString('es-ES')
+        };
+        appData.notesList.unshift(newNote);
+        appData.counts.notesCount++;
+        renderDashboard(); // Actualiza el badge del dashboard inmediatamente
+    }
+    
+    // 2. Sincronizar con el backend en segundo plano
+    try {
+        const payload = {
+            chat_ID: chatId,
+            Type: isEditing ? 'edit_note' : 'add_note',
+            note_id: isEditing ? noteId : null,
+            title: title,
+            description: description
+        };
 
-    } catch (err) {
-        showToast(`Error: ${err.message}.`, true);
-        initializeApp(); // Recarga completa en caso de error
+        const response = await fetchWithTimeout(gasWebhookURL, payload);
+        const result = await response.json();
+        if (result.error) throw new Error(result.error);
+
+        // Si es una nota nueva, actualizamos el ID temporal con el real de Firestore.
+        if (!isEditing && result.newNoteId) {
+            const tempNote = appData.notesList.find(n => n.Nota_ID === tempId);
+            if (tempNote) tempNote.Nota_ID = result.newNoteId;
+        }
+        console.log("Nota sincronizada con éxito a través de Apps Script.");
+
+    } catch (error) {
+        console.error("Error sincronizando nota:", error);
+        showToast("Error de sincronización.", true);
+        initializeApp(); // Forzar recarga completa para obtener el estado real
     }
 }
 
