@@ -585,12 +585,21 @@ async function executeDelete(type, id) {
                 payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado';
                 // La lista se actualizará automáticamente a través del oyente de Firestore
                 break;
-            case 'note':
-                payload.Type = 'delete_note'; payload.note_id = id; successMessage = 'Nota eliminada';
+                        case 'note':
+                // --- INICIO DE LÓGICA OPTIMISTA PARA ELIMINAR NOTA ---
+                payload.Type = 'delete_note'; 
+                payload.note_id = id; 
+                successMessage = 'Nota eliminada';
+                
+                // 1. Actualizar localmente
                 const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === id);
-                if (noteIndex > -1) { appData.notesList.splice(noteIndex, 1); appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1); }
-                renderNotesList();
+                if (noteIndex > -1) {
+                    appData.notesList.splice(noteIndex, 1);
+                    appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
+                }
+                renderNotesList(); // Re-renderizar la lista para que desaparezca la nota
                 break;
+                // --- FIN DE LÓGICA OPTIMISTA ---
             case 'calendar_event':
                 payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado';
                 const eventIndex = appData.calendarEvents.findIndex(e => e.id === id);
@@ -1046,13 +1055,13 @@ async function saveEditedShoppingItem(trackingCode) {
     }
 }
 // ==================================================
-// --- MÓDULO: NOTAS (ACTUALIZADO CON FIRESTORE) ---
+// --- MÓDULO: NOTAS (LÓGICA OPTIMISTA COMPLETA) ---
 // ==================================================
 async function renderNotesList() {
+    // Esta función ya es rápida y directa a Firestore. No necesita cambios.
     navigationHistory.push(renderDashboard);
     updateBackButton();
     
-    // Mostramos un estado de carga inicial.
     mainContentArea.innerHTML = `<div class="list-container">
                                 <div class="list-header"><h2>Mis Notas</h2></div>
                                 <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
@@ -1061,13 +1070,12 @@ async function renderNotesList() {
     document.getElementById('create-new-note-btn').onclick = renderNoteForm;
 
     try {
-        // --- INICIO DE LECTURA DIRECTA A FIRESTORE ---
         const notesRef = db.collection(`users/${chatId}/notas`);
         const snapshot = await notesRef.orderBy("fecha", "desc").get();
-        // --- FIN DE LECTURA DIRECTA A FIRESTORE ---
 
         if (snapshot.empty) {
             document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+            appData.notesList = []; // Asegurarse de que la lista esté vacía
             return;
         }
 
@@ -1083,7 +1091,6 @@ async function renderNotesList() {
             });
         });
         
-        // Guardamos la lista en la variable global para que las funciones de editar/borrar la encuentren.
         appData.notesList = notes;
         
         const listHtml = notes.map(note => `
@@ -1121,6 +1128,94 @@ async function renderNotesList() {
         console.error("Error al cargar notas directamente desde Firestore: ", error);
         showToast("Error al cargar las notas.", true);
         document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">🔌<br>Error de conexión al cargar notas.</div>';
+    }
+}
+
+function renderNoteForm(note = null) {
+    navigationHistory.push(renderNotesList);
+    updateBackButton();
+    const isEditing = note && note.Nota_ID;
+    mainContentArea.innerHTML = `<div class="list-container">
+                                <div class="list-header"><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
+                                <div class="form-card">
+                                    <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
+                                    <label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea>
+                                    <div class="button-group">
+                                        <button id="cancel-note-btn" class="cancel">Cancelar</button>
+                                        <button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
+                                    </div>
+                                </div>
+                             </div>`;
+    const titleInput = document.getElementById('note-title');
+    const descriptionInput = document.getElementById('note-description');
+    const saveBtn = document.getElementById('save-note-btn');
+    
+    // --- LÓGICA DE BOTÓN INTELIGENTE ---
+    function validate() {
+        const isEnabled = titleInput.value.trim() !== '' && descriptionInput.value.trim() !== '';
+        saveBtn.disabled = !isEnabled;
+        saveBtn.classList.toggle('enabled', isEnabled);
+    }
+    titleInput.oninput = validate;
+    descriptionInput.oninput = validate;
+    saveBtn.onclick = saveNote;
+    document.getElementById('cancel-note-btn').onclick = goBack;
+    validate(); // Validar al inicio por si se está editando una nota
+}
+
+async function saveNote() {
+    const saveBtn = document.getElementById('save-note-btn');
+    const title = document.getElementById('note-title').value.trim();
+    const description = document.getElementById('note-description').value.trim();
+    const noteId = saveBtn.dataset.noteId;
+    const isEditing = !!noteId;
+
+    // --- LÓGICA OPTIMISTA ---
+    goBack(); // Volver a la lista inmediatamente
+    showToast(isEditing ? 'Nota guardada' : 'Nota creada');
+
+    if (isEditing) {
+        // 1. Actualizar localmente
+        const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
+        if (noteIndex > -1) {
+            appData.notesList[noteIndex].Titulo = title;
+            appData.notesList[noteIndex].Descripcion = description;
+        }
+    } else {
+        // 1. Añadir localmente y actualizar contador
+        const newNote = { 
+            Nota_ID: 'temp-' + Date.now(), 
+            Titulo: title, 
+            Descripcion: description, 
+            Fecha: new Date().toLocaleDateString('es-ES')
+        };
+        appData.notesList.unshift(newNote);
+        appData.counts.notesCount++;
+    }
+    
+    // 2. Sincronizar con Firestore en segundo plano
+    try {
+        const noteRef = isEditing 
+            ? db.collection(`users/${chatId}/notas`).doc(noteId)
+            : db.collection(`users/${chatId}/notas`).doc(); // Firestore genera el ID
+
+        const dataToSave = {
+            titulo: title,
+            descripcion: description,
+            fecha: new Date() // Siempre actualizamos la fecha al guardar
+        };
+        
+        await noteRef.set(dataToSave, { merge: true }); // set con merge crea o actualiza
+        console.log("Nota sincronizada con Firestore con éxito.");
+        
+        // Sincronizar el contador en el backend
+        await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId });
+
+    } catch (error) {
+        console.error("Error sincronizando nota con Firestore:", error);
+        showToast("Error de sincronización.", true);
+        // Si falla, forzamos una recarga completa para obtener el estado real
+        initializeApp();
     }
 }
 
