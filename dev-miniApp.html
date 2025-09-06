@@ -13,37 +13,11 @@
   <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <!-- SDKs de Firebase para la Mini App (Cargados de forma segura) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <!-- SDKs de Firebase para la Mini App -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    
-    // CONFIGURACIÓN DE TU PROYECTO FIREBASE (De Config.gs en Apps Script)
-    const firebaseConfig = {
-      apiKey: "AIzaSyBNldvtTk0JwwydigAmiI2k1RRZpYriK_E",
-      authDomain: "asistentepersonal-4ad2b.firebaseapp.com",
-      projectId: "asistentepersonal-4ad2b",
-      storageBucket: "asistentepersonal-4ad2b.firebasestorage.app",
-      messagingSenderId: "1068752893536",
-      appId: "1:1068752893536:web:ad23509d45dc7d448bf505",
-      // measurementId: "G-3EH4Z30E10" // Analytics es opcional y no es crítico para esta funcionalidad
-    };
 
-    // Inicializar Firebase
-    const app = initializeApp(firebaseConfig);
-    window.db = getFirestore(app); // Hacemos 'db' global para usarlo en el script principal
-
-    // Hacemos que las funciones de Firestore sean accesibles globalmente
-    // Renombrar 'query' a 'firestoreQuery' para evitar conflictos con 'query' de jQuery si se usa.
-    window.firestore = {
-      collection: collection,
-      query: query,
-      where: where,
-      onSnapshot: onSnapshot,
-      orderBy: orderBy
-    };
-  </script>
-  
   <style>
     :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -251,36 +225,41 @@ async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
     console.log("Iniciando app y verificando autorización...");
-    showSpinner(); // Siempre mostrar spinner al inicio
+    showSpinner();
 
     try {
-        // Paso 1: Llamada única para obtener datos iniciales y verificar autorización
-        const initialData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
+        // --- INICIO DE CAMBIO ---
+        // Paso 1: Obtener la configuración de Firebase de forma segura desde Apps Script
+        console.log("Obteniendo configuración segura de Firebase...");
+        const firebaseConfigData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_firebase_config', chat_ID: chatId }).then(res => res.json());
 
-        // Paso 2: Comprobar si el usuario está autorizado
-        // Si settings es un objeto vacío o nulo, significa que no está en la hoja "Autorizados"
-        if (!initialData.settings || Object.keys(initialData.settings).length === 0) {
-            mainContentArea.innerHTML = `<div class="no-data-msg">🚫<br>Acceso no autorizado.<br><small>Por favor, inicia una suscripción para usar esta aplicación.</small></div>`;
-            document.querySelector('.tabs').style.display = 'none'; // Ocultar pestañas de navegación
-            hideSpinner();
-            return; // Detenemos la ejecución aquí
+        if (firebaseConfigData.error) {
+            throw new Error(`Error de configuración: ${firebaseConfigData.error}`);
         }
         
-        // Si llegamos aquí, el usuario está autorizado. Procedemos con la carga normal.
+        // Paso 2: Inicializar Firebase con la configuración recibida
+        firebase.initializeApp(firebaseConfigData.config);
+        window.db = firebase.firestore(); // Hacemos 'db' (la instancia de Firestore) global
+        console.log("Firebase inicializado correctamente.");
+        // --- FIN DE CAMBIO ---
+
+        // Paso 3: Llamada única para obtener datos iniciales y verificar autorización
+        const initialData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
+
+        // Paso 4: Comprobar si el usuario está autorizado
+        if (!initialData.settings || Object.keys(initialData.settings).length === 0) {
+            mainContentArea.innerHTML = `<div class="no-data-msg">🚫<br>Acceso no autorizado.<br><small>Por favor, inicia una suscripción para usar esta aplicación.</small></div>`;
+            document.querySelector('.tabs').style.display = 'none';
+            hideSpinner();
+            return;
+        }
+        
         if (initialData.error) throw new Error(initialData.error);
         
         appData.counts = initialData.counts;
         appData.settings = initialData.settings;
         appData.isPremium = initialData.isPremium;
         appData.isSecondaryDataLoaded = false;
-
-        // Guardamos los datos esenciales en la caché para futuras cargas rápidas
-        // NOTA: Se ha decidido eliminar el caché local para simplificar y confiar en Firestore
-        // localStorage.setItem('appCache', JSON.stringify({ 
-        //     counts: appData.counts,
-        //     settings: appData.settings,
-        //     isPremium: appData.isPremium
-        // }));
 
         updateChefTabStyle();
         renderDashboard();
@@ -430,62 +409,26 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
   const controller = new AbortController();
   const timeout = isMakeWebhook ? 60000 : 30000;
   const id = setTimeout(() => controller.abort(), timeout);
-  let options = { 
-    method: 'POST', 
-    signal: controller.signal,
-    credentials: 'omit' // Por defecto, no enviar cookies u otros encabezados de credenciales
-  };
-
+  let options = { method: 'POST', signal: controller.signal };
   if (isMakeWebhook) {
       const formData = new FormData();
       formData.append('prompt', payloadObject.prompt);
       if (payloadObject.image_count !== undefined) { formData.append('image_count', payloadObject.image_count); }
       if (payloadObject.images && payloadObject.images.length > 0) { payloadObject.images.forEach(imageFile => { formData.append('images', imageFile, imageFile.name); }); }
       options.body = formData;
-      // Para FormData, el navegador establece el Content-Type automáticamente como multipart/form-data
-      options.credentials = 'same-origin'; // Las webhooks de Make suelen ser cross-origin, pero algunas pueden necesitar esto.
-                                          // Para evitar problemas, lo ponemos en same-origin por ahora, si make.com necesita 'include', se cambia.
   } else {
-      // --- CAMBIO CLAVE AQUÍ: ENVIAR COMO URLSearchParams Y CONFIGURAR CREDENCIALES PARA APPS SCRIPT ---
-      const params = new URLSearchParams();
-      params.append("postData", JSON.stringify(payloadObject));
-      options.body = params;
-      options.headers = {
-          'Content-Type': 'application/x-www-form-urlencoded'
-      };
-      // Para Apps Script, es crucial usar 'omit' o 'include' si tu Apps Script
-      // está configurado para manejar credenciales de sesión.
-      // Para un despliegue de "Cualquiera" (que no requiere sesión), 'omit' es más seguro.
-      options.credentials = 'omit'; 
-      // Si en el futuro tu Apps Script necesita saber quién es el usuario de Google
-      // que hace la petición (no el de Telegram), esto cambiaría a 'include'.
-      // Pero para la funcionalidad actual de la MiniApp, 'omit' es correcto.
-      // --- FIN DEL CAMBIO ---
+      const formData = new FormData();
+      formData.append("postData", JSON.stringify(payloadObject));
+      options.body = formData;
   }
   try {
     const response = await fetch(resource, options);
     clearTimeout(id);
-    if (!response.ok) { 
-      // Aunque Apps Script envíe 200, si la política CORS está mal,
-      // el navegador no dejará acceder a la respuesta. Esto lo detecta.
-      const errorText = await response.text();
-      throw new Error(`Error del servidor: ${response.status} ${response.statusText} - ${errorText}`);
-    }
+    if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
     return response;
   } catch (error) {
     clearTimeout(id);
-    if (error.name === 'AbortError') {
-      throw new Error('La solicitud tardó demasiado. (Timeout)');
-    }
-    console.error("Error en fetchWithTimeout:", error.message, error);
-    if (error.message.includes("blocked by CORS policy")) {
-        throw new Error("Error de conexión (CORS): Asegúrate de que tu Apps Script esté desplegado con 'Acceso: Cualquiera' y que la URL sea la de la aplicación web.");
-    }
-    // Añadimos una comprobación para el caso específico de TypeError 'Failed to fetch'
-    // que a menudo indica problemas de red subyacentes o configuraciones de proxy/firewall
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new Error('Error de red: No se pudo conectar con el servidor. Revisa tu conexión a internet o la URL del script.');
-    }
+    if (error.name === 'AbortError') throw new Error('La solicitud tardó demasiado.');
     throw error;
   }
 }
