@@ -600,7 +600,7 @@ async function executeDelete(type, id) {
                 if (noteIndex > -1) {
                     appData.notesList.splice(noteIndex, 1);
                     appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
-                    renderDashboard(); // Actualizamos el badge
+                    document.getElementById('notes-badge').textContent = appData.counts.notesCount;
                 }
                 
                 // 3. Mostramos el toast de éxito
@@ -1223,7 +1223,7 @@ async function saveNote() {
         };
         appData.notesList.unshift(newNote);
         appData.counts.notesCount++;
-        renderDashboard(); 
+        document.getElementById('notes-badge').textContent = appData.counts.notesCount;
     }
     
     // 1. Volvemos a la lista
