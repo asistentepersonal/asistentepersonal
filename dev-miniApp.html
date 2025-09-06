@@ -1064,10 +1064,40 @@ async function saveEditedShoppingItem(trackingCode) {
     }
 }
 // ==================================================
-// --- MÓDULO: NOTAS (LÓGICA OPTIMISTA COMPLETA) ---
+// --- MÓDULO: NOTAS (LÓGICA OPTIMISTA PROFESIONAL) ---
 // ==================================================
+
+// Función interna para dibujar la lista de notas desde la memoria (es rápida)
+function drawNotesList() {
+    const notesListUl = document.getElementById('notes-list');
+    if (!notesListUl) return; // No hacer nada si el contenedor no está en pantalla
+
+    if (!appData.notesList || appData.notesList.length === 0) {
+        notesListUl.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+        return;
+    }
+
+    const listHtml = appData.notesList.map(note => `
+        <li class="list-item" id="item-${note.Nota_ID}">
+            <div class="list-item-content">
+                <span class="list-item-title">${note.Titulo}</span>
+                <span class="list-item-subtitle">${note.Fecha}</span>
+                <p style="margin-top: 8px; white-space: pre-wrap; word-wrap: break-word;">${note.Descripcion}</p>
+            </div>
+            <div class="list-item-actions">
+                <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
+                <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
+                    <a class="dropdown-item" data-action="edit-note" data-note-id="${note.Nota_ID}">Editar</a>
+                    <a class="dropdown-item" data-action="delete-note" data-note-id="${note.Nota_ID}">Eliminar</a>
+                </div>
+            </div>
+        </li>`).join('');
+    
+    notesListUl.innerHTML = listHtml;
+}
+
+// Función principal que se conecta a Firestore
 async function renderNotesList() {
-    // Esta función ya es rápida y directa a Firestore. No necesita cambios.
     navigationHistory.push(renderDashboard);
     updateBackButton();
     
@@ -1077,64 +1107,41 @@ async function renderNotesList() {
                                 <ul class="list-style-none" id="notes-list"><div class="no-data-msg">Cargando notas...</div></ul>
                              </div>`;
     document.getElementById('create-new-note-btn').onclick = renderNoteForm;
+    document.getElementById('notes-list').addEventListener('click', e => {
+        const target = e.target.closest('.dropdown-item');
+        if (!target) return;
+        const action = target.dataset.action;
+        const noteId = target.dataset.noteId;
+        if (action === 'edit-note') {
+            const note = appData.notesList.find(n => n.Nota_ID === noteId);
+            if (note) renderNoteForm(note);
+        } else if (action === 'delete-note') {
+            confirmDelete('note', noteId);
+        }
+    });
 
     try {
-        const notesRef = db.collection(`users/${chatId}/notas`);
-        const snapshot = await notesRef.orderBy("fecha", "desc").get();
+        const notesRef = db.collection(`users/${chatId}/notas`).orderBy("fecha", "desc");
+        const snapshot = await notesRef.get();
 
-        if (snapshot.empty) {
-            document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-            appData.notesList = []; // Asegurarse de que la lista esté vacía
-            return;
-        }
-
-        let notes = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const fecha = data.fecha && data.fecha.toDate ? data.fecha.toDate() : new Date(0);
-            notes.push({
-                Nota_ID: doc.id,
-                Titulo: data.titulo || 'Sin Título',
-                Descripcion: data.descripcion || '',
-                Fecha: fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        appData.notesList = []; // Limpiamos la lista en memoria
+        if (!snapshot.empty) {
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const fecha = data.fecha && data.fecha.toDate ? data.fecha.toDate() : new Date(0);
+                appData.notesList.push({
+                    Nota_ID: doc.id,
+                    Titulo: data.titulo || 'Sin Título',
+                    Descripcion: data.descripcion || '',
+                    Fecha: fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                });
             });
-        });
+        }
         
-        appData.notesList = notes;
-        
-        const listHtml = notes.map(note => `
-            <li class="list-item" id="item-${note.Nota_ID}">
-                <div class="list-item-content">
-                    <span class="list-item-title">${note.Titulo}</span>
-                    <span class="list-item-subtitle">${note.Fecha}</span>
-                    <p style="margin-top: 8px; white-space: pre-wrap; word-wrap: break-word;">${note.Descripcion}</p>
-                </div>
-                <div class="list-item-actions">
-                    <button class="generic-menu-btn" data-menu-id="menu-item-${note.Nota_ID}">⋮</button>
-                    <div class="dropdown-menu" id="menu-item-${note.Nota_ID}">
-                        <a class="dropdown-item" data-action="edit-note" data-note-id="${note.Nota_ID}">Editar</a>
-                        <a class="dropdown-item" data-action="delete-note" data-note-id="${note.Nota_ID}">Eliminar</a>
-                    </div>
-                </div>
-            </li>`).join('');
-
-        const notesListUl = document.getElementById('notes-list');
-        notesListUl.innerHTML = listHtml;
-        notesListUl.addEventListener('click', e => {
-            const target = e.target.closest('.dropdown-item');
-            if (!target) return;
-            const action = target.dataset.action;
-            const noteId = target.dataset.noteId;
-            if (action === 'edit-note') {
-                const note = appData.notesList.find(n => n.Nota_ID === noteId);
-                if (note) renderNoteForm(note);
-            } else if (action === 'delete-note') {
-                confirmDelete('note', noteId);
-            }
-        });
+        drawNotesList(); // Llamamos a la función rápida para dibujar la lista
 
     } catch (error) {
-        console.error("Error al cargar notas directamente desde Firestore: ", error);
+        console.error("Error al cargar notas desde Firestore: ", error);
         showToast("Error al cargar las notas.", true);
         document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">🔌<br>Error de conexión al cargar notas.</div>';
     }
@@ -1159,7 +1166,6 @@ function renderNoteForm(note = null) {
     const descriptionInput = document.getElementById('note-description');
     const saveBtn = document.getElementById('save-note-btn');
     
-    // --- LÓGICA DE BOTÓN INTELIGENTE ---
     function validate() {
         const isEnabled = titleInput.value.trim() !== '' && descriptionInput.value.trim() !== '';
         saveBtn.disabled = !isEnabled;
@@ -1169,33 +1175,6 @@ function renderNoteForm(note = null) {
     descriptionInput.oninput = validate;
     saveBtn.onclick = saveNote;
     document.getElementById('cancel-note-btn').onclick = goBack;
-    validate(); // Validar al inicio por si se está editando una nota
-}
-
-
-function renderNoteForm(note = null) {
-    navigationHistory.push(renderNotesList);
-    updateBackButton();
-    const isEditing = note && note.Nota_ID;
-    mainContentArea.innerHTML = `<div class="list-container">
-                                <div class="list-header"><h2>${isEditing ? '✏️ Editar Nota' : '➕ Nueva Nota'}</h2></div>
-                                <div class="form-card">
-                                    <label>Título</label><input type="text" id="note-title" value="${isEditing ? note.Titulo : ''}" required />
-                                    <label>Descripción</label><textarea id="note-description" rows="8" required>${isEditing ? note.Descripcion : ''}</textarea>
-                                    <button id="save-note-btn" data-note-id="${isEditing ? note.Nota_ID : ''}" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Nota'}</button>
-                                </div>
-                             </div>`;
-    const titleInput = document.getElementById('note-title');
-    const descriptionInput = document.getElementById('note-description');
-    const saveBtn = document.getElementById('save-note-btn');
-    function validate() {
-        const isEnabled = titleInput.value.trim() !== '' && descriptionInput.value.trim() !== '';
-        saveBtn.disabled = !isEnabled;
-        saveBtn.classList.toggle('enabled', isEnabled);
-    }
-    titleInput.oninput = validate;
-    descriptionInput.oninput = validate;
-    saveBtn.onclick = saveNote;
     validate();
 }
 
@@ -1205,8 +1184,9 @@ async function saveNote() {
     const description = document.getElementById('note-description').value.trim();
     const noteId = saveBtn.dataset.noteId;
     const isEditing = !!noteId;
+    const tempId = 'temp-' + Date.now();
 
-    // --- LÓGICA OPTIMISTA CORRECTA ---
+    // --- LÓGICA OPTIMISTA ---
     if (isEditing) {
         const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
         if (noteIndex > -1) {
@@ -1214,24 +1194,43 @@ async function saveNote() {
             appData.notesList[noteIndex].Descripcion = description;
         }
     } else {
-        const tempId = 'temp-' + Date.now();
         const newNote = { 
             Nota_ID: tempId, 
             Titulo: title, 
             Descripcion: description, 
             Fecha: new Date().toLocaleDateString('es-ES')
         };
-        appData.notesList.unshift(newNote);
+        appData.notesList.unshift(newNote); // Añadir al principio de la lista en memoria
         appData.counts.notesCount++;
         document.getElementById('notes-badge').textContent = appData.counts.notesCount;
     }
-    
-    // 1. Volvemos a la lista
-    goBack();
-    // 2. Mostramos el mensaje de éxito
+
+    // Volver a la pantalla de la lista y redibujarla desde la memoria
+    navigationHistory.pop(); // Quitamos el formulario del historial
+    mainContentArea.innerHTML = `<div class="list-container">
+                                <div class="list-header"><h2>Mis Notas</h2></div>
+                                <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
+                                <ul class="list-style-none" id="notes-list"></ul>
+                             </div>`;
+    drawNotesList(); // Dibujar la lista actualizada
+    // Re-asignar los listeners después de redibujar
+    document.getElementById('create-new-note-btn').onclick = renderNoteForm;
+    document.getElementById('notes-list').addEventListener('click', e => {
+        const target = e.target.closest('.dropdown-item');
+        if (!target) return;
+        const action = target.dataset.action;
+        const noteId = target.dataset.noteId;
+        if (action === 'edit-note') {
+            const note = appData.notesList.find(n => n.Nota_ID === noteId);
+            if (note) renderNoteForm(note);
+        } else if (action === 'delete-note') {
+            confirmDelete('note', noteId);
+        }
+    });
+
     showToast(isEditing ? 'Nota guardada' : 'Nota creada');
     
-    // 3. Sincronizamos en segundo plano
+    // --- SINCRONIZACIÓN EN SEGUNDO PLANO ---
     try {
         const payload = {
             chat_ID: chatId,
@@ -1244,13 +1243,13 @@ async function saveNote() {
         if (res.error) throw new Error(res.error);
         
         console.log("Nota sincronizada con éxito.");
-        // Si todo fue bien, forzamos una recarga silenciosa de los datos de la lista para tener los IDs correctos.
-        await renderNotesList();
-
+        if (!isEditing && res.newNoteId) {
+            const tempNote = appData.notesList.find(n => n.Nota_ID === tempId);
+            if (tempNote) tempNote.Nota_ID = res.newNoteId;
+        }
     } catch (error) {
         console.error("Error sincronizando nota:", error);
         showToast("Error de sincronización.", true);
-        initializeApp();
     }
 }
 
