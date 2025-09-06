@@ -585,7 +585,7 @@ async function executeDelete(type, id) {
                 payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado';
                 // La lista se actualizará automáticamente a través del oyente de Firestore
                 break;
-            case 'note':
+                        case 'note':
                 payload.Type = 'delete_note'; 
                 payload.note_id = id; 
                 successMessage = 'Nota eliminada';
@@ -602,12 +602,21 @@ async function executeDelete(type, id) {
                     appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
                 }
                 
-                // 3. Mostramos el toast de éxito inmediatamente
+                // 3. Actualizamos el badge del dashboard si está visible
+                const notesBadge = document.getElementById('notes-badge');
+                if(notesBadge) notesBadge.textContent = appData.counts.notesCount;
+
+                // 4. Si la lista queda vacía, mostramos el mensaje
+                 if (appData.notesList.length === 0) {
+                    const notesListUl = document.getElementById('notes-list');
+                    if (notesListUl) notesListUl.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+                }
+
+                // 5. Mostramos el toast de éxito inmediatamente
                 showToast(successMessage);
                 
                 // La sincronización en segundo plano se ejecutará después de este break
                 break;
-                // --- FIN DE LÓGICA OPTIMISTA ---
             case 'calendar_event':
                 payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado';
                 const eventIndex = appData.calendarEvents.findIndex(e => e.id === id);
@@ -1190,6 +1199,7 @@ async function saveNote() {
     const description = document.getElementById('note-description').value.trim();
     const noteId = saveBtn.dataset.noteId;
     const isEditing = !!noteId;
+    const tempId = 'temp-' + Date.now();
 
     // --- LÓGICA OPTIMISTA ---
     if (isEditing) {
@@ -1201,7 +1211,7 @@ async function saveNote() {
     } else {
         const now = new Date();
         const newNote = { 
-            Nota_ID: 'temp-' + now.getTime(), 
+            Nota_ID: tempId, 
             Titulo: title, 
             Descripcion: description, 
             Fecha: now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
@@ -1210,10 +1220,36 @@ async function saveNote() {
         appData.notesList.unshift(newNote); // Añadir al principio de la lista en memoria
         appData.counts.notesCount++;
     }
+
+    // --- RE-RENDERIZADO MANUAL OPTIMISTA (LA CLAVE DE LA SOLUCIÓN) ---
+    // En lugar de goBack(), reconstruimos la vista para evitar la recarga de Firestore
+    navigationHistory.pop(); // Quitamos el formulario del historial
+    mainContentArea.innerHTML = `<div class="list-container">
+                                <div class="list-header"><h2>Mis Notas</h2></div>
+                                <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
+                                <ul class="list-style-none" id="notes-list"></ul>
+                             </div>`;
+    drawNotesList(); // Dibujamos la lista actualizada desde la memoria
     
-    // Volvemos a la lista y la redibujamos desde la memoria para una UI instantánea
-    goBack(); 
-    showToast(isEditing ? 'Nota guardada.' : 'Nota creada.');
+    // Re-asignamos los listeners después de redibujar la vista
+    document.getElementById('create-new-note-btn').onclick = () => renderNoteForm();
+    document.getElementById('notes-list').addEventListener('click', e => {
+        const target = e.target.closest('.dropdown-item');
+        if (!target) return;
+        const action = target.dataset.action;
+        const noteId = target.dataset.noteId;
+        if (action === 'edit-note') {
+            const note = appData.notesList.find(n => n.Nota_ID === noteId);
+            if (note) renderNoteForm(note);
+        } else if (action === 'delete-note') {
+            confirmDelete('note', noteId);
+        }
+    });
+    // Actualizamos el badge del dashboard si existe
+    const notesBadge = document.getElementById('notes-badge');
+    if(notesBadge) notesBadge.textContent = appData.counts.notesCount;
+
+    showToast(isEditing ? 'Nota guardada' : 'Nota creada');
     
     // --- SINCRONIZACIÓN EN SEGUNDO PLANO ---
     try {
@@ -1227,16 +1263,17 @@ async function saveNote() {
         const res = await fetchWithTimeout(gasWebhookURL, payload).then(r => r.json());
         if (res.error) throw new Error(res.error);
         
-        console.log("Nota sincronizada con éxito en segundo plano.");
-        // Si no es edición, actualizamos el contador del dashboard desde la respuesta del servidor
-        if (!isEditing) {
+        console.log("Nota sincronizada con éxito.");
+        if (!isEditing && res.newNoteId) {
+            const tempNote = appData.notesList.find(n => n.Nota_ID === tempId);
+            if (tempNote) tempNote.Nota_ID = res.newNoteId;
+            // Sincronizamos el contador con el valor real del servidor
             appData.counts.notesCount = res.notesCount;
         }
-
     } catch (error) {
         console.error("Error sincronizando nota:", error);
         showToast("Error de sincronización.", true);
-        // Si falla, la próxima vez que el usuario entre a la lista se corregirá solo.
+        // La próxima vez que el usuario entre a la sección, los datos se corregirán solos.
     }
 }
 
