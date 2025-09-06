@@ -453,11 +453,10 @@ async function loadSecondaryData() {
         if (secondaryData.error) throw new Error(secondaryData.error);
 
         appData.remindersList = secondaryData.remindersList;
-        // appData.shoppingList ya no se carga aquí, lo hará el oyente de Firestore
-        appData.notesList = secondaryData.notesList;
+        appData.shoppingList = secondaryData.shoppingList;
+        // appData.notesList = secondaryData.notesList; // Ya no necesitamos cargar esto desde aquí
         appData.calendarEvents = secondaryData.calendarEvents;
         
-        // Actualizamos contadores específicos que vienen de secondaryData
         appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
         appData.counts.gastosMesActual = secondaryData.gastosMesActual;
         appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
@@ -1050,13 +1049,44 @@ async function saveEditedShoppingItem(trackingCode) {
 // --- MÓDULO: NOTAS (ACTUALIZADO CON FIRESTORE) ---
 // ==================================================
 async function renderNotesList() {
-    // Las notas se siguen cargando a través de loadSecondaryData (que llama a Apps Script)
-    if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); } 
-    
     navigationHistory.push(renderDashboard);
     updateBackButton();
-    const notes = appData.notesList || []; 
-    let listHtml = (notes.length > 0) ? notes.map(note => `
+    
+    // Mostramos un estado de carga inicial.
+    mainContentArea.innerHTML = `<div class="list-container">
+                                <div class="list-header"><h2>Mis Notas</h2></div>
+                                <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
+                                <ul class="list-style-none" id="notes-list"><div class="no-data-msg">Cargando notas...</div></ul>
+                             </div>`;
+    document.getElementById('create-new-note-btn').onclick = renderNoteForm;
+
+    try {
+        // --- INICIO DE LECTURA DIRECTA A FIRESTORE ---
+        const notesRef = db.collection(`users/${chatId}/notas`);
+        const snapshot = await notesRef.orderBy("fecha", "desc").get();
+        // --- FIN DE LECTURA DIRECTA A FIRESTORE ---
+
+        if (snapshot.empty) {
+            document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+            return;
+        }
+
+        let notes = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const fecha = data.fecha && data.fecha.toDate ? data.fecha.toDate() : new Date(0);
+            notes.push({
+                Nota_ID: doc.id,
+                Titulo: data.titulo || 'Sin Título',
+                Descripcion: data.descripcion || '',
+                Fecha: fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            });
+        });
+        
+        // Guardamos la lista en la variable global para que las funciones de editar/borrar la encuentren.
+        appData.notesList = notes;
+        
+        const listHtml = notes.map(note => `
             <li class="list-item" id="item-${note.Nota_ID}">
                 <div class="list-item-content">
                     <span class="list-item-title">${note.Titulo}</span>
@@ -1070,26 +1100,28 @@ async function renderNotesList() {
                         <a class="dropdown-item" data-action="delete-note" data-note-id="${note.Nota_ID}">Eliminar</a>
                     </div>
                 </div>
-            </li>`).join('') : '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-    
-    mainContentArea.innerHTML = `<div class="list-container">
-                                <div class="list-header"><h2>Mis Notas</h2></div>
-                                <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
-                                <ul class="list-style-none" id="notes-list">${listHtml}</ul>
-                             </div>`;
-    document.getElementById('create-new-note-btn').onclick = renderNoteForm;
-    document.getElementById('notes-list').addEventListener('click', e => {
-        const target = e.target.closest('.dropdown-item');
-        if (!target) return;
-        const action = target.dataset.action;
-        const noteId = target.dataset.noteId;
-        if (action === 'edit-note') {
-            const note = appData.notesList.find(n => n.Nota_ID === noteId);
-            if (note) renderNoteForm(note);
-        } else if (action === 'delete-note') {
-            confirmDelete('note', noteId);
-        }
-    });
+            </li>`).join('');
+
+        const notesListUl = document.getElementById('notes-list');
+        notesListUl.innerHTML = listHtml;
+        notesListUl.addEventListener('click', e => {
+            const target = e.target.closest('.dropdown-item');
+            if (!target) return;
+            const action = target.dataset.action;
+            const noteId = target.dataset.noteId;
+            if (action === 'edit-note') {
+                const note = appData.notesList.find(n => n.Nota_ID === noteId);
+                if (note) renderNoteForm(note);
+            } else if (action === 'delete-note') {
+                confirmDelete('note', noteId);
+            }
+        });
+
+    } catch (error) {
+        console.error("Error al cargar notas directamente desde Firestore: ", error);
+        showToast("Error al cargar las notas.", true);
+        document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">🔌<br>Error de conexión al cargar notas.</div>';
+    }
 }
 
 function renderNoteForm(note = null) {
