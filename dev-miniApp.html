@@ -585,19 +585,28 @@ async function executeDelete(type, id) {
                 payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado';
                 // La lista se actualizará automáticamente a través del oyente de Firestore
                 break;
-                        case 'note':
-                // --- INICIO DE LÓGICA OPTIMISTA PARA ELIMINAR NOTA ---
+            case 'note':
+                // --- LÓGICA OPTIMISTA CORRECTA PARA ELIMINAR ---
                 payload.Type = 'delete_note'; 
                 payload.note_id = id; 
                 successMessage = 'Nota eliminada';
                 
-                // 1. Actualizar localmente
+                // 1. Eliminamos el elemento visual de la pantalla AL INSTANTE
+                const itemElement = document.getElementById(`item-${id}`);
+                if (itemElement) itemElement.remove();
+
+                // 2. Actualizamos los datos locales
                 const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === id);
                 if (noteIndex > -1) {
                     appData.notesList.splice(noteIndex, 1);
                     appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
+                    renderDashboard(); // Actualizamos el badge
                 }
-                renderNotesList(); // Re-renderizar la lista para que desaparezca la nota
+                
+                // 3. Mostramos el toast de éxito
+                showToast(successMessage);
+                
+                // La sincronización en segundo plano se ejecutará después de este break.
                 break;
                 // --- FIN DE LÓGICA OPTIMISTA ---
             case 'calendar_event':
@@ -1196,18 +1205,16 @@ async function saveNote() {
     const description = document.getElementById('note-description').value.trim();
     const noteId = saveBtn.dataset.noteId;
     const isEditing = !!noteId;
-    const tempId = 'temp-' + Date.now();
 
-    // --- LÓGICA OPTIMISTA MEJORADA ---
+    // --- LÓGICA OPTIMISTA CORRECTA ---
     if (isEditing) {
-        // 1. Actualizar localmente al editar
         const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
         if (noteIndex > -1) {
             appData.notesList[noteIndex].Titulo = title;
             appData.notesList[noteIndex].Descripcion = description;
         }
     } else {
-        // 1. Añadir localmente y actualizar contador al crear
+        const tempId = 'temp-' + Date.now();
         const newNote = { 
             Nota_ID: tempId, 
             Titulo: title, 
@@ -1216,14 +1223,15 @@ async function saveNote() {
         };
         appData.notesList.unshift(newNote);
         appData.counts.notesCount++;
-        renderDashboard(); // Actualiza el badge del dashboard inmediatamente
+        renderDashboard(); 
     }
     
-    // 2. Volver y redibujar la lista para reflejar los cambios al instante.
+    // 1. Volvemos a la lista
     goBack();
+    // 2. Mostramos el mensaje de éxito
     showToast(isEditing ? 'Nota guardada' : 'Nota creada');
     
-    // 3. Sincronizar con el backend en segundo plano de forma limpia
+    // 3. Sincronizamos en segundo plano
     try {
         const payload = {
             chat_ID: chatId,
@@ -1232,28 +1240,17 @@ async function saveNote() {
             title: title,
             description: description
         };
-
-        const response = await fetchWithTimeout(gasWebhookURL, payload);
-        const result = await response.json();
-        if (result.error) throw new Error(result.error);
-
-        // Si es una nota nueva, actualizamos el ID temporal con el real de Firestore.
-        if (!isEditing && result.newNoteId) {
-            const tempNote = appData.notesList.find(n => n.Nota_ID === tempId);
-            if (tempNote) {
-                tempNote.Nota_ID = result.newNoteId;
-                // Opcional: Volver a renderizar la lista para actualizar el ID en el HTML
-                if (mainContentArea.querySelector('#notes-list')) {
-                    renderNotesList();
-                }
-            }
-        }
+        const res = await fetchWithTimeout(gasWebhookURL, payload).then(r => r.json());
+        if (res.error) throw new Error(res.error);
+        
         console.log("Nota sincronizada con éxito.");
+        // Si todo fue bien, forzamos una recarga silenciosa de los datos de la lista para tener los IDs correctos.
+        await renderNotesList();
 
     } catch (error) {
         console.error("Error sincronizando nota:", error);
         showToast("Error de sincronización.", true);
-        initializeApp(); // Forzar recarga completa para obtener el estado real
+        initializeApp();
     }
 }
 
