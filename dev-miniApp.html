@@ -2049,7 +2049,8 @@ function renderGastosSearchScreen(gastos = null) {
 
     if (gastos) {
         if (gastos.length > 0) {
-            resultsHtml = gastos.map(g => `<li class="list-item clickable" data-id-unico="${g.ID_Unico}"><div class="list-item-content"><span class="list-item-title">${g.Establecimiento} - ${g.Importe.toLocaleString('es-ES', {minimumFractionDigits: 2})} ${(appData.settings.Moneda || '€')}</span><span class="list-item-subtitle">${g.Subcategoria || g.Categoria} - ${g.Fecha}</span></div></li>`).join('');
+            // LÍNEA CORREGIDA: Se usan los nombres de campo correctos (minúsculas y 'Fecha' mayúscula)
+            resultsHtml = gastos.map(g => `<li class="list-item clickable" data-id-unico="${g.ID_Unico}"><div class="list-item-content"><span class="list-item-title">${g.establecimiento} - ${Number(g.importe).toLocaleString('es-ES', {minimumFractionDigits: 2})} ${(appData.settings.moneda || '€')}</span><span class="list-item-subtitle">${g.subCategoria || g.categoria} - ${g.Fecha}</span></div></li>`).join('');
             resultsHtml = `<ul class="list-style-none">${resultsHtml}</ul>`;
             legendDisplay = 'block';
         } else {
