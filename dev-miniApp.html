@@ -525,6 +525,7 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 
 let isInitializing = false;
 let isAppReady = false;
+let unsubscribeShoppingList = null;
 
 // --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
@@ -665,11 +666,21 @@ async function executeDelete(type, id) {
                 if (reminderIndex > -1) { appData.remindersList.splice(reminderIndex, 1); appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1); }
                 renderRemindersList();
                 break;
-            case 'shopping_item':
-                payload.Type = 'delete_item_shopping_list'; payload.tracking_code = id; successMessage = 'Artículo eliminado';
-                // La lista se actualizará automáticamente a través del oyente de Firestore
-                break;
-                        case 'note':
+                        case 'shopping_item':
+                // --- LÓGICA OPTIMISTA PARA ELIMINAR ---
+                const itemElem = document.getElementById(`item-${id}`);
+                if (itemElem) itemElem.remove(); // Eliminar visualmente al instante
+
+                showToast('Artículo eliminado');
+
+                // Sincronización en segundo plano
+                db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(id).delete().catch(err => {
+                    console.error("Error al eliminar artículo:", err);
+                    showToast('Error de sincronización al eliminar.', true);
+                    // El listener de Firestore corregirá la UI si la eliminación falla.
+                });
+                return; // Importante: Salimos aquí, no usamos el fetchWithTimeout de abajo.
+            case 'note':
                 payload.Type = 'delete_note'; 
                 payload.note_id = id; 
                 successMessage = 'Nota eliminada';
@@ -877,9 +888,8 @@ async function editReminderDescription(item) {
 }
 
 // ==================================================
-// --- MÓDULO: COMPRAS (ADAPTADO PARA FIRESTORE Y TIEMPO REAL) ---
+// --- MÓDULO: COMPRAS (FIRESTORE EN TIEMPO REAL + OPTIMISTA) ---
 // ==================================================
-// La variable unsubscribeShoppingList ya está declarada al inicio.
 
 async function renderShoppingList() {
     navigationHistory.push(renderDashboard);
@@ -888,9 +898,9 @@ async function renderShoppingList() {
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>Lista de las Compras</h2></div>
-            <ul class="list-style-none" id="shopping-list-ul">
+            <div id="shopping-list-content">
                 <div class="no-data-msg">Cargando lista de compras...</div>
-            </ul>
+            </div>
             <div class="add-article-btn-container">
                 <button class="add-article-btn" id="add-shopping-item-btn">Añadir Artículo</button>
                 <button class="multi-select-action-btn" id="multi-select-toggle-btn" disabled>Marcar para comprar</button>
@@ -902,105 +912,103 @@ async function renderShoppingList() {
 
     // --- LÓGICA DE TIEMPO REAL CON FIRESTORE ---
     if (unsubscribeShoppingList) {
-        unsubscribeShoppingList(); // Desuscribirse si ya hay un oyente activo
+        unsubscribeShoppingList(); // Desuscribirse si ya hay un oyente activo para evitar duplicados.
     }
 
-    // Asegurarse de que window.db y window.firestore estén disponibles
-    if (!window.db || !window.firestore) {
-        showToast("Error: Firebase Firestore no inicializado.", true);
-        mainContentArea.querySelector('#shopping-list-ul').innerHTML = '<div class="no-data-msg">❌ Error al conectar con la base de datos.</div>';
-        return;
-    }
-
-    // PATH DE LA SUBLCOLECCIÓN DE LA LISTA DE LA COMPRA DEL USUARIO
     const userShoppingListPath = `users/${chatId}/listaDeLaCompra`;
-    
-    // Consulta: ordenar por estado (Pendiente primero), luego por fecha descendente
-    const q = window.firestore.query(
-        window.firestore.collection(window.db, userShoppingListPath),
-        window.firestore.orderBy('estado', 'asc'), // 'Pendiente' antes que 'Comprado' si son strings
-        window.firestore.orderBy('fecha', 'desc') // Los más recientes primero
-    );
+    const q = db.collection(userShoppingListPath)
+                .orderBy('estado', 'asc') // 'Comprado' antes que 'Pendiente'
+                .orderBy('fecha', 'desc');
 
-    unsubscribeShoppingList = window.firestore.onSnapshot(q, (snapshot) => {
+    unsubscribeShoppingList = q.onSnapshot((snapshot) => {
         const items = [];
         snapshot.forEach((doc) => {
             const data = doc.data();
             items.push({ 
-                '1': data.articulo, // Descripción
-                '2': data.estado,   // Estado
-                '3': doc.id,        // tracking_code (ID del documento)
-                '4': data.fecha ? new Date(data.fecha.seconds * 1000).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '', // Fecha (convertir Timestamp a formato local)
-                '5': data.cycle || 0 // Ciclo
+                id: doc.id,
+                articulo: data.articulo,
+                estado: data.estado,
+                fecha: data.fecha ? data.fecha.toDate() : null,
+                cycle: data.cycle || 0
             });
         });
         
-        appData.shoppingList = items; // Actualizar los datos internos de la app
-        renderShoppingListContent(items); // Renderizar el contenido de la lista con los datos en tiempo real
-        updateShoppingCounts(items); // Actualizar los contadores en appData.counts y en el dashboard
-        console.log("Lista de compras actualizada desde Firestore en tiempo real.");
+        appData.shoppingList = items;
+        renderShoppingListContent(items);
+        updateShoppingCounts(items);
+        console.log("Lista de compras actualizada desde Firestore.");
+
     }, (error) => {
-        console.error("Error al escuchar la lista de compras de Firestore:", error);
+        console.error("Error al escuchar la lista de compras:", error);
         showToast("Error en tiempo real de la lista de compras.", true);
-        mainContentArea.querySelector('#shopping-list-ul').innerHTML = '<div class="no-data-msg">❌ Error al cargar la lista.</div>';
+        document.getElementById('shopping-list-content').innerHTML = '<div class="no-data-msg">❌ Error al cargar la lista.</div>';
     });
 }
 
 function renderShoppingListContent(items) {
-    const pendingItems = items.filter(item => item['2'] === 'Pendiente');
-    const boughtItems = items.filter(item => item['2'] === 'Comprado');
+    const pendingItems = items.filter(item => item.estado === 'Pendiente');
+    const boughtItems = items.filter(item => item.estado === 'Comprado');
     let listHtml = '';
     
     const createItemHTML = (item) => {
-        const isPending = item['2'] === 'Pendiente';
+        const isPending = item.estado === 'Pendiente';
+        const formattedDate = item.fecha ? item.fecha.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+        
         return `
-            <li class="list-item" id="item-${item['3']}">
-                ${isPending ? 
-                    `<button class="shopping-item-toggle-btn pending" data-tracking-code="${item['3']}" data-current-status="Pendiente" data-cycle="${item['5'] || 0}"><span>${item['1']}</span></button>` : 
-                    `<div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-tracking-code="${item['3']}"></div>
-                    <button class="shopping-item-toggle-btn bought" data-tracking-code="${item['3']}" data-current-status="Comprado" data-cycle="${item['5'] || 0}">
-                        <span>${item['1']}</span>
-                        ${item['4'] ? `<span class="item-date">${item['4']}</span>` : ''}
-                    </button>`
-                }
+            <li class="shopping-item" id="item-${item.id}">
+                ${!isPending ? `<div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-id="${item.id}"></div>` : ''}
+                <button class="shopping-item-toggle-btn ${isPending ? 'pending' : 'bought'}" data-id="${item.id}" data-current-status="${item.estado}">
+                    <span>${item.articulo}</span>
+                    ${!isPending && formattedDate ? `<span class="item-date">${formattedDate}</span>` : ''}
+                </button>
                 <div class="list-item-actions">
-                    <button class="generic-menu-btn" data-menu-id="menu-item-${item['3']}">⋮</button>
-                    <div class="dropdown-menu" id="menu-item-${item['3']}">
-                        <a class="dropdown-item" data-action="edit-shopping-item" data-tracking-code="${item['3']}">Editar</a>
-                        <a class="dropdown-item" data-action="delete-shopping-item" data-tracking-code="${item['3']}">Eliminar</a>
+                    <button class="generic-menu-btn" data-menu-id="menu-item-${item.id}">⋮</button>
+                    <div class="dropdown-menu" id="menu-item-${item.id}">
+                        <a class="dropdown-item" data-action="edit-shopping-item" data-id="${item.id}">Editar</a>
+                        <a class="dropdown-item" data-action="delete-shopping-item" data-id="${item.id}">Eliminar</a>
                     </div>
                 </div>
             </li>`;
     };
 
-    if (pendingItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>'; listHtml += pendingItems.map(createItemHTML).join(''); }
-    if (boughtItems.length > 0) { listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>'; listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`; listHtml += boughtItems.map(createItemHTML).join(''); }
-    if (items.length === 0) { listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>'; }
+    if (pendingItems.length > 0) {
+        listHtml += '<h3 class="shopping-list-section-title">Artículos Pendientes</h3>';
+        listHtml += pendingItems.map(createItemHTML).join('');
+    }
+    if (boughtItems.length > 0) {
+        listHtml += '<h3 class="shopping-list-section-title">Artículos Comprados</h3>';
+        listHtml += `<div class="shopping-list-header-row"><label for="select-all-checkbox">Seleccionar Todos</label><input type="checkbox" id="select-all-checkbox"></div>`;
+        listHtml += boughtItems.map(createItemHTML).join('');
+    }
+    if (items.length === 0) {
+        listHtml = '<div class="no-data-msg">🛒<br>Tu lista está vacía.</div>';
+    }
 
-    const shoppingListUl = mainContentArea.querySelector('#shopping-list-ul');
-    if (shoppingListUl) {
-        shoppingListUl.innerHTML = listHtml;
-        shoppingListUl.removeEventListener('click', handleShoppingItemInteractions); // Limpiar listeners anteriores
-        shoppingListUl.addEventListener('click', handleShoppingItemInteractions);
+    const contentDiv = document.getElementById('shopping-list-content');
+    if (contentDiv) {
+        contentDiv.innerHTML = listHtml;
+        contentDiv.removeEventListener('click', handleShoppingItemInteractions);
+        contentDiv.addEventListener('click', handleShoppingItemInteractions);
         
         const selectAllCheckbox = document.getElementById('select-all-checkbox');
-        if (selectAllCheckbox) { selectAllCheckbox.onchange = (e) => { document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; }); updateMultiSelectButtonState(); }; }
+        if (selectAllCheckbox) {
+            selectAllCheckbox.onchange = (e) => {
+                document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.checked = e.target.checked; });
+                updateMultiSelectButtonState();
+            };
+        }
         document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
         updateMultiSelectButtonState();
     }
 }
 
 function updateShoppingCounts(items) {
-    let pending = 0;
-    let bought = 0;
-    items.forEach(item => {
-        if (item['2'] === 'Pendiente') pending++;
-        else if (item['2'] === 'Comprado') bought++;
-    });
+    const pending = items.filter(item => item.estado === 'Pendiente').length;
+    const bought = items.filter(item => item.estado === 'Comprado').length;
+    
     appData.counts.shoppingPendingCount = pending;
     appData.counts.shoppingBoughtCount = bought;
 
-    // Actualizar los badges en el dashboard si estamos en la vista del dashboard
     const pendingBadge = document.getElementById('shopping-pending-badge');
     const boughtBadge = document.getElementById('shopping-bought-badge');
     if (pendingBadge) pendingBadge.textContent = pending;
@@ -1008,82 +1016,80 @@ function updateShoppingCounts(items) {
 }
 
 function handleShoppingItemInteractions(event) {
-  const toggleButton = event.target.closest('.shopping-item-toggle-btn');
-  if (toggleButton) {
-      const trackingCode = toggleButton.dataset.trackingCode;
-      const currentStatus = toggleButton.dataset.currentStatus;
-      const cycle = parseInt(toggleButton.dataset.cycle, 10);
-      
-      if (currentStatus === 'Pendiente' && cycle === 0) {
-          executeDelete('shopping_item', trackingCode); // Eliminar directamente
-      } else {
-          const newStatus = currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
-          toggleShoppingItemStatus(trackingCode, newStatus); // Llamar a la función del backend
-      }
-      return;
-  }
-  const menuItem = event.target.closest('.dropdown-item');
-  if(menuItem) {
-    const action = menuItem.dataset.action;
-    const trackingCode = menuItem.dataset.trackingCode;
-    if (action === 'edit-shopping-item') {
-      const item = appData.shoppingList.find(i => i['3'] === trackingCode);
-      if(item) renderEditShoppingItemForm(item);
-    } else if (action === 'delete-shopping-item') {
-      confirmDelete('shopping_item', trackingCode);
+    const target = event.target;
+    const toggleButton = target.closest('.shopping-item-toggle-btn');
+    const menuItem = target.closest('.dropdown-item');
+
+    if (toggleButton) {
+        const itemId = toggleButton.dataset.id;
+        const currentStatus = toggleButton.dataset.currentStatus;
+        const newStatus = currentStatus === 'Pendiente' ? 'Comprado' : 'Pendiente';
+        toggleShoppingItemStatus(itemId, newStatus);
+        return;
     }
-  }
+
+    if (menuItem) {
+        const action = menuItem.dataset.action;
+        const itemId = menuItem.dataset.id;
+        if (action === 'edit-shopping-item') {
+            const item = appData.shoppingList.find(i => i.id === itemId);
+            if(item) renderEditShoppingItemForm(item);
+        } else if (action === 'delete-shopping-item') {
+            confirmDelete('shopping_item', itemId);
+        }
+    }
 }
 
-// Llama al backend para cambiar el estado de un artículo
-async function toggleShoppingItemStatus(trackingCode, newStatus) {
-    showSpinner("Actualizando artículo...");
+async function toggleShoppingItemStatus(itemId, newStatus) {
+    const itemRef = db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(itemId);
     try {
-        const payload = { Type: 'toggle_item_status', chat_ID: chatId, tracking_code: trackingCode, new_status: newStatus };
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast('Artículo actualizado.');
-        // El onSnapshot de Firestore detectará el cambio y renderShoppingListContent lo actualizará
+        await itemRef.update({
+            estado: newStatus,
+            fecha: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        // No es necesario showToast, el cambio es visualmente instantáneo y el listener lo confirma.
     } catch (err) {
+        console.error("Error al cambiar estado:", err);
+        showToast(`Error: ${err.message}.`, true);
+    }
+}
+
+function updateMultiSelectButtonState() {
+    const multiSelectBtn = document.getElementById('multi-select-toggle-btn');
+    if (!multiSelectBtn) return;
+    const selectedCount = document.querySelectorAll('.shopping-item-checkbox:checked').length;
+    multiSelectBtn.disabled = selectedCount === 0;
+    multiSelectBtn.textContent = selectedCount > 0 ? `Marcar ${selectedCount} para comprar` : 'Marcar para comprar';
+}
+
+async function toggleSelectedItemsToPending() {
+    const selectedIds = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.id);
+    if (selectedIds.length === 0) return;
+
+    showSpinner(`Moviendo ${selectedIds.length} artículos...`);
+    const batch = db.batch();
+    selectedIds.forEach(id => {
+        const docRef = db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(id);
+        batch.update(docRef, { 
+            estado: 'Pendiente',
+            fecha: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    });
+    try {
+        await batch.commit();
+        showToast('Artículos movidos a pendientes.');
+    } catch (err) {
+        console.error("Error en lote:", err);
         showToast(`Error: ${err.message}.`, true);
     } finally {
         hideSpinner();
     }
 }
 
-function updateMultiSelectButtonState() {
-  const multiSelectToggleButton = document.getElementById('multi-select-toggle-btn');
-  if (!multiSelectToggleButton) return;
-  const selectedCount = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).length;
-  multiSelectToggleButton.disabled = selectedCount === 0;
-  multiSelectToggleButton.textContent = selectedCount > 0 ? `Marcar ${selectedCount} para comprar` : 'Marcar para comprar';
-}
-
-// Llama al backend para cambiar el estado de múltiples artículos
-async function toggleSelectedItemsToPending() {
-  const trackingCodes = Array.from(document.querySelectorAll('.shopping-item-checkbox:checked')).map(cb => cb.dataset.trackingCode);
-  if (trackingCodes.length === 0) return;
-  
-  showSpinner("Marcando artículos...");
-  try {
-      const payload = { Type: 'toggle_multiple_to_pending', chat_ID: chatId, tracking_codes: trackingCodes };
-      const res = await fetchWithTimeout(gasWebhookURL, payload);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      showToast('Artículos marcados como pendientes.');
-      // El onSnapshot de Firestore detectará el cambio
-  } catch (err) {
-      showToast(`Error: ${err.message}.`, true);
-  } finally {
-      hideSpinner();
-  }
-}
-
 function renderAddArticleForm() {
-  navigationHistory.push(renderShoppingList);
-  updateBackButton();
-  mainContentArea.innerHTML = `
+    navigationHistory.push(renderShoppingList);
+    updateBackButton();
+    mainContentArea.innerHTML = `
       <div class="list-container">
           <div class="list-header"><h2>➕ Añadir Artículo</h2></div>
           <div class="form-card">
@@ -1092,32 +1098,33 @@ function renderAddArticleForm() {
               <button id="add-article-send-btn" disabled>Añadir</button>
           </div>
       </div>`;
-  const sendBtn = document.getElementById('add-article-send-btn');
-  const descriptionInput = document.getElementById('article-description');
-  descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
-  sendBtn.onclick = addArticle;
+    const sendBtn = document.getElementById('add-article-send-btn');
+    const descriptionInput = document.getElementById('article-description');
+    descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
+    sendBtn.onclick = addArticle;
 }
 
 async function addArticle() {
-  const description = document.getElementById('article-description').value.trim();
-  const cycle = document.getElementById('article-cycle').value || 0;
-  if (!description) return;
-  const payload = { Type: 'add_articulo', chat_ID: chatId, description: description, cycle: parseInt(cycle) };
-  
-  showToast('Artículo añadido. Guardando...');
-  
-  try {
-      const res = await fetchWithTimeout(gasWebhookURL, payload);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      showToast('Artículo añadido con éxito.');
-      goBack(); // Volver a la lista, el oyente de Firestore la refrescará
-  } catch (err) { 
-      showToast(`Error: ${err.message}.`, true);
-      initializeApp(); // Recarga completa en caso de error
-  } finally {
-      hideSpinner();
-  }
+    const description = document.getElementById('article-description').value.trim();
+    const cycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
+    if (!description) return;
+
+    // Lógica optimista: volvemos a la lista inmediatamente
+    goBack();
+    showToast('Añadiendo artículo...');
+
+    try {
+        await db.collection('users').doc(chatId).collection('listaDeLaCompra').add({
+            articulo: description,
+            cycle: cycle,
+            estado: 'Pendiente',
+            fecha: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        // El listener se encargará de actualizar la UI.
+    } catch (err) { 
+        console.error("Error al añadir artículo:", err);
+        showToast(`Error: ${err.message}.`, true);
+    }
 }
 
 function renderEditShoppingItemForm(item) {
@@ -1127,34 +1134,34 @@ function renderEditShoppingItemForm(item) {
       <div class="list-container">
           <div class="list-header"><h2>✏️ Editar Artículo</h2></div>
           <div class="form-card">
-              <label>Descripción del artículo</label> <textarea id="article-description" rows="2" required>${item['1']}</textarea>
-              <label>¿Cada cuántos días lo compras? (0 si es ocasional)</label> <input type="number" id="article-cycle" value="${item['5'] || 0}" min="0" step="1" required />
+              <label>Descripción</label> <textarea id="article-description" rows="2" required>${item.articulo}</textarea>
+              <label>Ciclo de compra (días)</label> <input type="number" id="article-cycle" value="${item.cycle}" min="0" step="1" required />
               <button id="edit-article-send-btn" class="enabled">Guardar Cambios</button>
           </div>
       </div>`;
-    document.getElementById('edit-article-send-btn').onclick = () => saveEditedShoppingItem(item['3']);
+    document.getElementById('edit-article-send-btn').onclick = () => saveEditedShoppingItem(item.id);
 }
 
-async function saveEditedShoppingItem(trackingCode) {
+async function saveEditedShoppingItem(itemId) {
     const newDescription = document.getElementById('article-description').value.trim();
-    const newCycle = document.getElementById('article-cycle').value || 0;
+    const newCycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
     if (!newDescription) return;
     
+    goBack();
     showToast('Guardando cambios...');
-    const payload = { Type: 'edit_shopping_item', chat_ID: chatId, tracking_code: trackingCode, new_description: newDescription, new_cycle: parseInt(newCycle) };
+
     try {
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast('Artículo actualizado.');
-        goBack(); // Volver a la lista, el oyente de Firestore la refrescará
+        await db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(itemId).update({
+            articulo: newDescription,
+            cycle: newCycle
+        });
+        // El listener actualizará la UI.
     } catch (err) {
+        console.error("Error al editar:", err);
         showToast(`Error: ${err.message}.`, true);
-        initializeApp(); // Recarga completa en caso de error
-    } finally {
-        hideSpinner();
     }
 }
+
 // ==================================================
 // --- MÓDULO: NOTAS (LÓGICA OPTIMISTA PROFESIONAL) ---
 // ==================================================
