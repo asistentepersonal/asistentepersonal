@@ -2059,21 +2059,53 @@ function renderGastosSearchScreen(gastos = null) {
 }
 
 async function executeSearchGastos() {
-    const startDate = document.getElementById('gasto-fecha-inicio').value;
-    const endDate = document.getElementById('gasto-fecha-fin').value;
-    if (!startDate || !endDate) { showToast('Debes seleccionar ambas fechas.', true); return; }
-    
-    const payload = { Type: 'get_gastos_fecha', chat_ID: chatId, datos: { fecha_start: startDate, fecha_end: endDate } };
+    const startDateString = document.getElementById('gasto-fecha-inicio').value;
+    const endDateString = document.getElementById('gasto-fecha-fin').value;
+    if (!startDateString || !endDateString) {
+        showToast('Debes seleccionar ambas fechas.', true);
+        return;
+    }
+
     showSpinner("Buscando gastos...");
-    
+
     try {
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        gastosEncontrados = data.gastos || [];
+        const startParts = startDateString.split('/');
+        const endParts = endDateString.split('/');
+        const startDateObj = new Date(startParts[2], startParts[1] - 1, startParts[0]);
+        const endDateObj = new Date(endParts[2], endParts[1] - 1, endParts[0]);
+        
+        startDateObj.setHours(0, 0, 0, 0);
+        endDateObj.setHours(23, 59, 59, 999);
+
+        const gastosRef = db.collection('users').doc(chatId).collection('gastos');
+        const q = gastosRef
+            .where('fecha', '>=', startDateObj) // CORREGIDO: 'Fecha' a 'fecha'
+            .where('fecha', '<=', endDateObj); // CORREGIDO: 'Fecha' a 'fecha'
+            
+        const snapshot = await q.get();
+
+        if (snapshot.empty) {
+            gastosEncontrados = [];
+        } else {
+            gastosEncontrados = snapshot.docs.map(doc => {
+                const data = doc.data();
+                const fechaGasto = data.fecha && data.fecha.toDate ? data.fecha.toDate() : new Date(); // CORREGIDO
+                return {
+                    ...data,
+                    ID_Unico: doc.id,
+                    Fecha: fechaGasto.toLocaleString('es-ES', { // El campo 'Fecha' (mayúscula) se crea aquí solo para la visualización
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    })
+                };
+            });
+        }
+        
         renderGastosSearchScreen(gastosEncontrados);
+
     } catch (err) {
-        showToast(err.message, true);
+        console.error("Error al buscar gastos:", err);
+        showToast(`Error al buscar gastos: ${err.message}`, true);
         renderGastosSearchScreen([]);
     } finally {
         hideSpinner();
