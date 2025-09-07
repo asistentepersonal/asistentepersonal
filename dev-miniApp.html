@@ -535,7 +535,7 @@ let isInitializing = false;
 let isAppReady = false;
 let unsubscribeShoppingList = null;
 
-// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
+/// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
     if (appData.isSecondaryDataLoaded) return;
     
@@ -547,11 +547,12 @@ async function loadSecondaryData() {
 
         appData.remindersList = secondaryData.remindersList;
         appData.shoppingList = secondaryData.shoppingList;
-        // appData.notesList = secondaryData.notesList; // Ya no necesitamos cargar esto desde aquí
         appData.calendarEvents = secondaryData.calendarEvents;
         
+        // La siguiente línea es la causa del error NaN. Se comenta para que Firestore sea la única fuente.
+        // appData.counts.gastosMesActual = secondaryData.gastosMesActual; 
+        
         appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
-        appData.counts.gastosMesActual = secondaryData.gastosMesActual;
         appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
 
         appData.isSecondaryDataLoaded = true;
@@ -1862,7 +1863,15 @@ async function saveGasto() {
 function renderGastoChart() {
   navigationHistory.push(renderDashboard);
   updateBackButton();
-  const mesesOptions = (appData.counts.mesesActivosGastos || []).map(mes => `<option value="${mes}">${mes}</option>`).join('');
+
+  const mesesOrdenados = (appData.counts.mesesActivosGastos || []).sort((a, b) => {
+      const [mesA, anioA] = a.split('/');
+      const [mesB, anioB] = b.split('/');
+      return new Date(anioB, mesB - 1) - new Date(anioA, mesA - 1);
+  });
+  
+  const mesesOptions = mesesOrdenados.map(mes => `<option value="${mes}">${mes}</option>`).join('');
+  
   mainContentArea.innerHTML = `
     <div class="list-container">
       <div class="list-header"><h2>Análisis de Gastos</h2></div>
@@ -1881,134 +1890,80 @@ function renderGastoChart() {
 }
 
 async function fetchAndDisplayGastoChart(event) {
-  const mesAnio = event.target.value;
-  if (pieChartInstance) pieChartInstance.destroy();
-  if (dailyChartInstance) dailyChartInstance.destroy();
-  if (monthlyChartInstance) monthlyChartInstance.destroy();
-  document.getElementById('gasto-legend-container').innerHTML = '';
-  ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
-  if (!mesAnio) return;
-  showSpinner();
-  try {
-    const payload = { Type: 'get_gastos_chart', chat_ID: chatId, mes_anio: mesAnio };
-    const res = await fetchWithTimeout(gasWebhookURL, payload);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
+    const mesAnio = event.target.value;
+    if (pieChartInstance) pieChartInstance.destroy();
+    if (dailyChartInstance) dailyChartInstance.destroy();
+    if (monthlyChartInstance) monthlyChartInstance.destroy();
     
-    Chart.register(ChartDataLabels);
+    document.getElementById('gasto-legend-container').innerHTML = '';
+    ['chart-container-pie', 'chart-container-daily', 'chart-container-monthly', 'hr1', 'hr2'].forEach(id => document.getElementById(id).style.display = 'none');
+    
+    if (!mesAnio) return;
+    
+    showSpinner("Generando gráfico...");
+    try {
+        const [mes, anio] = mesAnio.split('/').map(Number);
+        const startDate = new Date(anio, mes - 1, 1);
+        const endDate = new Date(anio, mes, 0, 23, 59, 59);
+
+        const gastosRef = db.collection('users').doc(chatId).collection('gastos');
+        const q = gastosRef.where('fecha', '>=', startDate).where('fecha', '<=', endDate);
+        const snapshot = await q.get();
+
+        const gastosDelMes = snapshot.docs.map(doc => doc.data());
+
+        const data = procesarDatosParaGrafico(gastosDelMes, mesAnio);
+        if (data.error) throw new Error(data.error);
+        
+        Chart.register(ChartDataLabels);
+        const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+        const moneda = appData.settings.moneda || '€';
+        
+        if (data.pieData && data.pieData.data.length > 0) {
+            document.getElementById('chart-container-pie').style.display = 'block';
+            const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
+            pieChartInstance = new Chart(pieCtx, {
+                type: 'pie', data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
+                options: { responsive: true, plugins: { title: { display: true, text: data.tituloPie + ' ' + moneda, font: { size: 18 } }, legend: { display: false }, datalabels: { formatter: (v,c) => { const total = c.chart.data.datasets[0].data.reduce((a,b) => a + b, 0); return total > 0 ? (v/total*100).toFixed(0)+'%' : '0%'; }, color:'#fff',font:{weight:'bold',size:16}}, tooltip: { callbacks: { label: c => `${c.label}: ${parseFloat(c.raw).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})} ${moneda}` } } } }
+            });
+            document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe} ${moneda}</strong></div></li>`).join('');
+        }
+    } catch (err) {
+        showToast(`No se pudo generar el gráfico: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
+}
+
+function procesarDatosParaGrafico(gastos, mesAnio) {
+    const datosParaLeyenda = [];
+    const gastosPorCategoria = gastos.reduce((acc, gasto) => {
+        const cat = gasto.Categoria || 'Sin categoría';
+        acc[cat] = (acc[cat] || 0) + gasto.Importe;
+        return acc;
+    }, {});
+
+    const pieData = {
+        labels: Object.keys(gastosPorCategoria),
+        data: Object.values(gastosPorCategoria)
+    };
+    
     const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-    const moneda = appData.settings.Moneda || '€';
-    
-    if (data.pieData && data.pieData.data && data.pieData.data.length > 0) {
-      document.getElementById('chart-container-pie').style.display = 'block';
-      const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
-      pieChartInstance = new Chart(pieCtx, {
-        type: 'pie',
-        data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
-        options: {
-  responsive: true, maintainAspectRatio: true,
-  plugins: {
-    title: { display: true, text: data.tituloPie + ' ' + moneda, font: { size: 18 } },
-    legend: { display: false },
-    datalabels: {
-      formatter: (value, ctx) => { const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (total === 0) return '0%'; return (value / total * 100).toFixed(0) + '%'; },
-      color: '#fff', font: { weight: 'bold', size: 16 }
-    },
-    tooltip: {
-      callbacks: {
-        label: function(context) {
-          let label = context.label || '';
-          if (label) { label += ': '; }
-          let value = parseFloat(context.raw).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          label += value + ' ' + moneda;
-          return label;
-        }
-      }
-    }
-  }
-}
-      });
-      document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe} ${moneda}</strong></div></li>`).join('');
-    }
-    
-    if (data.dailyData && data.dailyData.data && data.dailyData.data.length > 0) {
-      document.getElementById('hr1').style.display = 'block';
-      document.getElementById('chart-container-daily').style.display = 'block';
-      const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
-      dailyChartInstance = new Chart(dailyCtx, {
-        type: 'line',
-        data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario (' + moneda + ')', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] },
-        options: {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } },
-    legend: { display: false },
-    tooltip: {
-      callbacks: {
-        label: function(context) {
-          let label = context.dataset.label || '';
-          if (label) { label += ': '; }
-          label += context.formattedValue + ' ' + moneda;
-          return label;
-        }
-      }
-    }
-  }
-}
-      });
-    }
-    
-    if (data.monthlyData && data.monthlyData.data && data.monthlyData.data.length > 1) {
-      document.getElementById('hr2').style.display = 'block';
-      document.getElementById('chart-container-monthly').style.display = 'block';
-      const monthlyDataPoints = data.monthlyData.data.map((y, x) => ({ x, y }));
-      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-      monthlyDataPoints.forEach(p => { sumX += p.x; sumY += p.y; sumXY += p.x * p.y; sumX2 += p.x * p.x; });
-      const n = monthlyDataPoints.length;
-      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-      const intercept = (sumY - slope * sumX) / n;
-      const trendlineData = monthlyDataPoints.map(p => slope * p.x + intercept);
-      const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
-      monthlyChartInstance = new Chart(monthlyCtx, {
-        type: 'bar',
-        data: {
-          labels: data.monthlyData.labels,
-          datasets: [
-            { label: 'Gasto Mensual (' + moneda + ')', data: data.monthlyData.data, backgroundColor: '#36A2EB', yAxisID: 'y' },
-            {
-                label: 'Tendencia', data: trendlineData, type: 'line', borderColor: '#FF6384',
-                fill: false, pointRadius: 0, yAxisID: 'y1',
-                datalabels: { formatter: (value) => Math.round(value), align: 'end', anchor: 'end', color: '#666', font: { weight: 'bold' } }
-            }
-          ]
-        },
-    options: {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } },
-    tooltip: {
-      callbacks: {
-        label: function(context) {
-          if (context.dataset.type === 'line') { return null; }
-          let label = context.dataset.label || '';
-          if (label) { label += ': '; }
-          label += context.formattedValue + ' ' + moneda;
-          return label;
-        }
-      }
-    }
-  },
-  scales: { y: { type: 'linear', display: true, position: 'left' }, y1: { type: 'linear', display: false, position: 'right', grid: { drawOnChartArea: false } } }
-}
-      });
-    }
-  } catch (err) { 
-      showToast(err.message, true); 
-  } finally { 
-      hideSpinner(); 
-  }
+    pieData.labels.forEach((label, index) => {
+        datosParaLeyenda.push({
+            categoria: label,
+            importe: pieData.data[index].toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            color: paletaDeColores[index % paletaDeColores.length]
+        });
+    });
+
+    const totalGastos = gastos.reduce((sum, g) => sum + g.Importe, 0);
+
+    return {
+        pieData,
+        datosParaLeyenda,
+        tituloPie: `Total Gastos ${mesAnio}: ${totalGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    };
 }
 
 function renderGastosSearchScreen(gastos = null) {
@@ -2071,35 +2026,25 @@ async function executeSearchGastos() {
     try {
         const startParts = startDateString.split('/');
         const endParts = endDateString.split('/');
-        const startDateObj = new Date(startParts[2], startParts[1] - 1, startParts[0]);
-        const endDateObj = new Date(endParts[2], endParts[1] - 1, endParts[0]);
-        
-        startDateObj.setHours(0, 0, 0, 0);
-        endDateObj.setHours(23, 59, 59, 999);
+        const startDateObj = new Date(startParts[2], startParts[1] - 1, startParts[0], 0, 0, 0);
+        const endDateObj = new Date(endParts[2], endParts[1] - 1, endParts[0], 23, 59, 59);
 
         const gastosRef = db.collection('users').doc(chatId).collection('gastos');
-        const q = gastosRef
-            .where('fecha', '>=', startDateObj) // CORREGIDO: 'Fecha' a 'fecha'
-            .where('fecha', '<=', endDateObj); // CORREGIDO: 'Fecha' a 'fecha'
-            
+        const q = gastosRef.where('fecha', '>=', startDateObj).where('fecha', '<=', endDateObj);
         const snapshot = await q.get();
 
-        if (snapshot.empty) {
-            gastosEncontrados = [];
-        } else {
-            gastosEncontrados = snapshot.docs.map(doc => {
-                const data = doc.data();
-                const fechaGasto = data.fecha && data.fecha.toDate ? data.fecha.toDate() : new Date(); // CORREGIDO
-                return {
-                    ...data,
-                    ID_Unico: doc.id,
-                    Fecha: fechaGasto.toLocaleString('es-ES', { // El campo 'Fecha' (mayúscula) se crea aquí solo para la visualización
-                        day: '2-digit', month: '2-digit', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit'
-                    })
-                };
-            });
-        }
+        gastosEncontrados = snapshot.docs.map(doc => {
+            const data = doc.data();
+            // Comprobación de seguridad: asegura que data.fecha existe y es un objeto Timestamp
+            const fechaGasto = (data.fecha && typeof data.fecha.toDate === 'function') ? data.fecha.toDate() : null;
+            
+            return {
+                ...data,
+                ID_Unico: doc.id,
+                // Si la fecha es válida la formatea, si no, muestra un texto de error.
+                Fecha: fechaGasto ? fechaGasto.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Fecha inválida'
+            };
+        });
         
         renderGastosSearchScreen(gastosEncontrados);
 
