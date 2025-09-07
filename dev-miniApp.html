@@ -445,7 +445,7 @@ const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
 let selectedImageFile = null;
-let chatId = tg?.initDataUnsafe?.user?.id;
+let chatId = tg?.initDataUnsafe?.user?.id?.toString();
 // MODIFICACIÓN: Si no hay chat_ID, el prompt es solo para desarrollo local
 if (!chatId) { 
     if (window.location.href.includes("github.io") || window.location.href.includes("file://")) {
