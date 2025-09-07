@@ -192,6 +192,42 @@
         opacity: 0.5;
     }
     /* --- FIN CÓDIGO NUEVO --- */
+   /* --- INICIO CÓDIGO SPLASH SCREEN --- */
+.splash-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg, #f5f7fa);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.5s ease-out;
+  opacity: 1;
+}
+.splash-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.splash-logo {
+  width: 120px;
+  height: 120px;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+.splash-text {
+  margin-top: 20px;
+  font-size: 1.2rem;
+  color: var(--muted, #555);
+}
+@keyframes pulse {
+  0% { transform: scale(0.95); }
+  50% { transform: scale(1); }
+  100% { transform: scale(0.95); }
+}
+/* --- FIN CÓDIGO SPLASH SCREEN --- */  
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -206,6 +242,12 @@
   </script>
 </head>
 <body>
+  <!-- --- INICIO SPLASH SCREEN --- -->
+	<div id="splash-screen" class="splash-screen">
+  <img src="https://lh3.googleusercontent.com/d/1zQd1rn14IFHAGYHn95GVvILTB90i3320" alt="Logo" class="splash-logo" />
+  <div class="splash-text">Cargando tu asistente...</div>
+	</div>
+<!-- --- FIN SPLASH SCREEN --- -->
   <div id="spinner" class="spinner"></div>
   <div id="main-content-area">
   </div>
@@ -232,53 +274,100 @@
 // ==================================================
 const HTML_VERSION = "1.2.8"; // Definimos la versión del cliente aquí
 
+// =========================================================================
+// --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
+// =========================================================================
+const HTML_VERSION = "1.2.9"; // IMPORTANTE: Incrementa la versión del cliente.
+
 async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
-    console.log("Iniciando app y verificando autorización...");
-    showSpinner();
+    console.log("Iniciando app desde Firestore...");
+    
+    // El Splash Screen ya está visible por defecto, no necesitamos mostrarlo.
+    // showSpinner() ya no es necesario aquí.
 
     try {
-        // --- INICIO DE CORRECCIÓN DEFINITIVA ---
-        // Paso 1: Inicializar Firebase usando la configuración local del HTML.
-        if (typeof firebaseConfig !== 'undefined') {
+        // --- Paso 1: Inicializar Firebase ---
+        // Esto es síncrono y muy rápido.
+        if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
             window.db = firebase.firestore();
-            console.log("Firebase inicializado correctamente desde config local.");
+            console.log("Firebase inicializado correctamente.");
         } else {
-            throw new Error("La configuración de Firebase no está definida en el HTML.");
+            console.log("Firebase ya estaba inicializado.");
         }
-        // --- FIN DE CORRECCIÓN DEFINITIVA ---
+        
+        // --- Paso 2: Lanzar todas las lecturas a Firestore en paralelo ---
+        const versionPromise = db.collection('app_config').doc('version_info').get();
+        const userSettingsPromise = db.collection('users').doc(chatId).get();
+        const userCountsPromise = db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
+        
+        // Esperamos a que todas las promesas se resuelvan
+        const [versionDoc, userSettingsDoc, userCountsDoc] = await Promise.all([
+            versionPromise,
+            userSettingsPromise,
+            userCountsPromise
+        ]);
 
-        // Paso 2: Ahora sí, llamar a Apps Script para obtener los datos del dashboard.
-        const initialData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_initial_dashboard', chat_ID: chatId }).then(res => res.json());
+        // --- Paso 3: Comprobar la versión de la app ---
+        const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
+        if (serverVersion !== HTML_VERSION) {
+            console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Cliente: ${HTML_VERSION}. Recargando...`);
+            showToast("Actualizando aplicación...", false);
+            // Damos un pequeño margen para que el toast sea visible antes de recargar.
+            setTimeout(() => window.location.reload(true), 1500);
+            return; // Detenemos la ejecución para esperar la recarga.
+        }
 
-        // Paso 3: Comprobar si el usuario está autorizado
-        if (!initialData.settings || Object.keys(initialData.settings).length === 0) {
-            mainContentArea.innerHTML = `<div class="no-data-msg">🚫<br>Acceso no autorizado.<br><small>Por favor, inicia una suscripción para usar esta aplicación.</small></div>`;
+        // --- Paso 4: Validar y poblar los datos del usuario ---
+        if (!userSettingsDoc.exists) {
+            // Este es un caso crítico: el usuario no existe en la BD.
+            mainContentArea.innerHTML = `<div class="no-data-msg">🚫<br>Usuario no encontrado.<br><small>No se pudo cargar tu perfil. Contacta con soporte.</small></div>`;
             document.querySelector('.tabs').style.display = 'none';
-            hideSpinner();
+            hideSplashScreen(); // Ocultamos el splash para mostrar el error.
             return;
         }
-        
-        if (initialData.error) throw new Error(initialData.error);
-        
-        appData.counts = initialData.counts;
-        appData.settings = initialData.settings;
-        appData.isPremium = initialData.isPremium;
-        appData.isSecondaryDataLoaded = false;
 
+        // Poblamos appData con los datos leídos.
+        appData.settings = userSettingsDoc.data().configuracion || {}; // Asumiendo que los settings están en un mapa 'configuracion'
+        appData.isPremium = userSettingsDoc.data().plan_basic === false;
+        
+        if (userCountsDoc.exists) {
+            appData.counts = userCountsDoc.data();
+        } else {
+            // Si no hay documento de contadores, los dejamos en 0 por defecto.
+            console.warn("No se encontró documento de contadores para el usuario. Se usarán valores por defecto.");
+        }
+        
+        appData.isSecondaryDataLoaded = false; // Aún no hemos cargado listas detalladas.
+
+        // --- Paso 5: Renderizar la interfaz y ocultar el splash screen ---
         updateChefTabStyle();
         renderDashboard();
+        hideSplashScreen();
         
     } catch (err) {
-        console.error("Error en initializeApp:", err);
+        console.error("Error crítico en initializeApp:", err);
         showToast(`Error de inicialización: ${err.message}`, true);
         mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>No se pudo conectar con el servidor. Inténtalo de nuevo más tarde.</small></div>`;
+        hideSplashScreen(); // Ocultar splash para mostrar el error.
     } finally {
-        hideSpinner();
         isInitializing = false;
-        console.log("Inicialización finalizada.");
+        console.log("Inicialización de Firestore finalizada.");
+    }
+}
+
+function hideSplashScreen() {
+    const splash = document.getElementById('splash-screen');
+    if (splash) {
+        splash.classList.add('hidden');
+        // Opcional: eliminar el splash del DOM después de la transición para liberar memoria.
+        setTimeout(() => {
+            if (splash.parentNode) {
+                splash.parentNode.removeChild(splash);
+            }
+        }, 600); // Debe coincidir con la duración de la transición en el CSS.
     }
 }
 
