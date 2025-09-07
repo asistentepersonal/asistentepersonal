@@ -1928,34 +1928,61 @@ async function fetchAndDisplayGastoChart(event) {
     
     if (!mesAnio) return;
     
-    showSpinner("Generando gráfico...");
+    showSpinner("Generando gráficos...");
     try {
+        // --- 1. Obtener datos del mes seleccionado ---
         const [mes, anio] = mesAnio.split('/').map(Number);
         const startDate = new Date(anio, mes - 1, 1);
         const endDate = new Date(anio, mes, 0, 23, 59, 59);
 
         const gastosRef = db.collection('users').doc(chatId).collection('gastos');
-        const q = gastosRef.where('fecha', '>=', startDate).where('fecha', '<=', endDate);
-        const snapshot = await q.get();
+        const qMes = gastosRef.where('fecha', '>=', startDate).where('fecha', '<=', endDate);
+        const snapshotMes = await qMes.get();
+        const gastosDelMes = snapshotMes.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 
-        const gastosDelMes = snapshot.docs.map(doc => doc.data());
+        // --- 2. Obtener datos de los últimos 6 meses para el gráfico de barras ---
+        const monthlyEndDate = new Date();
+        const monthlyStartDate = new Date();
+        monthlyStartDate.setMonth(monthlyStartDate.getMonth() - 5);
+        monthlyStartDate.setDate(1);
 
-        const data = procesarDatosParaGrafico(gastosDelMes, mesAnio);
+        const qMonthly = gastosRef.where('fecha', '>=', monthlyStartDate).where('fecha', '<=', monthlyEndDate);
+        const snapshotMonthly = await qMonthly.get();
+        const gastosUltimosMeses = snapshotMonthly.docs.map(doc => doc.data());
+
+        // --- 3. Procesar todos los datos ---
+        const data = procesarDatosParaGrafico(gastosDelMes, gastosUltimosMeses, mesAnio);
         if (data.error) throw new Error(data.error);
         
+        // --- 4. Dibujar los gráficos ---
         Chart.register(ChartDataLabels);
         const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
         const moneda = appData.settings.moneda || '€';
         
+        // Gráfico de Pastel (Pie Chart)
         if (data.pieData && data.pieData.data.length > 0) {
             document.getElementById('chart-container-pie').style.display = 'block';
             const pieCtx = document.getElementById('pieChartCanvas').getContext('2d');
-            pieChartInstance = new Chart(pieCtx, {
-                type: 'pie', data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] },
-                options: { responsive: true, plugins: { title: { display: true, text: data.tituloPie + ' ' + moneda, font: { size: 18 } }, legend: { display: false }, datalabels: { formatter: (v,c) => { const total = c.chart.data.datasets[0].data.reduce((a,b) => a + b, 0); return total > 0 ? (v/total*100).toFixed(0)+'%' : '0%'; }, color:'#fff',font:{weight:'bold',size:16}}, tooltip: { callbacks: { label: c => `${c.label}: ${parseFloat(c.raw).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})} ${moneda}` } } } }
-            });
+            pieChartInstance = new Chart(pieCtx, { type: 'pie', data: { labels: data.pieData.labels, datasets: [{ data: data.pieData.data, backgroundColor: paletaDeColores, borderWidth: 2, borderColor: '#fff' }] }, options: { responsive: true, plugins: { title: { display: true, text: data.tituloPie + ' ' + moneda, font: { size: 18 } }, legend: { display: false }, datalabels: { formatter: (v,c) => { const total = c.chart.data.datasets[0].data.reduce((a,b) => a+b,0); return total > 0 ? (v/total*100).toFixed(0)+'%' : '0%';}, color:'#fff',font:{weight:'bold',size:16}}, tooltip: { callbacks: { label: c => `${c.label}: ${parseFloat(c.raw).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})} ${moneda}`}}}}});
             document.getElementById('gasto-legend-container').innerHTML = data.datosParaLeyenda.map(item => `<li class="gasto-legend-item"><span class="gasto-legend-color" style="background-color:${item.color};"></span><div>${item.categoria}: <strong>${item.importe} ${moneda}</strong></div></li>`).join('');
         }
+
+        // Gráfico de Líneas (Evolución Diaria)
+        if (data.dailyData && data.dailyData.data.length > 0) {
+            document.getElementById('hr1').style.display = 'block';
+            document.getElementById('chart-container-daily').style.display = 'block';
+            const dailyCtx = document.getElementById('dailyChartCanvas').getContext('2d');
+            dailyChartInstance = new Chart(dailyCtx, { type: 'line', data: { labels: data.dailyData.labels, datasets: [{ label: 'Gasto Diario (' + moneda + ')', data: data.dailyData.data, borderColor: '#4BC0C0', fill: false }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: `Evolución Diaria - ${mesAnio}`, font: { size: 18 } }, legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.formattedValue} ${moneda}`}}}}});
+        }
+        
+        // Gráfico de Barras (Comparativa Mensual)
+        if (data.monthlyData && data.monthlyData.data.length > 0) {
+            document.getElementById('hr2').style.display = 'block';
+            document.getElementById('chart-container-monthly').style.display = 'block';
+            const monthlyCtx = document.getElementById('monthlyChartCanvas').getContext('2d');
+            monthlyChartInstance = new Chart(monthlyCtx, { type: 'bar', data: { labels: data.monthlyData.labels, datasets: [{ label: 'Gasto Mensual (' + moneda + ')', data: data.monthlyData.data, backgroundColor: '#36A2EB' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Evolución de Gastos Mensuales', font: { size: 18 } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.formattedValue} ${moneda}`}}}}});
+        }
+
     } catch (err) {
         showToast(`No se pudo generar el gráfico: ${err.message}`, true);
     } finally {
@@ -1963,34 +1990,55 @@ async function fetchAndDisplayGastoChart(event) {
     }
 }
 
-function procesarDatosParaGrafico(gastos, mesAnio) {
+function procesarDatosParaGrafico(gastosDelMes, gastosUltimosMeses, mesAnioSeleccionado) {
+    // --- Lógica para Gráfico de Pastel y Leyenda ---
     const datosParaLeyenda = [];
-    const gastosPorCategoria = gastos.reduce((acc, gasto) => {
-        const cat = gasto.categoria || 'Sin categoría'; // CORREGIDO: Categoria -> categoria
-        acc[cat] = (acc[cat] || 0) + (gasto.importe || 0); // CORREGIDO: Importe -> importe
+    const gastosPorCategoria = gastosDelMes.reduce((acc, gasto) => {
+        const cat = gasto.categoria || 'Sin categoría';
+        acc[cat] = (acc[cat] || 0) + (gasto.importe || 0);
         return acc;
     }, {});
-
-    const pieData = {
-        labels: Object.keys(gastosPorCategoria),
-        data: Object.values(gastosPorCategoria)
-    };
-    
+    const pieData = { labels: Object.keys(gastosPorCategoria), data: Object.values(gastosPorCategoria) };
     const paletaDeColores = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
     pieData.labels.forEach((label, index) => {
-        datosParaLeyenda.push({
-            categoria: label,
-            importe: pieData.data[index].toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-            color: paletaDeColores[index % paletaDeColores.length]
-        });
+        datosParaLeyenda.push({ categoria: label, importe: pieData.data[index].toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), color: paletaDeColores[index % paletaDeColores.length] });
+    });
+    const totalGastosMes = gastosDelMes.reduce((sum, g) => sum + (g.importe || 0), 0);
+    
+    // --- Lógica para Gráfico de Líneas (Evolución Diaria) ---
+    const diasEnMes = new Date(mesAnioSeleccionado.split('/')[1], mesAnioSeleccionado.split('/')[0], 0).getDate();
+    const dailyData = { labels: Array.from({ length: diasEnMes }, (_, i) => i + 1), data: Array(diasEnMes).fill(0) };
+    gastosDelMes.forEach(gasto => {
+        if (gasto.fecha && typeof gasto.fecha.toDate === 'function') {
+            const dia = gasto.fecha.toDate().getDate();
+            dailyData.data[dia - 1] += gasto.importe || 0;
+        }
     });
 
-    const totalGastos = gastos.reduce((sum, g) => sum + (g.importe || 0), 0); // CORREGIDO
+    // --- Lógica para Gráfico de Barras (Comparativa Mensual) ---
+    const monthlyData = { labels: [], data: [] };
+    const gastosPorMes = {};
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const mes = (d.getMonth() + 1).toString().padStart(2, '0');
+        const anio = d.getFullYear();
+        monthlyData.labels.push(`${mes}/${anio}`);
+        gastosPorMes[`${mes}/${anio}`] = 0;
+    }
+    gastosUltimosMeses.forEach(gasto => {
+        if (gasto.mesAnio && gastosPorMes.hasOwnProperty(gasto.mesAnio)) {
+            gastosPorMes[gasto.mesAnio] += gasto.importe || 0;
+        }
+    });
+    monthlyData.data = Object.values(gastosPorMes);
 
     return {
         pieData,
         datosParaLeyenda,
-        tituloPie: `Total Gastos ${mesAnio}: ${totalGastos.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        tituloPie: `Total Gastos ${mesAnioSeleccionado}: ${totalGastosMes.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        dailyData,
+        monthlyData
     };
 }
 
@@ -2063,17 +2111,22 @@ async function executeSearchGastos() {
 
         gastosEncontrados = snapshot.docs.map(doc => {
             const data = doc.data();
-            // Comprobación de seguridad: asegura que data.fecha existe y es un objeto Timestamp
             const fechaGasto = (data.fecha && typeof data.fecha.toDate === 'function') ? data.fecha.toDate() : null;
             
             return {
                 ...data,
                 ID_Unico: doc.id,
-                // Si la fecha es válida la formatea, si no, muestra un texto de error.
                 Fecha: fechaGasto ? fechaGasto.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Fecha inválida'
             };
         });
         
+        // Ordenar resultados por fecha, más reciente primero
+        gastosEncontrados.sort((a, b) => {
+            const dateA = a.fecha && a.fecha.toDate ? a.fecha.toDate() : 0;
+            const dateB = b.fecha && b.fecha.toDate ? b.fecha.toDate() : 0;
+            return dateB - dateA;
+        });
+
         renderGastosSearchScreen(gastosEncontrados);
 
     } catch (err) {
