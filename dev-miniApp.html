@@ -306,15 +306,15 @@ async function initializeApp() {
         const userSettingsPromise = db.collection('users').doc(chatId).get();
         const userCountsPromise = db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
         
-        // Esperamos a que todas las promesas se resuelvan
         const [versionDoc, userSettingsDoc, userCountsDoc] = await Promise.all([
-		// --- PUNTO DE DEPURACIÓN 1: VERIFICAR CARGA INICIAL ---
-		console.log("1. DATOS INICIALES DESDE FIRESTORE:", JSON.parse(JSON.stringify(userCountsDoc.data())));
-		// --- FIN DEPURACIÓN ---
             versionPromise,
             userSettingsPromise,
             userCountsPromise
         ]);
+
+		// --- PUNTO DE DEPURACIÓN 1: VERIFICAR CARGA INICIAL ---
+		console.log("1. DATOS INICIALES DESDE FIRESTORE:", JSON.parse(JSON.stringify(userCountsDoc.data())));
+		// --- FIN DEPURACIÓN ---
 
         // --- Paso 3: Comprobar la versión de la app ---
         const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
