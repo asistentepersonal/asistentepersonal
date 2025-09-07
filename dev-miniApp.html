@@ -28,6 +28,14 @@
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
     .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
+	.card-badge.card-badge-pill {
+    width: auto;
+    height: auto;
+    min-width: 0;
+    border-radius: 999px;
+    padding: 3px 10px;
+    line-height: 1.4;
+}
     .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
     .card-badge.green{background-color:#28a745;}
     .card-badge.red{background-color:#e74c3c;}
@@ -272,7 +280,7 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.9"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.10"; // IMPORTANTE: Incrementa la versión del cliente.
 
 async function initializeApp() {
     if (isInitializing) return;
@@ -325,7 +333,7 @@ async function initializeApp() {
         }
 
         // Poblamos appData con los datos leídos.
-        appData.settings = userSettingsDoc.data().configuracion || {}; // Asumiendo que los settings están en un mapa 'configuracion'
+        appData.settings = userSettingsDoc.data() || {}; // Carga todo el documento del usuario en los ajustes.
         appData.isPremium = userSettingsDoc.data().plan_basic === false;
         
         if (userCountsDoc.exists) {
@@ -2774,10 +2782,8 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card disabled-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>
-	  <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="gastos-badge">${Math.round(counts.gastosMesActual || 0)} ${(appData.settings.Moneda || '')}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
-      <div class="card disabled-card" onclick="() => showToast('Función en desarrollo.')"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>
+<div class="card clickable-card"><div class="card-badge card-badge-pill red" style="left:12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>      <div class="card disabled-card" onclick="() => showToast('Función en desarrollo.')"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>
     </div>`;
-  
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
   document.getElementById('list-reminders-link').onclick = renderRemindersList;
   document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
