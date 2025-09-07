@@ -308,6 +308,9 @@ async function initializeApp() {
         
         // Esperamos a que todas las promesas se resuelvan
         const [versionDoc, userSettingsDoc, userCountsDoc] = await Promise.all([
+		// --- PUNTO DE DEPURACIÓN 1: VERIFICAR CARGA INICIAL ---
+		console.log("1. DATOS INICIALES DESDE FIRESTORE:", JSON.parse(JSON.stringify(userCountsDoc.data())));
+		// --- FIN DEPURACIÓN ---
             versionPromise,
             userSettingsPromise,
             userCountsPromise
@@ -538,6 +541,9 @@ let unsubscribeShoppingList = null;
 /// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
     if (appData.isSecondaryDataLoaded) return;
+	// --- PUNTO DE DEPURACIÓN 2: VERIFICAR SI HAY INTERFERENCIA ---
+	console.log("2. ENTRANDO A loadSecondaryData. Estado actual de los contadores:", JSON.parse(JSON.stringify(appData.counts)));
+	// --- FIN DEPURACIÓN ---
     
     console.log("Cargando datos secundarios por primera vez...");
     showSpinner("Cargando listas...");
@@ -1819,6 +1825,9 @@ async function saveGasto() {
         showSpinner("Registrando gasto...");
         const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
         const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
+		// --- PUNTO DE DEPURACIÓN 3: VERIFICAR DATOS ANTES DE GUARDAR ---
+		console.log(`3. INTENTANDO GUARDAR GASTO. Importe leído del form: ${importe}, Contador actual: ${appData.counts.gastosMesActual}`);
+		// --- FIN DEPURACIÓN ---
         const establecimiento = document.getElementById('gasto-establecimiento').value;
         const categoria = document.getElementById('gasto-categoria').value;
         const subCategoria = document.getElementById('gasto-subcategoria').value;
