@@ -340,6 +340,7 @@ async function initializeApp() {
         // --- Paso 5: Renderizar la interfaz y ocultar el splash screen ---
         updateChefTabStyle();
         renderDashboard();
+		isAppReady = true;
         hideSplashScreen();
         
     } catch (err) {
@@ -403,42 +404,19 @@ if (tg) {
         document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); 
     } 
     
-    // Nueva lógica de sincronización al maximizar
-        // =========================================================================
-    // --- NUEVA LÓGICA DE SINCRONIZACIÓN INTELIGENTE (AL MAXIMIZAR) ---
-    // =========================================================================
-    // =========================================================================
-    // --- LÓGICA DE SINCRONIZACIÓN INTELIGENTE (VERSIÓN FINAL Y ROBUSTA) ---
+/ =========================================================================
+    // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
     // =========================================================================
     tg.onEvent('viewportChanged', async (event) => {
-        // Solo actuar si la ventana se ha estabilizado y está expandida.
-        if (!event.isStateStable || !tg.isExpanded) return;
-
-        // Si la app se está inicializando por primera vez, no hacer nada para evitar conflictos.
-        if (isInitializing) return;
-
-        // --- GUARDA DE SEGURIDAD CRÍTICA ---
-        // Antes de intentar cualquier operación de Firebase, nos aseguramos de que
-        // el script de Firebase se haya cargado y el objeto 'firebase' exista.
-        if (typeof firebase === 'undefined' || typeof firebase.initializeApp !== 'function') {
-            console.warn("Firebase no está listo todavía. Se cancela la sincronización en esta pasada.");
-            return; // Detenemos la ejecución de forma segura.
+        // La única condición para actuar es que la app ya esté lista y la ventana expandida.
+        if (!isAppReady || !event.isStateStable || !tg.isExpanded) {
+            return;
         }
 
-        console.log("App maximizada, Firebase está listo. Comprobando cambios...");
+        console.log("App maximizada y lista. Comprobando cambios...");
         
         try {
-            // Asegurarse de que Firebase esté inicializado.
-            // La guarda anterior nos protege de que 'firebase' no exista.
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            // Solo definimos 'db' si no existe para evitar re-asignaciones.
-            if (typeof window.db === 'undefined') {
-                window.db = firebase.firestore();
-            }
-
-            // --- Paso 1: Lectura ligera solo de los contadores ---
+            // No necesitamos inicializar nada aquí, ya está garantizado que db existe.
             const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
             if (!countsDoc.exists) {
                 console.warn("No se encontró el documento de contadores durante la sincronización.");
@@ -447,17 +425,13 @@ if (tg) {
 
             const serverCounts = countsDoc.data();
             
-            // --- Paso 2: Comparación inteligente ---
             if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
                 console.log("Cambios en contadores detectados. Actualizando UI...");
                 
                 appData.counts = serverCounts;
                 renderDashboard();
                 showToast("Datos sincronizados.", false);
-                
-                // Marcamos que las listas secundarias están desactualizadas.
                 appData.isSecondaryDataLoaded = false;
-
             } else {
                 console.log("Sin cambios detectados en los contadores.");
             }
@@ -550,6 +524,7 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 let isInitializing = false;
+let isAppReady = false;
 
 // --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
