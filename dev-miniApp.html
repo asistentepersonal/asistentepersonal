@@ -456,19 +456,45 @@ const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
 let selectedImageFile = null;
-let chatId = tg?.initDataUnsafe?.user?.id?.toString();
-let emojiDictionary = [];
-const EMOJI_DB_URL = 'emoji-articulos-v1.json'; // Actualiza aquí a 'v2' en el futuro
-// MODIFICACIÓN: Si no hay chat_ID, el prompt es solo para desarrollo local
-if (!chatId) { 
-    if (window.location.href.includes("github.io") || window.location.href.includes("file://")) {
-        chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330'); 
-    } else {
-        // En producción o si no es desarrollo local y no hay chat_ID, mostrar mensaje de error
-        document.body.innerHTML = `<div class="no-data-msg">❌ Error: No se pudo obtener tu ID de Telegram. Abre la Mini App desde un bot de Telegram.</div>`;
-        throw new Error("Chat ID no disponible en entorno de producción.");
+    let chatId; // Solo declaramos la variable aquí.
+    
+    // --- LISTA BLANCA DE USUARIOS AUTORIZADOS (SOLO PARA DESARROLLO) ---
+    const authorizedUsers = ["6840956330"]; // <<<--- AÑADE AQUÍ MÁS IDs DE PRUEBA SI ES NECESARIO
+
+    // Función auxiliar para gestionar el error de forma centralizada
+    function failApp(message, canClose = false) {
+        document.body.innerHTML = `<div class="no-data-msg">❌<br>${message}</div>`;
+        // Si es un error que permite cierre, y la API de Telegram está disponible, cerramos la Mini App.
+        if (canClose && tg && tg.close) {
+            setTimeout(() => tg.close(), 2500); // Dar tiempo al usuario para leer el mensaje.
+        }
+        throw new Error(message); // Detener la ejecución del script
     }
-}
+
+    // --- NUEVO FLUJO DE INICIALIZACIÓN CON LISTA BLANCA ---
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+        chatId = tg.initDataUnsafe.user.id.toString();
+        console.log("Chat ID obtenido de Telegram:", chatId);
+    } else {
+        if (window.location.href.includes("github.io") || window.location.href.includes("file://")) {
+            chatId = prompt('MODO DE DESARROLLO\n\nIngresa tu chat_ID de Telegram para continuar:', '6840956330');
+            if (!chatId) {
+                failApp("Chat ID no proporcionado en modo de desarrollo.");
+            }
+            console.log("Chat ID obtenido por prompt (desarrollo):", chatId);
+        } else {
+            failApp("Error: No se pudo obtener tu ID de Telegram.", true);
+        }
+    }
+
+    if (!chatId || chatId.trim() === '') {
+        failApp("El ID de Chat obtenido no es válido.");
+    }
+    
+    // --- VERIFICACIÓN FINAL CONTRA LA LISTA BLANCA ---
+    if (!authorizedUsers.includes(chatId)) {
+        failApp("Acceso no autorizado.", true);
+    }
 
 
 let appData = { 
