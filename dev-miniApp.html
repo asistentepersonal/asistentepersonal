@@ -403,6 +403,10 @@ function updateBackButton() {
 }
 
 const tg = window.Telegram?.WebApp;
+// --- VARIABLES GLOBALES PARA EMOJIS ---
+let emojiDictionary = [];
+const EMOJIS_DB_FILENAME = 'emoji-articulos-v1.json'; // Nombre del archivo JSON
+// ---
 if (tg) { 
     tg.expand(); 
     if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
@@ -525,7 +529,7 @@ function showSpinner(message = '') {
     spinner.style.display = 'block'; 
 }
 async function loadEmojiDictionary() {
-    const cacheKey = `emojiCache-${EMOJI_DB_URL}`;
+    const cacheKey = `emojiCache-${EMOJIS_DB_FILENAME}`; // Usa el nuevo nombre
     try {
         const cachedData = localStorage.getItem(cacheKey);
         if (cachedData) {
@@ -535,7 +539,7 @@ async function loadEmojiDictionary() {
         }
 
         console.log("Descargando diccionario de emojis por primera vez...");
-        const response = await fetch(EMOJI_DB_URL);
+        const response = await fetch(EMOJIS_DB_FILENAME); // Usa el nuevo nombre
         if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
         
         const data = await response.json();
@@ -544,7 +548,6 @@ async function loadEmojiDictionary() {
 
     } catch (error) {
         console.error("No se pudo cargar el diccionario de emojis:", error);
-        // La app seguirá funcionando, simplemente no añadirá emojis.
     }
 }
 function generateCustomId(prefix) {
