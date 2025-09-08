@@ -891,9 +891,11 @@ function renderReminderForm() {
   // --- INICIO DE LA CORRECCIÓN CLAVE ---
   flatpickr("#time", {
     enableTime: true,
-    dateFormat: "Y-m-d H:i",
+    altInput: true,                 // Muestra un input alternativo y amigable
+    altFormat: "d/m/Y H:i",         // El formato que verá el usuario (dd/mm/yyyy HH:mm)
+    dateFormat: "Y-m-d H:i",        // El formato técnico que usa el código (se mantiene igual)
     defaultDate: new Date(),
-    locale: "es", // Esta línea activa la localización en español
+    locale: "es",
     minDate: "today"
   });
   // --- FIN DE LA CORRECCIÓN CLAVE ---
@@ -2663,6 +2665,14 @@ function renderSettings() {
     updateBackButton();
     initialUserSettings = JSON.parse(JSON.stringify(appData.settings || {}));
     
+    // --- LÓGICA DE ACCESO CORREGIDA ---
+    const settings = appData.settings || {};
+    const config = settings.configuracion || {};
+    const informeManana = config.informeManana || {};
+    const informeTarde = config.informeTarde || {};
+    const informeMensual = config.informeMensual || {};
+    // ---
+
     mainContentArea.innerHTML = `
         <div class="settings-container">
             <h2 class="settings-section-title">👤 Perfil de Usuario</h2>
@@ -2693,10 +2703,8 @@ function renderSettings() {
                 <input type="text" id="settings-fecha-activacion" readonly />
                 <label>Zona Horaria Detectada (no editable)</label>
                 <input type="text" id="settings-zona-horaria" readonly />
-                <!-- INICIO DE CAMBIO: Campo Moneda añadido -->
                 <label>Moneda (detectada)</label>
                 <input type="text" id="settings-moneda" readonly />
-                <!-- FIN DE CAMBIO -->
             </div>
 
             <h2 class="settings-section-title">🔔 Informes y Alertas</h2>
@@ -2756,54 +2764,52 @@ function renderSettings() {
                 </div>
             </div>
 
-            <!-- INICIO DE CAMBIO: Botón movido y renombrado -->
             <div class="form-card" style="margin-top: 20px;">
                  <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; background-color: var(--muted);">Sincronizar Contadores</button>
             </div>
-            <!-- FIN DE CAMBIO -->
         </div>
     `;
 
-document.getElementById('settings-nombre').value = appData.settings['nombre'] || '';
-document.getElementById('settings-ciudad').value = appData.settings['ciudad'] || '';
-document.getElementById('settings-pais').value = appData.settings['pais'] || '';
-document.getElementById('settings-theme').value = appData.settings['tema'] || 'auto';
-document.getElementById('settings-email').value = appData.settings['email'] || 'No disponible';
-const fechaActivacion = appData.settings['Fecha_Activacion'] 
-    ? new Date(appData.settings['Fecha_Activacion']).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
-    : 'No disponible';
-document.getElementById('settings-fecha-activacion').value = fechaActivacion;
-document.getElementById('settings-zona-horaria').value = appData.settings['Time Zone'] || 'No disponible';
-// INICIO DE CAMBIO: Poblar el campo Moneda
-document.getElementById('settings-moneda').value = appData.settings['Moneda'] || 'No disponible';
-// FIN DE CAMBIO
+    // --- CÓDIGO CORREGIDO PARA RELLENAR LOS CAMPOS ---
+    document.getElementById('settings-nombre').value = settings.nombre || '';
+    document.getElementById('settings-ciudad').value = settings.ciudad || '';
+    document.getElementById('settings-pais').value = settings.pais || '';
+    document.getElementById('settings-theme').value = config.tema || 'auto';
 
-document.getElementById('settings-informe-manana-activo').checked = (appData.settings['Informe_Mañana_Activo'] === 'SI');
-document.getElementById('settings-franja-manana').value = appData.settings['Franja_Informe_Mañana'] || '2';
-document.getElementById('settings-informe-tarde-activo').checked = (appData.settings['Informe_Tarde_Activo'] === 'SI');
-document.getElementById('settings-franja-tarde').value = appData.settings['Franja_Informe_Tarde'] || '20';
-document.getElementById('settings-alerta-inventario').checked = (appData.settings['Alerta_Inventario'] === 'SI');
+    document.getElementById('settings-email').value = settings.email || 'No disponible';
+    const fechaActivacionStr = settings.fechaActivacion 
+        ? new Date(settings.fechaActivacion).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
+        : 'No disponible';
+    document.getElementById('settings-fecha-activacion').value = fechaActivacionStr;
+    document.getElementById('settings-zona-horaria').value = settings.timeZone || 'No disponible';
+    document.getElementById('settings-moneda').value = settings.moneda || 'No disponible';
 
-document.getElementById('settings-informe-mensual-activo').checked = (appData.settings['Informe_Mensual_Activo'] === 'SI');
-document.getElementById('settings-dia-informe-mensual').value = appData.settings['Dia_Informe_Mensual'] || '1';
-document.getElementById('settings-hora-informe-mensual').value = appData.settings['Hora_Informe_Mensual'] || '12';
+    document.getElementById('settings-informe-manana-activo').checked = informeManana.activo === true;
+    document.getElementById('settings-franja-manana').value = informeManana.franjaHoraria || '2';
+    document.getElementById('settings-informe-tarde-activo').checked = informeTarde.activo === true;
+    document.getElementById('settings-franja-tarde').value = informeTarde.franjaHoraria || '20';
+    document.getElementById('settings-alerta-inventario').checked = config.alertaInventario === true;
 
-const controls = document.querySelectorAll(
-    '#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, ' +
-    '#settings-informe-manana-activo, #settings-franja-manana, ' +
-    '#settings-informe-tarde-activo, #settings-franja-tarde, ' +
-    '#settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, ' +
-    '#settings-alerta-inventario'
-);
-controls.forEach(control => {
-    control.addEventListener('input', validateSettings);
-    control.addEventListener('change', validateSettings);
-});
+    document.getElementById('settings-informe-mensual-activo').checked = informeMensual.activo === true;
+    document.getElementById('settings-dia-informe-mensual').value = informeMensual.dia || '1';
+    document.getElementById('settings-hora-informe-mensual').value = informeMensual.hora || '12';
+    // --- FIN DEL CÓDIGO CORREGIDO ---
 
-document.getElementById('settings-save-btn').onclick = saveSettings;
-document.getElementById('settings-cancel-btn').onclick = goBack;
-document.getElementById('settings-sync-btn').onclick = syncCounts;
+    const controls = document.querySelectorAll(
+        '#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, ' +
+        '#settings-informe-manana-activo, #settings-franja-manana, ' +
+        '#settings-informe-tarde-activo, #settings-franja-tarde, ' +
+        '#settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, ' +
+        '#settings-alerta-inventario'
+    );
+    controls.forEach(control => {
+        control.addEventListener('input', validateSettings);
+        control.addEventListener('change', validateSettings);
+    });
 
+    document.getElementById('settings-save-btn').onclick = saveSettings;
+    document.getElementById('settings-cancel-btn').onclick = goBack;
+    document.getElementById('settings-sync-btn').onclick = syncCounts;
 }
 
 function validateSettings() {
