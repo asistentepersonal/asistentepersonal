@@ -887,7 +887,17 @@ function renderReminderForm() {
       </div>
     </div>`;
   const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
-  flatpickr("#time", { enableTime: true, dateFormat: "Y-m-d H-i", defaultDate: new Date(), locale: "es", minDate: "today" });
+  
+  // --- INICIO DE LA CORRECCIÓN CLAVE ---
+  flatpickr("#time", {
+    enableTime: true,
+    dateFormat: "Y-m-d H:i",
+    defaultDate: new Date(),
+    locale: "es", // Esta línea activa la localización en español
+    minDate: "today"
+  });
+  // --- FIN DE LA CORRECCIÓN CLAVE ---
+
   function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
   function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
   textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
@@ -2754,12 +2764,11 @@ function renderSettings() {
         </div>
     `;
 
-document.getElementById('settings-nombre').value = appData.settings['Nombre'] || '';
-document.getElementById('settings-ciudad').value = appData.settings['Ciudad'] || '';
-document.getElementById('settings-pais').value = appData.settings['Pais'] || '';
-document.getElementById('settings-theme').value = appData.settings['Tema'] || 'auto';
-
-document.getElementById('settings-email').value = appData.settings['Email'] || 'No disponible';
+document.getElementById('settings-nombre').value = appData.settings['nombre'] || '';
+document.getElementById('settings-ciudad').value = appData.settings['ciudad'] || '';
+document.getElementById('settings-pais').value = appData.settings['pais'] || '';
+document.getElementById('settings-theme').value = appData.settings['tema'] || 'auto';
+document.getElementById('settings-email').value = appData.settings['email'] || 'No disponible';
 const fechaActivacion = appData.settings['Fecha_Activacion'] 
     ? new Date(appData.settings['Fecha_Activacion']).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
     : 'No disponible';
