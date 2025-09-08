@@ -521,6 +521,10 @@ async function loadEmojiDictionary() {
         // La app seguirá funcionando, simplemente no añadirá emojis.
     }
 }
+function generateCustomId(prefix) {
+    const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+    return `${prefix}${randomPart}`;
+}
 function findEmojiForText(text) {
     if (!text || emojiDictionary.length === 0) return null;
 
@@ -715,26 +719,32 @@ async function executeDelete(type, id) {
     
     try {
         switch(type) {
-            case 'reminder':
-                payload.Type = 'delete_reminder'; payload.tracking_code = id; successMessage = 'Recordatorio eliminado';
-                const reminderIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
-                if (reminderIndex > -1) { appData.remindersList.splice(reminderIndex, 1); appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1); }
-                renderRemindersList();
-                break;
-                        case 'shopping_item':
-                // --- LÓGICA OPTIMISTA PARA ELIMINAR ---
-                const itemElem = document.getElementById(`item-${id}`);
-                if (itemElem) itemElem.remove(); // Eliminar visualmente al instante
-
-                showToast('Artículo eliminado');
-
-                // Sincronización en segundo plano
-                db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(id).delete().catch(err => {
-                    console.error("Error al eliminar artículo:", err);
-                    showToast('Error de sincronización al eliminar.', true);
-                    // El listener de Firestore corregirá la UI si la eliminación falla.
-                });
-                return; // Importante: Salimos aquí, no usamos el fetchWithTimeout de abajo.
+                case 'reminder':
+        // --- Lógica optimista para la UI ---
+        const reminderElem = document.getElementById(`item-${id}`);
+        if (reminderElem) reminderElem.remove();
+        const remIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
+        if (remIndex > -1) appData.remindersList.splice(remIndex, 1);
+        appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
+        renderDashboard();
+        showToast('Cancelando recordatorio...');
+    
+        // --- Llamada al backend para la lógica de cancelación ---
+        try {
+            const payload = { 
+                Type: 'cancel_reminder', 
+                chat_ID: chatId, 
+                tracking_code: id 
+            };
+            const res = await fetchWithTimeout(gasWebhookURL, payload);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            showToast('Recordatorio cancelado con éxito.');
+        } catch(err) {
+            showToast(`Error de cancelación: ${err.message}. Restaurando...`, true);
+            initializeApp();
+        }
+        return; // Salir para no ejecutar código antiguo.
             case 'note':
     // --- LÓGICA OPTIMISTA (se mantiene) ---
     const noteItemElement = document.getElementById(`item-${id}`);
@@ -860,73 +870,104 @@ async function saveReminder() {
   const category = document.querySelector('input[name="category"]:checked').value;
   const description = document.getElementById('text').value.trim();
   const time = document.getElementById('time')._flatpickr.selectedDates[0];
-  const horas_recurrentes = category === 'Recurrente' ? document.getElementById('recurrent-hours').value : null; // Corregido 'Recuerrente'
-  const payload = { chat_ID: chatId, Type: 'add_reminder', description, time: time.toISOString(), category, horas_recurrentes };
-  
-  // No hay actualización optimista en el cliente para recordatorios, esperamos la resincronización.
-  goBack();
-  showToast('Recordatorio creado. Guardando...');
-  
-  try { 
-    const res = await fetchWithTimeout(gasWebhookURL, payload); 
-    const data = await res.json(); 
-    if(data.error) throw new Error(data.error); 
-    showToast(data.message || 'Recordatorio creado con éxito');
+  const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
 
-    // Forzar resincronización de contadores del dashboard
-    const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
-    if (syncCheck.success) {
-        appData.counts = syncCheck.counts; // Actualizar contadores localmente
-        // Si estamos en la lista de recordatorios, forzar una recarga de esa lista
-        if (mainContentArea.querySelector('#reminders-list')) {
-            await loadSecondaryData(); // Recarga los recordatorios
-            renderRemindersList();
-        }
-    } else {
-        initializeApp(); // Recarga completa si falla la resincronización
-    }
+  if (!description || !time) {
+    showToast("La descripción y la fecha son obligatorias.", true);
+    return;
+  }
+
+  goBack();
+  showToast('Guardando recordatorio...');
+
+  try {
+    const customId = generateCustomId('G-');
+    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const localTimeStr = time.toLocaleString('es-ES', { timeZone: userTimeZone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const reminderData = {
+      descripcion: description,
+      categoria_recordatorio: category,
+      fecha_universal: time.toISOString(), // Guardar como String ISO 8601 (UTC / Zulú)
+      status: "pending_creation",
+      tracking_code: customId,
+      chat_id: chatId.toString(),
+      hora_local: localTimeStr,
+      horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null,
+      trigger_id: null
+    };
+
+    const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(customId);
+    const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+    
+    await reminderRef.set(reminderData);
+    await countsRef.update({
+        remindersCount: firebase.firestore.FieldValue.increment(1)
+    });
+
+    // Actualización optimista de la UI
+    appData.counts.remindersCount++;
+    renderDashboard();
+    showToast('Recordatorio programado.');
 
   } catch (err) { 
-    showToast(`Error: ${err.message}.`, true); 
+    showToast(`Error al guardar: ${err.message}.`, true); 
     initializeApp(); // Recarga completa en caso de error
   }
 }
 
 async function renderRemindersList() {
-    // La lista de recordatorios se sigue cargando a través de loadSecondaryData (que llama a Apps Script)
-    if (!appData.isSecondaryDataLoaded) { await loadSecondaryData(); } 
-    
     navigationHistory.push(renderDashboard);
     updateBackButton();
-    const reminders = appData.remindersList || []; 
-    let listHtml = (reminders.length > 0) ? reminders.map(item => `
-        <li class="list-item" id="item-${item.tracking_code}">
-            <div class="list-item-content">
-                <span class="list-item-title">${item.Descripcion}</span>
-                <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
-            </div>
-            <div class="list-item-actions">
-                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
-                <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                    <a class="dropdown-item" data-action="edit-reminder" data-tracking-code="${item.tracking_code}">Editar Texto</a>
-                    <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
-                </div>
-            </div>
-        </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
     
-    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list">${listHtml}</ul></div>`;
-    document.getElementById('reminders-list').addEventListener('click', (e) => {
-        const target = e.target.closest('.dropdown-item');
-        if (!target) return;
-        const action = target.dataset.action;
-        const trackingCode = target.dataset.trackingCode;
-        if (action === 'edit-reminder') {
-            const item = appData.remindersList.find(r => r.tracking_code === trackingCode);
-            if (item) editReminderDescription(item);
-        } else if (action === 'delete-reminder') {
-            confirmDelete('reminder', trackingCode);
-        }
-    });
+    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list"><div class="no-data-msg">Cargando...</div></ul></div>`;
+
+    try {
+        const q = db.collection('users').doc(chatId).collection('notificaciones')
+                    .where('status', '==', 'active')
+                    .orderBy('fecha_universal', 'asc');
+        
+        const snapshot = await q.get();
+        const reminders = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            reminders.push({
+                tracking_code: doc.id,
+                Descripcion: data.descripcion,
+                Categoria: data.categoria_recordatorio,
+                Fecha: data.hora_local // Mostramos la hora local que guarda el backend
+            });
+        });
+        appData.remindersList = reminders;
+
+        let listHtml = (reminders.length > 0) ? reminders.map(item => `
+            <li class="list-item" id="item-${item.tracking_code}">
+                <div class="list-item-content">
+                    <span class="list-item-title">${item.Descripcion}</span>
+                    <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+                </div>
+                <div class="list-item-actions">
+                    <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
+                    <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
+                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
+                    </div>
+                </div>
+            </li>`).join('') : '<div class="no-data-msg">🎉<br>No tienes recordatorios activos.</div>';
+
+        const listElement = document.getElementById('reminders-list');
+        listElement.innerHTML = listHtml;
+        listElement.addEventListener('click', (e) => {
+            const target = e.target.closest('.dropdown-item[data-action="delete-reminder"]');
+            if (target) {
+                confirmDelete('reminder', target.dataset.trackingCode);
+            }
+        });
+
+    } catch(err) {
+        console.error("Error al cargar recordatorios:", err);
+        showToast("Error al cargar la lista.", true);
+        document.getElementById('reminders-list').innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
+    }
 }
 
 async function editReminderDescription(item) {
@@ -1180,7 +1221,8 @@ async function addArticle() {
     showToast('Añadiendo artículo...');
 
     try {
-        await db.collection('users').doc(chatId).collection('listaDeLaCompra').add({
+        const customId = generateCustomId('G-'); // Generar ID personalizado
+        await db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(customId).set({
             articulo: finalDescription,
             cycle: cycle,
             estado: 'Pendiente',
@@ -1359,34 +1401,19 @@ async function saveNote() {
     const isEditing = !!noteId;
 
     // --- LÓGICA OPTIMISTA (se mantiene) ---
-    // (Actualización visual instantánea)
     if (isEditing) {
         const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
-        if (noteIndex > -1) {
-            appData.notesList[noteIndex].Titulo = title;
-            appData.notesList[noteIndex].Descripcion = description;
-        }
+        if (noteIndex > -1) { appData.notesList[noteIndex].Titulo = title; appData.notesList[noteIndex].Descripcion = description; }
     } else {
         const now = new Date();
         const tempId = 'temp-' + now.getTime();
-        const newNote = { 
-            Nota_ID: tempId, 
-            Titulo: title, 
-            Descripcion: description, 
-            Fecha: now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-            FechaRaw: now.toISOString()
-        };
-        appData.notesList.unshift(newNote);
+        appData.notesList.unshift({ Nota_ID: tempId, Titulo: title, Descripcion: description, Fecha: now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }), FechaRaw: now.toISOString() });
         appData.counts.notesCount++;
     }
-
-    // --- RE-RENDERIZADO OPTIMISTA (se mantiene) ---
-    goBack(); // Volvemos a la lista, que se redibuja desde la memoria local.
+    goBack();
     drawNotesList();
-    
     const notesBadge = document.getElementById('notes-badge');
     if(notesBadge) notesBadge.textContent = appData.counts.notesCount;
-
     showToast(isEditing ? 'Nota guardada' : 'Nota creada');
     
     // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
@@ -1395,22 +1422,19 @@ async function saveNote() {
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
         if (isEditing) {
-            // Si estamos editando, solo actualizamos el documento de la nota.
             await notesRef.doc(noteId).update({
-                titulo: title,
-                descripcion: description,
-                fecha: firebase.firestore.FieldValue.serverTimestamp() // Actualiza la fecha de modificación
-            });
-            console.log("Nota editada en Firestore con éxito.");
-        } else {
-            // Si estamos creando, añadimos la nota y actualizamos el contador.
-            await notesRef.add({
                 titulo: title,
                 descripcion: description,
                 fecha: firebase.firestore.FieldValue.serverTimestamp()
             });
-            
-            // Actualizamos el contador de forma segura (incremental).
+            console.log("Nota editada en Firestore con éxito.");
+        } else {
+            const customId = generateCustomId('G-'); // Generar ID personalizado
+            await notesRef.doc(customId).set({
+                titulo: title,
+                descripcion: description,
+                fecha: firebase.firestore.FieldValue.serverTimestamp()
+            });
             await countsRef.update({
                 notesCount: firebase.firestore.FieldValue.increment(1)
             });
@@ -1419,7 +1443,6 @@ async function saveNote() {
     } catch (error) {
         console.error("Error sincronizando nota con Firestore:", error);
         showToast("Error de sincronización. Recargando...", true);
-        // En caso de error, una recarga completa asegura la consistencia.
         setTimeout(() => initializeApp(), 1500);
     }
 }
@@ -1866,59 +1889,41 @@ async function saveGasto() {
         showSpinner("Registrando gasto...");
         const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
         const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
-		// --- PUNTO DE DEPURACIÓN 3: VERIFICAR DATOS ANTES DE GUARDAR ---
-		console.log(`3. INTENTANDO GUARDAR GASTO. Importe leído del form: ${importe}, Contador actual: ${appData.counts.gastosMesActual}`);
-		// --- FIN DEPURACIÓN ---
         const establecimiento = document.getElementById('gasto-establecimiento').value;
         const categoria = document.getElementById('gasto-categoria').value;
         const subCategoria = document.getElementById('gasto-subcategoria').value;
-        const mes = (fechaGastoObj.getMonth() + 1).toString().padStart(2, '0');
-        const anio = fechaGastoObj.getFullYear();
-        const mesAnio = `${mes}/${anio}`;
+        const mesAnio = `${(fechaGastoObj.getMonth() + 1).toString().padStart(2, '0')}/${fechaGastoObj.getFullYear()}`;
 
         const gastoData = {
-            importe: importe,
-            establecimiento: establecimiento,
-            categoria: categoria,
-            subCategoria: subCategoria,
-            fecha: fechaGastoObj, // Guardar como Timestamp
+            importe, establecimiento, categoria, subCategoria,
+            fecha: fechaGastoObj,
             mesAnio: mesAnio
         };
 
-        // --- LÓGICA DE ACTUALIZACIÓN DE CONTADORES ---
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-        
-        // Usamos una transacción para asegurar que la actualización sea atómica y segura
+        const newGastoRef = db.collection('users').doc(chatId).collection('gastos').doc(generateCustomId('G-')); // Generar Ref con ID
+
         await db.runTransaction(async (transaction) => {
             const countsDoc = await transaction.get(countsRef);
-            if (!countsDoc.exists) {
-                throw "Documento de contadores no encontrado.";
-            }
-
+            if (!countsDoc.exists) throw "Documento de contadores no encontrado.";
+            
             const currentCounts = countsDoc.data();
             const nuevoTotalGastos = (currentCounts.gastosMesActual || 0) + importe;
             const mesesActivos = currentCounts.mesesActivosGastos || [];
-            if (!mesesActivos.includes(mesAnio)) {
-                mesesActivos.push(mesAnio);
-            }
+            if (!mesesActivos.includes(mesAnio)) mesesActivos.push(mesAnio);
 
+            transaction.set(newGastoRef, gastoData); // Crear el documento del gasto
             transaction.update(countsRef, {
                 gastosMesActual: nuevoTotalGastos,
                 mesesActivosGastos: mesesActivos
             });
         });
-        
-        // Guardar el documento del gasto
-        await db.collection('users').doc(chatId).collection('gastos').add(gastoData);
 
-        // Actualizar la UI localmente para una respuesta instantánea
         appData.counts.gastosMesActual = (appData.counts.gastosMesActual || 0) + importe;
-        if (!appData.counts.mesesActivosGastos.includes(mesAnio)) {
-            appData.counts.mesesActivosGastos.push(mesAnio);
-        }
+        if (!appData.counts.mesesActivosGastos.includes(mesAnio)) appData.counts.mesesActivosGastos.push(mesAnio);
 
         goBack();
-        renderDashboard(); // Re-renderizar para mostrar el nuevo total
+        renderDashboard();
         showToast('Gasto registrado con éxito.');
 
     } catch (err) {
