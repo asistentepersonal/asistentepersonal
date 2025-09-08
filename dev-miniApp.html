@@ -2253,35 +2253,61 @@ function renderEditGastoForm(gasto) {
     document.getElementById('delete-gasto-btn').onclick = () => confirmDelete('gasto', gasto.ID_Unico);
 }
 
+/**
+ * Guarda un gasto editado, actualiza el documento existente y recalcula los contadores.
+ * VERSIÓN CORREGIDA Y COMPLETA.
+ */
 async function saveEditedGasto(idUnico) {
-    const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
-    const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
-    const nuevaCategoria = document.getElementById('gasto-categoria').value;
-    const nuevaSubcategoria = document.getElementById('gasto-subcategoria').value;
-    const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
-
-    showToast('Gasto actualizado. Guardando...');
-    
+    showSpinner("Guardando cambios...");
     try {
-        // CORREGIDO: Se usan los nombres de campo en minúscula
-        const payload = { 
+        const gastoOriginal = gastosEncontrados.find(g => g.ID_Unico === idUnico);
+        if (!gastoOriginal) {
+            throw new Error("No se encontró el gasto original para calcular la diferencia.");
+        }
+
+        const importeAntiguo = parseFloat(gastoOriginal.importe);
+        const nuevoImporte = parseFloat(document.getElementById('gasto-importe').value);
+        const diferencia = nuevoImporte - importeAntiguo;
+
+        const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
+        const nuevaCategoria = document.getElementById('gasto-categoria').value;
+        const nuevaSubcategoria = document.getElementById('gasto-subcategoria').value;
+        const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+        const mesAnio = `${(fechaGastoObj.getMonth() + 1).toString().padStart(2, '0')}/${fechaGastoObj.getFullYear()}`;
+
+        const gastoActualizado = { 
             importe: nuevoImporte, 
             establecimiento: nuevoEstablecimiento, 
             categoria: nuevaCategoria, 
             subCategoria: nuevaSubcategoria, 
-            fecha: fechaGastoObj 
+            fecha: fechaGastoObj,
+            mesAnio: mesAnio
         };
-        await db.collection('users').doc(chatId).collection('gastos').doc(idUnico).update(payload);
 
-        goBack(); 
-        showToast("Gasto actualizado.");
-        // Aquí faltaría la lógica para recalcular los contadores, pero es más compleja.
-        // Se deja para una fase posterior o se asume que la edición no afecta los totales mensuales.
-        initializeApp(); // Forzar recarga para asegurar consistencia total.
+        const gastoRef = db.collection('users').doc(chatId).collection('gastos').doc(idUnico);
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+        // Usar un batch para actualizar el gasto y el contador en una sola operación atómica.
+        const batch = db.batch();
+        batch.update(gastoRef, gastoActualizado);
+        batch.update(countsRef, {
+            gastosMesActual: firebase.firestore.FieldValue.increment(diferencia)
+        });
+        await batch.commit();
+        
+        // Actualizar la UI localmente para una respuesta instantánea
+        appData.counts.gastosMesActual += diferencia;
+        
+        goBack(); // Vuelve a la lista de búsqueda
+        goBack(); // Vuelve al dashboard
+        renderDashboard(); // Re-renderiza el dashboard para mostrar el nuevo total
+        showToast("Gasto actualizado con éxito.");
 
     } catch (err) {
-        showToast(`Error de sincronización: ${err.message}.`, true);
-        initializeApp(); 
+        showToast(`Error al guardar: ${err.message}.`, true);
+        initializeApp(); // Recarga completa en caso de error grave.
+    } finally {
+        hideSpinner();
     }
 }
 
