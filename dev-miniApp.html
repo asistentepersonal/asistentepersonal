@@ -457,6 +457,8 @@ const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcv
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
 let selectedImageFile = null;
 let chatId = tg?.initDataUnsafe?.user?.id?.toString();
+let emojiDictionary = [];
+const EMOJI_DB_URL = 'emoji-articulos-v1.json'; // Actualiza aquí a 'v2' en el futuro
 // MODIFICACIÓN: Si no hay chat_ID, el prompt es solo para desarrollo local
 if (!chatId) { 
     if (window.location.href.includes("github.io") || window.location.href.includes("file://")) {
@@ -495,6 +497,44 @@ const spinner = document.getElementById('spinner');
 function showSpinner(message = '') { 
     spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : ''; 
     spinner.style.display = 'block'; 
+}
+async function loadEmojiDictionary() {
+    const cacheKey = `emojiCache-${EMOJI_DB_URL}`;
+    try {
+        const cachedData = localStorage.getItem(cacheKey);
+        if (cachedData) {
+            console.log("Cargando diccionario de emojis desde el caché local.");
+            emojiDictionary = JSON.parse(cachedData);
+            return;
+        }
+
+        console.log("Descargando diccionario de emojis por primera vez...");
+        const response = await fetch(EMOJI_DB_URL);
+        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+        
+        const data = await response.json();
+        emojiDictionary = data;
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+
+    } catch (error) {
+        console.error("No se pudo cargar el diccionario de emojis:", error);
+        // La app seguirá funcionando, simplemente no añadirá emojis.
+    }
+}
+function findEmojiForText(text) {
+    if (!text || emojiDictionary.length === 0) return null;
+
+    // Normalizar texto: minúsculas, sin tildes, y singularizar (aproximación simple)
+    const normalizedText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const singularText = normalizedText.endsWith('es') ? normalizedText.slice(0, -2) : (normalizedText.endsWith('s') ? normalizedText.slice(0, -1) : normalizedText);
+
+    for (const item of emojiDictionary) {
+        // Comprobar si el texto singularizado está incluido en la etiqueta o en alguna de las palabras clave
+        if (item.label.includes(singularText) || (item.tags && item.tags.some(tag => tag.includes(singularText)))) {
+            return item.emoji;
+        }
+    }
+    return null;
 }
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { 
@@ -696,37 +736,46 @@ async function executeDelete(type, id) {
                 });
                 return; // Importante: Salimos aquí, no usamos el fetchWithTimeout de abajo.
             case 'note':
-                payload.Type = 'delete_note'; 
-                payload.note_id = id; 
-                successMessage = 'Nota eliminada';
-                
-                // --- LÓGICA OPTIMISTA PARA ELIMINAR ---
-                // 1. Eliminamos el elemento visual de la pantalla AL INSTANTE
-                const itemElement = document.getElementById(`item-${id}`);
-                if (itemElement) itemElement.remove();
+    // --- LÓGICA OPTIMISTA (se mantiene) ---
+    const noteItemElement = document.getElementById(`item-${id}`);
+    if (noteItemElement) noteItemElement.remove();
+    
+    const noteIndexToDelete = appData.notesList.findIndex(n => n.Nota_ID === id);
+    if (noteIndexToDelete > -1) {
+        appData.notesList.splice(noteIndexToDelete, 1);
+        appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
+    }
+    
+    const notesListBadge = document.getElementById('notes-badge');
+    if(notesListBadge) notesListBadge.textContent = appData.counts.notesCount;
 
-                // 2. Actualizamos los datos locales en memoria
-                const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === id);
-                if (noteIndex > -1) {
-                    appData.notesList.splice(noteIndex, 1);
-                    appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
-                }
-                
-                // 3. Actualizamos el badge del dashboard si está visible
-                const notesBadge = document.getElementById('notes-badge');
-                if(notesBadge) notesBadge.textContent = appData.counts.notesCount;
+    if (appData.notesList.length === 0) {
+        const notesListUlContainer = document.getElementById('notes-list');
+        if (notesListUlContainer) notesListUlContainer.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+    }
 
-                // 4. Si la lista queda vacía, mostramos el mensaje
-                 if (appData.notesList.length === 0) {
-                    const notesListUl = document.getElementById('notes-list');
-                    if (notesListUl) notesListUl.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-                }
+    showToast('Nota eliminada');
+    
+    // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
+    try {
+        const noteDocRef = db.collection('users').doc(chatId).collection('notas').doc(id);
+        const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-                // 5. Mostramos el toast de éxito inmediatamente
-                showToast(successMessage);
-                
-                // La sincronización en segundo plano se ejecutará después de este break
-                break;
+        // Ejecutamos ambas operaciones en un batch para asegurar consistencia
+        const batch = db.batch();
+        batch.delete(noteDocRef);
+        batch.update(countsDocRef, {
+            notesCount: firebase.firestore.FieldValue.increment(-1)
+        });
+        await batch.commit();
+        console.log("Nota eliminada y contador actualizado en Firestore.");
+
+    } catch(err) {
+        console.error("Error al eliminar nota en Firestore:", err);
+        showToast('Error de sincronización al eliminar. Recargando...', true);
+        setTimeout(() => initializeApp(), 1500);
+    }
+    return; // Salimos para no ejecutar el fetch antiguo
             case 'calendar_event':
                 payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado';
                 const eventIndex = appData.calendarEvents.findIndex(e => e.id === id);
@@ -1124,18 +1173,19 @@ async function addArticle() {
     const cycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
     if (!description) return;
 
-    // Lógica optimista: volvemos a la lista inmediatamente
+    const emoji = findEmojiForText(description);
+    const finalDescription = emoji ? `${emoji} ${description}` : description;
+
     goBack();
     showToast('Añadiendo artículo...');
 
     try {
         await db.collection('users').doc(chatId).collection('listaDeLaCompra').add({
-            articulo: description,
+            articulo: finalDescription,
             cycle: cycle,
             estado: 'Pendiente',
             fecha: firebase.firestore.FieldValue.serverTimestamp()
         });
-        // El listener se encargará de actualizar la UI.
     } catch (err) { 
         console.error("Error al añadir artículo:", err);
         showToast(`Error: ${err.message}.`, true);
@@ -1161,16 +1211,18 @@ async function saveEditedShoppingItem(itemId) {
     const newDescription = document.getElementById('article-description').value.trim();
     const newCycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
     if (!newDescription) return;
+
+    const emoji = findEmojiForText(newDescription);
+    const finalDescription = emoji ? `${emoji} ${newDescription}` : newDescription;
     
     goBack();
     showToast('Guardando cambios...');
 
     try {
         await db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(itemId).update({
-            articulo: newDescription,
+            articulo: finalDescription,
             cycle: newCycle
         });
-        // El listener actualizará la UI.
     } catch (err) {
         console.error("Error al editar:", err);
         showToast(`Error: ${err.message}.`, true);
@@ -1305,9 +1357,9 @@ async function saveNote() {
     const description = document.getElementById('note-description').value.trim();
     const noteId = saveBtn.dataset.noteId;
     const isEditing = !!noteId;
-    const tempId = 'temp-' + Date.now();
 
-    // --- LÓGICA OPTIMISTA ---
+    // --- LÓGICA OPTIMISTA (se mantiene) ---
+    // (Actualización visual instantánea)
     if (isEditing) {
         const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
         if (noteIndex > -1) {
@@ -1316,6 +1368,7 @@ async function saveNote() {
         }
     } else {
         const now = new Date();
+        const tempId = 'temp-' + now.getTime();
         const newNote = { 
             Nota_ID: tempId, 
             Titulo: title, 
@@ -1323,63 +1376,51 @@ async function saveNote() {
             Fecha: now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
             FechaRaw: now.toISOString()
         };
-        appData.notesList.unshift(newNote); // Añadir al principio de la lista en memoria
+        appData.notesList.unshift(newNote);
         appData.counts.notesCount++;
     }
 
-    // --- RE-RENDERIZADO MANUAL OPTIMISTA (LA CLAVE DE LA SOLUCIÓN) ---
-    // En lugar de goBack(), reconstruimos la vista para evitar la recarga de Firestore
-    navigationHistory.pop(); // Quitamos el formulario del historial
-    mainContentArea.innerHTML = `<div class="list-container">
-                                <div class="list-header"><h2>Mis Notas</h2></div>
-                                <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
-                                <ul class="list-style-none" id="notes-list"></ul>
-                             </div>`;
-    drawNotesList(); // Dibujamos la lista actualizada desde la memoria
+    // --- RE-RENDERIZADO OPTIMISTA (se mantiene) ---
+    goBack(); // Volvemos a la lista, que se redibuja desde la memoria local.
+    drawNotesList();
     
-    // Re-asignamos los listeners después de redibujar la vista
-    document.getElementById('create-new-note-btn').onclick = () => renderNoteForm();
-    document.getElementById('notes-list').addEventListener('click', e => {
-        const target = e.target.closest('.dropdown-item');
-        if (!target) return;
-        const action = target.dataset.action;
-        const noteId = target.dataset.noteId;
-        if (action === 'edit-note') {
-            const note = appData.notesList.find(n => n.Nota_ID === noteId);
-            if (note) renderNoteForm(note);
-        } else if (action === 'delete-note') {
-            confirmDelete('note', noteId);
-        }
-    });
-    // Actualizamos el badge del dashboard si existe
     const notesBadge = document.getElementById('notes-badge');
     if(notesBadge) notesBadge.textContent = appData.counts.notesCount;
 
     showToast(isEditing ? 'Nota guardada' : 'Nota creada');
     
-    // --- SINCRONIZACIÓN EN SEGUNDO PLANO ---
+    // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
     try {
-        const payload = {
-            chat_ID: chatId,
-            Type: isEditing ? 'edit_note' : 'add_note',
-            note_id: isEditing ? noteId : null,
-            title: title,
-            description: description
-        };
-        const res = await fetchWithTimeout(gasWebhookURL, payload).then(r => r.json());
-        if (res.error) throw new Error(res.error);
-        
-        console.log("Nota sincronizada con éxito.");
-        if (!isEditing && res.newNoteId) {
-            const tempNote = appData.notesList.find(n => n.Nota_ID === tempId);
-            if (tempNote) tempNote.Nota_ID = res.newNoteId;
-            // Sincronizamos el contador con el valor real del servidor
-            appData.counts.notesCount = res.notesCount;
+        const notesRef = db.collection('users').doc(chatId).collection('notas');
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+        if (isEditing) {
+            // Si estamos editando, solo actualizamos el documento de la nota.
+            await notesRef.doc(noteId).update({
+                titulo: title,
+                descripcion: description,
+                fecha: firebase.firestore.FieldValue.serverTimestamp() // Actualiza la fecha de modificación
+            });
+            console.log("Nota editada en Firestore con éxito.");
+        } else {
+            // Si estamos creando, añadimos la nota y actualizamos el contador.
+            await notesRef.add({
+                titulo: title,
+                descripcion: description,
+                fecha: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            // Actualizamos el contador de forma segura (incremental).
+            await countsRef.update({
+                notesCount: firebase.firestore.FieldValue.increment(1)
+            });
+            console.log("Nota creada y contador actualizado en Firestore.");
         }
     } catch (error) {
-        console.error("Error sincronizando nota:", error);
-        showToast("Error de sincronización.", true);
-        // La próxima vez que el usuario entre a la sección, los datos se corregirán solos.
+        console.error("Error sincronizando nota con Firestore:", error);
+        showToast("Error de sincronización. Recargando...", true);
+        // En caso de error, una recarga completa asegura la consistencia.
+        setTimeout(() => initializeApp(), 1500);
     }
 }
 
@@ -2909,6 +2950,7 @@ document.getElementById('tab-chef').onclick = () => {
         renderChefPage();
     }
 };
+loadEmojiDictionary(); // Carga el diccionario de emojis
 initializeApp();
 });
 </script>
