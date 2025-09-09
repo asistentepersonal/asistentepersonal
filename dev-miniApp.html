@@ -967,27 +967,42 @@ async function saveReminder() {
   }
 }
 
+// Variable global para poder desconectar el listener si el usuario sale de la vista
+let unsubscribeRemindersList = null;
+
 async function renderRemindersList() {
-    navigationHistory.push(renderDashboard);
+    navigationHistory.push(() => {
+        // Al volver atrás, nos aseguramos de que el listener se desconecte
+        if (typeof unsubscribeRemindersList === 'function') {
+            unsubscribeRemindersList();
+            unsubscribeRemindersList = null;
+        }
+        renderDashboard();
+    });
     updateBackButton();
     
     mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list"><div class="no-data-msg">Cargando...</div></ul></div>`;
     const listElement = document.getElementById('reminders-list');
 
-    try {
-        const q = db.collection('users').doc(chatId).collection('notificaciones')
-                    .where('status', '==', 'active')
-                    .orderBy('fecha_universal', 'asc');
-        
-        const snapshot = await q.get();
-        
-        // --- LÓGICA MEJORADA ---
+    // Desconectar cualquier listener anterior para evitar duplicados
+    if (typeof unsubscribeRemindersList === 'function') {
+        unsubscribeRemindersList();
+    }
+
+    const q = db.collection('users').doc(chatId).collection('notificaciones')
+                .orderBy('fecha_universal', 'asc');
+    
+    // --- INICIO DE LA LÓGICA EN TIEMPO REAL ---
+    unsubscribeRemindersList = q.onSnapshot(snapshot => {
         if (snapshot.empty) {
-            listElement.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios activos.</div>';
+            listElement.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
             appData.remindersList = [];
+            appData.counts.remindersCount = 0;
+            if (document.getElementById('reminders-badge')) {
+                document.getElementById('reminders-badge').textContent = 0;
+            }
             return;
         }
-        // --- FIN LÓGICA MEJORADA ---
 
         const reminders = [];
         snapshot.forEach(doc => {
@@ -996,37 +1011,51 @@ async function renderRemindersList() {
                 tracking_code: doc.id,
                 Descripcion: data.descripcion,
                 Categoria: data.categoria_recordatorio,
-                Fecha: data.hora_local
+                Fecha: data.hora_local,
+                Status: data.status // Guardamos el estado para la UI
             });
         });
+        
         appData.remindersList = reminders;
+        // Actualizamos el contador global y el badge
+        appData.counts.remindersCount = reminders.length;
+        if (document.getElementById('reminders-badge')) {
+            document.getElementById('reminders-badge').textContent = reminders.length;
+        }
 
         const listHtml = reminders.map(item => `
             <li class="list-item" id="item-${item.tracking_code}">
                 <div class="list-item-content">
-                    <span class="list-item-title">${item.Descripcion}</span>
+                    <span class="list-item-title">
+                        ${item.Status === 'pending_creation' ? '⌛ ' : ''}${item.Descripcion}
+                    </span>
                     <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
                 </div>
                 <div class="list-item-actions">
                     <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
                     <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
+                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Cancelar</a>
                     </div>
                 </div>
             </li>`).join('');
 
         listElement.innerHTML = listHtml;
-        listElement.addEventListener('click', (e) => {
-            const target = e.target.closest('.dropdown-item[data-action="delete-reminder"]');
-            if (target) {
-                confirmDelete('reminder', target.dataset.trackingCode);
-            }
-        });
+        listElement.removeEventListener('click', handleReminderListClick); // Prevenir duplicados
+        listElement.addEventListener('click', handleReminderListClick);
 
-    } catch(err) {
-        console.error("Error al cargar recordatorios:", err);
-        showToast("Error al cargar la lista.", true);
+    }, error => {
+        console.error("Error en el listener de recordatorios:", error);
+        showToast("Error de conexión con la lista.", true);
         listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
+    });
+    // --- FIN DE LA LÓGICA EN TIEMPO REAL ---
+}
+
+// Nueva función de ayuda para manejar los clics en la lista
+function handleReminderListClick(e) {
+    const target = e.target.closest('.dropdown-item[data-action="delete-reminder"]');
+    if (target) {
+        confirmDelete('reminder', target.dataset.trackingCode);
     }
 }
 
