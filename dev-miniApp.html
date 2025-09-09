@@ -22,7 +22,7 @@
     :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px;}
-    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:20px;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:16px;padding:20px;}
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
     .card.clickable-card { cursor: pointer; }
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
@@ -2947,6 +2947,49 @@ async function executeExport() {
 }
 
 // ==================================================
+// --- MÓDULO: GUÍA TV ---
+// ==================================================
+
+/**
+ * Renderiza la vista principal de la Guía TV.
+ */
+async function renderGuiaTV() {
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    
+    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Guía TV</h2></div><div id="guia-tv-content"></div></div>`;
+    const contentElement = document.getElementById('guia-tv-content');
+    
+    showSpinner("Cargando programación...");
+
+    try {
+        const payload = { Type: 'get_guia_tv', chat_ID: chatId };
+        const response = await fetchWithTimeout(gasWebhookURL, payload);
+        const result = await response.json();
+
+        if (result.error) {
+            throw new Error(result.error);
+        }
+
+        const programacion = result.data;
+        
+        // --- PRUEBA INICIAL: MOSTRAR DATOS EN CONSOLA ---
+        console.log("Canales recibidos:", programacion.canales);
+        console.log("Programas recibidos:", programacion.programas);
+        
+        // (Aquí construiremos la interfaz visual en el siguiente paso)
+        contentElement.innerHTML = `<div class="no-data-msg">✅<br>Programación cargada.<br><small>Revisa la consola para ver los datos.</small></div>`;
+
+    } catch (err) {
+        console.error("Error al cargar la Guía TV:", err);
+        showToast(`Error: ${err.message}`, true);
+        contentElement.innerHTML = `<div class="no-data-msg">❌<br>No se pudo cargar la guía.<br><small>${err.message}</small></div>`;
+    } finally {
+        hideSpinner();
+    }
+}
+
+// ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
 function renderDashboard() {
@@ -2961,7 +3004,8 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       <div class="card disabled-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>
-<div class="card clickable-card"><div class="card-badge card-badge-pill red" style="left:12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>      <div class="card disabled-card" onclick="() => showToast('Función en desarrollo.')"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>
+	  <div class="card clickable-card"><div class="card-badge card-badge-pill red" style="left:12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>      <div class="card disabled-card" onclick="() => showToast('Función en desarrollo.')"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>
+	  <div id="guia-tv-card" class="card clickable-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
     </div>`;
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
   document.getElementById('list-reminders-link').onclick = renderRemindersList;
