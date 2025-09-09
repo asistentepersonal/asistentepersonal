@@ -3015,6 +3015,7 @@ function renderDashboard() {
   document.getElementById('list-notes-link').onclick = renderNotesList;
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
+  document.getElementById('guia-tv-card').onclick = renderGuiaTV;
   document.getElementById('list-gastos-link').onclick = () => {
       navigationHistory.push(renderDashboard);
       updateBackButton();
