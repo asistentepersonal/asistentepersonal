@@ -287,68 +287,60 @@ async function initializeApp() {
     isInitializing = true;
     console.log("Iniciando app desde Firestore...");
     
-    // El Splash Screen ya está visible por defecto, no necesitamos mostrarlo.
-    // showSpinner() ya no es necesario aquí.
-
     try {
-        // --- Paso 1: Inicializar Firebase ---
-        // Esto es síncrono y muy rápido.
         if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
             window.db = firebase.firestore();
-            console.log("Firebase inicializado correctamente.");
-        } else {
-            console.log("Firebase ya estaba inicializado.");
         }
         
-        // --- Paso 2: Lanzar todas las lecturas a Firestore en paralelo ---
         const versionPromise = db.collection('app_config').doc('version_info').get();
         const userSettingsPromise = db.collection('users').doc(chatId).get();
         const userCountsPromise = db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
         
         const [versionDoc, userSettingsDoc, userCountsDoc] = await Promise.all([
-            versionPromise,
-            userSettingsPromise,
-            userCountsPromise
+            versionPromise, userSettingsPromise, userCountsPromise
         ]);
 
-		// --- PUNTO DE DEPURACIÓN 1: VERIFICAR CARGA INICIAL ---
-		console.log("1. DATOS INICIALES DESDE FIRESTORE:", JSON.parse(JSON.stringify(userCountsDoc.data())));
-		// --- FIN DEPURACIÓN ---
-
-        // --- Paso 3: Comprobar la versión de la app ---
         const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
         if (serverVersion !== HTML_VERSION) {
-            console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Cliente: ${HTML_VERSION}. Recargando...`);
             showToast("Actualizando aplicación...", false);
-            // Damos un pequeño margen para que el toast sea visible antes de recargar.
             setTimeout(() => window.location.reload(true), 1500);
-            return; // Detenemos la ejecución para esperar la recarga.
-        }
-
-        // --- Paso 4: Validar y poblar los datos del usuario ---
-        if (!userSettingsDoc.exists) {
-            // Este es un caso crítico: el usuario no existe en la BD.
-            mainContentArea.innerHTML = `<div class="no-data-msg">🚫<br>Usuario no encontrado.<br><small>No se pudo cargar tu perfil. Contacta con soporte.</small></div>`;
-            document.querySelector('.tabs').style.display = 'none';
-            hideSplashScreen(); // Ocultamos el splash para mostrar el error.
             return;
         }
 
-        // Poblamos appData con los datos leídos.
-        appData.settings = userSettingsDoc.data() || {}; // Carga todo el documento del usuario en los ajustes.
-        appData.isPremium = userSettingsDoc.data().plan_basic === false;
+        if (!userSettingsDoc.exists) {
+            failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
+            return;
+        }
+
+        appData.settings = userSettingsDoc.data() || {};
+        appData.isPremium = appData.settings.plan_premium === true;
         
         if (userCountsDoc.exists) {
             appData.counts = userCountsDoc.data();
-        } else {
-            // Si no hay documento de contadores, los dejamos en 0 por defecto.
-            console.warn("No se encontró documento de contadores para el usuario. Se usarán valores por defecto.");
         }
         
-        appData.isSecondaryDataLoaded = false; // Aún no hemos cargado listas detalladas.
+        // --- INICIO DE LA NUEVA LÓGICA: LISTENER GLOBAL DE CONTADORES ---
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        countsRef.onSnapshot((doc) => {
+            if (doc.exists) {
+                console.log("Contadores sincronizados en tiempo real.");
+                const serverCounts = doc.data();
+                // Comprobar si realmente hay cambios para evitar re-renderizados innecesarios
+                if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
+                    appData.counts = serverCounts;
+                    // Si el usuario está en el dashboard, se actualiza la vista.
+                    if (document.querySelector('.grid')) {
+                        renderDashboard();
+                        showToast("Datos sincronizados.", false);
+                    }
+                }
+            }
+        }, (error) => {
+            console.error("Error en el listener de contadores: ", error);
+        });
+        // --- FIN DE LA NUEVA LÓGICA ---
 
-        // --- Paso 5: Renderizar la interfaz y ocultar el splash screen ---
         updateChefTabStyle();
         renderDashboard();
 		isAppReady = true;
@@ -357,11 +349,10 @@ async function initializeApp() {
     } catch (err) {
         console.error("Error crítico en initializeApp:", err);
         showToast(`Error de inicialización: ${err.message}`, true);
-        mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>No se pudo conectar con el servidor. Inténtalo de nuevo más tarde.</small></div>`;
-        hideSplashScreen(); // Ocultar splash para mostrar el error.
+        mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
+        hideSplashScreen();
     } finally {
         isInitializing = false;
-        console.log("Inicialización de Firestore finalizada.");
     }
 }
 
@@ -2835,24 +2826,15 @@ function renderSettings() {
     document.getElementById('settings-sync-btn').onclick = syncCounts;
 }
 
+/**
+ * Valida los cambios en el formulario de ajustes.
+ * VERSIÓN SIMPLIFICADA: Simplemente habilita el botón de guardar si hay algún cambio.
+ */
 function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
-    let hasChanged = false;
-    if (document.getElementById('settings-nombre').value !== (initialUserSettings['Nombre'] || '')) hasChanged = true;
-    if (document.getElementById('settings-ciudad').value !== (initialUserSettings['Ciudad'] || '')) hasChanged = true;
-    if (document.getElementById('settings-pais').value !== (initialUserSettings['Pais'] || '')) hasChanged = true;
-    if (document.getElementById('settings-theme').value !== (initialUserSettings['Tema'] || 'auto')) hasChanged = true;
-    if (document.getElementById('settings-informe-manana-activo').checked !== (initialUserSettings['Informe_Mañana_Activo'] === 'SI')) hasChanged = true;
-    if (document.getElementById('settings-franja-manana').value != (initialUserSettings['Franja_Informe_Mañana'] || '2')) hasChanged = true; 
-    if (document.getElementById('settings-informe-tarde-activo').checked !== (initialUserSettings['Informe_Tarde_Activo'] === 'SI')) hasChanged = true;
-    if (document.getElementById('settings-franja-tarde').value != (initialUserSettings['Franja_Informe_Tarde'] || '20')) hasChanged = true; 
-    if (document.getElementById('settings-alerta-inventario').checked !== (initialUserSettings['Alerta_Inventario'] === 'SI')) hasChanged = true;
-    if (document.getElementById('settings-informe-mensual-activo').checked !== (initialUserSettings['Informe_Mensual_Activo'] === 'SI')) hasChanged = true;
-    if (document.getElementById('settings-dia-informe-mensual').value != (initialUserSettings['Dia_Informe_Mensual'] || '1')) hasChanged = true; 
-    if (document.getElementById('settings-hora-informe-mensual').value != (initialUserSettings['Hora_Informe_Mensual'] || '12')) hasChanged = true; 
-    
-    saveBtn.disabled = !hasChanged;
-    saveBtn.classList.toggle('enabled', hasChanged);
+    // La forma más simple: si se dispara el evento, es que hubo un cambio. Habilitamos el botón.
+    saveBtn.disabled = false;
+    saveBtn.classList.add('enabled');
 }
 
 // --- FUNCIÓN DE GUARDADO MODIFICADA (NO OPTIMISTA) ---
