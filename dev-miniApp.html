@@ -2952,6 +2952,7 @@ async function executeExport() {
 
 /**
  * Renderiza la vista principal de la Guía TV.
+ * VERSIÓN CORREGIDA: Usa el método FormData probado para evitar errores CORS.
  */
 async function renderGuiaTV() {
     navigationHistory.push(renderDashboard);
@@ -2964,7 +2965,22 @@ async function renderGuiaTV() {
 
     try {
         const payload = { Type: 'get_guia_tv', chat_ID: chatId };
-        const response = await fetchWithTimeout(gasWebhookURL, payload, false); // El 'false' activa el envío como FormData
+        
+        // --- INICIO DE LA CORRECCIÓN CLAVE ---
+        // Se utiliza el método FormData que ya sabemos que funciona con Apps Script.
+        const formData = new FormData();
+        formData.append("postData", JSON.stringify(payload));
+        
+        const response = await fetch(gasWebhookURL, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error del servidor: ${response.status}`);
+        }
+        // --- FIN DE LA CORRECCIÓN CLAVE ---
+
         const result = await response.json();
 
         if (result.error) {
@@ -2973,11 +2989,9 @@ async function renderGuiaTV() {
 
         const programacion = result.data;
         
-        // --- PRUEBA INICIAL: MOSTRAR DATOS EN CONSOLA ---
         console.log("Canales recibidos:", programacion.canales);
         console.log("Programas recibidos:", programacion.programas);
         
-        // (Aquí construiremos la interfaz visual en el siguiente paso)
         contentElement.innerHTML = `<div class="no-data-msg">✅<br>Programación cargada.<br><small>Revisa la consola para ver los datos.</small></div>`;
 
     } catch (err) {
