@@ -2720,8 +2720,8 @@ function renderSettings() {
                 <div class="settings-item">
                     <span class="settings-item-label">Hora del Informe</span>
                     <select id="settings-franja-manana">
-                        <option value="1">A primera hora (6:00)</option><option value="2">Habitual (7:00)</option>
-                        <option value="3">Media mañana (8:00)</option><option value="4">Tarde (9:00)</option>
+                        <option value="1">Franja horaria 6 a 7 de la mañana)</option><option value="2">Franja horaria 7 a 8 de la mañana</option>
+                        <option value="3">Franja horaria 8 a 9 de la mañana</option><option value="4">Franja horaria 9 a 10 de la mañana</option>
                     </select>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
@@ -2772,22 +2772,14 @@ function renderSettings() {
 
     document.getElementById('settings-theme').value = config.tema || 'auto';
     document.getElementById('settings-email').value = settings.email || 'No disponible';
-    
-    // Corregido: Busca 'fecha_activacion' y verifica que sea un string válido antes de crear la fecha
-    const fechaActivacionStr = (settings.fecha_activacion && typeof settings.fecha_activacion === 'string')
-        ? new Date(settings.fecha_activacion).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
-        : 'No disponible';
-    document.getElementById('settings-fecha-activacion').value = fechaActivacionStr;
-    
+    document.getElementById('settings-fecha-activacion').value = settings.fechaActivacion || 'No disponible';
     document.getElementById('settings-zona-horaria').value = ubicacion.timeZone || 'No disponible'; // <-- Corregido
     document.getElementById('settings-moneda').value = settings.moneda || 'No disponible';
-
     document.getElementById('settings-informe-manana-activo').checked = informeManana.activo === true;
     document.getElementById('settings-franja-manana').value = informeManana.franjaHoraria || '2';
     document.getElementById('settings-informe-tarde-activo').checked = informeTarde.activo === true;
     document.getElementById('settings-franja-tarde').value = informeTarde.franjaHoraria || '20';
     document.getElementById('settings-alerta-inventario').checked = config.alertaInventario === true;
-
     document.getElementById('settings-informe-mensual-activo').checked = informeMensual.activo === true;
     document.getElementById('settings-dia-informe-mensual').value = informeMensual.dia || '1';
     document.getElementById('settings-hora-informe-mensual').value = informeMensual.hora || '12';
