@@ -2964,7 +2964,7 @@ async function renderGuiaTV() {
 
     try {
         const payload = { Type: 'get_guia_tv', chat_ID: chatId };
-        const response = await fetchWithTimeout(gasWebhookURL, payload);
+        const response = await fetchWithTimeout(gasWebhookURL, payload, false); // El 'false' activa el envío como FormData
         const result = await response.json();
 
         if (result.error) {
