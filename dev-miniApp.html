@@ -280,7 +280,7 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.10"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.11"; // IMPORTANTE: Incrementa la versión del cliente.
 
 async function initializeApp() {
     if (isInitializing) return;
@@ -919,9 +919,11 @@ async function saveReminder() {
     return;
   }
 
-  goBack();
-  showToast('Guardando recordatorio...');
-
+  // --- FLUJO CORREGIDO ---
+  // Ya no volvemos atrás ni renderizamos el dashboard. 
+  // La app permanecerá en la vista de lista.
+  showToast('Guardando recordatorio...'); 
+  
   try {
     const customId = generateCustomId('G-');
     const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -930,7 +932,7 @@ async function saveReminder() {
     const reminderData = {
       descripcion: description,
       categoria_recordatorio: category,
-      fecha_universal: time.toISOString(), // Guardar como String ISO 8601 (UTC / Zulú)
+      fecha_universal: time.toISOString(),
       status: "pending_creation",
       tracking_code: customId,
       chat_id: chatId.toString(),
@@ -946,15 +948,15 @@ async function saveReminder() {
     await countsRef.update({
         remindersCount: firebase.firestore.FieldValue.increment(1)
     });
-
-    // Actualización optimista de la UI
-    appData.counts.remindersCount++;
-    renderDashboard();
-    showToast('Recordatorio programado.');
+    
+    // Al finalizar, en lugar de ir al dashboard, vamos a la lista.
+    // El listener en tiempo real de la lista se encargará de mostrar el nuevo item.
+    renderRemindersList();
 
   } catch (err) { 
     showToast(`Error al guardar: ${err.message}.`, true); 
-    initializeApp(); // Recarga completa en caso de error
+    // Si hay un error, sí volvemos al dashboard para evitar una pantalla de error.
+    renderDashboard();
   }
 }
 
