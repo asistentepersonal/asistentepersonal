@@ -2665,13 +2665,17 @@ function renderSettings() {
     updateBackButton();
     initialUserSettings = JSON.parse(JSON.stringify(appData.settings || {}));
     
-    // --- LÓGICA DE ACCESO CORREGIDA ---
+    // --- LÓGICA DE ACCESO A DATOS ANIDADOS Y SIMPLES ---
     const settings = appData.settings || {};
     const config = settings.configuracion || {};
+    const ubicacion = settings.ubicacion || {}; // <-- Corregido para 'ubicacion'
     const informeManana = config.informeManana || {};
     const informeTarde = config.informeTarde || {};
     const informeMensual = config.informeMensual || {};
-    // ---
+    
+    // --- LÓGICA DE SEGURIDAD PARA FUNCIONES PREMIUM ---
+    const isPremium = appData.isPremium === true;
+    const premiumSwitchDisabled = isPremium ? '' : 'disabled'; // Añade el atributo 'disabled' si no es premium
 
     mainContentArea.innerHTML = `
         <div class="settings-container">
@@ -2716,10 +2720,8 @@ function renderSettings() {
                 <div class="settings-item">
                     <span class="settings-item-label">Hora del Informe</span>
                     <select id="settings-franja-manana">
-                        <option value="1">A primera hora (6:00)</option>
-                        <option value="2">Habitual (7:00)</option>
-                        <option value="3">Media mañana (8:00)</option>
-                        <option value="4">Tarde (9:00)</option>
+                        <option value="1">A primera hora (6:00)</option><option value="2">Habitual (7:00)</option>
+                        <option value="3">Media mañana (8:00)</option><option value="4">Tarde (9:00)</option>
                     </select>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
@@ -2740,30 +2742,23 @@ function renderSettings() {
                 </div>
                 <div class="settings-item">
                     <span class="settings-item-label">Día de Envío</span>
-                    <select id="settings-dia-informe-mensual">
-                        ${[...Array(10).keys()].map(i => `<option value="${i + 1}">${i + 1}</option>`).join('')}
-                    </select>
+                    <select id="settings-dia-informe-mensual">${[...Array(10).keys()].map(i => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select>
                 </div>
                 <div class="settings-item">
                     <span class="settings-item-label">Hora de Envío</span>
-                    <select id="settings-hora-informe-mensual">
-                        ${[...Array(15).keys()].map(i => `<option value="${i + 8}">${(i + 8).toString().padStart(2, '0')}:00</option>`).join('')}
-                    </select>
+                    <select id="settings-hora-informe-mensual">${[...Array(15).keys()].map(i => `<option value="${i + 8}">${(i + 8).toString().padStart(2, '0')}:00</option>`).join('')}</select>
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
                 <div class="settings-item">
-                    <span class="settings-item-label">Alertas de Compra Inteligente</span>
-                    <label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label>
+                    <span class="settings-item-label">Alertas de Compra Inteligente ⭐</span>
+                    <label class="switch"><input type="checkbox" id="settings-alerta-inventario" ${premiumSwitchDisabled}><span class="slider"></span></label>
                 </div>
             </div>
              
-            <div class="form-card" style="margin-top: 20px;">
-                <div class="button-group">
-                    <button id="settings-cancel-btn" class="cancel">Cancelar</button>
-                    <button id="settings-save-btn" disabled>Guardar Ajustes</button>
-                </div>
-            </div>
-
+            <div class="form-card" style="margin-top: 20px;"><div class="button-group">
+                <button id="settings-cancel-btn" class="cancel">Cancelar</button>
+                <button id="settings-save-btn" disabled>Guardar Ajustes</button>
+            </div></div>
             <div class="form-card" style="margin-top: 20px;">
                  <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; background-color: var(--muted);">Sincronizar Contadores</button>
             </div>
@@ -2772,16 +2767,19 @@ function renderSettings() {
 
     // --- CÓDIGO CORREGIDO PARA RELLENAR LOS CAMPOS ---
     document.getElementById('settings-nombre').value = settings.nombre || '';
-    document.getElementById('settings-ciudad').value = settings.ciudad || '';
-    document.getElementById('settings-pais').value = settings.pais || '';
-    document.getElementById('settings-theme').value = config.tema || 'auto';
+    document.getElementById('settings-ciudad').value = ubicacion.ciudad || ''; // <-- Corregido
+    document.getElementById('settings-pais').value = ubicacion.pais || '';   // <-- Corregido
 
+    document.getElementById('settings-theme').value = config.tema || 'auto';
     document.getElementById('settings-email').value = settings.email || 'No disponible';
-    const fechaActivacionStr = settings.fechaActivacion 
-        ? new Date(settings.fechaActivacion).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
+    
+    // Corregido: Busca 'fecha_activacion' y verifica que sea un string válido antes de crear la fecha
+    const fechaActivacionStr = (settings.fecha_activacion && typeof settings.fecha_activacion === 'string')
+        ? new Date(settings.fecha_activacion).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) 
         : 'No disponible';
     document.getElementById('settings-fecha-activacion').value = fechaActivacionStr;
-    document.getElementById('settings-zona-horaria').value = settings.timeZone || 'No disponible';
+    
+    document.getElementById('settings-zona-horaria').value = ubicacion.timeZone || 'No disponible'; // <-- Corregido
     document.getElementById('settings-moneda').value = settings.moneda || 'No disponible';
 
     document.getElementById('settings-informe-manana-activo').checked = informeManana.activo === true;
@@ -2795,13 +2793,7 @@ function renderSettings() {
     document.getElementById('settings-hora-informe-mensual').value = informeMensual.hora || '12';
     // --- FIN DEL CÓDIGO CORREGIDO ---
 
-    const controls = document.querySelectorAll(
-        '#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, ' +
-        '#settings-informe-manana-activo, #settings-franja-manana, ' +
-        '#settings-informe-tarde-activo, #settings-franja-tarde, ' +
-        '#settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, ' +
-        '#settings-alerta-inventario'
-    );
+    const controls = document.querySelectorAll( /* ... (el resto de la función se mantiene igual) ... */ );
     controls.forEach(control => {
         control.addEventListener('input', validateSettings);
         control.addEventListener('change', validateSettings);
