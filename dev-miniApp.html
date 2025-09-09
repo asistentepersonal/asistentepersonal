@@ -2952,7 +2952,7 @@ async function executeExport() {
 
 /**
  * Renderiza la vista principal de la Guía TV.
- * VERSIÓN CORREGIDA: Usa el método FormData probado para evitar errores CORS.
+ * VERSIÓN FINAL: Utiliza fetchWithTimeout con el método FormData probado.
  */
 async function renderGuiaTV() {
     navigationHistory.push(renderDashboard);
@@ -2967,18 +2967,9 @@ async function renderGuiaTV() {
         const payload = { Type: 'get_guia_tv', chat_ID: chatId };
         
         // --- INICIO DE LA CORRECCIÓN CLAVE ---
-        // Se utiliza el método FormData que ya sabemos que funciona con Apps Script.
-        const formData = new FormData();
-        formData.append("postData", JSON.stringify(payload));
-        
-        const response = await fetch(gasWebhookURL, {
-            method: 'POST',
-            body: formData,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Error del servidor: ${response.status}`);
-        }
+        // Se llama a fetchWithTimeout con el parámetro 'isMakeWebhook' a false,
+        // forzando el uso de FormData que evita el error de CORS con Apps Script.
+        const response = await fetchWithTimeout(gasWebhookURL, payload, false);
         // --- FIN DE LA CORRECCIÓN CLAVE ---
 
         const result = await response.json();
