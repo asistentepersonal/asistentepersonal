@@ -580,27 +580,46 @@ function showToast(msg, isError = false) {
     toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000); 
 }
 
+/**
+ * Realiza una petición fetch con un tiempo de espera.
+ * VERSIÓN FINAL Y ROBUSTA: Usa siempre el método FormData para las peticiones a Apps Script
+ * para evitar errores de CORS, independientemente de los parámetros.
+ */
 async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) {
   const controller = new AbortController();
   const timeout = isMakeWebhook ? 60000 : 30000;
   const id = setTimeout(() => controller.abort(), timeout);
-  let options = { method: 'POST', signal: controller.signal };
+  
+  let options = {
+    method: 'POST',
+    signal: controller.signal
+  };
+
+  // --- LÓGICA CORREGIDA Y UNIFICADA ---
   if (isMakeWebhook) {
+      // Si es para Make, construye un FormData específico para imágenes
       const formData = new FormData();
       formData.append('prompt', payloadObject.prompt);
       if (payloadObject.image_count !== undefined) { formData.append('image_count', payloadObject.image_count); }
-      if (payloadObject.images && payloadObject.images.length > 0) { payloadObject.images.forEach(imageFile => { formData.append('images', imageFile, imageFile.name); }); }
+      if (payloadObject.images && payloadObject.images.length > 0) {
+          payloadObject.images.forEach(imageFile => { formData.append('images', imageFile, imageFile.name); });
+      }
       options.body = formData;
   } else {
+      // Para TODAS las demás peticiones (a Apps Script), usa el método FormData probado que evita CORS.
       const formData = new FormData();
       formData.append("postData", JSON.stringify(payloadObject));
       options.body = formData;
+      // No se añaden cabeceras Content-Type manualmente para que el navegador lo haga
+      // y la petición sea considerada "simple" por la política CORS.
   }
+  // --- FIN DE LA LÓGICA CORREGIDA ---
+  
   try {
     const response = await fetch(resource, options);
     clearTimeout(id);
     if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
-    return response;
+    return response; // Devuelve la respuesta para que la función que llama la procese
   } catch (error) {
     clearTimeout(id);
     if (error.name === 'AbortError') throw new Error('La solicitud tardó demasiado.');
