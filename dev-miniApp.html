@@ -235,7 +235,28 @@
   50% { transform: scale(1); }
   100% { transform: scale(0.95); }
 }
-/* --- FIN CÓDIGO SPLASH SCREEN --- */  
+/* --- FIN CÓDIGO SPLASH SCREEN --- */
+/* --- INICIO ESTILOS GUÍA TV --- */
+.guia-tv-container { padding: 10px; max-width: 100%; overflow: hidden; }
+.guia-nav { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 8px; }
+.guia-nav-btn { background-color: var(--card-bg); color: var(--text); border: 1px solid var(--muted); padding: 8px 16px; border-radius: 20px; font-size: 0.9rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.guia-nav-btn.active { background-color: var(--primary); color: var(--action-text); border-color: var(--primary); }
+.guia-grid-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.guia-grid { display: grid; grid-template-columns: 100px 1fr; position: relative; }
+.guia-channels-col { z-index: 2; position: sticky; left: 0; background: var(--bg); }
+.guia-channel-logo-placeholder { height: 60px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--muted); border-bottom: 1px solid #eee; }
+.guia-channel-logo { height: 60px; display: flex; align-items: center; justify-content: center; padding: 5px; border-bottom: 1px solid #eee; }
+.guia-channel-logo img { max-width: 80%; max-height: 40px; object-fit: contain; }
+.guia-timeline-col { min-width: 2880px; /* 48 horas x 60px/hora */ }
+.guia-time-header { display: flex; height: 60px; border-bottom: 1px solid #eee; position: relative; }
+.guia-time-slot { width: 60px; /* Ancho para 30 minutos */ flex-shrink: 0; text-align: center; padding-top: 20px; color: var(--muted); font-size: 0.9rem; border-left: 1px solid #eee; }
+.guia-channel-row { height: 60px; position: relative; border-bottom: 1px solid #eee; background-image: linear-gradient(to right, #eee 1px, transparent 1px); background-size: 60px 100%; }
+.guia-program-block { position: absolute; top: 2px; bottom: 2px; background-color: var(--card-bg); border-radius: 6px; padding: 5px 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 0.9rem; color: var(--text); border-left: 4px solid var(--primary); cursor: pointer; transition: background-color 0.2s; }
+.guia-program-block:hover { background-color: #e9e9e9; }
+.guia-program-title { font-weight: 600; }
+.guia-program-time { font-size: 0.8rem; color: var(--muted); }
+.guia-now-line { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #e74c3c; z-index: 3; pointer-events: none; }
+/* --- FIN ESTILOS GUÍA TV --- */  
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -2983,43 +3004,162 @@ async function executeExport() {
  * Renderiza la vista principal de la Guía TV.
  * VERSIÓN FINAL: Utiliza fetchWithTimeout con el método FormData probado.
  */
-async function renderGuiaTV() {
+/**
+ * Controlador principal para la Guía TV.
+ * Construye la estructura base y lanza la carga de datos para el día actual.
+ */
+function renderGuiaTV() {
     navigationHistory.push(renderDashboard);
     updateBackButton();
-    
-    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Guía TV</h2></div><div id="guia-tv-content"></div></div>`;
-    const contentElement = document.getElementById('guia-tv-content');
-    
-    showSpinner("Cargando programación...");
+
+    mainContentArea.innerHTML = `
+        <div class="guia-tv-container">
+            <div class="list-header"><h2>Guía TV</h2></div>
+            <div id="guia-nav-container" class="guia-nav"></div>
+            <div id="guia-grid-wrapper" class="guia-grid-wrapper">
+                <div id="guia-grid-content">
+                    <div class="no-data-msg">Cargando programación...</div>
+                </div>
+            </div>
+        </div>`;
+
+    // Generar botones de navegación para los próximos 4 días
+    const navContainer = document.getElementById('guia-nav-container');
+    for (let i = 0; i < 4; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+        const dateISO = date.toISOString().split('T')[0];
+
+        const btn = document.createElement('button');
+        btn.className = 'guia-nav-btn';
+        btn.dataset.date = dateISO;
+        if (i === 0) {
+            btn.classList.add('active');
+            btn.textContent = 'Hoy';
+        } else if (i === 1) {
+            btn.textContent = 'Mañana';
+        } else {
+            btn.textContent = date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
+        }
+        
+        btn.onclick = () => {
+            document.querySelectorAll('.guia-nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            loadGuiaDataForDate(dateISO);
+        };
+        navContainer.appendChild(btn);
+    }
+
+    // Cargar datos para el día de hoy
+    const todayISO = new Date().toISOString().split('T')[0];
+    loadGuiaDataForDate(todayISO);
+}
+
+/**
+ * Carga los datos de la guía para una fecha específica desde Firestore y llama a la función de renderizado.
+ * @param {string} dateISO - La fecha en formato YYYY-MM-DD.
+ */
+async function loadGuiaDataForDate(dateISO) {
+    showSpinner();
+    const gridContent = document.getElementById('guia-grid-content');
 
     try {
-        const payload = { Type: 'get_guia_tv', chat_ID: chatId };
-        
-        // --- INICIO DE LA CORRECCIÓN CLAVE ---
-        // Se llama a fetchWithTimeout con el parámetro 'isMakeWebhook' a false,
-        // forzando el uso de FormData que evita el error de CORS con Apps Script.
-        const response = await fetchWithTimeout(gasWebhookURL, payload, false);
-        // --- FIN DE LA CORRECCIÓN CLAVE ---
-
-        const result = await response.json();
-
-        if (result.error) {
-            throw new Error(result.error);
+        const geoTags = appData.settings.ubicacion?.geo_tags;
+        if (!geoTags || !geoTags.country || !geoTags.admin_level_1) {
+            throw new Error("Ubicación no configurada correctamente.");
         }
 
-        const programacion = result.data;
+        const pais = geoTags.country.toLowerCase();
+        const codigoRegion = `${pais.substring(0, 2).toUpperCase()}-${(geoTags.admin_level_1 || 'General').replace(/\s+/g, '-').toUpperCase()}`;
         
-        console.log("Canales recibidos:", programacion.canales);
-        console.log("Programas recibidos:", programacion.programas);
+        const docPath = `guia_tv/${codigoRegion}/programacion/${dateISO}`;
+        const docSnap = await db.collection('guia_tv').doc(codigoRegion).collection('programacion').doc(dateISO).get();
+
+        if (!docSnap.exists) {
+            throw new Error(`No hay programación disponible para el día ${dateISO}.`);
+        }
         
-        contentElement.innerHTML = `<div class="no-data-msg">✅<br>Programación cargada.<br><small>Revisa la consola para ver los datos.</small></div>`;
+        const data = docSnap.data();
+        renderTimelineGrid(data.canales, data.programas);
 
     } catch (err) {
-        console.error("Error al cargar la Guía TV:", err);
-        showToast(`Error: ${err.message}`, true);
-        contentElement.innerHTML = `<div class="no-data-msg">❌<br>No se pudo cargar la guía.<br><small>${err.message}</small></div>`;
+        console.error("Error cargando la Guía TV desde Firestore:", err);
+        gridContent.innerHTML = `<div class="no-data-msg">❌<br>No se pudo cargar la guía.<br><small>${err.message}</small></div>`;
     } finally {
         hideSpinner();
+    }
+}
+
+/**
+ * Renderiza la parrilla de línea de tiempo con los datos de canales y programas.
+ * @param {Array} canales - El array de objetos de canal.
+ * @param {Array} programas - El array de objetos de programa.
+ */
+function renderTimelineGrid(canales, programas) {
+    const gridContent = document.getElementById('guia-grid-content');
+    const PIXELS_PER_MINUTE = 2; // 120px por hora
+
+    // Construir HTML para la columna de canales
+    let channelsHtml = '<div class="guia-channels-col"><div class="guia-channel-logo-placeholder"></div>';
+    canales.forEach(canal => {
+        channelsHtml += `<div class="guia-channel-logo"><img src="${canal.logo}" alt="${canal.nombre}"></div>`;
+    });
+    channelsHtml += '</div>';
+
+    // Construir HTML para la columna de la línea de tiempo
+    let timelineHtml = '<div class="guia-timeline-col">';
+    
+    // Cabecera de horas
+    let timeHeaderHtml = '<div class="guia-time-header">';
+    for (let i = 0; i < 48; i++) { // 24 horas * 2 slots de 30 min
+        const hour = Math.floor(i / 2).toString().padStart(2, '0');
+        const minutes = (i % 2 === 0) ? '00' : '30';
+        timeHeaderHtml += `<div class="guia-time-slot">${hour}:${minutes}</div>`;
+    }
+    timeHeaderHtml += '</div>';
+    timelineHtml += timeHeaderHtml;
+
+    // Filas de programas para cada canal
+    canales.forEach(canal => {
+        timelineHtml += `<div class="guia-channel-row" data-channel-id="${canal.id}">`;
+        const programasDelCanal = programas.filter(p => p.canal === canal.id);
+        programasDelCanal.forEach(prog => {
+            const startTime = new Date(prog.inicio);
+            const endTime = new Date(prog.fin);
+            const startMinutes = startTime.getUTCHours() * 60 + startTime.getUTCMinutes();
+            const endMinutes = endTime.getUTCHours() * 60 + endTime.getUTCMinutes();
+            const durationMinutes = Math.max(15, (endMinutes - startMinutes)); // Duración mínima de 15 min
+
+            const left = startMinutes * PIXELS_PER_MINUTE;
+            const width = durationMinutes * PIXELS_PER_MINUTE;
+
+            timelineHtml += `
+                <div class="guia-program-block" style="left: ${left}px; width: ${width}px;" data-program-id="${prog.titulo}">
+                    <div class="guia-program-title">${prog.titulo}</div>
+                    <div class="guia-program-time">${startTime.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}</div>
+                </div>`;
+        });
+        timelineHtml += '</div>';
+    });
+    
+    // Línea de "Ahora"
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const nowPosition = nowMinutes * PIXELS_PER_MINUTE;
+    const todayISO = now.toISOString().split('T')[0];
+    const activeDate = document.querySelector('.guia-nav-btn.active')?.dataset.date;
+
+    if (activeDate === todayISO) {
+         timelineHtml += `<div class="guia-now-line" style="left: ${nowPosition}px;"></div>`;
+    }
+
+    timelineHtml += '</div>'; // Cierre de guia-timeline-col
+    gridContent.innerHTML = `<div class="guia-grid">${channelsHtml}${timelineHtml}</div>`;
+
+    // Scroll automático a la hora actual
+    const wrapper = document.getElementById('guia-grid-wrapper');
+    if (activeDate === todayISO) {
+         wrapper.scrollLeft = nowPosition - (wrapper.offsetWidth / 2);
     }
 }
 
