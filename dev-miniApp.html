@@ -2728,6 +2728,12 @@ function copyToClipboard(buttonElement) {
     navigator.clipboard.writeText(textToCopy).then(() => { showToast('Receta copiada al portapapeles'); }).catch(err => { showToast('Error al copiar la receta', true); });
 }
 
+/**
+ * [VERSIÓN DEFINITIVA CON SDK DE FIRESTORE]
+ * Añade los ingredientes del Chef a la lista de la compra de forma atómica.
+ * Utiliza un "batch write" para garantizar la consistencia de los datos.
+ * La operación es casi instantánea para el usuario.
+ */
 async function addIngredientsToShoppingList(buttonElement) {
     const recipeCard = buttonElement.closest('.recipe-card');
     const checkboxes = recipeCard.querySelectorAll('.buy-checkbox:checked');
@@ -2735,30 +2741,50 @@ async function addIngredientsToShoppingList(buttonElement) {
         showToast("No has seleccionado ningún ingrediente.", true);
         return;
     }
+    
     const itemsToAdd = Array.from(checkboxes).map(cb => cb.dataset.itemName);
-    showSpinner();
+    
+    // No mostramos spinner, la operación es muy rápida.
+    // Deshabilitamos el botón inmediatamente para evitar dobles clics.
+    buttonElement.disabled = true;
+    
     try {
-        const payload = { Type: 'add_multiple_shopping_items', chat_ID: chatId, items: itemsToAdd };
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
-        buttonElement.style.display = 'none';
+        // 1. Preparamos el "lote" de operaciones atómicas.
+        const batch = db.batch();
         
-        // Forzar resincronización de contadores del dashboard
-        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
-        if (syncCheck.success) {
-            appData.counts = syncCheck.counts; // Actualizar contadores localmente
-            // La lista de compras se actualizará vía Firestore listener, no necesita renderDashboard
-        } else {
-            initializeApp(); // Recarga completa si falla la resincronización
-        }
+        // 2. Añadimos la operación de creación para cada nuevo artículo.
+        const shoppingListRef = db.collection('users').doc(chatId).collection('listaDeLaCompra');
+        itemsToAdd.forEach(itemName => {
+            const newId = generateCustomId('ITEM-');
+            const newItemRef = shoppingListRef.doc(newId);
+            const newItemData = {
+                articulo: itemName,
+                estado: 'Pendiente',
+                cycle: 0,
+                origen: 'chef', // La bandera especial
+                fecha: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            batch.set(newItemRef, newItemData);
+        });
 
+        // 3. Añadimos la operación de actualización para el contador.
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        batch.update(countsRef, {
+            shoppingPendingCount: firebase.firestore.FieldValue.increment(itemsToAdd.length)
+        });
+
+        // 4. Ejecutamos el lote. O todo tiene éxito, o nada se guarda.
+        await batch.commit();
+
+        // Éxito: el usuario permanece en la pantalla.
+        showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
+        buttonElement.textContent = 'Añadido ✔️';
+        // El oyente en tiempo real se encargará de actualizar el badge en Home.
+        
     } catch(err) {
-        showToast(err.message, true);
-        initializeApp(); // Recarga completa en caso de error
-    } finally {
-        hideSpinner();
+        console.error("Error al añadir ingredientes con batch write:", err);
+        showToast(`Error: ${err.message}`, true);
+        buttonElement.disabled = false; // Habilitar el botón de nuevo si falla
     }
 }
 // ==================================================
