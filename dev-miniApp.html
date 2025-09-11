@@ -267,7 +267,7 @@
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
     const firebaseConfig = {
-      apiKey: "AIzaSyBNldvtTk0JwwydigAmiI2k1RRZpYriK_E",
+      apiKey: "AIzaSyBXEOTkiOxyZfqX8QDZJraofPR9jMeIN6I",
       authDomain: "asistentepersonal-4ad2b.firebaseapp.com",
       projectId: "asistentepersonal-4ad2b",
       storageBucket: "asistentepersonal-4ad2b.firebasestorage.app",
@@ -2621,7 +2621,7 @@ async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
 
     // 1. Inicializar el servicio de Functions (CORRECCIÓN AQUÍ)
-    const functions = firebase.functions(); // Se inicializa sin argumentos
+    const chefApiUrl = "https://asistentepersonal-4ad2b.web.app/api/processChefRequest";
     const processChefRequest = functions.useFunctionsEmulator ? 
                                functions.httpsCallable('processChefRequest') :
                                functions.region("europe-west1").httpsCallable('processChefRequest');
@@ -2655,11 +2655,17 @@ async function executeChefRequest(files) {
         const imagesBase64 = await Promise.all(imagePromises);
 
         // 4. Llamar a nuestra Cloud Function con todos los datos
-        const result = await processChefRequest({
-            chatId: chatId,
-            userPreferences: userPreferences,
-            imagesBase64: imagesBase64,
-        });
+const response = await fetch(chefApiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: {
+        chatId: chatId,
+        userPreferences: userPreferences,
+        imagesBase64: imagesBase64,
+    }})
+});
+if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+const result = await response.json();
         
         // 5. Procesar la respuesta del "cerebro"
         const data = result.data;
