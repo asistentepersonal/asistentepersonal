@@ -2620,71 +2620,51 @@ function handleChefImageSelection(file, callback) {
 async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
 
-    // 1. Inicializar el servicio de Functions (CORRECCIÓN AQUÍ)
-    const chefApiUrl = "https://asistentepersonal-4ad2b.web.app/api/processChefRequest";
-    const processChefRequest = functions.useFunctionsEmulator ? 
-                               functions.httpsCallable('processChefRequest') :
-                               functions.region("europe-west1").httpsCallable('processChefRequest');
-
-
-    // 2. Recolectar las preferencias del usuario desde la interfaz
-    const userPreferences = {
-        tipoComida: document.getElementById('chef-tipo-comida').value,
-        hora: document.getElementById('chef-hora').value,
-        comensales: document.getElementById('chef-comensales').value,
-        estilo: document.getElementById('chef-estilo').value,
-        conPostre: document.getElementById('chef-postre').checked,
-        soloNevera: document.getElementById('chef-solo-nevera').checked,
-        peticionUsuario: document.getElementById('chef-peticion').value,
-    };
-
-    // 3. Convertir las imágenes a formato Base64 para enviarlas
-    const imagePromises = files.map(file => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const base64String = event.target.result.split(',')[1];
-                resolve(base64String);
-            };
-            reader.onerror = (error) => reject(error);
-            reader.readAsDataURL(file);
-        });
-    });
-
     try {
+        const functions = firebase.app().functions("europe-west1");
+        const processChefRequest = functions.httpsCallable('processChefRequest');
+
+        const userPreferences = {
+            tipoComida: document.getElementById('chef-tipo-comida').value,
+            hora: document.getElementById('chef-hora').value,
+            comensales: document.getElementById('chef-comensales').value,
+            estilo: document.getElementById('chef-estilo').value,
+            conPostre: document.getElementById('chef-postre').checked,
+            soloNevera: document.getElementById('chef-solo-nevera').checked,
+            peticionUsuario: document.getElementById('chef-peticion').value,
+        };
+
+        const imagePromises = files.map(file => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const base64String = event.target.result.split(',')[1];
+                    resolve(base64String);
+                };
+                reader.onerror = (error) => reject(error);
+                reader.readAsDataURL(file);
+            });
+        });
+
         const imagesBase64 = await Promise.all(imagePromises);
 
-        // 4. Llamar a nuestra Cloud Function con todos los datos
-const response = await fetch(chefApiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data: {
-        chatId: chatId,
-        userPreferences: userPreferences,
-        imagesBase64: imagesBase64,
-    }})
-});
-if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
-const result = await response.json();
+        const result = await processChefRequest({
+            chatId: chatId,
+            userPreferences: userPreferences,
+            imagesBase64: imagesBase64,
+        });
         
-        // 5. Procesar la respuesta del "cerebro"
         const data = result.data;
         if (data && data.sugerencias) {
             showToast("¡Aquí tienes tus sugerencias!");
             renderChefResults(data.sugerencias);
         } else {
-            throw new Error("La respuesta del Chef no tuvo el formato esperado.");
+            throw new Error("Respuesta inesperada del Chef.");
         }
 
     } catch (err) {
-        console.error("Error al llamar a la Cloud Function del Chef:", err);
-        let errorMessage = err.message || "Ocurrió un error desconocido.";
-        if (err.code === 'unavailable') {
-            errorMessage = "El servicio no está disponible, inténtalo de nuevo más tarde.";
-        } else if (err.code === 'internal') {
-            errorMessage = "Hubo un error en el servidor. Inténtalo de nuevo.";
-        }
-        showToast(errorMessage, true);
+        console.error("Error definitivo en executeChefRequest:", err);
+        showToast(err.message || "Error al contactar al Chef.", true);
     } finally {
         hideSpinner();
     }
