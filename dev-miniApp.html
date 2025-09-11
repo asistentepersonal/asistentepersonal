@@ -197,6 +197,11 @@
         z-index: 5;
     }
     .card.disabled-card .card-icon, .card.disabled-card .card-title, .card.disabled-card .card-badge {
+	/* Estilo específico para la franja de la tarjeta Chef bloqueada */
+.card.disabled-card#chef-card-locked::before {
+    content: "Función Premium ⭐";
+    background-color: #f1c40f; /* Un color dorado para Premium */
+}
         opacity: 0.5;
     }
     /* --- FIN CÓDIGO NUEVO --- */
@@ -364,6 +369,7 @@ async function initializeApp() {
 
         updateChefTabStyle();
         renderDashboard();
+		updateChefTabStyle();
 		isAppReady = true;
         hideSplashScreen();
         
@@ -611,48 +617,59 @@ function showToast(msg, isError = false) {
  * Realiza una petición fetch con un tiempo de espera.
  * Forza el uso de FormData para todas las llamadas a Apps Script para evitar errores de CORS.
  */
+/**
+ * [VERSIÓN FINAL Y ROBUSTA]
+ * Realiza una petición fetch con un tiempo de espera, manejando diferentes formatos
+ * según si el destino es Apps Script (anti-CORS) o Make.com (para imágenes).
+ */
 async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) {
   const controller = new AbortController();
-  // Un timeout generoso de 30 segundos, aunque no debería alcanzarse con la nueva lógica.
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-  const options = {
+  // Aumentamos el timeout para Make, ya que el procesamiento de imágenes puede tardar.
+  const timeout = isMakeWebhook ? 60000 : 30000;
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  let options = {
     method: 'POST',
-    signal: controller.signal,
-    // No establecer 'Content-Type' aquí, el navegador lo hará por nosotros con FormData.
+    signal: controller.signal
   };
 
+  // --- LÓGICA DE ENRUTAMIENTO DE FORMATO ---
   if (isMakeWebhook) {
-    // Para Make.com, se asume que puede manejar JSON directamente o requiere un formato específico.
-    // Si Make también necesita FormData, esta sección debería ajustarse.
-    // Por ahora, se mantiene la lógica original para Make.
-    options.body = JSON.stringify(payloadObject);
-    options.headers = { 'Content-Type': 'application/json' };
+      // Si es para Make.com, construimos un FormData específico para imágenes,
+      // que es el formato que originalmente funcionaba.
+      const formData = new FormData();
+      // Añadimos el prompt y el conteo de imágenes como campos de texto.
+      formData.append('prompt', payloadObject.prompt);
+      if (payloadObject.image_count !== undefined) {
+          formData.append('image_count', payloadObject.image_count);
+      }
+      // Añadimos cada archivo de imagen.
+      if (payloadObject.images && payloadObject.images.length > 0) {
+          payloadObject.images.forEach(imageFile => {
+              formData.append('images', imageFile, imageFile.name);
+          });
+      }
+      options.body = formData;
+      // IMPORTANTE: Al usar FormData para subir archivos, NO se debe especificar
+      // el 'Content-Type' en las cabeceras. El navegador lo hace automáticamente
+      // con el 'boundary' correcto, lo cual es esencial para que funcione.
   } else {
-    // --- LA SOLUCIÓN CLAVE ---
-    // Para TODAS las llamadas a Google Apps Script, envolvemos el payload en FormData.
-    // Esto convierte la petición en una "petición simple" que no es bloqueada por CORS.
-    const formData = new FormData();
-    formData.append("postData", JSON.stringify(payloadObject)); // El script recibirá esto en e.postData.contents
-    options.body = formData;
+      // Para TODAS las demás peticiones (a Apps Script), usamos el método
+      // FormData simple que evita el error de CORS.
+      const formData = new FormData();
+      formData.append("postData", JSON.stringify(payloadObject));
+      options.body = formData;
   }
+  // --- FIN DE LA LÓGICA DE ENRUTAMIENTO ---
   
   try {
     const response = await fetch(resource, options);
-    clearTimeout(timeoutId);
-    if (!response.ok) {
-      // Si el servidor responde con un error (ej: 4xx, 5xx), lo lanzamos.
-      throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
-    }
-    // Devolvemos la respuesta para que la función que llama la procese (ej: con response.json())
-    return response;
+    clearTimeout(id);
+    if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+    return response; // Devuelve la respuesta para que la función que llama la procese
   } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      // Este error ocurre si nuestro timeout se dispara.
-      throw new Error('La solicitud tardó demasiado en responder (timeout).');
-    }
-    // Relanzamos cualquier otro error de red (ej: net::ERR_FAILED).
+    clearTimeout(id);
+    if (error.name === 'AbortError') throw new Error('La solicitud tardó demasiado.');
     throw error;
   }
 }
@@ -743,14 +760,21 @@ function updateChefTabStyle() {
     const chefTab = document.getElementById('tab-chef');
     if (!chefTab) return;
     
-    const isPremium = String(appData.settings?.Premium).toLowerCase() === 'si';
+    const isPremium = appData.isPremium === true;
     
     if (isPremium) {
+        // Si es Premium, la pestaña es funcional y normal.
         chefTab.classList.remove('tab-premium-locked');
         chefTab.innerHTML = '🧑‍🍳 Chef';
+        chefTab.onclick = renderChefPage; // Asignamos la función para que se pueda hacer clic
     } else {
+        // Si no es Premium, la pestaña se bloquea visualmente y funcionalmente.
         chefTab.classList.add('tab-premium-locked');
-        chefTab.innerHTML = '⭐ Chef';
+        chefTab.innerHTML = 'Chef ⭐';
+        // Asignamos una función que solo muestra el toast.
+        chefTab.onclick = () => {
+            showToast('⭐ Función exclusiva para usuarios Premium.');
+        };
     }
 }
 
