@@ -3219,28 +3219,20 @@ function renderDashboard() {
   navigationHistory = [];
   updateBackButton();
   const counts = appData.counts;
-  // Nos aseguramos de que isPremium sea siempre un booleano estricto
   const isPremium = appData.isPremium === true;
 
-  // --- LÓGICA DE TARJETAS DINÁMICAS ---
-  // Esta sección construye el HTML de las tarjetas que dependen del estado del usuario.
-  
-  // Tarjeta Chef
   let chefCardHtml = '';
   if (isPremium) {
-    // Si el usuario es Premium, la tarjeta es un enlace funcional.
     chefCardHtml = `<div class="card clickable-card" id="chef-card"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef</div></div>`;
   } else {
-    // Si no es Premium, la tarjeta está visualmente deshabilitada y muestra un toast al hacer clic.
+    // --- LA CORRECCIÓN CLAVE ---
+    // Añadimos el id 'chef-card-locked' para poder aplicar el estilo específico.
     chefCardHtml = `<div class="card disabled-card" id="chef-card-locked"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef ⭐</div></div>`;
   }
   
-  // Tarjetas "En Desarrollo" (mantienen su estado deshabilitado)
   const calendarCardHtml = `<div class="card disabled-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
   const cuentasClarasCardHtml = `<div class="card disabled-card" id="cuentas-claras-card"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>`;
-  // --- FIN DE LÓGICA DE TARJETAS ---
 
-  // Se inyecta el HTML generado en la parrilla principal.
   mainContentArea.innerHTML = `
     <div class="grid">
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
@@ -3253,25 +3245,66 @@ function renderDashboard() {
       <div id="guia-tv-card" class="card clickable-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
     </div>`;
   
-  // Asignar los listeners (manejadores de clics)
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
-  // ... (el resto de listeners para las tarjetas normales)
+  document.getElementById('list-reminders-link').onclick = renderRemindersList;
+  document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+  document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+  document.getElementById('add-note-link').onclick = () => renderNoteForm();
+  document.getElementById('list-notes-link').onclick = renderNotesList;
+  document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
+  document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
+  document.getElementById('guia-tv-card').onclick = renderGuiaTV;
+  document.getElementById('list-gastos-link').onclick = () => {
+      navigationHistory.push(renderDashboard);
+      updateBackButton();
+      renderGastosSearchScreen();
+  };
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
 
-  // --- ASIGNACIÓN DE LISTENERS CONDICIONALES ---
   document.getElementById('calendar-card').onclick = () => showToast('Función en desarrollo.');
   document.getElementById('cuentas-claras-card').onclick = () => showToast('Función en desarrollo.');
   
   if (isPremium) {
-    // Si es Premium, se asigna la función de renderizado a la tarjeta Chef.
     const chefCard = document.getElementById('chef-card');
     if (chefCard) chefCard.onclick = renderChefPage;
   } else {
-    // Si no es Premium, se asigna el toast informativo a la tarjeta bloqueada.
     const chefCardLocked = document.getElementById('chef-card-locked');
     if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
   }
-  // ... (el resto de la función se mantiene igual)
+
+  // --- CÓDIGO RESTAURADO PARA LOS MENÚS ---
+  // Este es el bloque que faltaba y que repara los menús desplegables.
+  document.querySelectorAll('.clickable-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+          if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
+          if (e.currentTarget.id === 'chef-card' && !isPremium) return;
+          e.stopPropagation();
+          const menuBtn = card.querySelector('.card-menu-btn');
+          if (menuBtn) {
+            const menuId = menuBtn.dataset.menuId;
+            const menu = document.getElementById(menuId);
+            if (menu) {
+                const isShown = menu.classList.contains('show');
+                document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                    if (m.id !== menuId) m.classList.remove('show');
+                });
+                if (isShown) {
+                    menu.classList.remove('show');
+                } else {
+                    const buttonRect = menuBtn.getBoundingClientRect();
+                    const windowHeight = window.innerHeight;
+                    if (buttonRect.top > (windowHeight / 2)) {
+                        menu.classList.add('up');
+                    } else {
+                        menu.classList.remove('up');
+                    }
+                    menu.classList.add('show');
+                }
+            }
+          }
+      });
+  });
+  // --- FIN DEL CÓDIGO RESTAURADO ---
 }
 
 // Lógica de pestañas
