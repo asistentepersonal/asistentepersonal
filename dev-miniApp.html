@@ -2615,14 +2615,17 @@ function handleChefImageSelection(file, callback) {
     };
 }
 
-// [VERSIÓN FINAL CON CLOUD FUNCTIONS]
+// [VERSIÓN FINAL CON CLOUD FUNCTIONS - CORREGIDA]
 // Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
 async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
 
-    // 1. Inicializar el servicio de Functions
-    const functions = firebase.functions("europe-west1"); // Asegurarnos de usar la misma región
-    const processChefRequest = functions.httpsCallable('processChefRequest');
+    // 1. Inicializar el servicio de Functions (CORRECCIÓN AQUÍ)
+    const functions = firebase.functions(); // Se inicializa sin argumentos
+    const processChefRequest = functions.useFunctionsEmulator ? 
+                               functions.httpsCallable('processChefRequest') :
+                               functions.region("europe-west1").httpsCallable('processChefRequest');
+
 
     // 2. Recolectar las preferencias del usuario desde la interfaz
     const userPreferences = {
@@ -2640,7 +2643,6 @@ async function executeChefRequest(files) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (event) => {
-                // Extraemos solo la parte Base64 de la data URL
                 const base64String = event.target.result.split(',')[1];
                 resolve(base64String);
             };
@@ -2654,13 +2656,13 @@ async function executeChefRequest(files) {
 
         // 4. Llamar a nuestra Cloud Function con todos los datos
         const result = await processChefRequest({
-            chatId: chatId, // Variable global que ya tenemos
+            chatId: chatId,
             userPreferences: userPreferences,
             imagesBase64: imagesBase64,
         });
         
         // 5. Procesar la respuesta del "cerebro"
-        const data = result.data; // La respuesta real está en la propiedad 'data'
+        const data = result.data;
         if (data && data.sugerencias) {
             showToast("¡Aquí tienes tus sugerencias!");
             renderChefResults(data.sugerencias);
@@ -2670,10 +2672,11 @@ async function executeChefRequest(files) {
 
     } catch (err) {
         console.error("Error al llamar a la Cloud Function del Chef:", err);
-        // Mostrar un mensaje de error más útil al usuario
         let errorMessage = err.message || "Ocurrió un error desconocido.";
         if (err.code === 'unavailable') {
             errorMessage = "El servicio no está disponible, inténtalo de nuevo más tarde.";
+        } else if (err.code === 'internal') {
+            errorMessage = "Hubo un error en el servidor. Inténtalo de nuevo.";
         }
         showToast(errorMessage, true);
     } finally {
