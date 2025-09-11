@@ -16,6 +16,7 @@
   <!-- SDKs de Firebase para la Mini App (Cargados de forma segura) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
   <!-- SDKs de Firebase para la Mini App -->
 
   <style>
@@ -2614,56 +2615,67 @@ function handleChefImageSelection(file, callback) {
     };
 }
 
+// [VERSIÓN FINAL CON CLOUD FUNCTIONS]
+// Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
 async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
-    
-    const tipoComida = document.getElementById('chef-tipo-comida').value;
-    const hora = document.getElementById('chef-hora').value;
-    const comensales = document.getElementById('chef-comensales').value;
-    const estilo = document.getElementById('chef-estilo').value;
-    const conPostre = document.getElementById('chef-postre').checked;
-    const soloNevera = document.getElementById('chef-solo-nevera').checked;
-    const peticionUsuario = document.getElementById('chef-peticion').value;
+
+    // 1. Inicializar el servicio de Functions
+    const functions = firebase.functions("europe-west1"); // Asegurarnos de usar la misma región
+    const processChefRequest = functions.httpsCallable('processChefRequest');
+
+    // 2. Recolectar las preferencias del usuario desde la interfaz
+    const userPreferences = {
+        tipoComida: document.getElementById('chef-tipo-comida').value,
+        hora: document.getElementById('chef-hora').value,
+        comensales: document.getElementById('chef-comensales').value,
+        estilo: document.getElementById('chef-estilo').value,
+        conPostre: document.getElementById('chef-postre').checked,
+        soloNevera: document.getElementById('chef-solo-nevera').checked,
+        peticionUsuario: document.getElementById('chef-peticion').value,
+    };
+
+    // 3. Convertir las imágenes a formato Base64 para enviarlas
+    const imagePromises = files.map(file => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                // Extraemos solo la parte Base64 de la data URL
+                const base64String = event.target.result.split(',')[1];
+                resolve(base64String);
+            };
+            reader.onerror = (error) => reject(error);
+            reader.readAsDataURL(file);
+        });
+    });
 
     try {
-        const contextRes = await fetchWithTimeout(gasWebhookURL, { Type: 'get_user_context', chat_ID: chatId, hora_comida: hora });
-        const userContextForChef = await contextRes.json();
-        if (userContextForChef.error) throw new Error(userContextForChef.error);
+        const imagesBase64 = await Promise.all(imagePromises);
 
-        let prompt = `Rol: Eres un "Chef Asistente Contextual", amigable, creativo y práctico. Tu objetivo es ayudar a un usuario a decidir qué cocinar basándote en lo que tiene en casa y sus preferencias.
-Contexto del Entorno del Usuario:
-Ubicación: ${userContextForChef.ciudad || 'desconocida'}, ${userContextForChef.pais || 'desconocido'}.
-Estación del Año: ${userContextForChef.estacion}.
-Clima a la hora de la comida (${hora}): ${userContextForChef.clima_hora_especifica}.
-Contexto de la Petición:
-Tipo de Comida: ${tipoComida} ${conPostre ? '(con Postre incluido)' : ''}
-Número de Comensales: ${comensales}
-Estilo de Cocina Deseado: ${estilo}
-Petición Específica del Usuario: "${peticionUsuario || 'Ninguna'}"
-Restricciones Dietéticas del Usuario: ${userContextForChef.preferencias_dieteticas || 'Ninguna especificada'}.
-Condición de ingredientes: ${soloNevera ? 'El usuario solicita usar EXCLUSIVAMENTE los ingredientes de la foto, sin comprar nada más.' : 'El usuario está dispuesto a comprar ingredientes si es necesario.'}
-Análisis de Ingredientes:
-Analiza las imágenes adjuntas de la nevera/despensa del usuario. Lista en primer lugar los ingredientes principales que identificas.
-Tu Tarea:
-Basado en TODO el contexto anterior, proporciona 2 sugerencias de menú. Menciona el clima en tu descripción para hacerla más personal. Tu respuesta DEBE estar en formato JSON, siguiendo estrictamente esta estructura:
-{"sugerencias": [{"titulo_receta": "Nombre Receta 1","descripcion": "Texto apetitoso.","ingredientes_detectados": ["Ingrediente 1"],"ingredientes_a_comprar": [{"nombre": "Ingrediente 3", "cantidad": "1 ud"}],"postre": {"titulo": "Nombre Postre","descripcion": "Descripción.","ingredientes_a_comprar": []}},{"titulo_receta": "Nombre Receta 2","descripcion": "Texto apetitoso.","ingredientes_detectados": [],"ingredientes_a_comprar": [],"postre": null}]}
-Instrucciones Adicionales:
-Si no hay postre, el campo "postre" debe ser null. Si no hay ingredientes a comprar, el array debe estar vacío. Sé realista.`;
-
-        const makeRes = await fetchWithTimeout(chefWebhookURL, { 
-            prompt: prompt, 
-            images: files, 
-            image_count: files.length
-        }, true);
-
-        const responseText = await makeRes.text();
-        const data = JSON.parse(responseText);
+        // 4. Llamar a nuestra Cloud Function con todos los datos
+        const result = await processChefRequest({
+            chatId: chatId, // Variable global que ya tenemos
+            userPreferences: userPreferences,
+            imagesBase64: imagesBase64,
+        });
         
-        showToast("¡Aquí tienes tus sugerencias!");
-        renderChefResults(data.sugerencias);
+        // 5. Procesar la respuesta del "cerebro"
+        const data = result.data; // La respuesta real está en la propiedad 'data'
+        if (data && data.sugerencias) {
+            showToast("¡Aquí tienes tus sugerencias!");
+            renderChefResults(data.sugerencias);
+        } else {
+            throw new Error("La respuesta del Chef no tuvo el formato esperado.");
+        }
 
-    } catch(err) {
-        showToast(err.message, true);
+    } catch (err) {
+        console.error("Error al llamar a la Cloud Function del Chef:", err);
+        // Mostrar un mensaje de error más útil al usuario
+        let errorMessage = err.message || "Ocurrió un error desconocido.";
+        if (err.code === 'unavailable') {
+            errorMessage = "El servicio no está disponible, inténtalo de nuevo más tarde.";
+        }
+        showToast(errorMessage, true);
     } finally {
         hideSpinner();
     }
