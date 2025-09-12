@@ -2619,14 +2619,10 @@ function handleChefImageSelection(file, callback) {
 // Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
 async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
-    try {
-        // Se inicializa sin argumentos para compatibilidad
-        const functions = firebase.functions();
-        // Se especifica la región al llamar a la función
-        const processChefRequest = functions.httpsCallable('processChefRequest');
-        // Para producción, se puede forzar la región así si fuera necesario
-        // const processChefRequest = firebase.app().functions('europe-west1').httpsCallable('processChefRequest');
+    // URL directa a tu Cloud Function
+    const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
+    try {
         const userPreferences = {
             tipoComida: document.getElementById('chef-tipo-comida').value,
             hora: document.getElementById('chef-hora').value,
@@ -2651,13 +2647,24 @@ async function executeChefRequest(files) {
 
         const imagesBase64 = await Promise.all(imagePromises);
 
-        const result = await processChefRequest({
-            chatId: chatId,
-            userPreferences: userPreferences,
-            imagesBase64: imagesBase64,
+        const response = await fetch(chefFunctionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: {
+                chatId: chatId,
+                userPreferences: userPreferences,
+                imagesBase64: imagesBase64,
+            }})
         });
+
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(errorBody.error.message || `Error del servidor: ${response.status}`);
+        }
+
+        const result = await response.json();
+        const data = result.result; // Para funciones onCall, el resultado está en 'result'
         
-        const data = result.data;
         if (data && data.sugerencias) {
             showToast("¡Aquí tienes tus sugerencias!");
             renderChefResults(data.sugerencias);
