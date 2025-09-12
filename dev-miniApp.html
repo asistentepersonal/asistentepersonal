@@ -925,11 +925,9 @@ async function executeDelete(type, id) {
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
                 // La actualización de gastos y contadores se gestionará por el backend
                 break;
-            case 'shopping_item': // <--- NUEVO CASO AÑADIDO
-                // La lógica optimista y la eliminación de Firestore ya se manejan en toggleShoppingItemStatus
-                // Aquí solo necesitamos un retorno para evitar el default y el fetch genérico.
-                return;
-            default: return;
+                        case 'shopping_item': // <--- CASO AÑADIDO Y CORREGIDO
+                handleDeleteShoppingItem(id); // Llamar a la función dedicada para eliminar el artículo
+                return; // Salir, ya que handleDeleteShoppingItem gestiona todo el proceso
         }
 
     } catch(e) { showToast('Error local al procesar.', true); return; }
@@ -1316,8 +1314,8 @@ function handleShoppingItemInteractions(event) {
         if (action === 'edit-shopping-item') {
             const item = appData.shoppingList.find(i => i.id === itemId);
             if(item) renderEditShoppingItemForm(item);
-            } else if (action === 'delete-shopping-item') {
-        handleDeleteShoppingItem(itemId); // <--- Nueva función para manejar la eliminación
+                } else if (action === 'delete-shopping-item') {
+        confirmDelete('shopping_item', itemId); // <--- Restaurar la llamada a confirmDelete
     }
     }
 }
@@ -2819,12 +2817,13 @@ async function executeChefRequest(files) {
                 const data = result.result; // Para funciones onCall, el resultado está en 'result'
         
         // --- CAMBIO CLAVE: Limpieza profunda de instrucciones aquí ---
-        if (data && data.sugerencias) {
+               if (data && data.sugerencias) {
             data.sugerencias.forEach(sug => {
                 if (sug.instrucciones_preparacion && Array.isArray(sug.instrucciones_preparacion)) {
                     sug.instrucciones_preparacion = sug.instrucciones_preparacion
-                        .filter(step => typeof step === 'string' && step.trim().length > 0) // Filtra nulos, no-strings y vacíos
-                        .map(step => step.trim()); // Limpia cada paso
+                        // Filtra nulos, no-strings, vacíos y líneas que solo contienen espacios o caracteres invisibles
+                        .filter(step => typeof step === 'string' && step.replace(/\s+/g, '').length > 0)
+                        .map(step => step.trim()); // Limpia cada paso restante
                 }
             });
         }
