@@ -2550,7 +2550,10 @@ function renderChefPage() {
                 <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
                 
                 <div id="chef-image-previews"></div>
-                <button id="chef-add-photo-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-top: 20px;">📸 Añadir Foto de Ingredientes</button>
+                <div class="button-group" style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
+                <button id="chef-take-photo-btn" class="add-article-btn enabled" style="flex: 1; min-width: 150px; background-color: #28a745;">📸 Tomar Foto</button>
+                <button id="chef-select-gallery-btn" class="add-article-btn enabled" style="flex: 1; min-width: 150px;">🖼️ Seleccionar de Galería</button>
+            </div>
 
                 <div class="button-group">
                     <button id="chef-cancel-btn" class="cancel">Cancelar/Salir</button>
@@ -2582,7 +2585,17 @@ function renderChefPage() {
             };
             reader.readAsDataURL(file);
         });
-        addPhotoButton.style.display = selectedFiles.length < 2 ? 'block' : 'none';
+        const takePhotoBtn = document.getElementById('chef-take-photo-btn');
+    const selectGalleryBtn = document.getElementById('chef-select-gallery-btn');
+    if (takePhotoBtn && selectGalleryBtn) {
+        if (selectedFiles.length < 2) {
+            takePhotoBtn.style.display = 'block';
+            selectGalleryBtn.style.display = 'block';
+        } else {
+            takePhotoBtn.style.display = 'none';
+            selectGalleryBtn.style.display = 'none';
+        }
+    }
     };
 
     previewsContainer.addEventListener('click', (event) => {
@@ -2593,26 +2606,54 @@ function renderChefPage() {
         }
     });
 
-    addPhotoButton.onclick = () => {
-        if (selectedFiles.length >= 2) {
-            showToast("Puedes subir un máximo de 2 fotos.", true);
-            return;
+    // Manejador para el botón "Tomar Foto"
+document.getElementById('chef-take-photo-btn').onclick = () => {
+    if (selectedFiles.length >= 2) {
+        showToast("Puedes subir un máximo de 2 fotos.", true);
+        return;
+    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.capture = 'camera'; // Intentamos 'camera' genérico o 'environment'
+    fileInput.style.display = 'none'; // Ocultar input
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            handleChefImageSelection(file, (confirmedFile) => {
+                selectedFiles.push(confirmedFile);
+                updatePreviews();
+            });
         }
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.capture = 'environment';
-        fileInput.onchange = (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                handleChefImageSelection(file, (confirmedFile) => {
-                    selectedFiles.push(confirmedFile);
-                    updatePreviews();
-                });
-            }
-        };
-        fileInput.click();
     };
+    document.body.appendChild(fileInput); // Añadir al body para poder hacer click
+    fileInput.click();
+    document.body.removeChild(fileInput); // Eliminar del body
+};
+
+// Manejador para el botón "Seleccionar de Galería"
+document.getElementById('chef-select-gallery-btn').onclick = () => {
+    if (selectedFiles.length >= 2) {
+        showToast("Puedes subir un máximo de 2 fotos.", true);
+        return;
+    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none'; // Ocultar input
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            handleChefImageSelection(file, (confirmedFile) => {
+                selectedFiles.push(confirmedFile);
+                updatePreviews();
+            });
+        }
+    };
+    document.body.appendChild(fileInput); // Añadir al body
+    fileInput.click();
+    document.body.removeChild(fileInput); // Eliminar del body
+};
     
     document.getElementById('chef-submit-btn').onclick = () => {
         if(selectedFiles.length === 0) {
@@ -2745,6 +2786,21 @@ function renderChefResults(sugerencias) {
                         </ul>
                         <button class="add-article-btn" data-action="add-ingredients" style="width:100%; max-width:100%; margin-top:15px;">Añadir seleccionados a la compra</button>
                     ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
+                    
+                    ${sug.instrucciones_preparacion && sug.instrucciones_preparacion.length > 0 ? `
+                        <div class="list-item clickable" style="margin-top:20px; text-align:left;" data-action="toggle-instructions" data-target="instructions-${index}">
+                            <div class="list-item-content">
+                                <span class="list-item-title">🧑‍🍳 Cómo Preparar</span>
+                            </div>
+                            <div class="list-item-actions"><span class="expand-arrow">▼</span></div>
+                        </div>
+                        <div id="instructions-${index}" class="event-description" style="margin-top:0; padding:15px; background:var(--bg); border-radius:0 0 10px 10px; box-shadow:inset 0 2px 5px rgba(0,0,0,0.02); display:none; max-height:0; overflow:hidden; transition:max-height 0.3s ease-out, padding 0.3s ease-out;">
+                            <ol style="padding-left:20px; margin-top:0;">
+                                ${sug.instrucciones_preparacion.map(step => `<li>${step}</li>`).join('')}
+                            </ol>
+                        </div>
+                    ` : ''}
+
                     <button class="add-article-btn" data-action="copy-recipe" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;">Copiar Receta</button>
                 </div>
             </div>`;
@@ -2766,6 +2822,33 @@ function handleChefResultsClicks(event) {
         case 'add-ingredients': addIngredientsToShoppingList(button); break;
         case 'copy-recipe': copyToClipboard(button); break;
         case 'go-home': renderDashboard(); break;
+        case 'toggle-instructions': // <--- Nueva acción para el desplegable
+            event.stopPropagation(); // Evitar que el clic se propague más allá del botón
+            const targetId = button.dataset.target;
+            const targetElement = document.getElementById(targetId);
+            const parentCard = button.closest('.recipe-card');
+
+            if (targetElement && parentCard) {
+                const isOpen = targetElement.style.display === 'block';
+                if (isOpen) {
+                    targetElement.style.maxHeight = '0';
+                    targetElement.style.padding = '0 15px'; // Restablecer padding al cerrar
+                    setTimeout(() => { targetElement.style.display = 'none'; }, 300); // Ocultar después de la transición
+                    parentCard.classList.remove('open'); // Quitar clase 'open' del padre
+                } else {
+                    targetElement.style.display = 'block';
+                    // Forzar el redibujado para que la transición funcione
+                    targetElement.offsetHeight; 
+                    targetElement.style.maxHeight = '500px'; // Un valor suficientemente grande
+                    targetElement.style.padding = '15px'; // Restaurar padding al abrir
+                    parentCard.classList.add('open'); // Añadir clase 'open' al padre
+                }
+                const arrow = button.querySelector('.expand-arrow');
+                if (arrow) {
+                    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+                }
+            }
+            break;
     }
 }
 
