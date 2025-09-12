@@ -921,10 +921,14 @@ async function executeDelete(type, id) {
                 }
                 renderCalendarView();
                 break;
-            case 'gasto':
+                case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
                 // La actualización de gastos y contadores se gestionará por el backend
                 break;
+            case 'shopping_item': // <--- NUEVO CASO AÑADIDO
+                // La lógica optimista y la eliminación de Firestore ya se manejan en toggleShoppingItemStatus
+                // Aquí solo necesitamos un retorno para evitar el default y el fetch genérico.
+                return;
             default: return;
         }
 
@@ -2763,8 +2767,20 @@ async function executeChefRequest(files) {
         }
 
         const result = await response.json();
-        const data = result.result; // Para funciones onCall, el resultado está en 'result'
+                const data = result.result; // Para funciones onCall, el resultado está en 'result'
         
+        // --- CAMBIO CLAVE: Limpieza profunda de instrucciones aquí ---
+        if (data && data.sugerencias) {
+            data.sugerencias.forEach(sug => {
+                if (sug.instrucciones_preparacion && Array.isArray(sug.instrucciones_preparacion)) {
+                    sug.instrucciones_preparacion = sug.instrucciones_preparacion
+                        .filter(step => typeof step === 'string' && step.trim().length > 0) // Filtra nulos, no-strings y vacíos
+                        .map(step => step.trim()); // Limpia cada paso
+                }
+            });
+        }
+        // --- FIN CAMBIO CLAVE ---
+
         if (data && data.sugerencias) {
             showToast("¡Aquí tienes tus sugerencias!");
             renderChefResults(data.sugerencias);
@@ -2831,15 +2847,22 @@ function renderChefResults(sugerencias) {
     
     mainContentArea.innerHTML = html;
     mainContentArea.removeEventListener('click', handleChefResultsClicks);
-	        // --- CAMBIO CLAVE: Scroll automático al inicio del contenedor principal del Chef ---
-    // Aseguramos que la vista se posicione al inicio del contenedor específico del Chef
-    const chefContainer = document.querySelector('.chef-container');
-    if (chefContainer) {
-        chefContainer.scrollTop = 0;
-    } else {
-        // Como fallback, o si .chef-container no es el elemento con scroll, usar mainContentArea
-        mainContentArea.scrollTop = 0; 
-    }
+	            // --- CAMBIO CLAVE: Scroll automático al inicio de las recetas con retraso ---
+    // Esperamos un pequeño momento para asegurarnos de que el DOM esté completamente renderizado
+    setTimeout(() => {
+        const firstRecipeCard = document.getElementById('recipe-0'); // Obtener la primera tarjeta de receta
+        if (firstRecipeCard) {
+            firstRecipeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            // Como fallback, o si no hay recetas, ir al top del contenedor general del chef
+            const chefContainer = document.querySelector('.chef-container');
+            if (chefContainer) {
+                chefContainer.scrollTop = 0;
+            } else {
+                mainContentArea.scrollTop = 0;
+            }
+        }
+    }, 100); // Pequeño retraso de 100ms
     // --- FIN CAMBIO CLAVE ---
     mainContentArea.addEventListener('click', handleChefResultsClicks);
 }
