@@ -1219,7 +1219,7 @@ function renderShoppingListContent(items) {
             <li class="shopping-item" id="item-${item.id}">
                 ${!isPending ? `<div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-id="${item.id}"></div>` : ''}
                 <button class="shopping-item-toggle-btn ${isPending ? 'pending' : 'bought'}" data-id="${item.id}" data-current-status="${item.estado}">
-                <span>${item.articulo}${item.origen === 'chef' ? ' 🧑‍🍳' : ''}</span>
+                <span>${item.articulo}</span>
                     ${!isPending && formattedDate ? `<span class="item-date">${formattedDate}</span>` : ''}
                 </button>
                 <div class="list-item-actions">
@@ -1302,49 +1302,58 @@ function handleShoppingItemInteractions(event) {
 }
 
 async function toggleShoppingItemStatus(itemId, newStatus) {
-    const itemRef = db.collection('users').doc(chatId).collection('listaDeLaLaCompra').doc(itemId);
-    
-    // Obtener el artículo actual de la lista en memoria para verificar su origen
-    const itemToToggle = appData.shoppingList.find(item => item.id === itemId);
+    const itemRef = db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(itemId);
+    // Usar el prefijo del ID para determinar si es un artículo del Chef
+    const isChefItem = itemId.startsWith('ITEM-');
 
-    if (!itemToToggle) {
-        console.error(`Artículo de compras con ID ${itemId} no encontrado en appData.`);
-        showToast("Error: Artículo no encontrado.", true);
-        return;
+    // --- Lógica de Eliminación (para artículos del Chef al ser Comprados) ---
+    if (newStatus === 'Comprado' && isChefItem) {
+        // Actualización optimista: lo removemos de la lista local y re-renderizamos
+        const index = appData.shoppingList.findIndex(item => item.id === itemId);
+        if (index > -1) {
+            appData.shoppingList.splice(index, 1);
+        }
+        renderShoppingListContent(appData.shoppingList); // Re-renderizar la UI
+        updateShoppingCounts(appData.shoppingList);      // Actualizar los badges de contadores
+        showToast('Artículo de Chef marcado como comprado y eliminado.');
+
+        try {
+            await itemRef.delete(); // Ejecutar la eliminación real en Firestore
+            // El listener de Firestore ('onSnapshot') confirmará la eliminación y si hay alguna
+            // discrepancia, la corregirá, pero nuestra actualización optimista ya lo ha hecho en la UI.
+        } catch (err) {
+            console.error("Error al eliminar artículo del Chef de Firestore:", err);
+            showToast(`Error de sincronización al eliminar: ${err.message}. Restaurando datos...`, true);
+            initializeApp(); // Recarga completa en caso de error grave en la eliminación
+        }
+        return; // Salir después de procesar la eliminación
     }
 
+    // --- Lógica de Actualización de Estado (para otros casos) ---
+    // Esto incluye:
+    // - Artículos manuales ('G-') que se marcan como 'Comprado'.
+    // - Cualquier artículo (Chef o manual) que se marca como 'Pendiente'.
+
     try {
-        // --- Lógica: Si es un artículo del Chef y se marca como 'Comprado', se elimina ---
-        if (newStatus === 'Comprado' && itemToToggle.origen === 'chef') {
-            // Actualización optimista: lo removemos de la lista local y re-renderizamos.
-            // Esto da una respuesta instantánea al usuario.
-            const index = appData.shoppingList.findIndex(item => item.id === itemId);
-            if (index > -1) {
-                appData.shoppingList.splice(index, 1);
-            }
-            renderShoppingListContent(appData.shoppingList); // Re-renderizar la UI
-            updateShoppingCounts(appData.shoppingList);      // Actualizar los badges de contadores
-            showToast('Artículo de Chef marcado como comprado y eliminado.');
-
-            // Ejecutar la eliminación real en Firestore
-            await itemRef.delete();
-            // El listener de Firestore ('onSnapshot') confirmará la eliminación y, si hay alguna
-            // discrepancia, la corregirá, pero nuestra actualización optimista es más rápida.
-
-        } else {
-            // Lógica normal: para otros artículos o si se marca como 'Pendiente'
-            await itemRef.update({
-                estado: newStatus,
-                fecha: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            // En este caso, el listener de Firestore se encargará de re-renderizar la lista
-            // y actualizar los contadores después de que la base de datos se actualice.
+        // Antes de intentar actualizar, verifica si el documento existe en Firestore
+        const docSnap = await itemRef.get();
+        if (!docSnap.exists) {
+            console.warn(`Intento de actualizar documento no existente en Firestore: ${itemId}. Posiblemente ya eliminado o error de sincronización.`);
+            showToast("Advertencia: El artículo ya no existe en la base de datos. Actualizando lista.", false);
+            renderShoppingList(); // Re-renderiza la lista para reflejar el estado actual de Firestore
+            return;
         }
+
+        // Si el documento existe, procede con la actualización del estado
+        await itemRef.update({
+            estado: newStatus,
+            fecha: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        // El listener de Firestore se encargará de actualizar la UI y los contadores.
     } catch (err) {
-        console.error("Error al cambiar estado o eliminar artículo:", err);
+        console.error("Error al cambiar el estado del artículo:", err);
         showToast(`Error: ${err.message}. Restaurando datos...`, true);
-        // En caso de un error crítico, re-inicializar la app para asegurar la consistencia.
-        initializeApp(); 
+        initializeApp(); // Recarga completa en caso de error grave en la actualización
     }
 }
 
@@ -2773,10 +2782,9 @@ function copyToClipboard(buttonElement) {
 }
 
 /**
- * [VERSIÓN DEFINITIVA CON SDK DE FIRESTORE]
+ * [VERSIÓN DEFINITIVA CON SDK DE FIRESTORE Y EMOJI EN EL NOMBRE]
  * Añade los ingredientes del Chef a la lista de la compra de forma atómica.
- * Utiliza un "batch write" para garantizar la consistencia de los datos.
- * La operación es casi instantánea para el usuario.
+ * El emoji del Chef ahora se concatena directamente en el nombre del artículo.
  */
 async function addIngredientsToShoppingList(buttonElement) {
     const recipeCard = buttonElement.closest('.recipe-card');
@@ -2786,44 +2794,41 @@ async function addIngredientsToShoppingList(buttonElement) {
         return;
     }
     
-    const itemsToAdd = Array.from(checkboxes).map(cb => cb.dataset.itemName);
+    // Concatenar el emoji del Chef directamente en el nombre del artículo
+    const itemsToAdd = Array.from(checkboxes).map(cb => `${cb.dataset.itemName} 🧑‍🍳`);
     
     // No mostramos spinner, la operación es muy rápida.
     // Deshabilitamos el botón inmediatamente para evitar dobles clics.
     buttonElement.disabled = true;
     
     try {
-        // 1. Preparamos el "lote" de operaciones atómicas.
         const batch = db.batch();
-        
-        // 2. Añadimos la operación de creación para cada nuevo artículo.
         const shoppingListRef = db.collection('users').doc(chatId).collection('listaDeLaCompra');
-        itemsToAdd.forEach(itemName => {
-            const newId = generateCustomId('ITEM-');
+        
+        itemsToAdd.forEach(finalItemName => {
+            const newId = generateCustomId('ITEM-'); // ID específico para artículos del Chef
             const newItemRef = shoppingListRef.doc(newId);
             const newItemData = {
-                articulo: itemName,
+                articulo: finalItemName, // El nombre del artículo AHORA incluye el emoji del Chef
                 estado: 'Pendiente',
                 cycle: 0,
-                origen: 'chef', // La bandera especial
+                // Ya no necesitamos 'origen: "chef"', el ID "ITEM-" y el emoji en el nombre lo identifican
                 fecha: firebase.firestore.FieldValue.serverTimestamp()
             };
             batch.set(newItemRef, newItemData);
         });
 
-        // 3. Añadimos la operación de actualización para el contador.
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
         batch.update(countsRef, {
             shoppingPendingCount: firebase.firestore.FieldValue.increment(itemsToAdd.length)
         });
 
-        // 4. Ejecutamos el lote. O todo tiene éxito, o nada se guarda.
         await batch.commit();
 
-        // Éxito: el usuario permanece en la pantalla.
         showToast(`${itemsToAdd.length} ingredientes añadidos a la lista.`);
         buttonElement.textContent = 'Añadido ✔️';
-        // El oyente en tiempo real se encargará de actualizar el badge en Home.
+        // El oyente en tiempo real de la lista de compras se encargará de actualizar la UI
+        // con los artículos que ya tienen el emoji incluido en su nombre.
         
     } catch(err) {
         console.error("Error al añadir ingredientes con batch write:", err);
