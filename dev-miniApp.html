@@ -2619,11 +2619,10 @@ function handleChefImageSelection(file, callback) {
 // Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
 async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
-
     try {
-        // La inicialización ahora es local a la función, asegurando que existe.
-        const functions = firebase.functions(); 
-        const processChefRequest = functions.region("europe-west1").httpsCallable('processChefRequest');
+        // La inicialización ahora se hace en dos pasos, compatible con tu SDK
+        const functions = firebase.functions('europe-west1');
+        const processChefRequest = functions.httpsCallable('processChefRequest');
 
         const userPreferences = {
             tipoComida: document.getElementById('chef-tipo-comida').value,
