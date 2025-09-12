@@ -1316,9 +1316,9 @@ function handleShoppingItemInteractions(event) {
         if (action === 'edit-shopping-item') {
             const item = appData.shoppingList.find(i => i.id === itemId);
             if(item) renderEditShoppingItemForm(item);
-        } else if (action === 'delete-shopping-item') {
-            confirmDelete('shopping_item', itemId);
-        }
+            } else if (action === 'delete-shopping-item') {
+        handleDeleteShoppingItem(itemId); // <--- Nueva función para manejar la eliminación
+    }
     }
 }
 
@@ -1375,6 +1375,55 @@ async function toggleShoppingItemStatus(itemId, newStatus) {
         console.error("Error al cambiar el estado del artículo:", err);
         showToast(`Error: ${err.message}. Restaurando datos...`, true);
         initializeApp(); // Recarga completa en caso de error grave en la actualización
+    }
+}
+
+async function handleDeleteShoppingItem(itemId) {
+    // Obtenemos el tipo de ID para decidir si es un artículo del Chef o manual
+    const isChefItem = itemId.startsWith('ITEM-');
+    
+    // Confirmación visual
+    showToast("Eliminando artículo...", false);
+
+    try {
+        const itemRef = db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(itemId);
+        const docSnap = await itemRef.get();
+
+        if (!docSnap.exists) {
+            console.warn(`Intento de eliminar documento no existente en Firestore: ${itemId}.`);
+            showToast("Advertencia: El artículo ya no existe en la base de datos. Actualizando lista.", false);
+            renderShoppingList();
+            return;
+        }
+
+        // Realiza la eliminación en Firestore
+        await itemRef.delete();
+
+        // Si es un artículo del Chef, su contador ya se ajustaría al marcar "Comprado" y eliminarse.
+        // Para asegurar la consistencia y para artículos manuales, ajustamos el contador aquí.
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        const itemData = docSnap.data(); // Obtenemos el estado actual antes de la eliminación
+        
+        if (itemData.estado === 'Pendiente') {
+            await countsRef.update({ shoppingPendingCount: firebase.firestore.FieldValue.increment(-1) });
+        } else if (itemData.estado === 'Comprado') {
+            await countsRef.update({ shoppingBoughtCount: firebase.firestore.FieldValue.increment(-1) });
+        }
+        
+        // Actualización optimista de la UI (ya se hará por el onSnapshot, pero por si acaso)
+        const index = appData.shoppingList.findIndex(item => item.id === itemId);
+        if (index > -1) {
+            appData.shoppingList.splice(index, 1);
+        }
+        renderShoppingListContent(appData.shoppingList);
+        updateShoppingCounts(appData.shoppingList); // Actualiza los badges locales
+
+        showToast('Artículo eliminado con éxito.');
+
+    } catch (err) {
+        console.error("Error al eliminar artículo de compras:", err);
+        showToast(`Error al eliminar: ${err.message}. Restaurando datos...`, true);
+        initializeApp();
     }
 }
 
