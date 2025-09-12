@@ -678,6 +678,21 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 let isInitializing = false;
 let isAppReady = false;
 let unsubscribeShoppingList = null;
+// --- Inputs de archivo globales para la cámara y galería (NUEVOS) ---
+// Se declaran una sola vez al inicio de la aplicación y se reutilizan.
+const fileInputCamera = document.createElement('input');
+fileInputCamera.type = 'file';
+fileInputCamera.accept = 'image/*';
+fileInputCamera.capture = 'camera'; // O 'environment' si 'camera' no funciona mejor
+fileInputCamera.style.display = 'none'; // Asegurarse de que esté oculto
+document.body.appendChild(fileInputCamera);
+
+const fileInputGallery = document.createElement('input');
+fileInputGallery.type = 'file';
+fileInputGallery.accept = 'image/*';
+fileInputGallery.style.display = 'none'; // Asegurarse de que esté oculto
+document.body.appendChild(fileInputGallery);
+// --- FIN Inputs de archivo globales ---
 
 /// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
@@ -2655,14 +2670,14 @@ document.getElementById('chef-select-gallery-btn').onclick = () => {
     document.body.removeChild(fileInput); // Eliminar del body
 };
     
-    document.getElementById('chef-submit-btn').onclick = () => {
-        if(selectedFiles.length === 0) {
-            showToast("Por favor, sube una foto de tus ingredientes.", true);
-            return;
-        }
-        executeChefRequest(selectedFiles);
-    };
-}
+                document.getElementById('chef-submit-btn').onclick = () => {
+                if(selectedFiles.length === 0) {
+                    showToast("Por favor, sube una foto de tus ingredientes.", true);
+                    return;
+                }
+                executeChefRequest(selectedFiles);
+            };
+        } // Esta es la llave de cierre de renderChefPage
 
 function handleChefImageSelection(file, callback) {
     const overlay = document.getElementById('image-preview-overlay');
@@ -2796,7 +2811,7 @@ function renderChefResults(sugerencias) {
                         </div>
                         <div id="instructions-${index}" class="event-description" style="margin-top:0; padding:15px; background:var(--bg); border-radius:0 0 10px 10px; box-shadow:inset 0 2px 5px rgba(0,0,0,0.02); display:none; max-height:0; overflow:hidden; transition:max-height 0.3s ease-out, padding 0.3s ease-out;">
                             <ol style="padding-left:20px; margin-top:0;">
-                                ${sug.instrucciones_preparacion.map(step => `<li>${step}</li>`).join('')}
+                                ${sug.instrucciones_preparacion.map(step => `<li>${step.trim()}</li>`).join('')}
                             </ol>
                         </div>
                     ` : ''}
