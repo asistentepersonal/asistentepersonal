@@ -355,11 +355,14 @@ async function initializeApp() {
             const serverCounts = doc.data();
             // Comprobar si realmente hay cambios para evitar re-renderizados innecesarios
             if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
-                appData.counts = serverCounts;
-                // --- CAMBIO CLAVE AQUÍ: Siempre actualizar el dashboard si hay cambios ---
-                // Esto asegura que, al volver a Home, los badges estén correctos.
-                renderDashboard(); // Se llama siempre para mantener los badges del Home actualizados.
+                            appData.counts = serverCounts;
+            // Si el usuario está en el dashboard, se actualiza la vista.
+            // Los badges se actualizarán automáticamente al volver al Home
+            // debido a que appData.counts ya está sincronizado.
+            if (document.querySelector('.grid')) {
+                renderDashboard();
                 showToast("Datos sincronizados.", false);
+            }
             }
         }
     }, (error) => {
@@ -2828,16 +2831,15 @@ function renderChefResults(sugerencias) {
     
     mainContentArea.innerHTML = html;
     mainContentArea.removeEventListener('click', handleChefResultsClicks);
-	    // --- CAMBIO CLAVE: Scroll automático al inicio de las recetas ---
-    // Aseguramos que la vista se posicione al inicio del contenido del Chef
-    mainContentArea.scrollTop = 0;
-    // Si quisieras ser más específico y que siempre fuera al primer resultado de receta:
-    // const firstRecipeCard = document.getElementById('recipe-0');
-    // if (firstRecipeCard) {
-    //     firstRecipeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // } else {
-    //     mainContentArea.scrollTop = 0; // Si no hay recetas, ir al top del contenedor general
-    // }
+	        // --- CAMBIO CLAVE: Scroll automático al inicio del contenedor principal del Chef ---
+    // Aseguramos que la vista se posicione al inicio del contenedor específico del Chef
+    const chefContainer = document.querySelector('.chef-container');
+    if (chefContainer) {
+        chefContainer.scrollTop = 0;
+    } else {
+        // Como fallback, o si .chef-container no es el elemento con scroll, usar mainContentArea
+        mainContentArea.scrollTop = 0; 
+    }
     // --- FIN CAMBIO CLAVE ---
     mainContentArea.addEventListener('click', handleChefResultsClicks);
 }
