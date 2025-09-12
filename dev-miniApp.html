@@ -1219,7 +1219,7 @@ function renderShoppingListContent(items) {
             <li class="shopping-item" id="item-${item.id}">
                 ${!isPending ? `<div class="shopping-item-checkbox-wrapper"><input type="checkbox" class="shopping-item-checkbox" data-id="${item.id}"></div>` : ''}
                 <button class="shopping-item-toggle-btn ${isPending ? 'pending' : 'bought'}" data-id="${item.id}" data-current-status="${item.estado}">
-                    <span>${item.articulo}</span>
+                <span>${item.articulo}${item.origen === 'chef' ? ' 🧑‍🍳' : ''}</span>
                     ${!isPending && formattedDate ? `<span class="item-date">${formattedDate}</span>` : ''}
                 </button>
                 <div class="list-item-actions">
@@ -1302,16 +1302,49 @@ function handleShoppingItemInteractions(event) {
 }
 
 async function toggleShoppingItemStatus(itemId, newStatus) {
-    const itemRef = db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(itemId);
+    const itemRef = db.collection('users').doc(chatId).collection('listaDeLaLaCompra').doc(itemId);
+    
+    // Obtener el artículo actual de la lista en memoria para verificar su origen
+    const itemToToggle = appData.shoppingList.find(item => item.id === itemId);
+
+    if (!itemToToggle) {
+        console.error(`Artículo de compras con ID ${itemId} no encontrado en appData.`);
+        showToast("Error: Artículo no encontrado.", true);
+        return;
+    }
+
     try {
-        await itemRef.update({
-            estado: newStatus,
-            fecha: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        // No es necesario showToast, el cambio es visualmente instantáneo y el listener lo confirma.
+        // --- Lógica: Si es un artículo del Chef y se marca como 'Comprado', se elimina ---
+        if (newStatus === 'Comprado' && itemToToggle.origen === 'chef') {
+            // Actualización optimista: lo removemos de la lista local y re-renderizamos.
+            // Esto da una respuesta instantánea al usuario.
+            const index = appData.shoppingList.findIndex(item => item.id === itemId);
+            if (index > -1) {
+                appData.shoppingList.splice(index, 1);
+            }
+            renderShoppingListContent(appData.shoppingList); // Re-renderizar la UI
+            updateShoppingCounts(appData.shoppingList);      // Actualizar los badges de contadores
+            showToast('Artículo de Chef marcado como comprado y eliminado.');
+
+            // Ejecutar la eliminación real en Firestore
+            await itemRef.delete();
+            // El listener de Firestore ('onSnapshot') confirmará la eliminación y, si hay alguna
+            // discrepancia, la corregirá, pero nuestra actualización optimista es más rápida.
+
+        } else {
+            // Lógica normal: para otros artículos o si se marca como 'Pendiente'
+            await itemRef.update({
+                estado: newStatus,
+                fecha: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            // En este caso, el listener de Firestore se encargará de re-renderizar la lista
+            // y actualizar los contadores después de que la base de datos se actualice.
+        }
     } catch (err) {
-        console.error("Error al cambiar estado:", err);
-        showToast(`Error: ${err.message}.`, true);
+        console.error("Error al cambiar estado o eliminar artículo:", err);
+        showToast(`Error: ${err.message}. Restaurando datos...`, true);
+        // En caso de un error crítico, re-inicializar la app para asegurar la consistencia.
+        initializeApp(); 
     }
 }
 
