@@ -2620,9 +2620,12 @@ function handleChefImageSelection(file, callback) {
 async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
     try {
-        // La inicialización ahora se hace en dos pasos, compatible con tu SDK
-        const functions = firebase.functions('europe-west1');
+        // Se inicializa sin argumentos para compatibilidad
+        const functions = firebase.functions();
+        // Se especifica la región al llamar a la función
         const processChefRequest = functions.httpsCallable('processChefRequest');
+        // Para producción, se puede forzar la región así si fuera necesario
+        // const processChefRequest = firebase.app().functions('europe-west1').httpsCallable('processChefRequest');
 
         const userPreferences = {
             tipoComida: document.getElementById('chef-tipo-comida').value,
