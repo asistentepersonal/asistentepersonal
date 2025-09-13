@@ -263,33 +263,25 @@
 .guia-program-time { font-size: 0.8rem; color: var(--muted); }
 .guia-now-line { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #e74c3c; z-index: 3; pointer-events: none; }
 /* --- FIN ESTILOS GUÍA TV --- */  
-/* --- INICIO ESTILOS CALENDARIO PROFESIONAL --- */
+/* --- INICIO ESTILOS CALENDARIO PROFESIONAL (V2) --- */
 .calendar-header-sticky { position: sticky; top: 0; background-color: var(--bg); z-index: 20; padding-top: 10px; margin-bottom: 10px;}
 .calendar-timeline { position: relative; padding-left: 50px; }
-.time-slot { height: 60px; border-top: 1px solid #eee; position: relative; }
+.time-slot { height: 60px; border-top: 1px solid var(--muted); position: relative; }
 .time-slot::before { content: attr(data-time); position: absolute; left: -50px; top: -10px; color: var(--muted); font-size: 0.8rem; }
 .now-line { position: absolute; left: 50px; right: 0; height: 2px; background-color: #e74c3c; z-index: 15; }
 .now-line::before { content: ''; position: absolute; left: -5px; top: -4px; width: 12px; height: 12px; background-color: #e74c3c; border-radius: 50%; }
 .event-block { position: absolute; left: 60px; right: 10px; background-color: var(--primary); color: var(--action-text); border-radius: 8px; padding: 8px; overflow: hidden; z-index: 10; cursor: pointer; border-left: 5px solid rgba(0,0,0,0.2); }
 .event-block-title { font-weight: bold; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event-block-time { font-size: 0.8rem; opacity: 0.8; }
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-.calendar-day-header { text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; padding: 5px 0; }
-.calendar-day-cell { background: var(--bg); border-radius: 8px; padding: 8px; min-height: 100px; cursor: pointer; display: flex; flex-direction: column; }
-.calendar-day-cell.today { border: 2px solid var(--primary); }
-.calendar-day-number { font-weight: bold; text-align: right; font-size: 1.1rem; }
-.month-event-pill { font-size: 0.75rem; padding: 2px 5px; border-radius: 5px; margin-top: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--action-text); }
-.calendar-day-cell {
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); /* Sutil borde para modo claro */
-}
-
-/* Mejora de contraste para temas oscuros */
-body[style*="rgb(27, 27, 27)"] .calendar-day-cell, /* Específico para el negro de Telegram */
-body[style*="rgb(33, 33, 33)"] .calendar-day-cell { /* Específico para el gris oscuro de Telegram */
-    background-color: rgba(255, 255, 255, 0.07) !important;
-    box-shadow: none; /* Quitamos el borde que no se ve en oscuro */
-}
-/* --- FIN ESTILOS CALENDARIO PROFESIONAL --- */
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; } /* Ajuste de gap para bordes */
+.calendar-day-header { text-align: center; font-weight: bold; padding: 8px 0; font-size: 0.9rem; }
+.calendar-day-cell { background: var(--card-bg); border-radius: 8px; min-height: 100px; cursor: pointer; display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--bg); }
+.calendar-day-cell.today { border-color: var(--primary); box-shadow: 0 0 5px var(--primary); }
+.calendar-day-number { font-weight: bold; text-align: right; font-size: 0.9rem; padding: 4px; }
+.month-event-pill { font-size: 0.75rem; padding: 2px 5px; border-radius: 5px; margin: 1px 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--action-text); }
+.week-view-col { display: flex; flex-direction: column; }
+.week-view-timeline { flex-grow: 1; position: relative; border-left: 1px solid var(--bg); min-height: 500px; }
+/* --- FIN ESTILOS CALENDARIO PROFESIONAL (V2) --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -3337,23 +3329,27 @@ function renderWeekView(events, startOfWeek) {
     const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
     let weekHtml = '<div class="calendar-grid">';
 
+    // Fila de encabezados
     for (let i = 0; i < 7; i++) {
-        const day = new Date(startOfWeek); day.setDate(startOfWeek.getDate() + i);
+        const day = new Date(startOfWeek);
+        day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
-        weekHtml += `<div class="calendar-day-header" style="${isToday ? 'color:var(--primary);' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
+        weekHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}" style="${isToday ? 'color:var(--primary);' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
     }
-    
+
+    // Contenido de cada día
     for (let i = 0; i < 7; i++) {
-        const day = new Date(startOfWeek); day.setDate(startOfWeek.getDate() + i);
+        const day = new Date(startOfWeek);
+        day.setDate(startOfWeek.getDate() + i);
         const dayStart = new Date(day.setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         
-        weekHtml += `<div class="calendar-timeline" style="height: 500px; overflow-y: auto; position:relative; border-left: 1px solid #eee;">`;
+        weekHtml += `<div class="week-view-timeline">`;
         const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart).sort((a,b) => a.fechaInicio - b.fechaInicio);
         eventsForDay.forEach(event => {
             const startMinutes = Math.max(0, (event.fechaInicio.getTime() - dayStart.getTime()) / 60000);
             const endMinutes = Math.min(1440, (event.fechaFin.getTime() - dayStart.getTime()) / 60000);
-            const top = startMinutes * (500/1440);
+            const top = startMinutes * (500/1440); // Escalar a la altura del contenedor
             const height = Math.max(15, (endMinutes - startMinutes) * (500/1440));
             weekHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${top}px; height:${height}px; background-color:${event.color || '#36A2EB'}; font-size:0.7rem; left: 5px; right: 5px;"><div class="event-block-title">${event.titulo}</div></div>`;
         });
@@ -3366,15 +3362,18 @@ function renderWeekView(events, startOfWeek) {
 
 function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
-    const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    const weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     let monthHtml = `<div class="calendar-grid">`;
-    weekdays.forEach(day => { monthHtml += `<div class="calendar-day-header">${day}</div>`; });
+    weekdays.forEach(day => {
+        monthHtml += `<div class="calendar-day-header">${day}</div>`;
+    });
 
     const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
 
-    for (let i = 0; i < startDayOfWeek; i++) monthHtml += `<div style="background:var(--bg); border-radius:8px;"></div>`;
+    for (let i = 0; i < startDayOfWeek; i++) monthHtml += `<div></div>`; // Celdas vacías al inicio
+    
     for (let dayNum = 1; dayNum <= lastDay.getDate(); dayNum++) {
         const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
         const isToday = day.toDateString() === new Date().toDateString();
