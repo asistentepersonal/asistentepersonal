@@ -3191,9 +3191,8 @@ function renderTimelineGrid(canales, programas) {
          wrapper.scrollLeft = nowPosition - (wrapper.offsetWidth / 2);
     }
 }
-
 // ==================================================
-// --- CONECTOR E INICIO DE LA APP ---
+// --- MÓDULO: CALENDARIO INTELIGENTE ---
 // ==================================================
 // Declaración para el nombre de la colección (debe coincidir con la de tu backend)
 const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
@@ -3203,7 +3202,35 @@ const FIRESTORE_NOTIFICACIONES_SUBCOLLECTION = 'notificaciones';
 let currentCalendarView = 'day';
 let currentCalendarDate = new Date();
 
-    // --- Event Listeners para cambiar de vista ---
+/**
+ * Renderiza la vista principal del calendario.
+ */
+function renderCalendarView() {
+    setActiveTab('tab-home');
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>🗓️ Mi Calendario</h2></div>
+            <div class="guia-nav" id="calendar-view-tabs" style="justify-content: center; margin-bottom: 15px;">
+                <button class="guia-nav-btn active" data-view="day">Día</button>
+                <button class="guia-nav-btn" data-view="week">Semana</button>
+                <button class="guia-nav-btn" data-view="month">Mes</button>
+            </div>
+            <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
+                <button id="calendar-prev-btn" class="back-btn" style="font-size:1.5rem; margin-right:0;">◀️</button>
+                <h3 id="calendar-current-period" style="font-size:1.1rem; flex-grow:1; text-align:center; margin:0;">Cargando...</h3>
+                <button id="calendar-next-btn" class="back-btn" style="font-size:1.5rem; margin-left:0;">▶️</button>
+            </div>
+            <div id="calendar-content" style="background:var(--card-bg); border-radius:12px; padding:15px; min-height:300px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <div class="no-data-msg">Cargando eventos...</div>
+            </div>
+            <div class="add-article-btn-container" style="margin-top:20px;">
+                <button class="add-article-btn" id="calendar-quick-add-btn">➕ Añadir Evento</button>
+            </div>
+        </div>`;
+
     document.querySelectorAll('#calendar-view-tabs .guia-nav-btn').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('#calendar-view-tabs .guia-nav-btn').forEach(b => b.classList.remove('active'));
@@ -3213,7 +3240,6 @@ let currentCalendarDate = new Date();
         };
     });
 
-    // --- Event Listeners para navegación de fecha ---
     document.getElementById('calendar-prev-btn').onclick = () => {
         currentCalendarDate = getPreviousPeriodDate(currentCalendarView, currentCalendarDate);
         loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
@@ -3223,1227 +3249,294 @@ let currentCalendarDate = new Date();
         loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
     };
 
-    // --- Event Listener para el Quick Add ---
-    document.getElementById('calendar-quick-add-btn').onclick = () => renderCalendarEventForm(null, () => loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate));
-
-    // Cargar y mostrar eventos para la vista y fecha inicial
+    document.getElementById('calendar-quick-add-btn').onclick = () => renderCalendarEventForm(null, renderCalendarView);
     loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
 }
 
-/**
- * Función auxiliar para obtener la fecha del período anterior.
- */
 function getPreviousPeriodDate(view, date) {
     const newDate = new Date(date);
-    if (view === 'day') {
-        newDate.setDate(newDate.getDate() - 1);
-    } else if (view === 'week') {
-        newDate.setDate(newDate.getDate() - 7);
-    } else if (view === 'month') {
-        newDate.setMonth(newDate.getMonth() - 1);
-    }
+    if (view === 'day') newDate.setDate(newDate.getDate() - 1);
+    else if (view === 'week') newDate.setDate(newDate.getDate() - 7);
+    else if (view === 'month') newDate.setMonth(newDate.getMonth() - 1);
     return newDate;
 }
 
-/**
- * Función auxiliar para obtener la fecha del período siguiente.
- */
 function getNextPeriodDate(view, date) {
     const newDate = new Date(date);
-    if (view === 'day') {
-        newDate.setDate(newDate.getDate() + 1);
-    } else if (view === 'week') {
-        newDate.setDate(newDate.getDate() + 7);
-    } else if (view === 'month') {
-        newDate.setMonth(newDate.getMonth() + 1);
-    }
+    if (view === 'day') newDate.setDate(newDate.getDate() + 1);
+    else if (view === 'week') newDate.setDate(newDate.getDate() + 7);
+    else if (view === 'month') newDate.setMonth(newDate.getMonth() + 1);
     return newDate;
 }
 
-/**
- * Carga y muestra los eventos del calendario desde Firestore para la vista y fecha actuales.
- * Esta función es el corazón de la interacción con la base de datos para el calendario.
- */
 async function loadAndDisplayCalendarEvents(view, date) {
     showSpinner("Cargando calendario...");
-    document.getElementById('calendar-content').innerHTML = '<div class="no-data-msg">Cargando eventos...</div>';
+    const contentEl = document.getElementById('calendar-content');
+    if(contentEl) contentEl.innerHTML = '<div class="no-data-msg">Cargando eventos...</div>';
 
-    // Desconectar cualquier listener anterior para evitar duplicados
-    if (unsubscribeCalendarEvents) {
-        unsubscribeCalendarEvents();
-        unsubscribeCalendarEvents = null;
-    }
+    if (unsubscribeCalendarEvents) unsubscribeCalendarEvents();
 
-    // --- Calcular rango de fechas para la consulta ---
     let queryStartDate = new Date(date);
     let queryEndDate = new Date(date);
+    const periodEl = document.getElementById('calendar-current-period');
 
     if (view === 'day') {
         queryStartDate.setHours(0, 0, 0, 0);
         queryEndDate.setHours(23, 59, 59, 999);
-        document.getElementById('calendar-current-period').textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+        if(periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     } else if (view === 'week') {
-        const firstDayOfWeek = new Date(date);
-        firstDayOfWeek.setDate(date.getDate() - date.getDay()); // Obtener el primer día de la semana (domingo)
-        queryStartDate = new Date(firstDayOfWeek.setHours(0, 0, 0, 0));
-        queryEndDate = new Date(firstDayOfWeek);
-        queryEndDate.setDate(queryEndDate.getDate() + 6); // Último día de la semana (sábado)
+        const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1;
+        queryStartDate.setDate(date.getDate() - dayOfWeek);
+        queryStartDate.setHours(0, 0, 0, 0);
+        queryEndDate = new Date(queryStartDate);
+        queryEndDate.setDate(queryStartDate.getDate() + 6);
         queryEndDate.setHours(23, 59, 59, 999);
-        document.getElementById('calendar-current-period').textContent = `${queryStartDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${queryEndDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
-    } else if (view === 'month') {
-        queryStartDate = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
-        queryEndDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999); // Último día del mes
-        document.getElementById('calendar-current-period').textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+        if(periodEl) periodEl.textContent = `${queryStartDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${queryEndDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    } else { // month
+        queryStartDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        queryEndDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+        if(periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     }
 
-    const eventsRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
-    const notificationsRef = db.collection('users').doc(chatId).collection(FIRESTORE_NOTIFICACIONES_SUBCOLLECTION);
-
-    // Consulta para eventos de calendario: donde fechaInicio está en el rango
-    // O donde fechaFin está en el rango (para eventos que duran varios días y empiezan antes)
-    const qEvents = eventsRef
+    const qEvents = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION)
         .where('fechaFin', '>=', queryStartDate)
         .where('fechaInicio', '<=', queryEndDate)
         .orderBy('fechaInicio', 'asc');
-
-    // Consulta para recordatorios rápidos: donde hora_local (convertida a timestamp) está en el rango
-    // Nota: 'hora_local' es un string, lo que hace la consulta más complicada directamente en Firestore.
-    // Optaremos por una consulta más amplia y filtramos en el cliente, o un enfoque solo para eventos.
-    // Por ahora, solo cargaremos los eventos de calendario, como indicaste que son independientes.
     
-    try {
-        unsubscribeCalendarEvents = qEvents.onSnapshot(snapshot => {
-            const events = [];
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                events.push({
-                    id: doc.id,
-                    titulo: data.titulo,
-                    descripcion: data.descripcion || '',
-                    fechaInicio: data.fechaInicio.toDate(),
-                    fechaFin: data.fechaFin.toDate(),
-                    esTodoElDia: data.esTodoElDia || false,
-                    categoria: data.categoria || 'General',
-                    color: data.color || '#36A2EB', // Color por defecto
-                    notificaciones: data.notificaciones || []
-                });
-            });
+    unsubscribeCalendarEvents = qEvents.onSnapshot(snapshot => {
+        const events = snapshot.docs.map(doc => ({
+            id: doc.id, ...doc.data(),
+            fechaInicio: doc.data().fechaInicio.toDate(),
+            fechaFin: doc.data().fechaFin.toDate()
+        }));
 
-            // Lógica de renderizado según la vista
-            if (view === 'day') {
-                renderDayView(events, date);
-            } else if (view === 'week') {
-                renderWeekView(events, date);
-            } else if (view === 'month') {
-                renderMonthView(events, date);
-            }
-            hideSpinner();
-        }, error => {
-            console.error("Error en el listener de eventos de calendario:", error);
-            document.getElementById('calendar-content').innerHTML = '<div class="no-data-msg">❌ Error al cargar.</div>';
-            hideSpinner();
-        });
-    } catch (error) {
-        console.error("Error al configurar onSnapshot para eventos de calendario:", error);
-        document.getElementById('calendar-content').innerHTML = '<div class="no-data-msg">❌ Error al cargar.</div>';
+        if (view === 'day') renderDayView(events);
+        else if (view === 'week') renderWeekView(events, queryStartDate);
+        else if (view === 'month') renderMonthView(events, date);
+        
         hideSpinner();
-    }
-}
-
-/**
- * Renderiza la vista diaria del calendario.
- */
-function renderDayView(events, currentDate) {
-    let dayHtml = '';
-    const startOfDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 0, 0, 0);
-    const endOfDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59);
-
-    const filteredEvents = events.filter(event => 
-        (event.fechaInicio >= startOfDay && event.fechaInicio <= endOfDay) ||
-        (event.fechaFin >= startOfDay && event.fechaFin <= endOfDay) ||
-        (event.fechaInicio < startOfDay && event.fechaFin > endOfDay) // Eventos que abarcan todo el día
-    );
-    
-    if (filteredEvents.length === 0) {
-        dayHtml = `<div class="no-data-msg">🎉<br>No hay eventos programados para este día.</div>`;
-    } else {
-        dayHtml += `<ul class="list-style-none">`;
-        filteredEvents.sort((a, b) => a.fechaInicio - b.fechaInicio); // Ordenar por hora de inicio
-        filteredEvents.forEach(event => {
-            const startTime = event.esTodoElDia ? 'Todo el día' : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-            const endTime = event.esTodoElDia ? '' : ' - ' + event.fechaFin.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-            dayHtml += `
-                <li class="list-item clickable" id="event-${event.id}" data-event-id="${event.id}">
-                    <div class="list-item-content">
-                        <span class="list-item-title" style="color:${event.color};">
-                            ${event.titulo} ${event.esTodoElDia ? '(Todo el día)' : ''}
-                        </span>
-                        <span class="list-item-subtitle">${startTime}${endTime}</span>
-                        ${event.descripcion ? `<div class="event-description">${event.descripcion}</div>` : ''}
-                    </div>
-                    <div class="list-item-actions">
-                        <button class="generic-menu-btn" data-menu-id="menu-event-${event.id}">⋮</button>
-                        <div class="dropdown-menu" id="menu-event-${event.id}">
-                            <a class="dropdown-item" data-action="edit-calendar-event" data-event-id="${event.id}">Editar</a>
-                            <a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a>
-                        </div>
-                    </div>
-                </li>`;
-        });
-        dayHtml += `</ul>`;
-    }
-    document.getElementById('calendar-content').innerHTML = dayHtml;
-    // Añadir listeners para los menús y acciones de eventos
-    document.getElementById('calendar-content').querySelectorAll('.list-item').forEach(item => {
-        item.addEventListener('click', handleCalendarEventClick);
+    }, error => {
+        console.error("Error en listener de calendario:", error);
+        if(contentEl) contentEl.innerHTML = '<div class="no-data-msg">❌ Error al cargar.</div>';
+        hideSpinner();
     });
 }
 
-/**
- * Renderiza la vista semanal del calendario.
- */
-function renderWeekView(events, currentDate) {
-    let weekHtml = '';
-    const firstDayOfWeek = new Date(currentDate);
-    firstDayOfWeek.setDate(currentDate.getDate() - currentDate.getDay()); // Domingo de la semana actual
+function renderDayView(events) {
+    const contentEl = document.getElementById('calendar-content');
+    if (events.length === 0) {
+        contentEl.innerHTML = `<div class="no-data-msg">🎉<br>No hay eventos para este día.</div>`;
+        return;
+    }
+    const listHtml = events.map(event => {
+        const startTime = event.esTodoElDia ? 'Todo el día' : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        const endTime = event.esTodoElDia ? '' : ' - ' + event.fechaFin.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        return `
+            <li class="list-item clickable" id="event-${event.id}" data-event-id="${event.id}">
+                <div class="list-item-content">
+                    <span class="list-item-title" style="color:${event.color || '#36A2EB'};">${event.titulo}</span>
+                    <span class="list-item-subtitle">${startTime}${endTime}</span>
+                </div>
+                <div class="list-item-actions">
+                    <button class="generic-menu-btn" data-menu-id="menu-event-${event.id}">⋮</button>
+                    <div class="dropdown-menu" id="menu-event-${event.id}">
+                        <a class="dropdown-item" data-action="edit-calendar-event" data-event-id="${event.id}">Editar</a>
+                        <a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a>
+                    </div>
+                </div>
+            </li>`;
+    }).join('');
+    contentEl.innerHTML = `<ul class="list-style-none">${listHtml}</ul>`;
+    contentEl.addEventListener('click', handleCalendarEventClick);
+}
 
-    const daysOfWeek = [];
+function renderWeekView(events, startOfWeek) {
+    const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    let weekHtml = `<div style="display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; font-weight:bold; margin-bottom:10px;">`;
     for (let i = 0; i < 7; i++) {
-        const day = new Date(firstDayOfWeek);
-        day.setDate(firstDayOfWeek.getDate() + i);
-        daysOfWeek.push(day);
-    }
-
-    weekHtml += `<div style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align:center; font-weight:bold; margin-bottom:10px;">`;
-    daysOfWeek.forEach(day => {
+        const day = new Date(startOfWeek);
+        day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
-        weekHtml += `<div style="${isToday ? 'color:var(--primary);' : ''}">${day.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })}</div>`;
-    });
-    weekHtml += `</div>`;
+        weekHtml += `<div style="${isToday ? 'color:var(--primary);' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
+    }
+    weekHtml += `</div><div style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 5px; min-height:200px;">`;
 
-    weekHtml += `<div style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 5px; min-height:200px;">`;
-    daysOfWeek.forEach(day => {
-        const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0);
-        const endOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59);
-
-        const eventsForDay = events.filter(event =>
-            (event.fechaInicio >= startOfDay && event.fechaInicio <= endOfDay) ||
-            (event.fechaFin >= startOfDay && event.fechaFin <= endOfDay) ||
-            (event.fechaInicio < startOfDay && event.fechaFin > endOfDay)
-        ).sort((a, b) => a.fechaInicio - b.fechaInicio);
-
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(startOfWeek);
+        day.setDate(startOfWeek.getDate() + i);
+        const dayStart = new Date(day.setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        
+        const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart).sort((a,b) => a.fechaInicio - b.fechaInicio);
         weekHtml += `<div style="background:var(--bg); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:5px; min-height:100px;">`;
-        if (eventsForDay.length === 0) {
-            weekHtml += `<span style="font-size:0.8rem; color:var(--muted);">Sin eventos</span>`;
-        } else {
-            eventsForDay.forEach(event => {
-                const startTime = event.esTodoElDia ? 'Todo el día' : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                weekHtml += `<div class="list-item-subtitle clickable" style="font-size:0.8rem; text-align:left; border-left: 3px solid ${event.color}; padding-left: 5px;" data-event-id="${event.id}">
-                                <b>${event.titulo}</b><br>
-                                <small>${startTime}</small>
-                            </div>`;
-            });
-        }
+        eventsForDay.forEach(event => {
+            const startTime = event.esTodoElDia ? 'Todo el día' : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            weekHtml += `<div class="list-item-subtitle clickable" style="font-size:0.8rem; text-align:left; border-left: 3px solid ${event.color || '#36A2EB'}; padding-left: 5px;" data-event-id="${event.id}"><b>${event.titulo}</b><br><small>${startTime}</small></div>`;
+        });
         weekHtml += `</div>`;
-    });
+    }
     weekHtml += `</div>`;
-
-    document.getElementById('calendar-content').innerHTML = weekHtml;
-    document.getElementById('calendar-content').querySelectorAll('.list-item-subtitle.clickable').forEach(item => {
-        item.addEventListener('click', handleCalendarEventClick);
-    });
+    const contentEl = document.getElementById('calendar-content');
+    contentEl.innerHTML = weekHtml;
+    contentEl.addEventListener('click', handleCalendarEventClick);
 }
 
-/**
- * Renderiza la vista mensual del calendario.
- */
 function renderMonthView(events, currentDate) {
-    let monthHtml = '';
-    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    const numDays = lastDayOfMonth.getDate();
-    const startDayOfWeek = firstDayOfMonth.getDay(); // 0=Sunday, 1=Monday...
+    let monthHtml = `<div style="display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; font-weight:bold; margin-bottom:10px;">
+        <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+    </div><div style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 5px; min-height:300px;">`;
+    const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
 
-    monthHtml += `<div style="display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; font-weight:bold; margin-bottom:10px;">`;
-    const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    weekdays.forEach(day => monthHtml += `<div>${day}</div>`);
-    monthHtml += `</div>`;
+    for (let i = 0; i < startDayOfWeek; i++) monthHtml += `<div style="background:var(--bg); border-radius:8px;"></div>`;
 
-    monthHtml += `<div style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 5px; min-height:300px;">`;
-    // Días vacíos al inicio del mes
-    for (let i = 0; i < startDayOfWeek; i++) {
-        monthHtml += `<div style="background:var(--bg); border-radius:8px; padding:8px;"></div>`;
-    }
-
-    // Días del mes
-    for (let dayNum = 1; dayNum <= numDays; dayNum++) {
-        const currentDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
-        const isToday = currentDay.toDateString() === new Date().toDateString();
-        const startOfDay = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 0, 0, 0);
-        const endOfDay = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 23, 59, 59);
-
-        const eventsForDay = events.filter(event =>
-            (event.fechaInicio >= startOfDay && event.fechaInicio <= endOfDay) ||
-            (event.fechaFin >= startOfDay && event.fechaFin <= endOfDay) ||
-            (event.fechaInicio < startOfDay && event.fechaFin > endOfDay)
-        ).sort((a, b) => a.fechaInicio - b.fechaInicio);
-
-        monthHtml += `<div class="clickable-card" data-day="${dayNum}" data-month="${currentDate.getMonth()}" data-year="${currentDate.getFullYear()}" style="background:var(--bg); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:3px; min-height:100px; ${isToday ? 'border:2px solid var(--primary);' : ''}">`;
-        monthHtml += `<div style="font-weight:bold; text-align:right; font-size:1.1rem; ${isToday ? 'color:var(--primary);' : ''}">${dayNum}</div>`;
-        if (eventsForDay.length > 0) {
-            eventsForDay.slice(0, 3).forEach(event => { // Mostrar solo los primeros 3 eventos
-                monthHtml += `<div class="list-item-subtitle" style="font-size:0.75rem; text-align:left; border-left: 3px solid ${event.color}; padding-left: 3px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" data-event-id="${event.id}">
-                                ${event.esTodoElDia ? '• ' : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + ' '}${event.titulo}
-                              </div>`;
-            });
-            if (eventsForDay.length > 3) {
-                monthHtml += `<div style="font-size:0.7rem; color:var(--muted); text-align:left; margin-top:3px;">+${eventsForDay.length - 3} más</div>`;
-            }
-        }
+    for (let dayNum = 1; dayNum <= lastDay.getDate(); dayNum++) {
+        const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
+        const dayStart = new Date(day.setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        const isToday = day.toDateString() === new Date().toDateString();
+        const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
+        
+        monthHtml += `<div class="clickable-card" data-date="${day.toISOString()}" style="background:var(--bg); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:3px; min-height:100px; ${isToday ? 'border:2px solid var(--primary);' : ''}">
+            <div style="font-weight:bold; text-align:right; font-size:1.1rem; ${isToday ? 'color:var(--primary);' : ''}">${dayNum}</div>`;
+        eventsForDay.slice(0, 3).forEach(event => {
+            monthHtml += `<div class="list-item-subtitle" style="font-size:0.75rem; text-align:left; border-left: 3px solid ${event.color || '#36A2EB'}; padding-left: 3px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">${event.titulo}</div>`;
+        });
+        if (eventsForDay.length > 3) monthHtml += `<div style="font-size:0.7rem; color:var(--muted); text-align:left; margin-top:3px;">+${eventsForDay.length - 3} más</div>`;
         monthHtml += `</div>`;
     }
     monthHtml += `</div>`;
-
-    document.getElementById('calendar-content').innerHTML = monthHtml;
-    // Añadir listener para hacer clic en los días
-    document.getElementById('calendar-content').querySelectorAll('.clickable-card[data-day]').forEach(dayCard => {
-        dayCard.addEventListener('click', (e) => {
-            const day = parseInt(e.currentTarget.dataset.day);
-            const month = parseInt(e.currentTarget.dataset.month);
-            const year = parseInt(e.currentTarget.dataset.year);
-            const newDate = new Date(year, month, day);
-            // Cambiar a vista diaria para ese día
+    const contentEl = document.getElementById('calendar-content');
+    contentEl.innerHTML = monthHtml;
+    contentEl.querySelectorAll('.clickable-card[data-date]').forEach(dayCard => {
+        dayCard.onclick = (e) => {
+            currentCalendarDate = new Date(e.currentTarget.dataset.date);
             document.querySelector('#calendar-view-tabs .guia-nav-btn.active').classList.remove('active');
             document.querySelector('#calendar-view-tabs button[data-view="day"]').classList.add('active');
             currentCalendarView = 'day';
-            currentCalendarDate = newDate;
             loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
-        });
+        };
     });
 }
 
-/**
- * Manejador de clics para elementos de eventos en el calendario.
- */
-/**
- * Manejador de clics para elementos de eventos en el calendario.
- */
 function handleCalendarEventClick(e) {
-    // Asegurarse de que el target sea el evento en sí o su título en la vista semanal/mensual
-    const target = e.target.closest('.list-item.clickable, .list-item-subtitle.clickable');
+    const target = e.target.closest('[data-event-id]');
     if (!target) return;
-
     const eventId = target.dataset.eventId;
-    if (eventId) {
-        // Obtenemos el evento de Firestore para pasarlo al formulario de edición
-        db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get()
-            .then(docSnap => {
-                if (docSnap.exists) {
-                    const eventData = docSnap.data();
-                    // Convertir Timestamps a objetos Date para Flatpickr
-                    eventData.fechaInicio = eventData.fechaInicio.toDate();
-                    eventData.fechaFin = eventData.fechaFin.toDate();
-                    renderCalendarEventForm({ id: eventId, ...eventData }, () => loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate));
-                } else {
-                    showToast('Evento no encontrado.', true);
-                }
-            })
-            .catch(error => {
-                console.error("Error al obtener evento para edición:", error);
-                showToast('Error al cargar detalles del evento.', true);
-            });
+    const action = target.dataset.action;
+
+    if (action === 'edit-calendar-event') {
+        db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get().then(doc => {
+            if (doc.exists) renderCalendarEventForm({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }, renderCalendarView);
+        });
+    } else if (action === 'delete-calendar-event') {
+        confirmDelete('calendar_event', eventId);
+    } else if (target.matches('.clickable')) {
+        target.classList.toggle('open');
     }
 }
 
-
-/**
- * Renderiza el formulario para añadir o editar un evento/recordatorio del calendario.
- * @param {object|null} event Objeto del evento si se está editando, null si es nuevo.
- * @param {function} returnPath Función a la que regresar después de guardar/cancelar.
- */
 function renderCalendarEventForm(event = null, returnPath = renderCalendarView) {
     navigationHistory.push(returnPath);
     updateBackButton();
-    
     const isEditing = event !== null;
-    const userEmail = appData.settings.email; // Obtenemos el email guardado en la appData
-    const hasEmailConfigured = userEmail && userEmail.trim() !== '';
+    const hasEmail = appData.settings.email && appData.settings.email.trim() !== '';
 
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><h2>${isEditing ? '✏️ Editar Evento/Recordatorio' : '➕ Nuevo Evento/Recordatorio'}</h2></div>
-            <div class="form-card" id="item-${isEditing ? event.id : 'new-calendar-event'}">
-                <label>Título</label><input type="text" id="calendar-event-title" value="${isEditing ? event.titulo : ''}" required />
-                <label>Descripción</label><textarea id="calendar-event-description" rows="4">${isEditing ? event.descripcion : ''}</textarea>
-                
-                <div style="display: flex; align-items: center; margin-top: 15px;">
-                    <input type="checkbox" id="calendar-event-all-day" style="width:auto;margin-right:8px;" ${isEditing && event.esTodoElDia ? 'checked' : ''}> 
-                    <label for="calendar-event-all-day" style="margin-top:0;">Todo el día</label>
-                </div>
-
-                <label>Fecha y Hora de Inicio</label><input type="text" id="calendar-event-start-date" required>
-                <label id="calendar-event-end-label">Fecha y Hora de Fin</label><input type="text" id="calendar-event-end-date" required>
-
-                <label>Categoría (Opcional)</label>
-                <select id="calendar-event-category">
-                    <option value="">-- Selecciona --</option>
-                    <option value="Personal" ${isEditing && event.categoria === 'Personal' ? 'selected' : ''}>Personal</option>
-                    <option value="Trabajo" ${isEditing && event.categoria === 'Trabajo' ? 'selected' : ''}>Trabajo</option>
-                    <option value="Salud" ${isEditing && event.categoria === 'Salud' ? 'selected' : ''}>Salud</option>
-                    <option value="Cumpleaños" ${isEditing && event.categoria === 'Cumpleaños' ? 'selected' : ''}>Cumpleaños</option>
-                    <option value="Deportes" ${isEditing && event.categoria === 'Deportes' ? 'selected' : ''}>Deportes</option>
-                    <option value="Otros" ${isEditing && event.categoria === 'Otros' ? 'selected' : ''}>Otros</option>
-                </select>
-
-                <h3 class="settings-section-title" style="margin-top: 30px;">Notificaciones</h3>
-                <div id="calendar-notifications-container"></div>
-                <div class="add-article-btn-container" style="padding: 10px 0;">
-                    <button id="add-calendar-notification-btn" class="add-article-btn" style="width:100%; max-width:100%;">➕ Añadir Notificación</button>
-                </div>
-                ${!hasEmailConfigured ? `<p style="font-size:0.9rem; color:var(--error-bg); margin-top:10px;">Para notificaciones por email, configura tu correo en Ajustes.</p>` : ''}
-
+            <div class="list-header"><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
+            <div class="form-card">
+                <label>Título</label><input type="text" id="event-title" value="${isEditing ? event.titulo : ''}" required />
+                <div style="display:flex; align-items:center; margin-top:15px;"><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;" ${isEditing && event.esTodoElDia ? 'checked' : ''}><label for="event-all-day" style="margin-top:0;">Todo el día</label></div>
+                <label>Inicio</label><input type="text" id="event-start-date" required>
+                <label id="event-end-label">Fin</label><input type="text" id="event-end-date" required>
                 <div class="button-group">
-                    <button id="calendar-event-cancel-btn" class="cancel">Cancelar</button>
-                    <button id="calendar-event-save-btn" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento/Recordatorio'}</button>
+                    <button id="event-cancel-btn" class="cancel">Cancelar</button>
+                    <button id="event-save-btn" disabled>${isEditing ? 'Guardar' : 'Crear'}</button>
                 </div>
             </div>
-        </div>
-    `;
+        </div>`;
 
-    document.getElementById('calendar-event-cancel-btn').onclick = goBack;
-    const titleInput = document.getElementById('calendar-event-title');
-    const allDayCheckbox = document.getElementById('calendar-event-all-day');
-    const startDateInput = document.getElementById('calendar-event-start-date');
-    const endDateInput = document.getElementById('calendar-event-end-date');
-    const endDateLabel = document.getElementById('calendar-event-end-label');
-    const addNotificationBtn = document.getElementById('add-calendar-notification-btn');
-    const notificationsContainer = document.getElementById('calendar-notifications-container');
-    const saveBtn = document.getElementById('calendar-event-save-btn');
-
-    // --- Flatpickr (selector de fecha y hora) ---
-    const fpConfig = { 
-        enableTime: true, 
-        dateFormat: "d/m/Y H:i", 
-        altInput: true, 
-        altFormat: "d/m/Y H:i", 
-        locale: "es", 
-        time_24hr: true 
-    };
-    const fpDateConfig = { 
-        enableTime: false, 
-        dateFormat: "d/m/Y", 
-        altInput: true, 
-        altFormat: "d/m/Y", 
-        locale: "es" 
-    };
-
+    const titleInput = document.getElementById('event-title');
+    const saveBtn = document.getElementById('event-save-btn');
+    const allDayCheckbox = document.getElementById('event-all-day');
     let startPicker, endPicker;
 
-    function initDatePickers(isAllDay) {
-        if (startPicker) startPicker.destroy();
-        if (endPicker) endPicker.destroy();
-
-        startPicker = flatpickr(startDateInput, { 
-            ...(isAllDay ? fpDateConfig : fpConfig),
-            defaultDate: isEditing ? (isAllDay ? event.fechaInicio : event.fechaInicio) : new Date(),
-            onChange: function(selectedDates) {
-                if (selectedDates[0] && !allDayCheckbox.checked) {
-                    const currentEndDate = endPicker.selectedDates[0];
-                    const newEndDate = new Date(selectedDates[0].getTime() + 3600000); // +1 hora
-                    if (!currentEndDate || newEndDate > currentEndDate) {
-                        endPicker.setDate(newEndDate, true);
-                    }
-                } else if (selectedDates[0] && allDayCheckbox.checked) {
-                    endPicker.setDate(selectedDates[0], true); // End date same as start for all-day
-                }
-                validateForm();
-            }
-        });
-
-        endPicker = flatpickr(endDateInput, { 
-            ...(isAllDay ? fpDateConfig : fpConfig),
-            defaultDate: isEditing ? (isAllDay ? event.fechaFin : event.fechaFin) : new Date(Date.now() + 3600000), // Default +1h
-            minDate: isEditing ? (isAllDay ? event.fechaInicio : event.fechaInicio) : new Date(),
-            onChange: validateForm
-        });
-
-        // Asegurarse de que endDate no sea anterior a startDate si all-day cambia
-        if (isAllDay) {
-            endDateInput.style.display = 'none';
-            endDateLabel.style.display = 'none';
-            endPicker.setDate(startPicker.selectedDates[0], true);
-        } else {
-            endDateInput.style.display = 'block';
-            endDateLabel.style.display = 'block';
-            endPicker.set('minDate', startPicker.selectedDates[0]); // Set minDate for endPicker
-        }
-    }
-
-    allDayCheckbox.onchange = () => initDatePickers(allDayCheckbox.checked);
-    initDatePickers(isEditing ? event.esTodoElDia : false);
-
-    // --- Lógica de Notificaciones ---
-    const createNotificationRow = (notif = null) => {
-        const row = document.createElement('div');
-        row.className = 'notification-row';
-        let quantity = '', unit = '', method = '';
-        
-        if (notif) {
-            method = notif.metodo;
-            if (notif.minutosAntes % (24 * 60) === 0) { unit = 'days'; quantity = notif.minutosAntes / (24 * 60); }
-            else if (notif.minutosAntes % 60 === 0) { unit = 'hours'; quantity = notif.minutosAntes / 60; }
-            else { unit = 'minutes'; quantity = notif.minutosAntes; }
-        } else {
-            // Valores por defecto para una nueva notificación
-            method = 'telegram';
-            quantity = 15;
-            unit = 'minutes';
-        }
-
-        row.innerHTML = `
-            <select class="event-reminder-method">
-                <option value="telegram" ${method === 'telegram' ? 'selected' : ''}>Telegram</option>
-                <option value="email" ${method === 'email' && hasEmailConfigured ? 'selected' : ''} ${!hasEmailConfigured ? 'disabled' : ''}>Email</option>
-            </select>
-            <input type="number" class="event-reminder-quantity" value="${quantity}" min="1"/>
-            <select class="event-reminder-unit">
-                <option value="minutes" ${unit === 'minutes' ? 'selected' : ''}>min antes</option>
-                <option value="hours" ${unit === 'hours' ? 'selected' : ''}>horas antes</option>
-                <option value="days" ${unit === 'days' ? 'selected' : ''}>días antes</option>
-            </select>
-            <button class="remove-notification-btn">🗑️</button>
-        `;
-        notificationsContainer.appendChild(row);
-        row.querySelector('.remove-notification-btn').onclick = () => { row.remove(); validateForm(); };
-        row.querySelectorAll('input, select').forEach(el => el.addEventListener('input', validateForm));
-        validateForm(); // Revalidar después de añadir/modificar fila
+    const setupPickers = (isAllDay) => {
+        if(startPicker) startPicker.destroy();
+        if(endPicker) endPicker.destroy();
+        const config = { locale: "es", altInput: true, altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i", dateFormat: "Z", enableTime: !isAllDay };
+        startPicker = flatpickr("#event-start-date", {...config, defaultDate: isEditing ? event.fechaInicio : new Date() });
+        endPicker = flatpickr("#event-end-date", {...config, defaultDate: isEditing ? event.fechaFin : new Date(Date.now() + 3600000) });
+        document.getElementById('event-end-label').style.display = isAllDay ? 'none' : 'block';
+        document.getElementById('event-end-date').style.display = isAllDay ? 'none' : 'block';
     };
+    allDayCheckbox.onchange = () => setupPickers(allDayCheckbox.checked);
+    setupPickers(isEditing ? event.esTodoElDia : false);
 
-    addNotificationBtn.onclick = () => createNotificationRow();
-
-    // Cargar notificaciones existentes
-    if (isEditing && event.notificaciones && event.notificaciones.length > 0) {
-        event.notificaciones.forEach(notif => createNotificationRow(notif));
-    } else if (!isEditing) {
-        createNotificationRow(); // Añadir una notificación por defecto para nuevos eventos
-    }
-
-    // --- Validación y Guardado ---
-    function validateForm() {
-        const isTitleValid = titleInput.value.trim() !== '';
-        const isDateValid = startDateInput.value !== '' && endDateInput.value !== '';
-        const isDateOrderValid = startPicker.selectedDates[0] && endPicker.selectedDates[0] && endPicker.selectedDates[0] >= startPicker.selectedDates[0];
-        
-        let areNotificationsValid = true;
-        document.querySelectorAll('#calendar-notifications-container .notification-row').forEach(row => { // Selector más específico
-            const quantity = row.querySelector('.event-reminder-quantity').value.trim();
-            const unit = row.querySelector('.event-reminder-unit').value;
-            const method = row.querySelector('.event-reminder-method').value;
-            if (quantity === '' || parseInt(quantity, 10) <= 0 || unit === '' || method === '') {
-                areNotificationsValid = false;
-            }
-        });
-
-        const formIsValid = isTitleValid && isDateValid && isDateOrderValid && areNotificationsValid;
-        saveBtn.disabled = !formIsValid;
-        saveBtn.classList.toggle('enabled', formIsValid);
-    }
-
+    const validateForm = () => {
+        const isValid = titleInput.value.trim() !== '' && startPicker.selectedDates.length > 0 && (allDayCheckbox.checked || endPicker.selectedDates.length > 0);
+        saveBtn.disabled = !isValid;
+        saveBtn.classList.toggle('enabled', isValid);
+    };
     titleInput.oninput = validateForm;
-    document.getElementById('calendar-event-description').oninput = validateForm; // También validamos la descripción
-    document.getElementById('calendar-event-category').onchange = validateForm; // Y la categoría
-    
+    validateForm();
+
+    document.getElementById('event-cancel-btn').onclick = goBack;
     saveBtn.onclick = () => saveCalendarEvent(event);
-    validateForm(); // Validación inicial al cargar el formulario
 }
 
-
-/**
- * Guarda un evento/recordatorio de calendario en Firestore.
- * @param {object|null} eventToEdit Objeto del evento si se está editando, null si es nuevo.
- */
 async function saveCalendarEvent(eventToEdit = null) {
-    showSpinner("Guardando evento...");
-    
+    showSpinner("Guardando...");
     const isEditing = eventToEdit !== null;
-    const title = document.getElementById('calendar-event-title').value.trim();
-    const description = document.getElementById('calendar-event-description').value.trim();
-    const isAllDay = document.getElementById('calendar-event-all-day').checked;
-    const startDate = flatpickr.parseDate(document.getElementById('calendar-event-start-date').value, isAllDay ? "d/m/Y" : "d/m/Y H:i");
-    const endDate = flatpickr.parseDate(document.getElementById('calendar-event-end-date').value, isAllDay ? "d/m/Y" : "d/m/Y H:i");
-    const category = document.getElementById('calendar-event-category').value;
+    const title = document.getElementById('event-title').value.trim();
+    const isAllDay = document.getElementById('event-all-day').checked;
+    
+    let startDate = flatpickr.getInstance(document.getElementById('event-start-date')).selectedDates[0];
+    let endDate = isAllDay ? startDate : flatpickr.getInstance(document.getElementById('event-end-date')).selectedDates[0];
 
+    if (isAllDay && startDate) {
+        endDate = new Date(new Date(startDate).setHours(23, 59, 59, 999));
+    }
+    
     if (!startDate || !endDate || endDate < startDate) {
-        showToast("Fechas no válidas o fecha de fin anterior a inicio.", true);
+        showToast("Fechas no válidas.", true);
         hideSpinner();
         return;
     }
 
-    const notifications = [];
-    document.querySelectorAll('#calendar-notifications-container .notification-row').forEach(row => {
-        const method = row.querySelector('.event-reminder-method').value;
-        const quantity = parseInt(row.querySelector('.event-reminder-quantity').value, 10);
-        const unit = row.querySelector('.event-reminder-unit').value;
-        
-        let minutesBefore = 0;
-        if (unit === 'minutes') minutesBefore = quantity;
-        else if (unit === 'hours') minutesBefore = quantity * 60;
-        else if (unit === 'days') minutesBefore = quantity * 24 * 60;
-        
-        notifications.push({
-            metodo: method,
-            minutosAntes: minutesBefore,
-            momentoDisparoUTC: null, // Será calculado por Apps Script
-            enviado: false
-        });
-    });
-
     const eventData = {
         titulo: title,
-        descripcion: description,
         fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
         fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
         esTodoElDia: isAllDay,
-        categoria: category,
-        color: '#36A2EB', // Placeholder, se puede hacer dinámico con la categoría
-        notificaciones: notifications
+        color: '#36A2EB'
     };
 
     try {
-        const eventsCollectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
-        // No necesitamos actualizar contadores específicos de calendario aquí directamente,
-        // ya que no tenemos un contador 'calendarEventsCount'.
-        // Si se quisiera, habría que añadir un campo a _metadata/counts y gestionarlo.
-
+        const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
         if (isEditing) {
-            await eventsCollectionRef.doc(eventToEdit.id).update(eventData);
-            showToast("Evento/Recordatorio actualizado con éxito.");
+            await collectionRef.doc(eventToEdit.id).update(eventData);
+            showToast("Evento actualizado.");
         } else {
-            const newEventRef = await eventsCollectionRef.add(eventData);
-            showToast("Evento/Recordatorio creado con éxito.");
+            await collectionRef.add(eventData);
+            showToast("Evento creado.");
         }
-        
-        goBack(); // Vuelve a la vista anterior del calendario
+        goBack();
     } catch (err) {
-        console.error("Error al guardar evento de calendario:", err);
         showToast(`Error: ${err.message}`, true);
     } finally {
         hideSpinner();
     }
 }
 
-
-/**
- * Función auxiliar para obtener la fecha del período anterior.
- */
-function getPreviousPeriodDate(view, date) {
-    const newDate = new Date(date);
-    if (view === 'day') {
-        newDate.setDate(newDate.getDate() - 1);
-    } else if (view === 'week') {
-        newDate.setDate(newDate.getDate() - 7);
-    } else if (view === 'month') {
-        newDate.setMonth(newDate.getMonth() - 1);
-    }
-    return newDate;
-}
-
-/**
- * Función auxiliar para obtener la fecha del período siguiente.
- */
-function getNextPeriodDate(view, date) {
-    const newDate = new Date(date);
-    if (view === 'day') {
-        newDate.setDate(newDate.getDate() + 1);
-    } else if (view === 'week') {
-        newDate.setDate(newDate.getDate() + 7);
-    } else if (view === 'month') {
-        newDate.setMonth(newDate.getMonth() + 1);
-    }
-    return newDate;
-}
-
-/**
- * Carga y muestra los eventos del calendario desde Firestore para la vista y fecha actuales.
- * Esta función es el corazón de la interacción con la base de datos para el calendario.
- */
-async function loadAndDisplayCalendarEvents(view, date) {
-    showSpinner("Cargando calendario...");
-    document.getElementById('calendar-content').innerHTML = '<div class="no-data-msg">Cargando eventos...</div>';
-
-    // Desconectar cualquier listener anterior para evitar duplicados
-    if (unsubscribeCalendarEvents) {
-        unsubscribeCalendarEvents();
-        unsubscribeCalendarEvents = null;
-    }
-
-    // --- Calcular rango de fechas para la consulta ---
-    let queryStartDate = new Date(date);
-    let queryEndDate = new Date(date);
-
-    if (view === 'day') {
-        queryStartDate.setHours(0, 0, 0, 0);
-        queryEndDate.setHours(23, 59, 59, 999);
-        document.getElementById('calendar-current-period').textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-    } else if (view === 'week') {
-        const firstDayOfWeek = new Date(date);
-        firstDayOfWeek.setDate(date.getDate() - date.getDay()); // Obtener el primer día de la semana (domingo)
-        queryStartDate = new Date(firstDayOfWeek.setHours(0, 0, 0, 0));
-        queryEndDate = new Date(firstDayOfWeek);
-        queryEndDate.setDate(queryEndDate.getDate() + 6); // Último día de la semana (sábado)
-        queryEndDate.setHours(23, 59, 59, 999);
-        document.getElementById('calendar-current-period').textContent = `${queryStartDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${queryEndDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
-    } else if (view === 'month') {
-        queryStartDate = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
-        queryEndDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999); // Último día del mes
-        document.getElementById('calendar-current-period').textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-    }
-
-    const eventsRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
-    // const notificationsRef = db.collection('users').doc(chatId).collection(FIRESTORE_NOTIFICACIONES_SUBCOLLECTION); // Descomentar si se quiere integrar recordatorios rápidos
-
-    // Consulta para eventos de calendario: donde fechaInicio o fechaFin están en el rango
-    const qEvents = eventsRef
-        .where('fechaFin', '>=', queryStartDate)
-        .where('fechaInicio', '<=', queryEndDate)
-        .orderBy('fechaInicio', 'asc');
-    
-    try {
-        unsubscribeCalendarEvents = qEvents.onSnapshot(snapshot => {
-            const events = [];
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                events.push({
-                    id: doc.id,
-                    titulo: data.titulo,
-                    descripcion: data.descripcion || '',
-                    fechaInicio: data.fechaInicio.toDate(),
-                    fechaFin: data.fechaFin.toDate(),
-                    esTodoElDia: data.esTodoElDia || false,
-                    categoria: data.categoria || 'General',
-                    color: data.color || '#36A2EB', // Color por defecto
-                    notificaciones: data.notificaciones || []
-                });
-            });
-
-            // Lógica de renderizado según la vista
-            if (view === 'day') {
-                renderDayView(events, date);
-            } else if (view === 'week') {
-                renderWeekView(events, date);
-            } else if (view === 'month') {
-                renderMonthView(events, date);
-            }
-            hideSpinner();
-        }, error => {
-            console.error("Error en el listener de eventos de calendario:", error);
-            document.getElementById('calendar-content').innerHTML = '<div class="no-data-msg">❌ Error al cargar.</div>';
-            hideSpinner();
-        });
-    } catch (error) {
-        console.error("Error al configurar onSnapshot para eventos de calendario:", error);
-        document.getElementById('calendar-content').innerHTML = '<div class="no-data-msg">❌ Error al cargar.</div>';
-        hideSpinner();
-    }
-}
-
-/**
- * Renderiza la vista diaria del calendario.
- */
-function renderDayView(events, currentDate) {
-    let dayHtml = '';
-    const startOfDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 0, 0, 0);
-    const endOfDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59, 999);
-
-    const filteredEvents = events.filter(event => 
-        (event.fechaInicio.getTime() >= startOfDay.getTime() && event.fechaInicio.getTime() <= endOfDay.getTime()) ||
-        (event.fechaFin.getTime() >= startOfDay.getTime() && event.fechaFin.getTime() <= endOfDay.getTime()) ||
-        (event.fechaInicio.getTime() < startOfDay.getTime() && event.fechaFin.getTime() > endOfDay.getTime()) // Eventos que abarcan todo el día
-    );
-    
-    if (filteredEvents.length === 0) {
-        dayHtml = `<div class="no-data-msg">🎉<br>No hay eventos programados para este día.</div>`;
-    } else {
-        dayHtml += `<ul class="list-style-none">`;
-        filteredEvents.sort((a, b) => a.fechaInicio.getTime() - b.fechaInicio.getTime()); // Ordenar por hora de inicio
-        filteredEvents.forEach(event => {
-            const startTime = event.esTodoElDia ? 'Todo el día' : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-            const endTime = event.esTodoElDia ? '' : ' - ' + event.fechaFin.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-            dayHtml += `
-                <li class="list-item clickable" id="event-${event.id}" data-event-id="${event.id}">
-                    <div class="list-item-content">
-                        <span class="list-item-title" style="color:${event.color};">
-                            ${event.titulo} ${event.esTodoElDia ? '(Todo el día)' : ''}
-                        </span>
-                        <span class="list-item-subtitle">${startTime}${endTime}</span>
-                        ${event.descripcion ? `<div class="event-description">${event.descripcion}</div>` : ''}
-                    </div>
-                    <div class="list-item-actions">
-                        <button class="generic-menu-btn" data-menu-id="menu-event-${event.id}">⋮</button>
-                        <div class="dropdown-menu" id="menu-event-${event.id}">
-                            <a class="dropdown-item" data-action="edit-calendar-event" data-event-id="${event.id}">Editar</a>
-                            <a class="dropdown-item" data-action="delete-calendar-event" data-event-id="${event.id}">Eliminar</a>
-                        </div>
-                    </div>
-                </li>`;
-        });
-        dayHtml += `</ul>`;
-    }
-    document.getElementById('calendar-content').innerHTML = dayHtml;
-    // Añadir listeners para los menús y acciones de eventos
-    document.getElementById('calendar-content').querySelectorAll('.list-item').forEach(item => {
-        item.addEventListener('click', handleCalendarEventClick);
-    });
-}
-
-/**
- * Renderiza la vista semanal del calendario.
- */
-function renderWeekView(events, currentDate) {
-    let weekHtml = '';
-    const firstDayOfWeek = new Date(currentDate);
-    firstDayOfWeek.setDate(currentDate.getDate() - currentDate.getDay()); // Domingo de la semana actual
-
-    const daysOfWeek = [];
-    for (let i = 0; i < 7; i++) {
-        const day = new Date(firstDayOfWeek);
-        day.setDate(firstDayOfWeek.getDate() + i);
-        daysOfWeek.push(day);
-    }
-
-    weekHtml += `<div style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align:center; font-weight:bold; margin-bottom:10px;">`;
-    daysOfWeek.forEach(day => {
-        const isToday = day.toDateString() === new Date().toDateString();
-        weekHtml += `<div style="${isToday ? 'color:var(--primary);' : ''}">${day.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })}</div>`;
-    });
-    weekHtml += `</div>`;
-
-    weekHtml += `<div style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 5px; min-height:200px;">`;
-    daysOfWeek.forEach(day => {
-        const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0);
-        const endOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59, 999);
-
-        const eventsForDay = events.filter(event =>
-            (event.fechaInicio.getTime() >= startOfDay.getTime() && event.fechaInicio.getTime() <= endOfDay.getTime()) ||
-            (event.fechaFin.getTime() >= startOfDay.getTime() && event.fechaFin.getTime() <= endOfDay.getTime()) ||
-            (event.fechaInicio.getTime() < startOfDay.getTime() && event.fechaFin.getTime() > endOfDay.getTime())
-        ).sort((a, b) => a.fechaInicio.getTime() - b.fechaInicio.getTime());
-
-        weekHtml += `<div style="background:var(--bg); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:5px; min-height:100px;">`;
-        if (eventsForDay.length === 0) {
-            weekHtml += `<span style="font-size:0.8rem; color:var(--muted);">Sin eventos</span>`;
-        } else {
-            eventsForDay.forEach(event => {
-                const startTime = event.esTodoElDia ? 'Todo el día' : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                weekHtml += `<div class="list-item-subtitle clickable" style="font-size:0.8rem; text-align:left; border-left: 3px solid ${event.color}; padding-left: 5px;" data-event-id="${event.id}">
-                                <b>${event.titulo}</b><br>
-                                <small>${startTime}</small>
-                            </div>`;
-            });
-        }
-        weekHtml += `</div>`;
-    });
-    weekHtml += `</div>`;
-
-    document.getElementById('calendar-content').innerHTML = weekHtml;
-    document.getElementById('calendar-content').querySelectorAll('.list-item-subtitle.clickable').forEach(item => {
-        item.addEventListener('click', handleCalendarEventClick);
-    });
-}
-
-/**
- * Renderiza la vista mensual del calendario.
- */
-function renderMonthView(events, currentDate) {
-    let monthHtml = '';
-    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    const numDays = lastDayOfMonth.getDate();
-    const startDayOfWeek = firstDayOfMonth.getDay(); // 0=Sunday, 1=Monday...
-
-    monthHtml += `<div style="display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; font-weight:bold; margin-bottom:10px;">`;
-    const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    weekdays.forEach(day => monthHtml += `<div>${day}</div>`);
-    monthHtml += `</div>`;
-
-    monthHtml += `<div style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 5px; min-height:300px;">`;
-    // Días vacíos al inicio del mes
-    for (let i = 0; i < startDayOfWeek; i++) {
-        monthHtml += `<div style="background:var(--bg); border-radius:8px; padding:8px;"></div>`;
-    }
-
-    // Días del mes
-    for (let dayNum = 1; dayNum <= numDays; dayNum++) {
-        const currentDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
-        const isToday = currentDay.toDateString() === new Date().toDateString();
-        const startOfDay = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 0, 0, 0);
-        const endOfDay = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 23, 59, 59, 999);
-
-        const eventsForDay = events.filter(event =>
-            (event.fechaInicio.getTime() >= startOfDay.getTime() && event.fechaInicio.getTime() <= endOfDay.getTime()) ||
-            (event.fechaFin.getTime() >= startOfDay.getTime() && event.fechaFin.getTime() <= endOfDay.getTime()) ||
-            (event.fechaInicio.getTime() < startOfDay.getTime() && event.fechaFin.getTime() > endOfDay.getTime())
-        ).sort((a, b) => a.fechaInicio.getTime() - b.fechaInicio.getTime());
-
-        monthHtml += `<div class="clickable-card" data-day="${dayNum}" data-month="${currentDate.getMonth()}" data-year="${currentDate.getFullYear()}" style="background:var(--bg); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:3px; min-height:100px; ${isToday ? 'border:2px solid var(--primary);' : ''}">`;
-        monthHtml += `<div style="font-weight:bold; text-align:right; font-size:1.1rem; ${isToday ? 'color:var(--primary);' : ''}">${dayNum}</div>`;
-        if (eventsForDay.length > 0) {
-            eventsForDay.slice(0, 3).forEach(event => { // Mostrar solo los primeros 3 eventos
-                monthHtml += `<div class="list-item-subtitle" style="font-size:0.75rem; text-align:left; border-left: 3px solid ${event.color}; padding-left: 3px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" data-event-id="${event.id}">
-                                ${event.esTodoElDia ? '• ' : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + ' '}${event.titulo}
-                              </div>`;
-            });
-            if (eventsForDay.length > 3) {
-                monthHtml += `<div style="font-size:0.7rem; color:var(--muted); text-align:left; margin-top:3px;">+${eventsForDay.length - 3} más</div>`;
-            }
-        }
-        monthHtml += `</div>`;
-    }
-    monthHtml += `</div>`;
-
-    document.getElementById('calendar-content').innerHTML = monthHtml;
-    // Añadir listener para hacer clic en los días
-    document.getElementById('calendar-content').querySelectorAll('.clickable-card[data-day]').forEach(dayCard => {
-        dayCard.addEventListener('click', (e) => {
-            const day = parseInt(e.currentTarget.dataset.day);
-            const month = parseInt(e.currentTarget.dataset.month);
-            const year = parseInt(e.currentTarget.dataset.year);
-            const newDate = new Date(year, month, day);
-            // Cambiar a vista diaria para ese día
-            document.querySelector('#calendar-view-tabs .guia-nav-btn.active').classList.remove('active');
-            document.querySelector('#calendar-view-tabs button[data-view="day"]').classList.add('active');
-            currentCalendarView = 'day';
-            currentCalendarDate = newDate;
-            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
-        });
-    });
-}
-
-/**
- * Manejador de clics para elementos de eventos en el calendario.
- */
-function handleCalendarEventClick(e) {
-    // Asegurarse de que el target sea el evento en sí o su título en la vista semanal/mensual
-    const target = e.target.closest('.list-item.clickable, .list-item-subtitle.clickable');
-    if (!target) return;
-
-    const eventId = target.dataset.eventId;
-    if (eventId) {
-        // Obtenemos el evento de Firestore para pasarlo al formulario de edición
-        db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get()
-            .then(docSnap => {
-                if (docSnap.exists) {
-                    const eventData = docSnap.data();
-                    // Convertir Timestamps a objetos Date para Flatpickr
-                    eventData.fechaInicio = eventData.fechaInicio.toDate();
-                    eventData.fechaFin = eventData.fechaFin.toDate();
-                    renderCalendarEventForm({ id: eventId, ...eventData }, () => loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate));
-                } else {
-                    showToast('Evento no encontrado.', true);
-                }
-            })
-            .catch(error => {
-                console.error("Error al obtener evento para edición:", error);
-                showToast('Error al cargar detalles del evento.', true);
-            });
-    }
-}
-
-
-/**
- * Renderiza el formulario para añadir o editar un evento/recordatorio del calendario.
- * @param {object|null} event Objeto del evento si se está editando, null si es nuevo.
- * @param {function} returnPath Función a la que regresar después de guardar/cancelar.
- */
-function renderCalendarEventForm(event = null, returnPath = renderCalendarView) {
-    navigationHistory.push(returnPath);
-    updateBackButton();
-    
-    const isEditing = event !== null;
-    const userEmail = appData.settings.email; // Obtenemos el email guardado en la appData
-    const hasEmailConfigured = userEmail && userEmail.trim() !== '';
-
-    mainContentArea.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><h2>${isEditing ? '✏️ Editar Evento/Recordatorio' : '➕ Nuevo Evento/Recordatorio'}</h2></div>
-            <div class="form-card" id="item-${isEditing ? event.id : 'new-calendar-event'}">
-                <label>Título</label><input type="text" id="calendar-event-title" value="${isEditing ? event.titulo : ''}" required />
-                <label>Descripción</label><textarea id="calendar-event-description" rows="4">${isEditing ? event.descripcion : ''}</textarea>
-                
-                <div style="display: flex; align-items: center; margin-top: 15px;">
-                    <input type="checkbox" id="calendar-event-all-day" style="width:auto;margin-right:8px;" ${isEditing && event.esTodoElDia ? 'checked' : ''}> 
-                    <label for="calendar-event-all-day" style="margin-top:0;">Todo el día</label>
-                </div>
-
-                <label>Fecha y Hora de Inicio</label><input type="text" id="calendar-event-start-date" required>
-                <label id="calendar-event-end-label">Fecha y Hora de Fin</label><input type="text" id="calendar-event-end-date" required>
-
-                <label>Categoría (Opcional)</label>
-                <select id="calendar-event-category">
-                    <option value="">-- Selecciona --</option>
-                    <option value="Personal" ${isEditing && event.categoria === 'Personal' ? 'selected' : ''}>Personal</option>
-                    <option value="Trabajo" ${isEditing && event.categoria === 'Trabajo' ? 'selected' : ''}>Trabajo</option>
-                    <option value="Salud" ${isEditing && event.categoria === 'Salud' ? 'selected' : ''}>Salud</option>
-                    <option value="Cumpleaños" ${isEditing && event.categoria === 'Cumpleaños' ? 'selected' : ''}>Cumpleaños</option>
-                    <option value="Deportes" ${isEditing && event.categoria === 'Deportes' ? 'selected' : ''}>Deportes</option>
-                    <option value="Otros" ${isEditing && event.categoria === 'Otros' ? 'selected' : ''}>Otros</option>
-                </select>
-
-                <h3 class="settings-section-title" style="margin-top: 30px;">Notificaciones</h3>
-                <div id="calendar-notifications-container"></div>
-                <div class="add-article-btn-container" style="padding: 10px 0;">
-                    <button id="add-calendar-notification-btn" class="add-article-btn" style="width:100%; max-width:100%;">➕ Añadir Notificación</button>
-                </div>
-                ${!hasEmailConfigured ? `<p style="font-size:0.9rem; color:var(--error-bg); margin-top:10px;">Para notificaciones por email, configura tu correo en Ajustes.</p>` : ''}
-
-                <div class="button-group">
-                    <button id="calendar-event-cancel-btn" class="cancel">Cancelar</button>
-                    <button id="calendar-event-save-btn" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento/Recordatorio'}</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('calendar-event-cancel-btn').onclick = goBack;
-    const titleInput = document.getElementById('calendar-event-title');
-    const allDayCheckbox = document.getElementById('calendar-event-all-day');
-    const startDateInput = document.getElementById('calendar-event-start-date');
-    const endDateInput = document.getElementById('calendar-event-end-date');
-    const endDateLabel = document.getElementById('calendar-event-end-label');
-    const addNotificationBtn = document.getElementById('add-calendar-notification-btn');
-    const notificationsContainer = document.getElementById('calendar-notifications-container');
-    const saveBtn = document.getElementById('calendar-event-save-btn');
-
-    // --- Flatpickr (selector de fecha y hora) ---
-    const fpConfig = { 
-        enableTime: true, 
-        dateFormat: "d/m/Y H:i", 
-        altInput: true, 
-        altFormat: "d/m/Y H:i", 
-        locale: "es", 
-        time_24hr: true 
-    };
-    const fpDateConfig = { 
-        enableTime: false, 
-        dateFormat: "d/m/Y", 
-        altInput: true, 
-        altFormat: "d/m/Y", 
-        locale: "es" 
-    };
-
-    let startPicker, endPicker;
-
-    function initDatePickers(isAllDay) {
-        if (startPicker) startPicker.destroy();
-        if (endPicker) endPicker.destroy();
-
-        startPicker = flatpickr(startDateInput, { 
-            ...(isAllDay ? fpDateConfig : fpConfig),
-            defaultDate: isEditing ? (isAllDay ? event.fechaInicio : event.fechaInicio) : new Date(),
-            onChange: function(selectedDates) {
-                if (selectedDates[0] && !allDayCheckbox.checked) {
-                    const currentEndDate = endPicker.selectedDates[0];
-                    const newEndDate = new Date(selectedDates[0].getTime() + 3600000); // +1 hora
-                    if (!currentEndDate || newEndDate > currentEndDate) {
-                        endPicker.setDate(newEndDate, true);
-                    }
-                } else if (selectedDates[0] && allDayCheckbox.checked) {
-                    // Para eventos de todo el día, la fecha de fin es la misma que la de inicio
-                    endPicker.setDate(selectedDates[0], true); 
-                }
-                validateForm();
-            }
-        });
-
-        endPicker = flatpickr(endDateInput, { 
-            ...(isAllDay ? fpDateConfig : fpConfig),
-            defaultDate: isEditing ? (isAllDay ? event.fechaFin : event.fechaFin) : new Date(Date.now() + 3600000), // Default +1h
-            minDate: isEditing ? (isAllDay ? event.fechaInicio : event.fechaInicio) : new Date(),
-            onChange: validateForm
-        });
-
-        // Asegurarse de que endDate no sea anterior a startDate si all-day cambia
-        if (isAllDay) {
-            endDateInput.style.display = 'none';
-            endDateLabel.style.display = 'none';
-            endPicker.setDate(startPicker.selectedDates[0], true); // Sincroniza la fecha de fin con la de inicio
-        } else {
-            endDateInput.style.display = 'block';
-            endDateLabel.style.display = 'block';
-            endPicker.set('minDate', startPicker.selectedDates[0]); // Establece minDate para endPicker
-        }
-    }
-
-    allDayCheckbox.onchange = () => initDatePickers(allDayCheckbox.checked);
-    // Asegurarse de que initDatePickers se llame al cargar, usando el estado de edición o por defecto
-    initDatePickers(isEditing ? event.esTodoElDia : false); 
-
-    // --- Lógica de Notificaciones ---
-    const createNotificationRow = (notif = null) => {
-        const row = document.createElement('div');
-        row.className = 'notification-row';
-        let quantity = '', unit = '', method = '';
-        
-        if (notif) {
-            method = notif.metodo;
-            if (notif.minutosAntes % (24 * 60) === 0) { unit = 'days'; quantity = notif.minutosAntes / (24 * 60); }
-            else if (notif.minutosAntes % 60 === 0) { unit = 'hours'; quantity = notif.minutosAntes / 60; }
-            else { unit = 'minutes'; quantity = notif.minutosAntes; }
-        } else {
-            // Valores por defecto para una nueva notificación
-            method = 'telegram';
-            quantity = 15;
-            unit = 'minutes';
-        }
-
-        row.innerHTML = `
-            <select class="event-reminder-method">
-                <option value="telegram" ${method === 'telegram' ? 'selected' : ''}>Telegram</option>
-                <option value="email" ${method === 'email' && hasEmailConfigured ? 'selected' : ''} ${!hasEmailConfigured ? 'disabled' : ''}>Email</option>
-            </select>
-            <input type="number" class="event-reminder-quantity" value="${quantity}" min="1"/>
-            <select class="event-reminder-unit">
-                <option value="minutes" ${unit === 'minutes' ? 'selected' : ''}>min antes</option>
-                <option value="hours" ${unit === 'hours' ? 'selected' : ''}>horas antes</option>
-                <option value="days" ${unit === 'days' ? 'selected' : ''}>días antes</option>
-            </select>
-            <button class="remove-notification-btn">🗑️</button>
-        `;
-        notificationsContainer.appendChild(row);
-        row.querySelector('.remove-notification-btn').onclick = () => { row.remove(); validateForm(); };
-        row.querySelectorAll('input, select').forEach(el => el.addEventListener('input', validateForm));
-        validateForm(); // Revalidar después de añadir/modificar fila
-    };
-
-    addNotificationBtn.onclick = () => createNotificationRow();
-
-    // Cargar notificaciones existentes
-    if (isEditing && event.notificaciones && event.notificaciones.length > 0) {
-        event.notificaciones.forEach(notif => createNotificationRow(notif));
-    } else if (!isEditing) {
-        createNotificationRow(); // Añadir una notificación por defecto para nuevos eventos
-    }
-
-    // --- Validación y Guardado ---
-    function validateForm() {
-        const isTitleValid = titleInput.value.trim() !== '';
-        const isDateValid = startDateInput.value !== '' && endDateInput.value !== '';
-        const isDateOrderValid = startPicker.selectedDates[0] && endPicker.selectedDates[0] && endPicker.selectedDates[0] >= startPicker.selectedDates[0];
-        
-        let areNotificationsValid = true;
-        document.querySelectorAll('#calendar-notifications-container .notification-row').forEach(row => { // Selector más específico
-            const quantity = row.querySelector('.event-reminder-quantity').value.trim();
-            const unit = row.querySelector('.event-reminder-unit').value;
-            const method = row.querySelector('.event-reminder-method').value;
-            if (quantity === '' || parseInt(quantity, 10) <= 0 || unit === '' || method === '') {
-                areNotificationsValid = false;
-            }
-        });
-
-        const formIsValid = isTitleValid && isDateValid && isDateOrderValid && areNotificationsValid;
-        saveBtn.disabled = !formIsValid;
-        saveBtn.classList.toggle('enabled', formIsValid);
-    }
-
-    titleInput.oninput = validateForm;
-    document.getElementById('calendar-event-description').oninput = validateForm; // También validamos la descripción
-    document.getElementById('calendar-event-category').onchange = validateForm; // Y la categoría
-    
-    saveBtn.onclick = () => saveCalendarEvent(event);
-    validateForm(); // Validación inicial al cargar el formulario
-}
-
-
-/**
- * Guarda un evento/recordatorio de calendario en Firestore.
- * @param {object|null} eventToEdit Objeto del evento si se está editando, null si es nuevo.
- */
-async function saveCalendarEvent(eventToEdit = null) {
-    showSpinner("Guardando evento...");
-    
-    const isEditing = eventToEdit !== null;
-    const title = document.getElementById('calendar-event-title').value.trim();
-    const description = document.getElementById('calendar-event-description').value.trim();
-    const isAllDay = document.getElementById('calendar-event-all-day').checked;
-    const startDate = flatpickr.parseDate(document.getElementById('calendar-event-start-date').value, isAllDay ? "d/m/Y" : "d/m/Y H:i");
-    const endDate = document.getElementById('calendar-event-end-date').value; // Obtener el valor del input directamente
-    let parsedEndDate = flatpickr.parseDate(endDate, isAllDay ? "d/m/Y" : "d/m/Y H:i");
-    const category = document.getElementById('calendar-event-category').value;
-
-    // Si es un evento de todo el día, ajustamos la fecha de fin a las 23:59:59 del mismo día
-    if (isAllDay && startDate) {
-        parsedEndDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59, 999);
-    } else if (!parsedEndDate || parsedEndDate < startDate) {
-        showToast("Fechas no válidas o fecha de fin anterior a inicio.", true);
-        hideSpinner();
-        return;
-    }
-
-    const notifications = [];
-    document.querySelectorAll('#calendar-notifications-container .notification-row').forEach(row => {
-        const method = row.querySelector('.event-reminder-method').value;
-        const quantity = parseInt(row.querySelector('.event-reminder-quantity').value, 10);
-        const unit = row.querySelector('.event-reminder-unit').value;
-        
-        let minutesBefore = 0;
-        if (unit === 'minutes') minutesBefore = quantity;
-        else if (unit === 'hours') minutesBefore = quantity * 60;
-        else if (unit === 'days') minutesBefore = quantity * 24 * 60;
-        
-        notifications.push({
-            metodo: method,
-            minutosAntes: minutesBefore,
-            momentoDisparoUTC: null, // Será calculado por Apps Script
-            enviado: false
-        });
-    });
-
-    const eventData = {
-        titulo: title,
-        descripcion: description,
-        fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
-        fechaFin: firebase.firestore.Timestamp.fromDate(parsedEndDate), // Usar la fecha de fin ajustada
-        esTodoElDia: isAllDay,
-        categoria: category,
-        color: '#36A2EB', // Placeholder, se puede hacer dinámico con la categoría
-        notificaciones: notifications
-    };
-
-    try {
-        const eventsCollectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
-
-        if (isEditing) {
-            await eventsCollectionRef.doc(eventToEdit.id).update(eventData);
-            showToast("Evento/Recordatorio actualizado con éxito.");
-        } else {
-            const newEventRef = await eventsCollectionRef.add(eventData);
-            showToast("Evento/Recordatorio creado con éxito.");
-        }
-        
-        goBack(); // Vuelve a la vista anterior del calendario
-    } catch (err) {
-        console.error("Error al guardar evento de calendario:", err);
-        showToast(`Error: ${err.message}`, true);
-    } finally {
-        hideSpinner();
-    }
-}
-
-/**
- * Elimina un evento de calendario directamente de Firestore.
- * @param {string} eventId El ID del evento a eliminar.
- */
 async function handleDeleteCalendarEvent(eventId) {
-    showToast("Eliminando evento...", false);
+    showToast("Eliminando evento...");
     try {
-        const eventRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId);
-        await eventRef.delete();
-        showToast("Evento eliminado con éxito.");
-        // La UI se actualizará automáticamente gracias al listener onSnapshot del calendario.
-        // No es necesario llamar a goBack() o renderCalendarView() directamente aquí,
-        // ya que el listener hará el trabajo.
+        await db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).delete();
+        showToast("Evento eliminado.");
     } catch (err) {
-        console.error("Error al eliminar evento de calendario:", err);
         showToast(`Error al eliminar: ${err.message}`, true);
     }
 }
