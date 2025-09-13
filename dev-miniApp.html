@@ -3198,6 +3198,14 @@ function renderTimelineGrid(canales, programas) {
 // ==================================================
 // --- MÓDULO: CALENDARIO INTELIGENTE ---
 // ==================================================
+// Declaración para el nombre de la colección (debe coincidir con la de tu backend)
+const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
+const FIRESTORE_NOTIFICACIONES_SUBCOLLECTION = 'notificaciones'; // Añadida para completitud
+
+// Globales para el estado y el listener del calendario
+let unsubscribeCalendarEvents = null;
+let currentCalendarView = 'day';
+let currentCalendarDate = new Date();
 /**
  * Renderiza la vista principal del calendario.
  */
