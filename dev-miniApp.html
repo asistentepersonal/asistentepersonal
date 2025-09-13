@@ -3195,49 +3195,13 @@ function renderTimelineGrid(canales, programas) {
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
-// ==================================================
-// --- MÓDULO: CALENDARIO INTELIGENTE ---
-// ==================================================
 // Declaración para el nombre de la colección (debe coincidir con la de tu backend)
 const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
-const FIRESTORE_NOTIFICACIONES_SUBCOLLECTION = 'notificaciones'; // Añadida para completitud
+const FIRESTORE_NOTIFICACIONES_SUBCOLLECTION = 'notificaciones';
 
-// Globales para el estado y el listener del calendario
-let unsubscribeCalendarEvents = null;
+// Globales para el estado del calendario (la variable 'unsubscribeCalendarEvents' ya existe globalmente)
 let currentCalendarView = 'day';
 let currentCalendarDate = new Date();
-/**
- * Renderiza la vista principal del calendario.
- */
-function renderCalendarView() {
-    setActiveTab('tab-home'); // El calendario es parte del "Home"
-    navigationHistory.push(renderDashboard);
-    updateBackButton();
-
-    mainContentArea.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><h2>🗓️ Mi Calendario</h2></div>
-            <div class="guia-nav" id="calendar-view-tabs" style="justify-content: center; margin-bottom: 15px;">
-                <button class="guia-nav-btn active" data-view="day">Día</button>
-                <button class="guia-nav-btn" data-view="week">Semana</button>
-                <button class="guia-nav-btn" data-view="month">Mes</button>
-            </div>
-            <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
-                <button id="calendar-prev-btn" class="back-btn" style="font-size:1.5rem; margin-right:0;">◀️</button>
-                <h3 id="calendar-current-period" style="font-size:1.1rem; flex-grow:1; text-align:center; margin:0;">Cargando...</h3>
-                <button id="calendar-next-btn" class="back-btn" style="font-size:1.5rem; margin-left:0;">▶️</button>
-            </div>
-            <div id="calendar-content" style="background:var(--card-bg); border-radius:12px; padding:15px; min-height:300px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                <div class="no-data-msg">Cargando eventos del calendario...</div>
-            </div>
-            <div class="add-article-btn-container" style="margin-top:20px;">
-                <button class="add-article-btn" id="calendar-quick-add-btn">➕ Añadir Evento/Recordatorio</button>
-            </div>
-        </div>`;
-
-    // --- Lógica inicial de la vista y la fecha actual ---
-    let currentCalendarView = 'day';
-    let currentCalendarDate = new Date(); // Empieza en la fecha actual
 
     // --- Event Listeners para cambiar de vista ---
     document.querySelectorAll('#calendar-view-tabs .guia-nav-btn').forEach(btn => {
