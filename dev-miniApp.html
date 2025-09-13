@@ -3492,9 +3492,11 @@ async function saveCalendarEvent(eventToEdit = null) {
     const isEditing = eventToEdit !== null;
     const title = document.getElementById('event-title').value.trim();
     const isAllDay = document.getElementById('event-all-day').checked;
-    
-    let startDate = flatpickr.getInstance(document.getElementById('event-start-date')).selectedDates[0];
-    let endDate = isAllDay ? startDate : flatpickr.getInstance(document.getElementById('event-end-date')).selectedDates[0];
+
+    // --- CÓDIGO CORREGIDO ---
+    // Obtenemos las fechas de la instancia correcta adjunta al elemento del DOM
+    let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
+    let endDate = isAllDay ? startDate : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
 
     if (isAllDay && startDate) {
         endDate = new Date(new Date(startDate).setHours(23, 59, 59, 999));
@@ -3511,7 +3513,7 @@ async function saveCalendarEvent(eventToEdit = null) {
         fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
         fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
         esTodoElDia: isAllDay,
-        color: '#36A2EB'
+        color: '#36A2EB' // Color por defecto
     };
 
     try {
