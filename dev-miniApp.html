@@ -421,10 +421,9 @@ async function initializeApp() {
         
         const versionPromise = db.collection('app_config').doc('version_info').get();
         const userSettingsPromise = db.collection('users').doc(chatId).get();
-        const userCountsPromise = db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
         
-        const [versionDoc, userSettingsDoc, userCountsDoc] = await Promise.all([
-            versionPromise, userSettingsPromise, userCountsPromise
+        const [versionDoc, userSettingsDoc] = await Promise.all([
+            versionPromise, userSettingsPromise
         ]);
 
         const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
@@ -442,36 +441,48 @@ async function initializeApp() {
         appData.settings = userSettingsDoc.data() || {};
         appData.isPremium = appData.settings.plan_premium === true;
         
-        if (userCountsDoc.exists) {
-            appData.counts = userCountsDoc.data();
-        }
-        
-        // --- INICIO DE LA NUEVA LÓGICA: LISTENER GLOBAL DE CONTADORES ---
-            const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-            countsRef.onSnapshot((doc) => {
-        if (doc.exists) {
-            console.log("Contadores sincronizados en tiempo real.");
-            const serverCounts = doc.data();
-            // Comprobar si realmente hay cambios para evitar re-renderizados innecesarios
-            if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
-                            appData.counts = serverCounts;
-            // Si el usuario está en el dashboard, se actualiza la vista.
-            // Los badges se actualizarán automáticamente al volver al Home
-            // debido a que appData.counts ya está sincronizado.
-            if (document.querySelector('.grid')) {
-                renderDashboard();
-                showToast("Datos sincronizados.", false);
-            }
-            }
-        }
-    }, (error) => {
-        console.error("Error en el listener de contadores: ", error);
-    });
-        // --- FIN DE LA NUEVA LÓGICA ---
+        // --- Listener GLOBAL de contadores ---
+        db.collection('users').doc(chatId).collection('_metadata').doc('counts')
+            .onSnapshot((doc) => {
+                if (doc.exists) {
+                    console.log("Contadores sincronizados en tiempo real.");
+                    const serverCounts = doc.data();
+                    if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
+                        appData.counts = serverCounts;
+                        if (document.querySelector('.grid')) {
+                            renderDashboard();
+                            showToast("Datos sincronizados.", false);
+                        }
+                    }
+                }
+            }, (error) => {
+                console.error("Error en el listener de contadores: ", error);
+            });
+
+        // --- INICIO: Listener para el badge del calendario en tiempo real ---
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+
+        db.collection('users').doc(chatId).collection('eventos_calendario')
+          .where('fechaInicio', '>=', startOfToday)
+          .where('fechaInicio', '<=', endOfToday)
+          .onSnapshot(snapshot => {
+              const eventsTodayCount = snapshot.size;
+              console.log(`Eventos para hoy: ${eventsTodayCount}`);
+              appData.counts.calendarTodayCount = eventsTodayCount;
+              const calendarBadge = document.getElementById('calendar-badge');
+              if (calendarBadge) {
+                  calendarBadge.textContent = eventsTodayCount;
+              }
+          }, error => {
+              console.error("Error en listener de eventos de hoy:", error);
+          });
+        // --- FIN: Listener para el badge del calendario ---
 
         updateChefTabStyle();
         renderDashboard();
-		updateChefTabStyle();
 		isAppReady = true;
         hideSplashScreen();
         
@@ -3298,8 +3309,10 @@ let currentCalendarView = 'day';
 let currentCalendarDate = new Date();
 
 function renderCalendarView() {
-    setActiveTab('tab-home');
+    // CORRECCIÓN: Se establece 'month' como la vista por defecto al iniciar.
+    currentCalendarView = 'month'; 
     currentCalendarDate = new Date();
+    
     navigationHistory.push(() => {
         if (typeof unsubscribeCalendarEvents === 'function') {
             unsubscribeCalendarEvents();
@@ -3314,9 +3327,10 @@ function renderCalendarView() {
             <div class="calendar-header-sticky">
                 <div class="list-header" style="padding-bottom:0;"><h2>🗓️ Mi Calendario</h2></div>
                 <div class="guia-nav" id="calendar-view-tabs" style="justify-content: center; margin-bottom: 15px;">
-                    <button class="guia-nav-btn active" data-view="day">Día</button>
+                    <button class="guia-nav-btn" data-view="day">Día</button>
                     <button class="guia-nav-btn" data-view="week">Semana</button>
-                    <button class="guia-nav-btn" data-view="month">Mes</button>
+                    // CORRECCIÓN: La clase 'active' ahora está en el botón 'Mes'.
+                    <button class="guia-nav-btn active" data-view="month">Mes</button> 
                 </div>
                 <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
                     <button id="calendar-prev-btn" class="back-btn" style="font-size:1.5rem; margin-right:0;">◀️</button>
@@ -3339,6 +3353,8 @@ function renderCalendarView() {
     document.getElementById('calendar-prev-btn').onclick = () => { currentCalendarDate = getPreviousPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
     document.getElementById('calendar-next-btn').onclick = () => { currentCalendarDate = getNextPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
     document.getElementById('calendar-quick-add-btn').onclick = () => renderCalendarEventForm(null, renderCalendarView);
+    
+    // La primera carga usará 'month' como vista, según lo definido arriba.
     loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
 }
 
@@ -3429,7 +3445,6 @@ function renderWeekView(events, startOfWeek) {
     // --- Área de Scroll ---
     let scrollAreaHtml = `<div class="calendar-week-scroll-area">`;
     
-    // 1. Columna de Horas
     let timeColHtml = `<div class="calendar-week-time-col">`;
     for (let hour = 1; hour < 24; hour++) {
         timeColHtml += `<div class="calendar-week-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
@@ -3437,7 +3452,6 @@ function renderWeekView(events, startOfWeek) {
     timeColHtml += `</div>`;
     scrollAreaHtml += timeColHtml;
 
-    // 2. Cuadrícula de Eventos y Días
     let eventsGridHtml = `<div class="calendar-week-events-grid">`;
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
@@ -3454,7 +3468,6 @@ function renderWeekView(events, startOfWeek) {
         if (eventStart >= startOfWeek && eventStart < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) {
             const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
             const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
-
             const top = (startMinutes / 60) * HOUR_HEIGHT;
             const height = (durationMinutes / 60) * HOUR_HEIGHT;
             const left = (dayOfWeek / 7) * 100;
@@ -3483,11 +3496,8 @@ function renderWeekView(events, startOfWeek) {
         col.onclick = function(e) {
             if (e.target.closest('.event-block')) return;
             
-            // --- CORRECCIÓN FINAL Y DEFINITIVA ---
-            // Usamos e.offsetY, que da la posición del clic DENTRO del elemento,
-            // lo que lo hace inmune a la posición del scroll y otros factores.
+            // CORRECCIÓN FINAL: Usamos e.offsetY para un cálculo de hora preciso e infalible.
             const y = e.offsetY;
-            
             const totalMinutes = (y / (24 * HOUR_HEIGHT)) * 1440;
             const hour = Math.floor(totalMinutes / 60);
             const minute = Math.round((totalMinutes % 60) / 15) * 15;
