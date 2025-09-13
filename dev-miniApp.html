@@ -3443,14 +3443,13 @@ function renderWeekView(events, startOfWeek) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
-        // CORRECCIÓN CLAVE 1: Almacenamos los componentes de la fecha local por separado.
         const dateString = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
         eventsGridHtml += `<div class="calendar-week-day-col ${isToday ? 'today' : ''}" data-date="${dateString}"></div>`;
     }
     
     events.forEach(event => {
         const eventStart = event.fechaInicio;
-        const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1; // Lunes=0, Domingo=6
+        const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1; 
         
         if (eventStart >= startOfWeek && eventStart < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) {
             const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
@@ -3483,16 +3482,17 @@ function renderWeekView(events, startOfWeek) {
     contentEl.querySelectorAll('.calendar-week-day-col').forEach(col => {
         col.onclick = function(e) {
             if (e.target.closest('.event-block')) return;
-            const rect = col.getBoundingClientRect();
-            const scrollArea = col.closest('.calendar-week-scroll-area');
-            const y = e.clientY - rect.top + scrollArea.scrollTop;
+            
+            // --- CORRECCIÓN FINAL Y DEFINITIVA ---
+            // Usamos e.offsetY, que da la posición del clic DENTRO del elemento,
+            // lo que lo hace inmune a la posición del scroll y otros factores.
+            const y = e.offsetY;
+            
             const totalMinutes = (y / (24 * HOUR_HEIGHT)) * 1440;
             const hour = Math.floor(totalMinutes / 60);
             const minute = Math.round((totalMinutes % 60) / 15) * 15;
             
-            // CORRECCIÓN CLAVE 2: Reconstruimos la fecha desde cero usando componentes locales,
-            // lo que garantiza que se cree en la zona horaria del navegador sin conflictos.
-            const dateParts = col.dataset.date.split('-').map(Number); // [YYYY, Mes (0-11), Día]
+            const dateParts = col.dataset.date.split('-').map(Number);
             const selectedDate = new Date(dateParts[0], dateParts[1], dateParts[2], hour, minute);
             
             const draftEvent = { fechaInicio: selectedDate, fechaFin: new Date(selectedDate.getTime() + 60 * 60000) };
