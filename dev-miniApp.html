@@ -3564,19 +3564,20 @@ function handleCalendarEventClick(e) {
 function renderCalendarEventForm(event = null, returnPath = renderCalendarView) {
     navigationHistory.push(returnPath);
     updateBackButton();
-    // CORRECCIÓN CLAVE: Un evento se está "editando" solo si tiene un ID de Firestore.
-    const isEditing = event && event.id; 
+    
+    // CORRECCIÓN CLAVE: Distinguimos un evento "existente" (con ID) de un "borrador" (sin ID).
+    const isEditing = event && event.id;
     const hasEmail = appData.settings.email && appData.settings.email.trim() !== '';
 
-    // Lógica mejorada para manejar valores iniciales (sea borrador o evento real)
-    const initialTitle = isEditing ? event.titulo : (event ? event.titulo || '' : '');
-    const initialDesc = isEditing ? event.descripcion || '' : '';
-    const initialColor = isEditing ? event.color : '#36A2EB';
-    const initialAllDay = isEditing ? event.esTodoElDia : (event ? event.esTodoElDia || false : false);
+    // Lógica robusta para determinar los valores iniciales.
+    // Si 'event' existe (sea borrador o real), usamos sus datos. Si no, usamos valores por defecto.
+    const initialTitle = event ? (event.titulo || '') : '';
+    const initialDesc = event ? (event.descripcion || '') : '';
+    const initialColor = event ? (event.color || '#36A2EB') : '#36A2EB';
+    const initialAllDay = event ? (event.esTodoElDia || false) : false;
     const initialStartDate = event ? event.fechaInicio : new Date();
     const initialEndDate = event ? event.fechaFin : new Date(Date.now() + 3600000);
     const initialNotifications = isEditing ? event.notificaciones : [];
-
 
     mainContentArea.innerHTML = `
         <div class="list-container">
@@ -3634,10 +3635,11 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     document.getElementById('add-notification-btn').onclick = () => createNotificationRow();
 
     const validateForm = () => { saveBtn.disabled = titleInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); };
-    titleInput.oninput = validateForm; validateForm();
+    titleInput.oninput = validateForm; 
+    validateForm(); // Llamada inicial para establecer el estado correcto del botón.
+    
     document.getElementById('event-cancel-btn').onclick = goBack;
-    // CORRECCIÓN CLAVE: Solo pasamos el objeto 'event' completo si realmente estamos editando.
-    saveBtn.onclick = () => saveCalendarEvent(isEditing ? event : null); 
+    saveBtn.onclick = () => saveCalendarEvent(isEditing ? event : null);
 }
 
 async function saveCalendarEvent(eventToEdit = null) {
