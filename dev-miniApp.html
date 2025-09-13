@@ -838,101 +838,98 @@ window.confirmDelete = function(type, id) {
 async function executeDelete(type, id) {
     let payload = { chat_ID: chatId };
     let successMessage = '';
-    
+
     try {
         switch(type) {
-                case 'reminder':
-        // --- Lógica optimista para la UI ---
-        const reminderElem = document.getElementById(`item-${id}`);
-        if (reminderElem) reminderElem.remove();
-        const remIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
-        if (remIndex > -1) appData.remindersList.splice(remIndex, 1);
-        appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
-        renderDashboard();
-        showToast('Cancelando recordatorio...');
-    
-        // --- Llamada al backend para la lógica de cancelación ---
-        try {
-            const payload = { 
-                Type: 'cancel_reminder', 
-                chat_ID: chatId, 
-                tracking_code: id 
-            };
-            const res = await fetchWithTimeout(gasWebhookURL, payload);
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            showToast('Recordatorio cancelado con éxito.');
-        } catch(err) {
-            showToast(`Error de cancelación: ${err.message}. Restaurando...`, true);
-            initializeApp();
-        }
-        return; // Salir para no ejecutar código antiguo.
-            case 'note':
-    // --- LÓGICA OPTIMISTA (se mantiene) ---
-    const noteItemElement = document.getElementById(`item-${id}`);
-    if (noteItemElement) noteItemElement.remove();
-    
-    const noteIndexToDelete = appData.notesList.findIndex(n => n.Nota_ID === id);
-    if (noteIndexToDelete > -1) {
-        appData.notesList.splice(noteIndexToDelete, 1);
-        appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
-    }
-    
-    const notesListBadge = document.getElementById('notes-badge');
-    if(notesListBadge) notesListBadge.textContent = appData.counts.notesCount;
-
-    if (appData.notesList.length === 0) {
-        const notesListUlContainer = document.getElementById('notes-list');
-        if (notesListUlContainer) notesListUlContainer.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-    }
-
-    showToast('Nota eliminada');
-    
-    // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
-    try {
-        const noteDocRef = db.collection('users').doc(chatId).collection('notas').doc(id);
-        const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-
-        // Ejecutamos ambas operaciones en un batch para asegurar consistencia
-        const batch = db.batch();
-        batch.delete(noteDocRef);
-        batch.update(countsDocRef, {
-            notesCount: firebase.firestore.FieldValue.increment(-1)
-        });
-        await batch.commit();
-        console.log("Nota eliminada y contador actualizado en Firestore.");
-
-    } catch(err) {
-        console.error("Error al eliminar nota en Firestore:", err);
-        showToast('Error de sincronización al eliminar. Recargando...', true);
-        setTimeout(() => initializeApp(), 1500);
-    }
-    return; // Salimos para no ejecutar el fetch antiguo
-            case 'calendar_event':
-                payload.Type = 'delete_calendar_event'; payload.eventId = id; successMessage = 'Evento eliminado';
-                const eventIndex = appData.calendarEvents.findIndex(e => e.id === id);
-                if (eventIndex > -1) {
-                    const event = appData.calendarEvents[eventIndex];
-                    const eventDateStr = event.start.dateTime || event.start.date;
-                    if (eventDateStr) {
-                      const eventDate = new Date(eventDateStr).toISOString().split('T')[0];
-                      if (eventDate === new Date().toISOString().split('T')[0]) { appData.counts.calendarTodayCount = Math.max(0, appData.counts.calendarTodayCount - 1); }
-                    }
-                    appData.calendarEvents.splice(eventIndex, 1);
+            case 'reminder':
+                // --- Lógica optimista para la UI ---
+                const reminderElem = document.getElementById(`item-${id}`);
+                if (reminderElem) reminderElem.remove();
+                const remIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
+                if (remIndex > -1) appData.remindersList.splice(remIndex, 1);
+                appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
+                renderDashboard();
+                showToast('Cancelando recordatorio...');
+            
+                // --- Llamada al backend para la lógica de cancelación ---
+                try {
+                    const payload = { 
+                        Type: 'cancel_reminder', 
+                        chat_ID: chatId, 
+                        tracking_code: id 
+                    };
+                    const res = await fetchWithTimeout(gasWebhookURL, payload);
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+                    showToast('Recordatorio cancelado con éxito.');
+                } catch(err) {
+                    showToast(`Error de cancelación: ${err.message}. Restaurando...`, true);
+                    initializeApp();
                 }
-                renderCalendarView();
-                break;
-                case 'gasto':
+                return; // Salir para no ejecutar código antiguo.
+
+            case 'note':
+                // --- LÓGICA OPTIMISTA (se mantiene) ---
+                const noteItemElement = document.getElementById(`item-${id}`);
+                if (noteItemElement) noteItemElement.remove();
+                
+                const noteIndexToDelete = appData.notesList.findIndex(n => n.Nota_ID === id);
+                if (noteIndexToDelete > -1) {
+                    appData.notesList.splice(noteIndexToDelete, 1);
+                    appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
+                }
+                
+                const notesListBadge = document.getElementById('notes-badge');
+                if(notesListBadge) notesListBadge.textContent = appData.counts.notesCount;
+
+                if (appData.notesList.length === 0) {
+                    const notesListUlContainer = document.getElementById('notes-list');
+                    if (notesListUlContainer) notesListUlContainer.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+                }
+
+                showToast('Nota eliminada');
+                
+                // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
+                try {
+                    const noteDocRef = db.collection('users').doc(chatId).collection('notas').doc(id);
+                    const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+                    // Ejecutamos ambas operaciones en un batch para asegurar consistencia
+                    const batch = db.batch();
+                    batch.delete(noteDocRef);
+                    batch.update(countsDocRef, {
+                        notesCount: firebase.firestore.FieldValue.increment(-1)
+                    });
+                    await batch.commit();
+                    console.log("Nota eliminada y contador actualizado en Firestore.");
+
+                } catch(err) {
+                    console.error("Error al eliminar nota en Firestore:", err);
+                    showToast('Error de sincronización al eliminar. Recargando...', true);
+                    setTimeout(() => initializeApp(), 1500);
+                }
+                return; // Salimos para no ejecutar el fetch antiguo
+            
+            case 'calendar_event':
+                // --- CÓDIGO ACTUALIZADO ---
+                // Ahora llama a la nueva función de borrado de Firestore.
+                handleDeleteCalendarEvent(id);
+                return; // Importante salir para no ejecutar el fetch de abajo.
+
+            case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
                 // La actualización de gastos y contadores se gestionará por el backend
                 break;
-                        case 'shopping_item': // <--- CASO AÑADIDO Y CORREGIDO
+            
+            case 'shopping_item': // <--- CASO AÑADIDO Y CORREGIDO
                 handleDeleteShoppingItem(id); // Llamar a la función dedicada para eliminar el artículo
                 return; // Salir, ya que handleDeleteShoppingItem gestiona todo el proceso
         }
 
     } catch(e) { showToast('Error local al procesar.', true); return; }
 
+    // Este bloque 'try...catch' de abajo ahora solo se ejecutará para el caso 'gasto',
+    // ya que todos los demás casos tienen un 'return'.
     try {
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
@@ -943,9 +940,6 @@ async function executeDelete(type, id) {
         const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
         if (syncCheck.success) {
             appData.counts = syncCheck.counts; // Actualizar contadores localmente
-            // No renderDashboard aquí, ya que el delete/update puede venir desde una lista específica
-            // y el renderDashboard ya se encargará de refrescar los badges.
-            // La lista de compras se actualiza via Firestore listener.
         } else {
             initializeApp(); // Si falla la resincronización, recarga completa
         }
@@ -3865,72 +3859,7 @@ async function saveCalendarEvent(eventToEdit = null) {
         hideSpinner();
     }
 }
-// ==================================================
-// --- MÓDULO: CALENDARIO INTELIGENTE ---
-// ==================================================
-// Declaración para el nombre de la colección (desde Config.gs del backend)
-const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
 
-// Global para desconectar el listener de calendario
-let unsubscribeCalendarEvents = null;
-let currentCalendarView = 'day'; // Se inicializa globalmente
-let currentCalendarDate = new Date(); // Se inicializa globalmente
-
-/**
- * Renderiza la vista principal del calendario.
- */
-function renderCalendarView() {
-    setActiveTab('tab-home'); // El calendario es parte del "Home"
-    navigationHistory.push(renderDashboard);
-    updateBackButton();
-
-    mainContentArea.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"><h2>🗓️ Mi Calendario</h2></div>
-            <div class="guia-nav" id="calendar-view-tabs" style="justify-content: center; margin-bottom: 15px;">
-                <button class="guia-nav-btn active" data-view="day">Día</button>
-                <button class="guia-nav-btn" data-view="week">Semana</button>
-                <button class="guia-nav-btn" data-view="month">Mes</button>
-            </div>
-            <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
-                <button id="calendar-prev-btn" class="back-btn" style="font-size:1.5rem; margin-right:0;">◀️</button>
-                <h3 id="calendar-current-period" style="font-size:1.1rem; flex-grow:1; text-align:center; margin:0;">Cargando...</h3>
-                <button id="calendar-next-btn" class="back-btn" style="font-size:1.5rem; margin-left:0;">▶️</button>
-            </div>
-            <div id="calendar-content" style="background:var(--card-bg); border-radius:12px; padding:15px; min-height:300px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                <div class="no-data-msg">Cargando eventos del calendario...</div>
-            </div>
-            <div class="add-article-btn-container" style="margin-top:20px;">
-                <button class="add-article-btn" id="calendar-quick-add-btn">➕ Añadir Evento/Recordatorio</button>
-            </div>
-        </div>`;
-
-    // --- Event Listeners para cambiar de vista ---
-    document.querySelectorAll('#calendar-view-tabs .guia-nav-btn').forEach(btn => {
-        btn.onclick = () => {
-            document.querySelectorAll('#calendar-view-tabs .guia-nav-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentCalendarView = btn.dataset.view;
-            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
-        };
-    });
-
-    // --- Event Listeners para navegación de fecha ---
-    document.getElementById('calendar-prev-btn').onclick = () => {
-        currentCalendarDate = getPreviousPeriodDate(currentCalendarView, currentCalendarDate);
-        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
-    };
-    document.getElementById('calendar-next-btn').onclick = () => {
-        currentCalendarDate = getNextPeriodDate(currentCalendarView, currentCalendarDate);
-        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
-    };
-
-    // --- Event Listener para el Quick Add ---
-    document.getElementById('calendar-quick-add-btn').onclick = () => renderCalendarEventForm(null, () => loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate));
-
-    // Cargar y mostrar eventos para la vista y fecha inicial
-    loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
-}
 
 /**
  * Función auxiliar para obtener la fecha del período anterior.
