@@ -680,6 +680,7 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 let isInitializing = false;
 let isAppReady = false;
 let unsubscribeShoppingList = null;
+let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
 // --- Inputs de archivo globales para la cámara y galería (NUEVOS) ---
 // Se declaran una sola vez al inicio de la aplicación y se reutilizan.
 const fileInputCamera = document.createElement('input');
@@ -3292,9 +3293,6 @@ function getNextPeriodDate(view, date) {
     }
     return newDate;
 }
-
-// Global para desconectar el listener de calendario
-let unsubscribeCalendarEvents = null;
 
 /**
  * Carga y muestra los eventos del calendario desde Firestore para la vista y fecha actuales.
