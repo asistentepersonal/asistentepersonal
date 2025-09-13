@@ -3329,7 +3329,7 @@ function renderWeekView(events, startOfWeek) {
     const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
     let weekHtml = '<div class="calendar-grid">';
 
-    // Fila de encabezados
+    // Fila de encabezados (como en la vista de mes)
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
@@ -3337,11 +3337,11 @@ function renderWeekView(events, startOfWeek) {
         weekHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}" style="${isToday ? 'color:var(--primary);' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
     }
 
-    // Contenido de cada día
+    // Contenido de cada día (columnas de línea de tiempo)
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
-        const dayStart = new Date(day.setHours(0,0,0,0));
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         
         weekHtml += `<div class="week-view-timeline">`;
