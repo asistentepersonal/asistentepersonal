@@ -282,54 +282,53 @@
 .week-view-col { display: flex; flex-direction: column; }
 .week-view-timeline { flex-grow: 1; position: relative; border-left: 1px solid var(--bg); min-height: 500px; }
 /* --- FIN ESTILOS CALENDARIO PROFESIONAL (V2) --- */
-/* --- INICIO ESTILOS VISTA SEMANAL HORARIA (V2 - REFINADA) --- */
+/* --- INICIO ESTILOS VISTA SEMANAL HORARIA (V3 - ESTILO MES) --- */
 .calendar-week-container {
-    display: flex; /* Cambiamos a flexbox para un control más sencillo */
+    display: flex;
     flex-direction: column;
     width: 100%;
-    background-color: var(--card-bg); /* Fondo base para toda la vista */
-    border: 1px solid #eee; /* Borde general sutil */
-    border-radius: 8px;
-    overflow: hidden; /* Para contener los bordes redondeados */
 }
 .calendar-week-header {
     display: grid;
-    grid-template-columns: 50px repeat(7, 1fr); /* Columna horas + 7 días */
+    grid-template-columns: 50px 1fr; /* Columna horas y área de días */
     width: 100%;
-    border-bottom: 1px solid #eee; /* Línea divisoria robusta */
+    background-color: var(--bg); /* Fondo para el espaciado */
 }
-.calendar-week-header .header-time-spacer {
-    /* Espacio vacío arriba de las horas */
-    border-right: 1px solid #eee;
+.calendar-week-header .header-days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px; /* CAMBIO CLAVE: Mismo espaciado que la vista de mes */
 }
 .calendar-week-header .calendar-day-header {
     text-align: center;
     padding: 8px 4px;
     font-size: 0.8rem;
     font-weight: 600;
-    border-left: 1px solid #eee;
+    background-color: var(--card-bg); /* CAMBIO CLAVE: Fondo de tarjeta */
+    border-radius: 8px 8px 0 0; /* Bordes redondeados solo arriba */
 }
-.calendar-week-header .calendar-day-header.today {
+.calendar-week-header .calendar-day-header.today span {
     color: var(--primary);
+    font-weight: bold;
 }
 .calendar-week-scroll-area {
-    /* Aumentamos la altura para que sea más usable */
-    max-height: calc(100vh - 280px); 
+    max-height: calc(100vh - 280px);
     min-height: 400px;
     overflow-y: auto;
     overflow-x: hidden;
     position: relative;
     display: grid;
     grid-template-columns: 50px 1fr; /* Columna de horas y área de eventos */
+    background-color: var(--bg); /* Fondo para el espaciado */
 }
 .calendar-week-time-col {
-    position: relative;
-    border-right: 1px solid #eee;
+    background-color: var(--card-bg); /* Fondo de tarjeta para la columna de horas */
+    border-radius: 0 0 0 8px;
 }
 .calendar-week-time-slot {
     height: 60px; /* 1 hora */
     position: relative;
-    border-top: 1px dashed #ddd; /* Líneas de hora más sutiles */
+    border-top: 1px dashed #ddd;
     font-size: 0.8rem;
     color: var(--muted);
     text-align: right;
@@ -337,26 +336,32 @@
 }
 .calendar-week-time-slot span {
     position: relative;
-    top: -9px; /* Centrar verticalmente en la línea */
+    top: -9px;
 }
 .calendar-week-events-grid {
     display: grid;
-    grid-template-columns: repeat(7, 1fr); /* 7 columnas para los días */
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px; /* CAMBIO CLAVE: Mismo espaciado que la vista de mes */
     position: relative;
     width: 100%;
 }
 .calendar-week-day-col {
     position: relative;
-    border-left: 1px solid #eee;
-    background-image: linear-gradient(to bottom, transparent 59px, #eee 1px); /* Líneas de hora */
+    background-color: var(--card-bg); /* CAMBIO CLAVE: Fondo de tarjeta */
+    background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
     background-size: 100% 60px;
     cursor: pointer;
     min-height: 1440px; /* 24 * 60px */
 }
-.calendar-week-day-col.today {
-    background-color: rgba(74, 118, 243, 0.05);
+.calendar-week-day-col:last-child {
+    border-radius: 0 0 8px 0;
 }
-/* --- FIN ESTILOS VISTA SEMANAL HORARIA (V2 - REFINADA) --- */
+.calendar-week-day-col.today {
+    /* CAMBIO CLAVE: Mismo borde y sombra que la vista de mes */
+    border: 1px solid var(--primary);
+    box-shadow: 0 0 5px var(--primary);
+}
+/* --- FIN ESTILOS VISTA SEMANAL HORARIA (V3 - ESTILO MES) --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -3402,24 +3407,23 @@ function renderDayView(events, currentDate) {
 function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
     const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-    const HOUR_HEIGHT = 60; // Píxeles por hora
+    const HOUR_HEIGHT = 60;
 
-    // --- Contenedor Principal ---
     let finalHtml = `<div class="calendar-week-container">`;
 
     // --- Cabecera Fija ---
     let headerHtml = `<div class="calendar-week-header">
-                        <div class="header-time-spacer"></div>`; // Espacio vacío
+                        <div></div> <!-- Espacio para la columna de horas -->
+                        <div class="header-days-grid">`;
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
         headerHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}">
-                        <span>${weekdays[i]}</span>
-                        <div style="font-size:1rem;">${day.getDate()}</div>
+                        <span>${weekdays[i]} ${day.getDate()}</span>
                        </div>`;
     }
-    headerHtml += `</div>`;
+    headerHtml += `</div></div>`;
     finalHtml += headerHtml;
 
     // --- Área de Scroll ---
@@ -3427,7 +3431,7 @@ function renderWeekView(events, startOfWeek) {
     
     // 1. Columna de Horas
     let timeColHtml = `<div class="calendar-week-time-col">`;
-    for (let hour = 1; hour < 24; hour++) { // Empezamos en 1 para no duplicar la línea de arriba
+    for (let hour = 1; hour < 24; hour++) {
         timeColHtml += `<div class="calendar-week-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
     }
     timeColHtml += `</div>`;
@@ -3439,37 +3443,39 @@ function renderWeekView(events, startOfWeek) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
-        
         eventsGridHtml += `<div class="calendar-week-day-col ${isToday ? 'today' : ''}" data-date="${day.toISOString()}"></div>`;
     }
-    // Añadir eventos encima de la cuadrícula de días
+    
     events.forEach(event => {
         const eventStart = event.fechaInicio;
-        const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1; // 0=Lunes, 6=Domingo
-        const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
-        const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
-        const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
+        const dayIndex = (eventStart.getUTCDay() + 6) % 7; // Lunes=0, Domingo=6
+        
+        // Asegurarnos que el evento pertenece a la semana que se está mostrando
+        if (eventStart >= startOfWeek && eventStart < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) {
+            const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
+            const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
 
-        const top = (startMinutes / 60) * HOUR_HEIGHT;
-        const height = (durationMinutes / 60) * HOUR_HEIGHT;
-        const left = (dayOfWeek / 7) * 100;
+            const top = (startMinutes / 60) * HOUR_HEIGHT;
+            const height = (durationMinutes / 60) * HOUR_HEIGHT;
+            const left = (dayIndex / 7) * 100;
 
-        eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                             style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${left}% + 4px); width: calc(${(1/7)*100}% - 8px); z-index:12; background-color:${event.color || '#36A2EB'};">
-                            <div class="event-block-title">${event.titulo}</div>
-                            <div class="event-block-time">${eventStart.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
-                         </div>`;
+            eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
+                                 style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${left}% + 4px); width: calc(${(1/7)*100}% - 8px); z-index:12; background-color:${event.color || '#36A2EB'};">
+                                <div class="event-block-title">${event.titulo}</div>
+                                <div class="event-block-time">${eventStart.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
+                             </div>`;
+        }
     });
-    eventsGridHtml += `</div>`; // Cierre de events-grid
+    eventsGridHtml += `</div>`;
     scrollAreaHtml += eventsGridHtml;
     
-    scrollAreaHtml += `</div>`; // Cierre de scroll-area
+    scrollAreaHtml += `</div>`;
     finalHtml += scrollAreaHtml;
     
-    finalHtml += `</div>`; // Cierre de container
+    finalHtml += `</div>`;
     contentEl.innerHTML = finalHtml;
 
-    // --- Lógica de Interacción (sin cambios) ---
+    // Lógica de Interacción (sin cambios)
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 
@@ -3489,7 +3495,7 @@ function renderWeekView(events, startOfWeek) {
         };
     });
 
-    // --- Scroll Automático a la Hora Actual ---
+    // Scroll Automático a la Hora Actual
     setTimeout(() => {
         const scrollArea = contentEl.querySelector('.calendar-week-scroll-area');
         if (scrollArea) {
