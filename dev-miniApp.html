@@ -3326,41 +3326,54 @@ function renderDayView(events, currentDate) {
 
 function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
-    const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-    let headerHtml = '<div class="calendar-grid">';
-    let timelineHtml = '<div class="calendar-grid">';
+    const weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    let weekHtml = `<div class="calendar-grid">`;
 
-    // Bucle para construir ambas filas (encabezados y timelines) a la vez
+    // 1. Crear las cabeceras con los nombres de los días
+    weekdays.forEach(day => {
+        weekHtml += `<div class="calendar-day-header">${day}</div>`;
+    });
+
+    // 2. Crear las celdas para cada día de la semana, replicando el estilo de la vista de mes
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
-
-        // Fila 1: Construir los encabezados
-        headerHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}" style="${isToday ? 'color:var(--primary);' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
-
-        // Fila 2: Construir las columnas de la línea de tiempo
         const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         
-        timelineHtml += `<div class="week-view-timeline">`;
-        const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart).sort((a,b) => a.fechaInicio - b.fechaInicio);
-        eventsForDay.forEach(event => {
-            const startMinutes = Math.max(0, (event.fechaInicio.getTime() - dayStart.getTime()) / 60000);
-            const endMinutes = Math.min(1440, (event.fechaFin.getTime() - dayStart.getTime()) / 60000);
-            const top = startMinutes * (500/1440);
-            const height = Math.max(15, (endMinutes - startMinutes) * (500/1440));
-            timelineHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${top}px; height:${height}px; background-color:${event.color || '#36A2EB'}; font-size:0.7rem; left: 2px; right: 2px;"><div class="event-block-title">${event.titulo}</div></div>`;
+        // Filtrar eventos que ocurren en este día específico
+        const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
+        
+        // Construir la celda del día
+        weekHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}">
+                        <div class="calendar-day-number">${day.getDate()}</div>`;
+        
+        // Añadir las "píldoras" de eventos (máximo 2 visibles + contador)
+        eventsForDay.slice(0, 2).forEach(event => { 
+            weekHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`; 
         });
-        timelineHtml += `</div>`;
+        if (eventsForDay.length > 2) {
+            weekHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 2} más...</div>`;
+        }
+        
+        weekHtml += `</div>`; // Cierre de calendar-day-cell
     }
 
-    headerHtml += '</div>'; // Cierre de la cuadrícula de encabezados
-    timelineHtml += '</div>'; // Cierre de la cuadrícula de timelines
+    weekHtml += `</div>`; // Cierre de calendar-grid
+    contentEl.innerHTML = weekHtml;
 
-    // Unimos los dos bloques en el HTML final
-    contentEl.innerHTML = headerHtml + timelineHtml;
-    contentEl.addEventListener('click', handleCalendarEventClick);
+    // 3. Añadir la funcionalidad de clic a cada celda para ir a la vista de "Día"
+    contentEl.querySelectorAll('.calendar-day-cell').forEach(dayCard => {
+        dayCard.onclick = (e) => {
+            currentCalendarDate = new Date(e.currentTarget.dataset.date);
+            document.querySelector('#calendar-view-tabs .guia-nav-btn.active').classList.remove('active');
+            const dayViewButton = document.querySelector('#calendar-view-tabs button[data-view="day"]');
+            if (dayViewButton) dayViewButton.classList.add('active');
+            currentCalendarView = 'day';
+            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
+        };
+    });
 }
 
 function renderMonthView(events, currentDate) {
