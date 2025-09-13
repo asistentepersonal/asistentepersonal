@@ -3309,7 +3309,6 @@ let currentCalendarView = 'day';
 let currentCalendarDate = new Date();
 
 function renderCalendarView() {
-    // CORRECCIÓN: Se establece 'month' como la vista por defecto al iniciar.
     currentCalendarView = 'month'; 
     currentCalendarDate = new Date();
     
@@ -3329,8 +3328,7 @@ function renderCalendarView() {
                 <div class="guia-nav" id="calendar-view-tabs" style="justify-content: center; margin-bottom: 15px;">
                     <button class="guia-nav-btn" data-view="day">Día</button>
                     <button class="guia-nav-btn" data-view="week">Semana</button>
-                    // CORRECCIÓN: La clase 'active' ahora está en el botón 'Mes'.
-                    <button class="guia-nav-btn active" data-view="month">Mes</button> 
+                    <button class="guia-nav-btn active" data-view="month">Mes</button>
                 </div>
                 <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
                     <button id="calendar-prev-btn" class="back-btn" style="font-size:1.5rem; margin-right:0;">◀️</button>
@@ -3354,7 +3352,6 @@ function renderCalendarView() {
     document.getElementById('calendar-next-btn').onclick = () => { currentCalendarDate = getNextPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
     document.getElementById('calendar-quick-add-btn').onclick = () => renderCalendarEventForm(null, renderCalendarView);
     
-    // La primera carga usará 'month' como vista, según lo definido arriba.
     loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
 }
 
@@ -3429,7 +3426,7 @@ function renderWeekView(events, startOfWeek) {
 
     // --- Cabecera Fija ---
     let headerHtml = `<div class="calendar-week-header">
-                        <div></div> <!-- Espacio para la columna de horas -->
+                        <div></div> 
                         <div class="header-days-grid">`;
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
@@ -3445,13 +3442,15 @@ function renderWeekView(events, startOfWeek) {
     // --- Área de Scroll ---
     let scrollAreaHtml = `<div class="calendar-week-scroll-area">`;
     
+    // 1. Columna de Horas (CORRECCIÓN: El bucle ahora empieza en 0)
     let timeColHtml = `<div class="calendar-week-time-col">`;
-    for (let hour = 1; hour < 24; hour++) {
+    for (let hour = 0; hour < 24; hour++) {
         timeColHtml += `<div class="calendar-week-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
     }
     timeColHtml += `</div>`;
     scrollAreaHtml += timeColHtml;
 
+    // 2. Cuadrícula de Eventos y Días
     let eventsGridHtml = `<div class="calendar-week-events-grid">`;
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
@@ -3463,15 +3462,13 @@ function renderWeekView(events, startOfWeek) {
     
     events.forEach(event => {
         const eventStart = event.fechaInicio;
-        const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1; 
-        
+        const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1;
         if (eventStart >= startOfWeek && eventStart < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) {
             const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
             const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
             const top = (startMinutes / 60) * HOUR_HEIGHT;
             const height = (durationMinutes / 60) * HOUR_HEIGHT;
             const left = (dayOfWeek / 7) * 100;
-
             eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
                                  style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${left}% + 4px); width: calc(${(1/7)*100}% - 8px); z-index:12; background-color:${event.color || '#36A2EB'};">
                                 <div class="event-block-title">${event.titulo}</div>
@@ -3496,8 +3493,12 @@ function renderWeekView(events, startOfWeek) {
         col.onclick = function(e) {
             if (e.target.closest('.event-block')) return;
             
-            // CORRECCIÓN FINAL: Usamos e.offsetY para un cálculo de hora preciso e infalible.
-            const y = e.offsetY;
+            // --- CORRECCIÓN FINAL Y DEFINITIVA DEL CÁLCULO DE HORA ---
+            const scrollArea = col.closest('.calendar-week-scroll-area');
+            const scrollAreaRect = scrollArea.getBoundingClientRect();
+            // Este cálculo es robusto y tiene en cuenta el scroll de la página.
+            const y = e.clientY - scrollAreaRect.top + scrollArea.scrollTop;
+            
             const totalMinutes = (y / (24 * HOUR_HEIGHT)) * 1440;
             const hour = Math.floor(totalMinutes / 60);
             const minute = Math.round((totalMinutes % 60) / 15) * 15;
