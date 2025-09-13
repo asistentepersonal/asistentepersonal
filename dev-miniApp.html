@@ -3564,24 +3564,35 @@ function handleCalendarEventClick(e) {
 function renderCalendarEventForm(event = null, returnPath = renderCalendarView) {
     navigationHistory.push(returnPath);
     updateBackButton();
-    const isEditing = event !== null;
+    // CORRECCIÓN CLAVE: Un evento se está "editando" solo si tiene un ID de Firestore.
+    const isEditing = event && event.id; 
     const hasEmail = appData.settings.email && appData.settings.email.trim() !== '';
+
+    // Lógica mejorada para manejar valores iniciales (sea borrador o evento real)
+    const initialTitle = isEditing ? event.titulo : (event ? event.titulo || '' : '');
+    const initialDesc = isEditing ? event.descripcion || '' : '';
+    const initialColor = isEditing ? event.color : '#36A2EB';
+    const initialAllDay = isEditing ? event.esTodoElDia : (event ? event.esTodoElDia || false : false);
+    const initialStartDate = event ? event.fechaInicio : new Date();
+    const initialEndDate = event ? event.fechaFin : new Date(Date.now() + 3600000);
+    const initialNotifications = isEditing ? event.notificaciones : [];
+
 
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
             <div class="form-card">
-                <label>Título</label><input type="text" id="event-title" value="${isEditing ? event.titulo : ''}" required />
-                <label>Descripción</label><textarea id="event-description" rows="3">${isEditing ? event.descripcion || '' : ''}</textarea>
+                <label>Título</label><input type="text" id="event-title" value="${initialTitle}" required />
+                <label>Descripción</label><textarea id="event-description" rows="3">${initialDesc}</textarea>
                 <label>Color</label>
                 <select id="event-color">
-                    <option value="#36A2EB" ${(!isEditing || event.color==='#36A2EB')?'selected':''}>Azul (General)</option>
-                    <option value="#4BC0C0" ${isEditing && event.color==='#4BC0C0'?'selected':''}>Verde (Personal)</option>
-                    <option value="#FFCE56" ${isEditing && event.color==='#FFCE56'?'selected':''}>Amarillo (Trabajo)</option>
-                    <option value="#E74C3C" ${isEditing && event.color==='#E74C3C'?'selected':''}>Rojo (Urgente)</option>
-                    <option value="#9966FF" ${isEditing && event.color==='#9966FF'?'selected':''}>Morado (Salud)</option>
+                    <option value="#36A2EB" ${initialColor==='#36A2EB'?'selected':''}>Azul (General)</option>
+                    <option value="#4BC0C0" ${initialColor==='#4BC0C0'?'selected':''}>Verde (Personal)</option>
+                    <option value="#FFCE56" ${initialColor==='#FFCE56'?'selected':''}>Amarillo (Trabajo)</option>
+                    <option value="#E74C3C" ${initialColor==='#E74C3C'?'selected':''}>Rojo (Urgente)</option>
+                    <option value="#9966FF" ${initialColor==='#9966FF'?'selected':''}>Morado (Salud)</option>
                 </select>
-                <div style="display:flex; align-items:center; margin-top:15px;"><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;" ${isEditing && event.esTodoElDia ? 'checked' : ''}><label for="event-all-day" style="margin-top:0;">Todo el día</label></div>
+                <div style="display:flex; align-items:center; margin-top:15px;"><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;" ${initialAllDay ? 'checked' : ''}><label for="event-all-day" style="margin-top:0;">Todo el día</label></div>
                 <label>Inicio</label><input type="text" id="event-start-date" required>
                 <label id="event-end-label">Fin</label><input type="text" id="event-end-date" required>
                 <h3 class="settings-section-title" style="margin-top:20px;">Notificaciones</h3>
@@ -3600,32 +3611,33 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     const setupPickers = (isAllDay) => {
         if(startPicker) startPicker.destroy(); if(endPicker) endPicker.destroy();
         const config = { locale: "es", altInput: true, altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i", dateFormat: "Y-m-d H:i", enableTime: !isAllDay };
-        startPicker = flatpickr("#event-start-date", {...config, defaultDate: isEditing ? event.fechaInicio : new Date(), 
+        startPicker = flatpickr("#event-start-date", {...config, defaultDate: initialStartDate, 
             onChange: (selectedDates) => { if (!isAllDay && selectedDates[0]) { const newEndDate = new Date(selectedDates[0].getTime() + 3600000); if (!endPicker.selectedDates[0] || newEndDate > endPicker.selectedDates[0]) endPicker.setDate(newEndDate, true); } }
         });
-        endPicker = flatpickr("#event-end-date", {...config, defaultDate: isEditing ? event.fechaFin : new Date(Date.now() + 3600000) });
+        endPicker = flatpickr("#event-end-date", {...config, defaultDate: initialEndDate });
         document.getElementById('event-end-label').style.display = isAllDay ? 'none' : 'block';
         document.getElementById('event-end-date').style.display = isAllDay ? 'none' : 'block';
     };
     allDayCheckbox.onchange = () => setupPickers(allDayCheckbox.checked);
-    setupPickers(isEditing ? event.esTodoElDia : false);
+    setupPickers(initialAllDay);
 
     const notificationsContainer = document.getElementById('notifications-container');
     const createNotificationRow = (notif = { metodo: 'telegram', minutosAntes: 15 }) => {
         const row = document.createElement('div'); row.className = 'notification-row';
         let qty = notif.minutosAntes, unit = 'minutes';
-        if (notif.minutosAntes % 1440 === 0) { qty = notif.minutosAntes / 1440; unit = 'days'; } else if (notif.minutosAntes % 60 === 0) { qty = notif.minutosAntes / 60; unit = 'hours'; }
+        if (notif.minutosAntes > 0 && notif.minutosAntes % 1440 === 0) { qty = notif.minutosAntes / 1440; unit = 'days'; } else if (notif.minutosAntes > 0 && notif.minutosAntes % 60 === 0) { qty = notif.minutosAntes / 60; unit = 'hours'; }
         row.innerHTML = `<select class="event-reminder-method"><option value="telegram" ${notif.metodo === 'telegram' ? 'selected' : ''}>Telegram</option><option value="email" ${notif.metodo === 'email' ? 'selected' : ''} ${!hasEmail ? 'disabled' : ''}>Email</option></select><input type="number" class="event-reminder-quantity" value="${qty}" min="1"/><select class="event-reminder-unit"><option value="minutes" ${unit === 'minutes' ? 'selected' : ''}>min</option><option value="hours" ${unit === 'hours' ? 'selected' : ''}>horas</option><option value="days" ${unit === 'days' ? 'selected' : ''}>días</option></select><button class="remove-notification-btn">🗑️</button>`;
         row.querySelector('.remove-notification-btn').onclick = () => row.remove();
         notificationsContainer.appendChild(row);
     };
-    if (isEditing && event.notificaciones) event.notificaciones.forEach(createNotificationRow);
+    if (initialNotifications) initialNotifications.forEach(createNotificationRow);
     document.getElementById('add-notification-btn').onclick = () => createNotificationRow();
 
     const validateForm = () => { saveBtn.disabled = titleInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); };
     titleInput.oninput = validateForm; validateForm();
     document.getElementById('event-cancel-btn').onclick = goBack;
-    saveBtn.onclick = () => saveCalendarEvent(event);
+    // CORRECCIÓN CLAVE: Solo pasamos el objeto 'event' completo si realmente estamos editando.
+    saveBtn.onclick = () => saveCalendarEvent(isEditing ? event : null); 
 }
 
 async function saveCalendarEvent(eventToEdit = null) {
@@ -3633,11 +3645,18 @@ async function saveCalendarEvent(eventToEdit = null) {
     const isAllDay = document.getElementById('event-all-day').checked;
     let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
     let endDate = isAllDay ? startDate : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
-    if (isAllDay && startDate) endDate = new Date(new Date(startDate).setHours(23, 59, 59, 999));
-    if (!startDate || !endDate || endDate < startDate) { hideSpinner(); showToast("Fechas no válidas.", true); return; }
+    
+    // Validaciones de fecha robustas
+    if (!startDate) { hideSpinner(); showToast("La fecha de inicio es obligatoria.", true); return; }
+    if (isAllDay) {
+        endDate = new Date(startDate);
+        endDate.setHours(23, 59, 59, 999);
+    }
+    if (!endDate) { hideSpinner(); showToast("La fecha de fin es obligatoria.", true); return; }
+    if (endDate < startDate) { hideSpinner(); showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
 
     const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
-        const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10);
+        const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
         const unit = row.querySelector('.event-reminder-unit').value;
         const mins = unit === 'days' ? qty * 1440 : (unit === 'hours' ? qty * 60 : qty);
         return { metodo: row.querySelector('.event-reminder-method').value, minutosAntes: mins };
@@ -3655,10 +3674,22 @@ async function saveCalendarEvent(eventToEdit = null) {
 
     const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
     try {
-        if (eventToEdit) { await collectionRef.doc(eventToEdit.id).update(eventData); showToast("Evento actualizado."); }
-        else { await collectionRef.add(eventData); showToast("Evento creado."); }
+        // Lógica corregida y simplificada
+        if (eventToEdit) {
+            // Si eventToEdit existe, es una ACTUALIZACIÓN
+            await collectionRef.doc(eventToEdit.id).update(eventData);
+            showToast("Evento actualizado.");
+        } else {
+            // Si es nulo, es una CREACIÓN
+            await collectionRef.add(eventData);
+            showToast("Evento creado.");
+        }
         goBack();
-    } catch (err) { showToast(`Error: ${err.message}`, true); } finally { hideSpinner(); }
+    } catch (err) { 
+        showToast(`Error al guardar: ${err.message}`, true); 
+    } finally { 
+        hideSpinner(); 
+    }
 }
 
 async function handleDeleteCalendarEvent(eventId) {
