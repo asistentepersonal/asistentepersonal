@@ -3443,21 +3443,22 @@ function renderWeekView(events, startOfWeek) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
-        eventsGridHtml += `<div class="calendar-week-day-col ${isToday ? 'today' : ''}" data-date="${day.toISOString()}"></div>`;
+        // CORRECCIÓN CLAVE 1: Almacenamos los componentes de la fecha local por separado.
+        const dateString = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+        eventsGridHtml += `<div class="calendar-week-day-col ${isToday ? 'today' : ''}" data-date="${dateString}"></div>`;
     }
     
     events.forEach(event => {
         const eventStart = event.fechaInicio;
-        const dayIndex = (eventStart.getUTCDay() + 6) % 7; // Lunes=0, Domingo=6
+        const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1; // Lunes=0, Domingo=6
         
-        // Asegurarnos que el evento pertenece a la semana que se está mostrando
         if (eventStart >= startOfWeek && eventStart < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) {
             const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
             const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
 
             const top = (startMinutes / 60) * HOUR_HEIGHT;
             const height = (durationMinutes / 60) * HOUR_HEIGHT;
-            const left = (dayIndex / 7) * 100;
+            const left = (dayOfWeek / 7) * 100;
 
             eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
                                  style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${left}% + 4px); width: calc(${(1/7)*100}% - 8px); z-index:12; background-color:${event.color || '#36A2EB'};">
@@ -3475,7 +3476,7 @@ function renderWeekView(events, startOfWeek) {
     finalHtml += `</div>`;
     contentEl.innerHTML = finalHtml;
 
-    // Lógica de Interacción (sin cambios)
+    // Lógica de Interacción
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 
@@ -3488,14 +3489,18 @@ function renderWeekView(events, startOfWeek) {
             const totalMinutes = (y / (24 * HOUR_HEIGHT)) * 1440;
             const hour = Math.floor(totalMinutes / 60);
             const minute = Math.round((totalMinutes % 60) / 15) * 15;
-            const selectedDate = new Date(col.dataset.date);
-            selectedDate.setHours(hour, minute, 0, 0);
+            
+            // CORRECCIÓN CLAVE 2: Reconstruimos la fecha desde cero usando componentes locales,
+            // lo que garantiza que se cree en la zona horaria del navegador sin conflictos.
+            const dateParts = col.dataset.date.split('-').map(Number); // [YYYY, Mes (0-11), Día]
+            const selectedDate = new Date(dateParts[0], dateParts[1], dateParts[2], hour, minute);
+            
             const draftEvent = { fechaInicio: selectedDate, fechaFin: new Date(selectedDate.getTime() + 60 * 60000) };
             renderCalendarEventForm(draftEvent, renderCalendarView);
         };
     });
 
-    // Scroll Automático a la Hora Actual
+    // Scroll Automático
     setTimeout(() => {
         const scrollArea = contentEl.querySelector('.calendar-week-scroll-area');
         if (scrollArea) {
