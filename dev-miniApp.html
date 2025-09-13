@@ -3327,39 +3327,37 @@ function renderDayView(events, currentDate) {
 function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
     const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-    let headerHtml = '<div class="calendar-grid">';
-    let timelineHtml = '<div class="calendar-grid">';
+    let weekHtml = '<div class="calendar-grid">';
 
-    // Bucle para construir ambas filas (encabezados y timelines) a la vez
+    // Fila 1: Encabezados de los días (L 8, M 9, etc.)
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
+        weekHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}" style="${isToday ? 'color:var(--primary);' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
+    }
 
-        // Construir la fila de encabezados
-        headerHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}" style="${isToday ? 'color:var(--primary);' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
-
-        // Construir la fila de timelines
+    // Fila 2: Columnas de la línea de tiempo
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(startOfWeek);
+        day.setDate(startOfWeek.getDate() + i);
         const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         
-        timelineHtml += `<div class="week-view-timeline">`;
+        weekHtml += `<div class="week-view-timeline">`;
         const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart).sort((a,b) => a.fechaInicio - b.fechaInicio);
         eventsForDay.forEach(event => {
             const startMinutes = Math.max(0, (event.fechaInicio.getTime() - dayStart.getTime()) / 60000);
             const endMinutes = Math.min(1440, (event.fechaFin.getTime() - dayStart.getTime()) / 60000);
-            const top = startMinutes * (500/1440); // Escalar a la altura del contenedor
+            const top = startMinutes * (500/1440);
             const height = Math.max(15, (endMinutes - startMinutes) * (500/1440));
-            timelineHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${top}px; height:${height}px; background-color:${event.color || '#36A2EB'}; font-size:0.7rem; left: 2px; right: 2px;"><div class="event-block-title">${event.titulo}</div></div>`;
+            weekHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${top}px; height:${height}px; background-color:${event.color || '#36A2EB'}; font-size:0.7rem; left: 2px; right: 2px;"><div class="event-block-title">${event.titulo}</div></div>`;
         });
-        timelineHtml += `</div>`;
+        weekHtml += `</div>`;
     }
 
-    headerHtml += '</div>'; // Cierra la cuadrícula de encabezados
-    timelineHtml += '</div>'; // Cierra la cuadrícula de timelines
-
-    // Unimos los dos bloques en el HTML final
-    contentEl.innerHTML = headerHtml + timelineHtml;
+    weekHtml += `</div>`; // Cierre del .calendar-grid
+    contentEl.innerHTML = weekHtml;
     contentEl.addEventListener('click', handleCalendarEventClick);
 }
 
