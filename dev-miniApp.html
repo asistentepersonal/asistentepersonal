@@ -116,8 +116,9 @@
     .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
     .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
-        .notification-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; justify-content: space-between; }
-    .notification-controls-wrapper { display: flex; gap: 8px; align-items: center; flex-grow: 1; }
+    .notification-row { display: flex; align-items: center; margin-bottom: 8px; }
+    .notification-controls-wrapper { display: flex; gap: 8px; align-items: center; }
+    .notification-row .remove-notification-btn { margin-left: auto; flex-shrink: 0; }
     .notification-row .event-reminder-method { flex: 2 1 auto; min-width: 120px; }
     .notification-row .event-reminder-quantity { flex: 1 1 60px; text-align: right; }
     .notification-row .event-reminder-unit { flex: 2 1 auto; min-width: 90px; }
@@ -3644,7 +3645,8 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     navigationHistory.push(returnPath);
     updateBackButton();
     
-    mainContentArea.scrollTop = 0; // Asegura el scroll al inicio del contenedor principal
+    // Scroll al inicio del contenedor, asegurando que el formulario se vea desde arriba.
+    mainContentArea.scrollTop = 0;
 
     const isEditing = event && event.id;
     const hasEmail = appData.settings.email && appData.settings.email.trim() !== '';
@@ -3696,7 +3698,15 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
 
     const setupPickers = (isAllDay) => {
         if(startPicker) startPicker.destroy(); if(endPicker) endPicker.destroy();
-        const config = { locale: "es", altInput: true, altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i", dateFormat: "Y-m-d H:i", enableTime: !isAllDay };
+        const config = { 
+            locale: "es", 
+            altInput: true, 
+            altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i", 
+            dateFormat: "Y-m-d H:i", 
+            enableTime: !isAllDay,
+            // Inicia deshabilitado por defecto
+            disable: [true] 
+        };
         
         startPicker = flatpickr("#event-start-date", {...config, defaultDate: initialStartDate, 
             onChange: (selectedDates) => {
@@ -3706,8 +3716,8 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
                 }
             }
         });
-
         endPicker = flatpickr("#event-end-date", {...config, defaultDate: initialEndDate });
+
         document.getElementById('event-end-label').style.display = isAllDay ? 'none' : 'block';
         document.getElementById('event-end-date').style.display = isAllDay ? 'none' : 'block';
     };
@@ -3717,9 +3727,10 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
 
     titleInput.oninput = () => {
         const hasTitle = titleInput.value.trim() !== '';
-        // Esta es la forma correcta de habilitar/deshabilitar flatpickr
+        // **LA CLAVE DE LA CORRECCIÓN**: Usamos la API de flatpickr para habilitar/deshabilitar.
         startPicker.set('disable', [!hasTitle]);
         endPicker.set('disable', [!hasTitle]);
+        
         if (hasTitle) {
             titleInput.classList.remove('input-error');
         }
@@ -3727,6 +3738,7 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     };
 
     datePickersWrapper.onclick = () => {
+        // Verificamos si flatpickr está deshabilitado a través de su propia configuración.
         const isDisabled = startPicker.config.disable.length > 0 && startPicker.config.disable[0] === true;
         if (isDisabled) {
             titleInput.classList.add('input-error');
@@ -3735,7 +3747,10 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
         }
     };
     
-    titleInput.dispatchEvent(new Event('input')); // Ejecuta la validación inicial
+    // Ejecuta la validación inicial para establecer el estado correcto al cargar el formulario.
+    if (isEditing && initialTitle) {
+        titleInput.dispatchEvent(new Event('input'));
+    }
 
     const notificationsContainer = document.getElementById('notifications-container');
     const createNotificationRow = (notif = { metodo: 'telegram', minutosAntes: 15 }) => {
@@ -3789,7 +3804,8 @@ async function saveCalendarEvent(eventToEdit = null) {
             metodo: row.querySelector('.event-reminder-method').value, 
             minutosAntes: mins,
             trigger_id: null,
-            status: 'pending_creation' // CORREGIDO para ser homogéneo
+            // **LA CORRECCIÓN**: El status ahora es 'pending_creation' para ser homogéneo.
+            status: 'pending_creation'
         };
     });
 
