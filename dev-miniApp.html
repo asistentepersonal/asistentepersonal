@@ -3682,7 +3682,7 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     const initialAllDay = event ? (event.esTodoElDia || false) : false;
     const initialStartDate = event ? event.fechaInicio : new Date();
     const initialEndDate = event ? event.fechaFin : new Date(Date.now() + 3600000);
-    const initialNotifications = isEditing ? (event.notificaciones || []) : [];
+    const initialNotifications = isEditing ? (event.notificaciones || []).filter(n => n !== null) : []; // Filtra nulls por seguridad
 
     mainContentArea.innerHTML = `
         <div class="list-container">
@@ -3726,8 +3726,9 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
             locale: "es",
             altInput: true,
             altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i",
-            dateFormat: "Y-m-d H:i",
-            enableTime: !isAllDay
+            dateFormat: "Y-m-d H:i:S", // Usar formato completo para evitar problemas de zona horaria
+            enableTime: !isAllDay,
+            disable: [true] // ¡LÓGICA RESTAURADA! Empiezan deshabilitados por defecto.
         };
         startPicker = flatpickr("#event-start-date", { ...config,
             defaultDate: initialStartDate,
@@ -3746,22 +3747,48 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
         document.getElementById('event-end-label').style.display = isAllDay ? 'none' : 'block';
         document.getElementById('event-end-date').style.display = isAllDay ? 'none' : 'block';
     };
+
     allDayCheckbox.onchange = () => setupPickers(allDayCheckbox.checked);
     setupPickers(initialAllDay);
+
+    // --- ¡LÓGICA DE VALIDACIÓN Y CONTROL RESTAURADA! ---
+    titleInput.oninput = () => {
+        const hasTitle = titleInput.value.trim() !== '';
+        // Habilita/deshabilita los selectores de fecha
+        startPicker.set('disable', [!hasTitle]);
+        endPicker.set('disable', [!hasTitle]);
+        
+        if (hasTitle) {
+            titleInput.classList.remove('input-error');
+        }
+        // Habilita/deshabilita el botón de guardar
+        saveBtn.disabled = !hasTitle;
+        saveBtn.classList.toggle('enabled', hasTitle);
+    };
+
+    datePickersWrapper.onclick = () => {
+        const isDisabled = startPicker.config.disable.length > 0 && startPicker.config.disable[0] === true;
+        if (isDisabled) {
+            titleInput.classList.add('input-error');
+            titleInput.focus();
+            showToast("Primero debes añadir un título.", true);
+        }
+    };
+
+    // Ejecuta la validación inicial para poner el formulario en el estado correcto.
+    if (initialTitle) {
+        titleInput.dispatchEvent(new Event('input'));
+    }
+    // --- FIN DE LA LÓGICA RESTAURADA ---
 
     const notificationsContainer = document.getElementById('notifications-container');
     const createNotificationRow = (notif = { metodo: 'telegram', minutosAntes: 15 }) => {
         const row = document.createElement('div');
         row.className = 'notification-row';
-        let qty = notif.minutosAntes,
-            unit = 'minutes';
-        if (notif.minutosAntes >= 1440 && notif.minutosAntes % 1440 === 0) {
-            qty = notif.minutosAntes / 1440;
-            unit = 'days';
-        } else if (notif.minutosAntes >= 60 && notif.minutosAntes % 60 === 0) {
-            qty = notif.minutosAntes / 60;
-            unit = 'hours';
-        }
+        let qty = notif.minutosAntes, unit = 'minutes';
+        if (notif.minutosAntes >= 1440 && notif.minutosAntes % 1440 === 0) { qty = notif.minutosAntes / 1440; unit = 'days'; } 
+        else if (notif.minutosAntes >= 60 && notif.minutosAntes % 60 === 0) { qty = notif.minutosAntes / 60; unit = 'hours'; }
+        
         row.innerHTML = `
             <div class="notification-controls-wrapper">
                 <select class="event-reminder-method"><option value="telegram" ${notif.metodo === 'telegram' ? 'selected' : ''}>Telegram</option><option value="email" ${notif.metodo === 'email' ? 'selected' : ''} ${!hasEmail ? 'disabled' : ''}>Email</option></select>
@@ -3773,20 +3800,9 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
         notificationsContainer.appendChild(row);
     };
 
-    if (initialNotifications && initialNotifications.length > 0) {
-        initialNotifications.forEach(n => { if(n) createNotificationRow(n); }); // Filtra posibles nulls
-    }
-
+    initialNotifications.forEach(createNotificationRow);
     document.getElementById('add-notification-btn').onclick = () => createNotificationRow();
-
-    const validateForm = () => {
-        saveBtn.disabled = titleInput.value.trim() === '';
-        saveBtn.classList.toggle('enabled', !saveBtn.disabled);
-    };
-
-    titleInput.oninput = validateForm;
-    validateForm();
-
+    
     document.getElementById('event-cancel-btn').onclick = goBack;
     saveBtn.onclick = () => saveCalendarEvent(isEditing ? event : null);
 }
