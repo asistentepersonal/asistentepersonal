@@ -3671,8 +3671,6 @@ function handleCalendarEventClick(e) {
 function renderCalendarEventForm(event = null, returnPath = renderCalendarView) {
     navigationHistory.push(returnPath);
     updateBackButton();
-    
-    // Scroll al inicio del contenedor, asegurando que el formulario se vea desde arriba.
     mainContentArea.scrollTop = 0;
 
     const isEditing = event && event.id;
@@ -3701,12 +3699,10 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
                     <option value="#9966FF" ${initialColor==='#9966FF'?'selected':''}>Morado (Salud)</option>
                 </select>
                 <div style="display:flex; align-items:center; margin-top:15px;"><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;" ${initialAllDay ? 'checked' : ''}><label for="event-all-day" style="margin-top:0;">Todo el día</label></div>
-                
                 <div id="date-pickers-wrapper">
                     <label>Inicio</label><input type="text" id="event-start-date" required>
                     <label id="event-end-label">Fin</label><input type="text" id="event-end-date" required>
                 </div>
-
                 <h3 class="settings-section-title" style="margin-top:20px;">Notificaciones</h3>
                 <div id="notifications-container"></div>
                 <button id="add-notification-btn" class="add-article-btn" style="width:100%;max-width:100%;margin-top:10px; opacity:1; cursor:pointer;">➕ Añadir Notificación</button>
@@ -3724,69 +3720,48 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     let startPicker, endPicker;
 
     const setupPickers = (isAllDay) => {
-        if(startPicker) startPicker.destroy(); if(endPicker) endPicker.destroy();
-        const config = { 
-            locale: "es", 
-            altInput: true, 
-            altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i", 
-            dateFormat: "Y-m-d H:i", 
-            enableTime: !isAllDay,
-            // Inicia deshabilitado por defecto
-            disable: [true] 
+        if (startPicker) startPicker.destroy();
+        if (endPicker) endPicker.destroy();
+        const config = {
+            locale: "es",
+            altInput: true,
+            altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i",
+            dateFormat: "Y-m-d H:i",
+            enableTime: !isAllDay
         };
-        
-        startPicker = flatpickr("#event-start-date", {...config, defaultDate: initialStartDate, 
+        startPicker = flatpickr("#event-start-date", { ...config,
+            defaultDate: initialStartDate,
             onChange: (selectedDates) => {
                 if (selectedDates[0]) {
                     const newEndDate = new Date(selectedDates[0].getTime() + 60 * 60000);
-                    endPicker.setDate(newEndDate, true);
+                    if (endPicker.selectedDates[0] < selectedDates[0]) {
+                        endPicker.setDate(newEndDate, true);
+                    }
                 }
             }
         });
-        endPicker = flatpickr("#event-end-date", {...config, defaultDate: initialEndDate });
-
+        endPicker = flatpickr("#event-end-date", { ...config,
+            defaultDate: initialEndDate
+        });
         document.getElementById('event-end-label').style.display = isAllDay ? 'none' : 'block';
         document.getElementById('event-end-date').style.display = isAllDay ? 'none' : 'block';
     };
-    
     allDayCheckbox.onchange = () => setupPickers(allDayCheckbox.checked);
     setupPickers(initialAllDay);
 
-    titleInput.oninput = () => {
-        const hasTitle = titleInput.value.trim() !== '';
-        // **LA CLAVE DE LA CORRECCIÓN**: Usamos la API de flatpickr para habilitar/deshabilitar.
-        startPicker.set('disable', [!hasTitle]);
-        endPicker.set('disable', [!hasTitle]);
-        
-        if (hasTitle) {
-            titleInput.classList.remove('input-error');
-        }
-        validateForm();
-    };
-
-    datePickersWrapper.onclick = () => {
-        // Verificamos si flatpickr está deshabilitado a través de su propia configuración.
-        const isDisabled = startPicker.config.disable.length > 0 && startPicker.config.disable[0] === true;
-        if (isDisabled) {
-            titleInput.classList.add('input-error');
-            titleInput.focus();
-            showToast("Primero debes añadir un título.", true);
-        }
-    };
-    
-    // Ejecuta la validación inicial para establecer el estado correcto al cargar el formulario.
-    if (isEditing && initialTitle) {
-        titleInput.dispatchEvent(new Event('input'));
-    }
-
     const notificationsContainer = document.getElementById('notifications-container');
     const createNotificationRow = (notif = { metodo: 'telegram', minutosAntes: 15 }) => {
-        const row = document.createElement('div'); 
+        const row = document.createElement('div');
         row.className = 'notification-row';
-        let qty = notif.minutosAntes, unit = 'minutes';
-        if (notif.minutosAntes >= 1440 && notif.minutosAntes % 1440 === 0) { qty = notif.minutosAntes / 1440; unit = 'days'; } 
-        else if (notif.minutosAntes >= 60 && notif.minutosAntes % 60 === 0) { qty = notif.minutosAntes / 60; unit = 'hours'; }
-        
+        let qty = notif.minutosAntes,
+            unit = 'minutes';
+        if (notif.minutosAntes >= 1440 && notif.minutosAntes % 1440 === 0) {
+            qty = notif.minutosAntes / 1440;
+            unit = 'days';
+        } else if (notif.minutosAntes >= 60 && notif.minutosAntes % 60 === 0) {
+            qty = notif.minutosAntes / 60;
+            unit = 'hours';
+        }
         row.innerHTML = `
             <div class="notification-controls-wrapper">
                 <select class="event-reminder-method"><option value="telegram" ${notif.metodo === 'telegram' ? 'selected' : ''}>Telegram</option><option value="email" ${notif.metodo === 'email' ? 'selected' : ''} ${!hasEmail ? 'disabled' : ''}>Email</option></select>
@@ -3798,69 +3773,90 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
         notificationsContainer.appendChild(row);
     };
 
-    if (initialNotifications) initialNotifications.forEach(createNotificationRow);
+    if (initialNotifications && initialNotifications.length > 0) {
+        initialNotifications.forEach(n => { if(n) createNotificationRow(n); }); // Filtra posibles nulls
+    }
+
     document.getElementById('add-notification-btn').onclick = () => createNotificationRow();
 
-    const validateForm = () => { saveBtn.disabled = titleInput.value.trim() === ''; saveBtn.classList.toggle('enabled', !saveBtn.disabled); };
+    const validateForm = () => {
+        saveBtn.disabled = titleInput.value.trim() === '';
+        saveBtn.classList.toggle('enabled', !saveBtn.disabled);
+    };
+
+    titleInput.oninput = validateForm;
     validateForm();
-    
+
     document.getElementById('event-cancel-btn').onclick = goBack;
     saveBtn.onclick = () => saveCalendarEvent(isEditing ? event : null);
 }
 
 async function saveCalendarEvent(eventToEdit = null) {
     showSpinner("Guardando...");
+    const title = document.getElementById('event-title').value.trim();
+    if (!title) {
+        hideSpinner();
+        showToast("El título es obligatorio.", true);
+        return;
+    }
+
     const isAllDay = document.getElementById('event-all-day').checked;
     let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-    let endDate = isAllDay ? startDate : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
+    let endDate = isAllDay ? new Date(startDate) : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
 
-    if (!startDate) { hideSpinner(); showToast("La fecha de inicio es obligatoria.", true); return; }
+    if (!startDate || !endDate) {
+        hideSpinner();
+        showToast("Las fechas de inicio y fin son obligatorias.", true);
+        return;
+    }
     if (isAllDay) {
         startDate.setHours(0, 0, 0, 0);
-        endDate = new Date(startDate);
         endDate.setHours(23, 59, 59, 999);
     }
-    if (!endDate) { hideSpinner(); showToast("La fecha de fin es obligatoria.", true); return; }
-    if (endDate < startDate) { hideSpinner(); showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
-
-    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN CLAVE! ---
-    // Ahora, cada notificación se crea con la estructura completa que el backend espera,
-    // incluyendo el `status: 'pending_creation'` para ser homogéneo con los Recordatorios.
+    if (endDate < startDate) {
+        hideSpinner();
+        showToast("La fecha de fin no puede ser anterior a la de inicio.", true);
+        return;
+    }
+    
+    // Este bloque ahora es más robusto y está 100% alineado con la función anterior.
     const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
         const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
         const unit = row.querySelector('.event-reminder-unit').value;
+        const metodo = row.querySelector('.event-reminder-method').value;
         const mins = unit === 'days' ? qty * 1440 : (unit === 'hours' ? qty * 60 : qty);
+        
         return {
-            metodo: row.querySelector('.event-reminder-method').value,
+            metodo: metodo,
             minutosAntes: mins,
             trigger_id: null,
-            status: 'pending_creation' // <<<--- ¡ESTA LÍNEA ES LA SOLUCIÓN!
+            status: 'pending_creation'
         };
     });
-    // --- FIN DE LA CORRECCIÓN CLAVE ---
 
     const eventData = {
-        titulo: document.getElementById('event-title').value.trim(),
+        titulo: title,
         descripcion: document.getElementById('event-description').value.trim(),
         color: document.getElementById('event-color').value,
         fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
         fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
         esTodoElDia: isAllDay,
-        notificaciones: notifications, // El array ahora tiene la estructura correcta
-        status: 'pending_creation'     // El status principal del evento
+        notificaciones: notifications,
+        status: 'pending_creation'
     };
 
     const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
     try {
-        if (eventToEdit) {
-            await collectionRef.doc(eventToEdit.id).update(eventData);
+        if (eventToEdit && eventToEdit.id) {
+            await collectionRef.doc(eventToEdit.id).set(eventData, { merge: true }); // Usamos set con merge para más seguridad
             showToast("Evento actualizado.");
         } else {
             await collectionRef.add(eventData);
             showToast("Evento creado.");
         }
-        goBack(); // Vuelve a la vista anterior (el calendario)
+        goBack();
     } catch (err) {
+        console.error("Error al guardar evento:", err);
         showToast(`Error al guardar: ${err.message}`, true);
     } finally {
         hideSpinner();
