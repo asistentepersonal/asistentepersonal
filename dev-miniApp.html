@@ -116,30 +116,28 @@
     .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
     .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
-    .notification-row {
+.notification-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px; /* Espacio entre el grupo de controles y el botón */
     margin-bottom: 8px;
 }
 .notification-controls-wrapper {
     display: flex;
-    gap: 8px;
     align-items: center;
-    flex-grow: 1; /* Ocupa el espacio disponible */
-    flex-wrap: nowrap; /* Evita que los elementos internos salten de línea */
+    gap: 8px; /* Espacio entre los selects y el input */
+    flex-grow: 1;
+    min-width: 0; /* ¡CLAVE! Permite que los elementos se encojan si es necesario sin desbordar */
 }
 .notification-row .event-reminder-method {
-    flex: 2 1 auto;
-    min-width: 120px;
+    flex: 1 1 120px; /* Flex-basis de 120px */
 }
 .notification-row .event-reminder-quantity {
-    flex: 1 1 60px;
+    flex: 0 1 60px; /* Flex-basis de 60px */
     text-align: right;
 }
 .notification-row .event-reminder-unit {
-    flex: 2 1 auto;
-    min-width: 90px;
+    flex: 1 1 90px; /* Flex-basis de 90px */
 }
 .notification-row .remove-notification-btn {
     background: transparent;
@@ -148,13 +146,13 @@
     color: var(--muted);
     cursor: pointer;
     padding: 0 5px;
-    flex-shrink: 0; /* Impide que el botón se encoja o salte de línea */
+    flex-shrink: 0; /* Impide que el botón se encoja */
     line-height: 1;
-    margin-left: auto; /* Lo empuja siempre a la derecha */
+    margin-left: auto; /* ¡CLAVE! Empuja el botón al final de la línea */
 }
 .notification-row select, .notification-row input {
     margin-top: 0 !important;
-    width: auto;
+    width: 100%; /* Permite que el flexbox controle el tamaño final */
 }
     #image-preview-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
     #image-preview-element { max-width: 90%; max-height: 70%; object-fit: contain; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
@@ -3877,30 +3875,27 @@ async function saveCalendarEvent(eventToEdit = null) {
     const isAllDay = document.getElementById('event-all-day').checked;
     let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
     let endDate = isAllDay ? startDate : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
-    
+
     if (!startDate) { hideSpinner(); showToast("La fecha de inicio es obligatoria.", true); return; }
     if (isAllDay) {
-        startDate.setHours(0, 0, 0, 0); // Asegura que los eventos de todo el día empiecen a medianoche
+        startDate.setHours(0, 0, 0, 0);
         endDate = new Date(startDate);
         endDate.setHours(23, 59, 59, 999);
     }
     if (!endDate) { hideSpinner(); showToast("La fecha de fin es obligatoria.", true); return; }
     if (endDate < startDate) { hideSpinner(); showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
-
-    // --- LA CORRECCIÓN CLAVE ESTÁ AQUÍ ---
-    // Ahora, cada notificación se crea con la estructura completa que el backend espera.
+    
     const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
         const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
         const unit = row.querySelector('.event-reminder-unit').value;
         const mins = unit === 'days' ? qty * 1440 : (unit === 'hours' ? qty * 60 : qty);
-        return { 
-            metodo: row.querySelector('.event-reminder-method').value, 
+        return {
+            metodo: row.querySelector('.event-reminder-method').value,
             minutosAntes: mins,
-            trigger_id: null,  // Se añade el campo trigger_id como nulo
-            status: 'pending'  // Se añade un status para la notificación individual
+            trigger_id: null,
+            status: 'pending_creation' // Estandarizamos al valor correcto
         };
     });
-    // --- FIN DE LA CORRECCIÓN CLAVE ---
 
     const eventData = {
         titulo: document.getElementById('event-title').value.trim(),
@@ -3909,8 +3904,8 @@ async function saveCalendarEvent(eventToEdit = null) {
         fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
         fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
         esTodoElDia: isAllDay,
-        notificaciones: notifications, // El array ahora tiene la estructura correcta
-        status: 'pending_creation' // El status principal del evento
+        notificaciones: notifications,
+        status: 'pending_creation'
     };
 
     const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
@@ -3923,10 +3918,10 @@ async function saveCalendarEvent(eventToEdit = null) {
             showToast("Evento creado.");
         }
         goBack();
-    } catch (err) { 
-        showToast(`Error al guardar: ${err.message}`, true); 
-    } finally { 
-        hideSpinner(); 
+    } catch (err) {
+        showToast(`Error al guardar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
     }
 }
 
