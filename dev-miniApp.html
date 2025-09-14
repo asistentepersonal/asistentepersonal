@@ -362,6 +362,29 @@
     box-shadow: 0 0 5px var(--primary);
 }
 /* --- FIN ESTILOS VISTA SEMANAL HORARIA (V3 - ESTILO MES) --- */
+/* --- INICIO ESTILOS FINALES CALENDARIO --- */
+.calendar-month-scroll-wrapper {
+    max-height: calc(100vh - 250px); /* Altura máxima antes de activar el scroll */
+    overflow-y: auto;
+    border-top: 1px solid #eee;
+}
+.calendar-month-scroll-wrapper .calendar-day-header {
+    position: sticky;
+    top: 0;
+    background-color: var(--card-bg);
+    z-index: 10;
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+.calendar-week-overflow-wrapper {
+    width: 100%;
+    overflow-x: auto; /* Activa el scroll horizontal si es necesario */
+    -webkit-overflow-scrolling: touch; /* Mejora el scroll en iOS */
+}
+.calendar-week-overflow-wrapper .calendar-week-container {
+    min-width: 650px; /* Ancho mínimo para evitar que las columnas se deformen */
+}
+/* --- FIN ESTILOS FINALES CALENDARIO --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -3422,7 +3445,8 @@ function renderWeekView(events, startOfWeek) {
     const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
     const HOUR_HEIGHT = 60;
 
-    let finalHtml = `<div class="calendar-week-container">`;
+    // CORRECCIÓN: Envolvemos todo en el nuevo contenedor para el overflow.
+    let finalHtml = `<div class="calendar-week-overflow-wrapper"><div class="calendar-week-container">`;
 
     // --- Cabecera Fija ---
     let headerHtml = `<div class="calendar-week-header">
@@ -3442,7 +3466,6 @@ function renderWeekView(events, startOfWeek) {
     // --- Área de Scroll ---
     let scrollAreaHtml = `<div class="calendar-week-scroll-area">`;
     
-    // 1. Columna de Horas (CORRECCIÓN: El bucle ahora empieza en 0)
     let timeColHtml = `<div class="calendar-week-time-col">`;
     for (let hour = 0; hour < 24; hour++) {
         timeColHtml += `<div class="calendar-week-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
@@ -3450,7 +3473,6 @@ function renderWeekView(events, startOfWeek) {
     timeColHtml += `</div>`;
     scrollAreaHtml += timeColHtml;
 
-    // 2. Cuadrícula de Eventos y Días
     let eventsGridHtml = `<div class="calendar-week-events-grid">`;
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
@@ -3482,7 +3504,7 @@ function renderWeekView(events, startOfWeek) {
     scrollAreaHtml += `</div>`;
     finalHtml += scrollAreaHtml;
     
-    finalHtml += `</div>`;
+    finalHtml += `</div></div>`; // Cierre de container y del nuevo wrapper
     contentEl.innerHTML = finalHtml;
 
     // Lógica de Interacción
@@ -3492,20 +3514,14 @@ function renderWeekView(events, startOfWeek) {
     contentEl.querySelectorAll('.calendar-week-day-col').forEach(col => {
         col.onclick = function(e) {
             if (e.target.closest('.event-block')) return;
-            
-            // --- CORRECCIÓN FINAL Y DEFINITIVA DEL CÁLCULO DE HORA ---
             const scrollArea = col.closest('.calendar-week-scroll-area');
             const scrollAreaRect = scrollArea.getBoundingClientRect();
-            // Este cálculo es robusto y tiene en cuenta el scroll de la página.
             const y = e.clientY - scrollAreaRect.top + scrollArea.scrollTop;
-            
             const totalMinutes = (y / (24 * HOUR_HEIGHT)) * 1440;
             const hour = Math.floor(totalMinutes / 60);
             const minute = Math.round((totalMinutes % 60) / 15) * 15;
-            
             const dateParts = col.dataset.date.split('-').map(Number);
             const selectedDate = new Date(dateParts[0], dateParts[1], dateParts[2], hour, minute);
-            
             const draftEvent = { fechaInicio: selectedDate, fechaFin: new Date(selectedDate.getTime() + 60 * 60000) };
             renderCalendarEventForm(draftEvent, renderCalendarView);
         };
@@ -3525,8 +3541,12 @@ function renderWeekView(events, startOfWeek) {
 
 function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
-    const weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    let monthHtml = `<div class="calendar-grid">`;
+    // CORRECCIÓN 1: Volvemos a las iniciales para los días de la semana.
+    const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    
+    // CORRECCIÓN 2: Añadimos un div contenedor para el scroll y las cabeceras fijas.
+    let monthHtml = `<div class="calendar-month-scroll-wrapper"><div class="calendar-grid">`;
+    
     weekdays.forEach(day => {
         monthHtml += `<div class="calendar-day-header">${day}</div>`;
     });
@@ -3535,7 +3555,7 @@ function renderMonthView(events, currentDate) {
     const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
 
-    for (let i = 0; i < startDayOfWeek; i++) monthHtml += `<div></div>`; // Celdas vacías al inicio
+    for (let i = 0; i < startDayOfWeek; i++) monthHtml += `<div></div>`; 
     
     for (let dayNum = 1; dayNum <= lastDay.getDate(); dayNum++) {
         const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
@@ -3549,8 +3569,9 @@ function renderMonthView(events, currentDate) {
         if (eventsForDay.length > 2) monthHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 2} más...</div>`;
         monthHtml += `</div>`;
     }
-    monthHtml += `</div>`;
+    monthHtml += `</div></div>`; // Cierre de grid y del nuevo wrapper
     contentEl.innerHTML = monthHtml;
+    
     contentEl.querySelectorAll('.calendar-day-cell').forEach(dayCard => {
         dayCard.onclick = (e) => {
             currentCalendarDate = new Date(e.currentTarget.dataset.date);
