@@ -362,29 +362,38 @@
     box-shadow: 0 0 5px var(--primary);
 }
 /* --- FIN ESTILOS VISTA SEMANAL HORARIA (V3 - ESTILO MES) --- */
-/* --- INICIO ESTILOS FINALES CALENDARIO --- */
+/* --- INICIO ESTILOS FINALES CALENDARIO (V2) --- */
 .calendar-month-scroll-wrapper {
-    max-height: calc(100vh - 250px); /* Altura máxima antes de activar el scroll */
+    max-height: calc(100vh - 250px);
     overflow-y: auto;
     border-top: 1px solid #eee;
 }
-.calendar-month-scroll-wrapper .calendar-day-header {
+/* CORRECCIÓN: Estructura para cabeceras fijas */
+.calendar-month-header {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr)); /* No se deforma */
     position: sticky;
     top: 0;
     background-color: var(--card-bg);
     z-index: 10;
-    padding-top: 12px;
-    padding-bottom: 12px;
+}
+.calendar-month-header .calendar-day-header {
+    padding: 12px 0;
+}
+/* CORRECCIÓN: Cuadrícula de celdas que no se deforma */
+.calendar-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 .calendar-week-overflow-wrapper {
     width: 100%;
-    overflow-x: auto; /* Activa el scroll horizontal si es necesario */
-    -webkit-overflow-scrolling: touch; /* Mejora el scroll en iOS */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 .calendar-week-overflow-wrapper .calendar-week-container {
-    min-width: 650px; /* Ancho mínimo para evitar que las columnas se deformen */
+    min-width: 650px;
 }
-/* --- FIN ESTILOS FINALES CALENDARIO --- */
+/* --- FIN ESTILOS FINALES CALENDARIO (V2) --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -3526,36 +3535,25 @@ function renderWeekView(events, startOfWeek) {
             renderCalendarEventForm(draftEvent, renderCalendarView);
         };
     });
-
-    // Scroll Automático
-    setTimeout(() => {
-        const scrollArea = contentEl.querySelector('.calendar-week-scroll-area');
-        if (scrollArea) {
-            const now = new Date();
-            const currentMinutes = now.getHours() * 60 + now.getMinutes();
-            const scrollTop = (currentMinutes / 60) * HOUR_HEIGHT - (scrollArea.clientHeight / 4);
-            scrollArea.scrollTo({ top: scrollTop, behavior: 'smooth' });
-        }
-    }, 100);
 }
 
 function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
-    // CORRECCIÓN 1: Volvemos a las iniciales para los días de la semana.
     const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
     
-    // CORRECCIÓN 2: Añadimos un div contenedor para el scroll y las cabeceras fijas.
-    let monthHtml = `<div class="calendar-month-scroll-wrapper"><div class="calendar-grid">`;
-    
+    // --- NUEVA ESTRUCTURA HTML PARA CABECERAS FIJAS ---
+    let headerHtml = `<div class="calendar-month-header">`;
     weekdays.forEach(day => {
-        monthHtml += `<div class="calendar-day-header">${day}</div>`;
+        headerHtml += `<div class="calendar-day-header">${day}</div>`;
     });
+    headerHtml += `</div>`;
 
+    let gridHtml = `<div class="calendar-month-grid">`;
     const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
 
-    for (let i = 0; i < startDayOfWeek; i++) monthHtml += `<div></div>`; 
+    for (let i = 0; i < startDayOfWeek; i++) gridHtml += `<div></div>`; 
     
     for (let dayNum = 1; dayNum <= lastDay.getDate(); dayNum++) {
         const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
@@ -3564,13 +3562,15 @@ function renderMonthView(events, currentDate) {
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
         
-        monthHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}"><div class="calendar-day-number">${dayNum}</div>`;
+        gridHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}"><div class="calendar-day-number">${dayNum}</div>`;
         eventsForDay.slice(0, 2).forEach(event => { monthHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`; });
-        if (eventsForDay.length > 2) monthHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 2} más...</div>`;
-        monthHtml += `</div>`;
+        if (eventsForDay.length > 2) gridHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 2} más...</div>`;
+        gridHtml += `</div>`;
     }
-    monthHtml += `</div></div>`; // Cierre de grid y del nuevo wrapper
-    contentEl.innerHTML = monthHtml;
+    gridHtml += `</div>`;
+
+    // Combinamos todo en el contenedor de scroll
+    contentEl.innerHTML = `<div class="calendar-month-scroll-wrapper">${headerHtml}${gridHtml}</div>`;
     
     contentEl.querySelectorAll('.calendar-day-cell').forEach(dayCard => {
         dayCard.onclick = (e) => {
@@ -3582,7 +3582,6 @@ function renderMonthView(events, currentDate) {
         };
     });
 }
-
 function handleCalendarEventClick(e) {
     const target = e.target.closest('[data-action]');
     if (!target) return;
