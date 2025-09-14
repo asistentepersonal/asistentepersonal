@@ -116,7 +116,8 @@
     .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
     .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
-    .notification-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+        .notification-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; justify-content: space-between; }
+    .notification-controls-wrapper { display: flex; gap: 8px; align-items: center; flex-grow: 1; }
     .notification-row .event-reminder-method { flex: 2 1 auto; min-width: 120px; }
     .notification-row .event-reminder-quantity { flex: 1 1 60px; text-align: right; }
     .notification-row .event-reminder-unit { flex: 2 1 auto; min-width: 90px; }
@@ -3643,6 +3644,8 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     navigationHistory.push(returnPath);
     updateBackButton();
     
+    mainContentArea.scrollTop = 0; // Asegura el scroll al inicio del contenedor principal
+
     const isEditing = event && event.id;
     const hasEmail = appData.settings.email && appData.settings.email.trim() !== '';
 
@@ -3671,8 +3674,8 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
                 <div style="display:flex; align-items:center; margin-top:15px;"><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;" ${initialAllDay ? 'checked' : ''}><label for="event-all-day" style="margin-top:0;">Todo el día</label></div>
                 
                 <div id="date-pickers-wrapper">
-                    <label>Inicio</label><input type="text" id="event-start-date" required disabled>
-                    <label id="event-end-label">Fin</label><input type="text" id="event-end-date" required disabled>
+                    <label>Inicio</label><input type="text" id="event-start-date" required>
+                    <label id="event-end-label">Fin</label><input type="text" id="event-end-date" required>
                 </div>
 
                 <h3 class="settings-section-title" style="margin-top:20px;">Notificaciones</h3>
@@ -3685,41 +3688,11 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
             </div>
         </div>`;
 
-    // --- INICIO DE LAS MEJORAS DE USABILIDAD ---
-    
-    // 1. Scroll al inicio del formulario
-    mainContentArea.querySelector('.list-container').scrollIntoView();
-
     const titleInput = document.getElementById('event-title');
     const saveBtn = document.getElementById('event-save-btn');
     const allDayCheckbox = document.getElementById('event-all-day');
-    const startDateInput = document.getElementById('event-start-date');
-    const endDateInput = document.getElementById('event-end-date');
     const datePickersWrapper = document.getElementById('date-pickers-wrapper');
-
     let startPicker, endPicker;
-
-    // 2. Bloqueo de fechas y feedback visual
-    titleInput.oninput = () => {
-        const hasTitle = titleInput.value.trim() !== '';
-        startDateInput.disabled = !hasTitle;
-        endDateInput.disabled = !hasTitle;
-        if (hasTitle) {
-            titleInput.classList.remove('input-error');
-        }
-        validateForm(); // Valida también el botón de guardar
-    };
-
-    datePickersWrapper.onclick = () => {
-        if (startDateInput.disabled) {
-            titleInput.classList.add('input-error');
-            titleInput.focus();
-            showToast("Primero debes añadir un título.", true);
-        }
-    };
-    
-    // Dispara el oninput inicial para establecer el estado correcto de los campos
-    titleInput.dispatchEvent(new Event('input'));
 
     const setupPickers = (isAllDay) => {
         if(startPicker) startPicker.destroy(); if(endPicker) endPicker.destroy();
@@ -3728,7 +3701,6 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
         startPicker = flatpickr("#event-start-date", {...config, defaultDate: initialStartDate, 
             onChange: (selectedDates) => {
                 if (selectedDates[0]) {
-                    // 3. La fecha de fin es automáticamente 1 hora después de la de inicio
                     const newEndDate = new Date(selectedDates[0].getTime() + 60 * 60000);
                     endPicker.setDate(newEndDate, true);
                 }
@@ -3737,11 +3709,33 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
 
         endPicker = flatpickr("#event-end-date", {...config, defaultDate: initialEndDate });
         document.getElementById('event-end-label').style.display = isAllDay ? 'none' : 'block';
-        endDateInput.style.display = isAllDay ? 'none' : 'block';
+        document.getElementById('event-end-date').style.display = isAllDay ? 'none' : 'block';
     };
     
     allDayCheckbox.onchange = () => setupPickers(allDayCheckbox.checked);
     setupPickers(initialAllDay);
+
+    titleInput.oninput = () => {
+        const hasTitle = titleInput.value.trim() !== '';
+        // Esta es la forma correcta de habilitar/deshabilitar flatpickr
+        startPicker.set('disable', [!hasTitle]);
+        endPicker.set('disable', [!hasTitle]);
+        if (hasTitle) {
+            titleInput.classList.remove('input-error');
+        }
+        validateForm();
+    };
+
+    datePickersWrapper.onclick = () => {
+        const isDisabled = startPicker.config.disable.length > 0 && startPicker.config.disable[0] === true;
+        if (isDisabled) {
+            titleInput.classList.add('input-error');
+            titleInput.focus();
+            showToast("Primero debes añadir un título.", true);
+        }
+    };
+    
+    titleInput.dispatchEvent(new Event('input')); // Ejecuta la validación inicial
 
     const notificationsContainer = document.getElementById('notifications-container');
     const createNotificationRow = (notif = { metodo: 'telegram', minutosAntes: 15 }) => {
@@ -3751,11 +3745,12 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
         if (notif.minutosAntes >= 1440 && notif.minutosAntes % 1440 === 0) { qty = notif.minutosAntes / 1440; unit = 'days'; } 
         else if (notif.minutosAntes >= 60 && notif.minutosAntes % 60 === 0) { qty = notif.minutosAntes / 60; unit = 'hours'; }
         
-        // 4. Estructura HTML y CSS corregida para el botón de eliminar
         row.innerHTML = `
-            <select class="event-reminder-method"><option value="telegram" ${notif.metodo === 'telegram' ? 'selected' : ''}>Telegram</option><option value="email" ${notif.metodo === 'email' ? 'selected' : ''} ${!hasEmail ? 'disabled' : ''}>Email</option></select>
-            <input type="number" class="event-reminder-quantity" value="${qty}" min="1"/>
-            <select class="event-reminder-unit"><option value="minutes" ${unit === 'minutes' ? 'selected' : ''}>min</option><option value="hours" ${unit === 'hours' ? 'selected' : ''}>horas</option><option value="days" ${unit === 'days' ? 'selected' : ''}>días</option></select>
+            <div class="notification-controls-wrapper">
+                <select class="event-reminder-method"><option value="telegram" ${notif.metodo === 'telegram' ? 'selected' : ''}>Telegram</option><option value="email" ${notif.metodo === 'email' ? 'selected' : ''} ${!hasEmail ? 'disabled' : ''}>Email</option></select>
+                <input type="number" class="event-reminder-quantity" value="${qty}" min="1"/>
+                <select class="event-reminder-unit"><option value="minutes" ${unit === 'minutes' ? 'selected' : ''}>min</option><option value="hours" ${unit === 'hours' ? 'selected' : ''}>horas</option><option value="days" ${unit === 'days' ? 'selected' : ''}>días</option></select>
+            </div>
             <button class="remove-notification-btn">🗑️</button>`;
         row.querySelector('.remove-notification-btn').onclick = () => row.remove();
         notificationsContainer.appendChild(row);
@@ -3769,6 +3764,61 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     
     document.getElementById('event-cancel-btn').onclick = goBack;
     saveBtn.onclick = () => saveCalendarEvent(isEditing ? event : null);
+}
+
+async function saveCalendarEvent(eventToEdit = null) {
+    showSpinner("Guardando...");
+    const isAllDay = document.getElementById('event-all-day').checked;
+    let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
+    let endDate = isAllDay ? startDate : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
+    
+    if (!startDate) { hideSpinner(); showToast("La fecha de inicio es obligatoria.", true); return; }
+    if (isAllDay) {
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(startDate);
+        endDate.setHours(23, 59, 59, 999);
+    }
+    if (!endDate) { hideSpinner(); showToast("La fecha de fin es obligatoria.", true); return; }
+    if (endDate < startDate) { hideSpinner(); showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
+
+    const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
+        const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
+        const unit = row.querySelector('.event-reminder-unit').value;
+        const mins = unit === 'days' ? qty * 1440 : (unit === 'hours' ? qty * 60 : qty);
+        return { 
+            metodo: row.querySelector('.event-reminder-method').value, 
+            minutosAntes: mins,
+            trigger_id: null,
+            status: 'pending_creation' // CORREGIDO para ser homogéneo
+        };
+    });
+
+    const eventData = {
+        titulo: document.getElementById('event-title').value.trim(),
+        descripcion: document.getElementById('event-description').value.trim(),
+        color: document.getElementById('event-color').value,
+        fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
+        fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
+        esTodoElDia: isAllDay,
+        notificaciones: notifications,
+        status: 'pending_creation'
+    };
+
+    const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
+    try {
+        if (eventToEdit) {
+            await collectionRef.doc(eventToEdit.id).update(eventData);
+            showToast("Evento actualizado.");
+        } else {
+            await collectionRef.add(eventData);
+            showToast("Evento creado.");
+        }
+        goBack();
+    } catch (err) { 
+        showToast(`Error al guardar: ${err.message}`, true); 
+    } finally { 
+        hideSpinner(); 
+    }
 }
 
 async function saveCalendarEvent(eventToEdit = null) {
