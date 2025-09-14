@@ -116,29 +116,31 @@
     .gasto-legend { list-style: none; padding: 15px 0 0 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
     .gasto-legend-item { display: flex; align-items: center; font-size: 0.9rem; }
     .gasto-legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
+/* Contenedor principal de la fila de notificación */
 .notification-row {
-    display: flex;
-    align-items: center;
-    gap: 10px; /* Espacio entre el grupo de controles y el botón */
+    display: flex;         /* Usa Flexbox para alinear todo en una línea */
+    align-items: center;   /* Centra los elementos verticalmente */
+    gap: 8px;              /* Espacio entre los elementos (controles y botón) */
     margin-bottom: 8px;
 }
+
+/* El contenedor de los selects y el input numérico */
 .notification-controls-wrapper {
     display: flex;
     align-items: center;
-    gap: 8px; /* Espacio entre los selects y el input */
-    flex-grow: 1;
-    min-width: 0; /* ¡CLAVE! Permite que los elementos se encojan si es necesario sin desbordar */
+    gap: 8px;              /* Espacio interno entre los controles */
+    flex-grow: 1;          /* ¡CLAVE! Hace que este grupo ocupe todo el espacio disponible */
 }
-.notification-row .event-reminder-method {
-    flex: 1 1 120px; /* Flex-basis de 120px */
+
+/* Estilo para los selects y el input dentro de la fila */
+.notification-row select, .notification-row input {
+    margin-top: 0 !important; /* Anula otros márgenes */
+    padding: 8px;             /* Un poco de padding para que se vean mejor */
+    flex: 1;                  /* Permite que los controles compartan el espacio de forma flexible */
+    min-width: 60px;          /* Un ancho mínimo para que nunca colapsen */
 }
-.notification-row .event-reminder-quantity {
-    flex: 0 1 60px; /* Flex-basis de 60px */
-    text-align: right;
-}
-.notification-row .event-reminder-unit {
-    flex: 1 1 90px; /* Flex-basis de 90px */
-}
+
+/* El botón de la papelera */
 .notification-row .remove-notification-btn {
     background: transparent;
     border: none;
@@ -146,13 +148,8 @@
     color: var(--muted);
     cursor: pointer;
     padding: 0 5px;
-    flex-shrink: 0; /* Impide que el botón se encoja */
+    flex-shrink: 0;        /* ¡CLAVE! Impide que el botón se encoja o desaparezca */
     line-height: 1;
-    margin-left: auto; /* ¡CLAVE! Empuja el botón al final de la línea */
-}
-.notification-row select, .notification-row input {
-    margin-top: 0 !important;
-    width: 100%; /* Permite que el flexbox controle el tamaño final */
 }
     #image-preview-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
     #image-preview-element { max-width: 90%; max-height: 70%; object-fit: contain; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
