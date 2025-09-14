@@ -3749,18 +3749,18 @@ async function saveCalendarEvent(eventToEdit = null) {
         fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
         fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
         esTodoElDia: isAllDay,
-        notificaciones: notifications,
-        status: 'pending_creation' // <<<--- ¡NUEVO! Esta es la bandera para el backend.
+        notificaciones: notifications
     };
 
     const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
     try {
+        // Lógica corregida y simplificada
         if (eventToEdit) {
-            // Si es una edición, actualizamos el documento. El status 'pending' hará que el backend reprograme las alarmas.
+            // Si eventToEdit existe, es una ACTUALIZACIÓN
             await collectionRef.doc(eventToEdit.id).update(eventData);
             showToast("Evento actualizado.");
         } else {
-            // Si es una creación, añadimos un nuevo documento.
+            // Si es nulo, es una CREACIÓN
             await collectionRef.add(eventData);
             showToast("Evento creado.");
         }
@@ -3775,10 +3775,25 @@ async function saveCalendarEvent(eventToEdit = null) {
 async function handleDeleteCalendarEvent(eventId) {
     showSpinner("Eliminando...");
     try {
-        await db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).delete();
+        // Ahora llamamos al backend para que él se encargue de todo
+        const payload = { 
+            Type: 'delete_calendar_event', 
+            chat_ID: chatId, 
+            eventId: eventId 
+        };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+
+        if (data.error) throw new Error(data.error);
+        
         showToast("Evento eliminado.");
-    } catch (err) { showToast(`Error al eliminar: ${err.message}`, true); }
-    finally { hideSpinner(); }
+        // El listener de Firestore en la vista del calendario se encargará de actualizar la UI
+        
+    } catch (err) { 
+        showToast(`Error al eliminar: ${err.message}`, true); 
+    } finally { 
+        hideSpinner(); 
+    }
 }
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
