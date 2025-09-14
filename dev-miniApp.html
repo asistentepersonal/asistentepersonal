@@ -275,7 +275,19 @@
 .event-block-time { font-size: 0.8rem; opacity: 0.8; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; } /* Ajuste de gap para bordes */
 .calendar-day-header { text-align: center; font-weight: bold; padding: 8px 0; font-size: 0.9rem; }
-.calendar-day-cell { background: var(--card-bg); border-radius: 8px; min-height: 100px; cursor: pointer; display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--bg); }
+<div style="background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 5px; padding: 15px; font-family: monospace;">
+.calendar-day-cell { <br>
+&nbsp;&nbsp;&nbsp;&nbsp;background: var(--card-bg); <br>
+&nbsp;&nbsp;&nbsp;&nbsp;border-radius: 8px; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;height: 120px; /* Altura fija para que no se deforme */ <br>
+&nbsp;&nbsp;&nbsp;&nbsp;cursor: pointer; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;display: flex; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;flex-direction: column; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;padding: 4px; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;border: 1px solid #e9edf0; /* Borde explícito y visible siempre */ <br>
+&nbsp;&nbsp;&nbsp;&nbsp;overflow: hidden; /* Oculta el contenido que se desborda */ <br>
+}
+</div>
 .calendar-day-cell.today { border-color: var(--primary); box-shadow: 0 0 5px var(--primary); }
 .calendar-day-number { font-weight: bold; text-align: right; font-size: 0.9rem; padding: 4px; }
 .month-event-pill { font-size: 0.75rem; padding: 2px 5px; border-radius: 5px; margin: 1px 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--action-text); }
@@ -3565,17 +3577,18 @@ function renderMonthView(events, currentDate) {
         
         gridHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}"><div class="calendar-day-number">${dayNum}</div>`;
         
-        // --- LA LÍNEA CORREGIDA ---
-        // Ahora se añade correctamente a 'gridHtml' en lugar de al inexistente 'monthHtml'.
-        eventsForDay.slice(0, 2).forEach(event => { gridHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`; });
+        // Se muestran hasta 3 eventos gracias a la mayor altura de la celda
+        eventsForDay.slice(0, 3).forEach(event => { 
+            gridHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`; 
+        });
         
-        if (eventsForDay.length > 2) gridHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 2} más...</div>`;
+        if (eventsForDay.length > 3) gridHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 3} más...</div>`;
         gridHtml += `</div>`;
     }
     gridHtml += `</div>`;
 
-    // Se combina todo en el contenedor de scroll final
-    contentEl.innerHTML = `<div class="calendar-month-scroll-wrapper">${headerHtml}${gridHtml}</div>`;
+    // CORRECCIÓN CLAVE: La cabecera (headerHtml) AHORA está fuera del contenedor de scroll.
+    contentEl.innerHTML = `${headerHtml}<div class="calendar-month-scroll-wrapper">${gridHtml}</div>`;
     
     contentEl.querySelectorAll('.calendar-day-cell').forEach(dayCard => {
         dayCard.onclick = (e) => {
