@@ -3541,13 +3541,14 @@ function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
     const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
     
-    // --- NUEVA ESTRUCTURA HTML PARA CABECERAS FIJAS ---
+    // --- ESTRUCTURA PARA CABECERAS FIJAS ---
     let headerHtml = `<div class="calendar-month-header">`;
     weekdays.forEach(day => {
         headerHtml += `<div class="calendar-day-header">${day}</div>`;
     });
     headerHtml += `</div>`;
 
+    // --- ESTRUCTURA PARA LA CUADRÍCULA DE DÍAS ---
     let gridHtml = `<div class="calendar-month-grid">`;
     const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
@@ -3563,13 +3564,17 @@ function renderMonthView(events, currentDate) {
         const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
         
         gridHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}"><div class="calendar-day-number">${dayNum}</div>`;
-        eventsForDay.slice(0, 2).forEach(event => { monthHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`; });
+        
+        // --- LA LÍNEA CORREGIDA ---
+        // Ahora se añade correctamente a 'gridHtml' en lugar de al inexistente 'monthHtml'.
+        eventsForDay.slice(0, 2).forEach(event => { gridHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`; });
+        
         if (eventsForDay.length > 2) gridHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 2} más...</div>`;
         gridHtml += `</div>`;
     }
     gridHtml += `</div>`;
 
-    // Combinamos todo en el contenedor de scroll
+    // Se combina todo en el contenedor de scroll final
     contentEl.innerHTML = `<div class="calendar-month-scroll-wrapper">${headerHtml}${gridHtml}</div>`;
     
     contentEl.querySelectorAll('.calendar-day-cell').forEach(dayCard => {
@@ -3582,6 +3587,7 @@ function renderMonthView(events, currentDate) {
         };
     });
 }
+
 function handleCalendarEventClick(e) {
     const target = e.target.closest('[data-action]');
     if (!target) return;
