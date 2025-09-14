@@ -3749,18 +3749,18 @@ async function saveCalendarEvent(eventToEdit = null) {
         fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
         fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
         esTodoElDia: isAllDay,
-        notificaciones: notifications
+        notificaciones: notifications,
+        status: 'pending_creation' // <<<--- ¡NUEVO! Esta es la bandera para el backend.
     };
 
     const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
     try {
-        // Lógica corregida y simplificada
         if (eventToEdit) {
-            // Si eventToEdit existe, es una ACTUALIZACIÓN
+            // Si es una edición, actualizamos el documento. El status 'pending' hará que el backend reprograme las alarmas.
             await collectionRef.doc(eventToEdit.id).update(eventData);
             showToast("Evento actualizado.");
         } else {
-            // Si es nulo, es una CREACIÓN
+            // Si es una creación, añadimos un nuevo documento.
             await collectionRef.add(eventData);
             showToast("Evento creado.");
         }
