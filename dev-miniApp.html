@@ -965,6 +965,9 @@ let isInitializing = false;
 let isAppReady = false;
 let unsubscribeShoppingList = null;
 let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
+const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
+let currentCalendarView = 'month';
+let currentCalendarDate = new Date();
 // --- Inputs de archivo globales para la cámara y galería (NUEVOS) ---
 // Se declaran una sola vez al inicio de la aplicación y se reutilizan.
 const fileInputCamera = document.createElement('input');
@@ -3756,6 +3759,7 @@ function renderWeekView(events, startOfWeek) {
 // =========================================================================
 // --- INICIO: NUEVA FUNCIÓN PARA LA VISTA DE 3 DÍAS ---
 // =========================================================================
+function renderThreeDayView(events, startDate) {
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60; // 60px por hora
