@@ -3365,6 +3365,7 @@ function renderTimelineGrid(canales, programas) {
          wrapper.scrollLeft = nowPosition - (wrapper.offsetWidth / 2);
     }
 }
+
 // ====================================================================================
 // --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO SIMPLIFICADO + MENÚ + BOTÓN FLOTANTE) ---
 // ====================================================================================
@@ -3391,18 +3392,16 @@ function renderCalendarView() {
             <div class="calendar-header-sticky">
                 <div class="list-header" style="padding-bottom:0; justify-content: space-between; align-items: center;">
                     
-                    <!-- CAMBIO 1: Menú movido a la izquierda -->
                     <div style="position: relative;">
                         <button class="generic-menu-btn" id="calendar-view-menu-btn" style="font-size: 1.8rem; padding: 5px;">☰</button>
-                        <div class="dropdown-menu" id="calendar-view-menu" style="top: 100%; left: 0; min-width: 120px;"> <!-- Cambiado a left: 0 -->
-                            <a class="dropdown-item" data-view="day">Hoy</a> <!-- CAMBIO 2: 'Día' es ahora 'Hoy' -->
-                            <a class="dropdown-item" data-view="three_day">3 Días</a> <!-- CAMBIO 3: Nueva opción '3 Días' añadida -->
+                        <div class="dropdown-menu" id="calendar-view-menu" style="top: 100%; left: 0; min-width: 120px;">
+                            <a class="dropdown-item" data-view="day">Hoy</a>
+                            <a class="dropdown-item" data-view="three_day">3 Días</a>
                             <a class="dropdown-item" data-view="week">Semana</a>
                             <a class="dropdown-item" data-view="month">Mes</a>
                         </div>
                     </div>
 
-                    <!-- Título ahora a la derecha del menú -->
                     <h2 style="margin:0; flex-grow: 1; text-align: left; padding-left: 15px;">🗓️ Mi Calendario</h2>
                     
                 </div>
@@ -3415,7 +3414,7 @@ function renderCalendarView() {
             <div id="calendar-content" style="min-height:300px;"></div>
         </div>`;
 
-    // --- LÓGICA DEL BOTÓN FLOTANTE (Sin cambios) ---
+    // --- LÓGICA DEL BOTÓN FLOTANTE (RESTAURADA) ---
     const fab = document.createElement('button');
     fab.id = 'calendar-fab';
     fab.className = 'floating-action-button';
@@ -3424,7 +3423,6 @@ function renderCalendarView() {
     document.body.appendChild(fab);
     // --- FIN LÓGICA BOTÓN FLOTANTE ---
 
-    // Lógica para el nuevo menú desplegable (Sin cambios)
     const viewMenuBtn = document.getElementById('calendar-view-menu-btn');
     const viewMenu = document.getElementById('calendar-view-menu');
     viewMenuBtn.onclick = (e) => {
@@ -3447,35 +3445,33 @@ function renderCalendarView() {
     loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
 }
 
-// Funciones de navegación SIMPLIFICADAS (sin 'three_day')
 function getPreviousPeriodDate(view, date) {
     const d = new Date(date);
-    if (view === 'day') d.setDate(d.getDate() - 1);
+    if (view === 'day' || view === 'three_day') d.setDate(d.getDate() - 1);
     else if (view === 'week') d.setDate(d.getDate() - 7);
-    else d.setMonth(d.getMonth() - 1); // month
+    else d.setMonth(d.getMonth() - 1);
     return d;
 }
 function getNextPeriodDate(view, date) {
     const d = new Date(date);
-    if (view === 'day') d.setDate(d.getDate() + 1);
+    if (view === 'day' || view === 'three_day') d.setDate(d.getDate() + 1);
     else if (view === 'week') d.setDate(d.getDate() + 7);
-    else d.setMonth(d.getMonth() + 1); // month
+    else d.setMonth(d.getMonth() + 1);
     return d;
 }
 
-// Función de carga SIMPLIFICADA (sin 'three_day')
 function loadAndDisplayCalendarEvents(view, date) {
     showSpinner("Cargando calendario...");
     if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents();
 
-    // --- INICIO: Lógica para resaltar la vista activa en el menú (RESTAURADA) ---
+    // --- LÓGICA PARA RESALTAR LA VISTA ACTIVA (RESTAURADA) ---
     const menuItems = document.querySelectorAll('#calendar-view-menu .dropdown-item');
     menuItems.forEach(item => item.classList.remove('active'));
     const activeItem = document.querySelector(`#calendar-view-menu .dropdown-item[data-view="${view}"]`);
     if (activeItem) {
         activeItem.classList.add('active');
     }
-    // --- FIN: Lógica para resaltar ---
+    // --- FIN LÓGICA PARA RESALTAR ---
 
     let start = new Date(date), end = new Date(date);
     const periodEl = document.getElementById('calendar-current-period');
@@ -3518,10 +3514,14 @@ function loadAndDisplayCalendarEvents(view, date) {
     }, error => { console.error("Error en listener:", error); hideSpinner(); });
 }
 
+// ====================================================================================
+// --- FIN DEL BLOQUE DE REEMPLAZO ---
+// ====================================================================================
 // =========================================================================
 // --- INICIO: BLOQUE DE FUNCIONES DE VISTAS RESTAURADO Y CORREGIDO ---
 // =========================================================================
 
+// --- VISTA "HOY" (DÍA) - RESTAURADA A SU ESTADO ORIGINAL ---
 function renderDayView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
     let timelineHtml = '<div class="calendar-timeline">';
@@ -3546,10 +3546,9 @@ function renderDayView(events, currentDate) {
     });
     timelineHtml += '</div>';
     contentEl.innerHTML = timelineHtml;
-    
-    // Listener y scroll (original)
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
+
     setTimeout(() => {
         const scrollTarget = contentEl.querySelector('.now-line') || document.getElementById(`hour-${Math.max(0, new Date().getHours() - 1)}`);
         if (scrollTarget) {
@@ -3558,19 +3557,18 @@ function renderDayView(events, currentDate) {
     }, 100);
 }
 
-// Función genérica para construir la base de las vistas multi-día
-function buildMultiDayView(dates, container) {
+// --- FUNCIÓN AUXILIAR PARA VISTAS MULTI-DÍA (CORREGIDA Y MEJORADA) ---
+function buildAndPaintMultiDayView(events, dates, container) {
     const numDays = dates.length;
     let gridTemplateColumns = `repeat(${numDays}, 1fr)`;
 
-    // Cabecera con los días
-    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 60px ${gridTemplateColumns};">
-                        <div></div>`; // Espacio para la columna de horas
+    // Cabecera
+    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 60px ${gridTemplateColumns};"><div></div>`;
     dates.forEach(date => {
         const isToday = date.toDateString() === new Date().toDateString();
-        headerHtml += `<div class="calendar-header-cell ${isToday ? 'today' : ''}">
-                        <span>${date.toLocaleTimeString('es-ES', {weekday: 'short', day: 'numeric'})}</span>
-                       </div>`;
+        // --- CORRECCIÓN CLAVE DEL ENCABEZADO ---
+        const dayText = date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric'});
+        headerHtml += `<div class="calendar-header-cell ${isToday ? 'today' : ''}"><span>${dayText}</span></div>`;
     });
     headerHtml += `</div>`;
 
@@ -3581,66 +3579,54 @@ function buildMultiDayView(dates, container) {
     }
     timeColHtml += `</div>`;
 
-    // Cuadrícula para los eventos
+    // Cuadrícula para eventos
     let eventsGridHtml = `<div class="calendar-events-grid" style="grid-template-columns: ${gridTemplateColumns};">`;
-    dates.forEach(date => {
-        const dateId = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-        // La columna ahora es un contenedor de línea de tiempo vertical
-        eventsGridHtml += `<div class="calendar-day-col" data-dateid="${dateId}" style="min-height: 1440px;"></div>`;
-    });
+    for(let i=0; i<numDays; i++){
+        eventsGridHtml += `<div class="calendar-day-col" style="min-height: 1440px;"></div>`;
+    }
     eventsGridHtml += `</div>`;
-
-    container.innerHTML = `
-        <div class="calendar-view-container">
-            ${headerHtml}
-            <div class="calendar-scroll-area">
-                ${timeColHtml}
-                ${eventsGridHtml}
-            </div>
-        </div>`;
-}
-
-// Función genérica para pintar eventos en vistas multi-día
-function paintEventsInMultiDayView(events, startDate) {
+    
+    // Renderizado base
+    container.innerHTML = `<div class="calendar-view-container">${headerHtml}<div class="calendar-scroll-area">${timeColHtml}${eventsGridHtml}</div></div>`;
+    
+    // Pintar eventos
+    const dayColumns = container.querySelectorAll('.calendar-day-col');
     events.forEach(event => {
-        const eventDate = event.fechaInicio;
-        const dateId = `${eventDate.getFullYear()}-${eventDate.getMonth()}-${eventDate.getDate()}`;
-        const column = document.querySelector(`.calendar-day-col[data-dateid="${dateId}"]`);
+        const eventStartDate = new Date(event.fechaInicio);
+        eventStartDate.setHours(0, 0, 0, 0);
 
-        if (column) {
-            const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
-            const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
-            const duration = Math.max(30, endMinutes - startMinutes);
+        for (let i = 0; i < dates.length; i++) {
+            if (dates[i].getTime() === eventStartDate.getTime()) {
+                const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
+                const durationMinutes = Math.max(30, (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000);
 
-            const eventBlock = document.createElement('div');
-            eventBlock.className = 'event-block'; // Reutilizamos el estilo del evento
-            eventBlock.dataset.action = 'edit-calendar-event';
-            eventBlock.dataset.eventId = event.id;
-            eventBlock.style.backgroundColor = event.color || 'var(--primary)';
-            
-            // Posicionamiento vertical dentro de la columna
-            eventBlock.style.position = 'absolute';
-            eventBlock.style.top = `${startMinutes}px`;
-            eventBlock.style.height = `${duration}px`;
-            eventBlock.style.left = '4px'; // Pequeño margen
-            eventBlock.style.width = 'calc(100% - 8px)'; // Ocupa casi todo el ancho
-
-            eventBlock.innerHTML = `
-                <div class="event-block-title">${event.titulo}</div>
-                <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
-            `;
-            column.appendChild(eventBlock);
+                const eventBlock = document.createElement('div');
+                eventBlock.className = 'event-block';
+                eventBlock.dataset.action = 'edit-calendar-event';
+                eventBlock.dataset.eventId = event.id;
+                eventBlock.style.backgroundColor = event.color || 'var(--primary)';
+                eventBlock.style.position = 'absolute';
+                eventBlock.style.top = `${startMinutes}px`;
+                eventBlock.style.height = `${durationMinutes}px`;
+                eventBlock.style.left = '2px';
+                eventBlock.style.width = 'calc(100% - 4px)';
+                eventBlock.innerHTML = `<div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>`;
+                
+                dayColumns[i].appendChild(eventBlock);
+                break; 
+            }
         }
     });
+    
+    container.removeEventListener('click', handleCalendarEventClick);
+    container.addEventListener('click', handleCalendarEventClick);
 }
 
+// --- VISTAS 3 DÍAS Y SEMANA (AHORA USAN LA FUNCIÓN CORREGIDA) ---
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const dates = [startDate, new Date(new Date(startDate).setDate(startDate.getDate() + 1)), new Date(new Date(startDate).setDate(startDate.getDate() + 2))];
-    buildMultiDayView(dates, contentEl);
-    paintEventsInMultiDayView(events, startDate);
-    contentEl.removeEventListener('click', handleCalendarEventClick);
-    contentEl.addEventListener('click', handleCalendarEventClick);
+    buildAndPaintMultiDayView(events, dates, contentEl);
 }
 
 function renderWeekView(events, startOfWeek) {
@@ -3650,20 +3636,15 @@ function renderWeekView(events, startOfWeek) {
         d.setDate(startOfWeek.getDate() + i);
         return d;
     });
-    buildMultiDayView(dates, contentEl);
-    paintEventsInMultiDayView(events, startOfWeek);
-    contentEl.removeEventListener('click', handleCalendarEventClick);
-    contentEl.addEventListener('click', handleCalendarEventClick);
+    buildAndPaintMultiDayView(events, dates, contentEl);
 }
 
+// --- VISTA MENSUAL - RESTAURADA A SU ESTADO ORIGINAL ---
 function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
     const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-    // Contenedor principal que envuelve la cabecera y la cuadrícula
     let finalHtml = `<div class="calendar-month-container">`;
-    
-    // Cabecera con los días de la semana
     let headerHtml = `<div class="calendar-month-header">`;
     weekdays.forEach(day => {
         headerHtml += `<div class="calendar-day-header">${day}</div>`;
@@ -3671,7 +3652,6 @@ function renderMonthView(events, currentDate) {
     headerHtml += `</div>`;
     finalHtml += headerHtml;
 
-    // Cuadrícula principal del mes
     let gridHtml = `<div class="calendar-month-grid">`;
 
     const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -3720,11 +3700,13 @@ function renderMonthView(events, currentDate) {
         };
     });
 }
-
 // =========================================================================
 // --- FIN: BLOQUE DE FUNCIONES DE VISTAS RESTAURADO Y CORREGIDO ---
 // =========================================================================
 
+// =========================================================================
+// --- INICIO: FUNCIONES DE FORMULARIO DE EVENTOS (SIN CAMBIOS) ---
+// =========================================================================
 function handleCalendarEventClick(e) {
     const target = e.target.closest('[data-action]');
     if (!target) return;
@@ -3754,7 +3736,7 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     const initialAllDay = event ? (event.esTodoElDia || false) : false;
     const initialStartDate = event ? event.fechaInicio : new Date();
     const initialEndDate = event ? event.fechaFin : new Date(Date.now() + 3600000);
-    const initialNotifications = isEditing ? (event.notificaciones || []).filter(n => n !== null) : []; // Filtra nulls por seguridad
+    const initialNotifications = isEditing ? (event.notificaciones || []).filter(n => n !== null) : [];
 
     mainContentArea.innerHTML = `
         <div class="list-container">
@@ -3798,9 +3780,9 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
             locale: "es",
             altInput: true,
             altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i",
-            dateFormat: "Y-m-d H:i:S", // Usar formato completo para evitar problemas de zona horaria
+            dateFormat: "Y-m-d H:i:S",
             enableTime: !isAllDay,
-            disable: [true] // ¡LÓGICA RESTAURADA! Empiezan deshabilitados por defecto.
+            disable: [true]
         };
         startPicker = flatpickr("#event-start-date", { ...config,
             defaultDate: initialStartDate,
@@ -3823,17 +3805,14 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
     allDayCheckbox.onchange = () => setupPickers(allDayCheckbox.checked);
     setupPickers(initialAllDay);
 
-    // --- ¡LÓGICA DE VALIDACIÓN Y CONTROL RESTAURADA! ---
     titleInput.oninput = () => {
         const hasTitle = titleInput.value.trim() !== '';
-        // Habilita/deshabilita los selectores de fecha
         startPicker.set('disable', [!hasTitle]);
         endPicker.set('disable', [!hasTitle]);
         
         if (hasTitle) {
             titleInput.classList.remove('input-error');
         }
-        // Habilita/deshabilita el botón de guardar
         saveBtn.disabled = !hasTitle;
         saveBtn.classList.toggle('enabled', hasTitle);
     };
@@ -3847,11 +3826,9 @@ function renderCalendarEventForm(event = null, returnPath = renderCalendarView) 
         }
     };
 
-    // Ejecuta la validación inicial para poner el formulario en el estado correcto.
     if (initialTitle) {
         titleInput.dispatchEvent(new Event('input'));
     }
-    // --- FIN DE LA LÓGICA RESTAURADA ---
 
     const notificationsContainer = document.getElementById('notifications-container');
     const createNotificationRow = (notif = { metodo: 'telegram', minutosAntes: 15 }) => {
@@ -3907,7 +3884,6 @@ async function saveCalendarEvent(eventToEdit = null) {
         return;
     }
     
-    // Este bloque ahora es más robusto y está 100% alineado con la función anterior.
     const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
         const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
         const unit = row.querySelector('.event-reminder-unit').value;
@@ -3936,7 +3912,7 @@ async function saveCalendarEvent(eventToEdit = null) {
     const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
     try {
         if (eventToEdit && eventToEdit.id) {
-            await collectionRef.doc(eventToEdit.id).set(eventData, { merge: true }); // Usamos set con merge para más seguridad
+            await collectionRef.doc(eventToEdit.id).set(eventData, { merge: true });
             showToast("Evento actualizado.");
         } else {
             await collectionRef.add(eventData);
@@ -3951,58 +3927,25 @@ async function saveCalendarEvent(eventToEdit = null) {
     }
 }
 
-async function saveCalendarEvent(eventToEdit = null) {
-    showSpinner("Guardando...");
-    const isAllDay = document.getElementById('event-all-day').checked;
-    let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-    let endDate = isAllDay ? startDate : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
-
-    if (!startDate) { hideSpinner(); showToast("La fecha de inicio es obligatoria.", true); return; }
-    if (isAllDay) {
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date(startDate);
-        endDate.setHours(23, 59, 59, 999);
-    }
-    if (!endDate) { hideSpinner(); showToast("La fecha de fin es obligatoria.", true); return; }
-    if (endDate < startDate) { hideSpinner(); showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
-    
-    const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
-        const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
-        const unit = row.querySelector('.event-reminder-unit').value;
-        const mins = unit === 'days' ? qty * 1440 : (unit === 'hours' ? qty * 60 : qty);
-        return {
-            metodo: row.querySelector('.event-reminder-method').value,
-            minutosAntes: mins,
-            trigger_id: null,
-            status: 'pending_creation' // Estandarizamos al valor correcto
-        };
-    });
-
-    const eventData = {
-        titulo: document.getElementById('event-title').value.trim(),
-        descripcion: document.getElementById('event-description').value.trim(),
-        color: document.getElementById('event-color').value,
-        fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
-        fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
-        esTodoElDia: isAllDay,
-        notificaciones: notifications,
-        status: 'pending_creation'
-    };
-
-    const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
+async function handleDeleteCalendarEvent(eventId) {
+    showSpinner("Eliminando...");
     try {
-        if (eventToEdit) {
-            await collectionRef.doc(eventToEdit.id).update(eventData);
-            showToast("Evento actualizado.");
-        } else {
-            await collectionRef.add(eventData);
-            showToast("Evento creado.");
-        }
-        goBack();
-    } catch (err) {
-        showToast(`Error al guardar: ${err.message}`, true);
-    } finally {
-        hideSpinner();
+        const payload = { 
+            Type: 'delete_calendar_event', 
+            chat_ID: chatId, 
+            eventId: eventId 
+        };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+
+        if (data.error) throw new Error(data.error);
+        
+        showToast("Evento eliminado.");
+        
+    } catch (err) { 
+        showToast(`Error al eliminar: ${err.message}`, true); 
+    } finally { 
+        hideSpinner(); 
     }
 }
 
