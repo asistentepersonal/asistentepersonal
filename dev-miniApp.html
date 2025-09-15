@@ -320,20 +320,19 @@
 
 /* Cabecera Fija con los nombres de los días */
 .calendar-header-grid {
-    display: grid; /* Se ajustará dinámicamente */
+    display: grid;
     width: 100%;
     position: sticky;
-    top: 135px; /* Se pega debajo de los controles principales */
+    top: 135px;
     z-index: 15;
-    background-color: var(--muted); /* Fondo para los bordes */
-    gap: 1px; /* Espaciado para los bordes */
+    background-color: var(--muted);
+    gap: 1px;
     border: 1px solid var(--muted);
     border-bottom: none;
     border-radius: 8px 8px 0 0;
     overflow: hidden;
 }
 
-/* Estilo para cada celda de la cabecera (Lun 15, Mar 16...) */
 .calendar-header-grid .calendar-day-header {
     text-align: center;
     padding: 8px 4px;
@@ -341,45 +340,31 @@
     font-weight: 600;
     background-color: var(--card-bg);
 }
+
 .calendar-header-grid .calendar-day-header.today span {
-/* Estilo para la sección de eventos de "todo el día" */
-.calendar-day-header.all-day-section {
-    display: flex; /* Alinea las píldoras horizontalmente */
-    flex-direction: column; /* Apila las píldoras verticalmente */
-    gap: 2px; /* Espacio entre píldoras */
-    overflow: hidden; /* ¡CLAVE! Oculta lo que no quepa */
-    padding: 2px;
-}
-/* Estilo para el indicador "+X más" */
-.more-events-pill {
-    font-size: 0.7rem;
-    font-weight: bold;
-    color: var(--muted);
-    padding: 2px 4px;
-    cursor: pointer;
-}
     color: var(--primary);
     font-weight: bold;
 }
 
 /* Área que contiene las horas y la cuadrícula de eventos */
 .calendar-scroll-area {
-    overflow-y: auto; /* Scroll vertical para las horas */
+    overflow-y: auto;
     overflow-x: hidden;
-    max-height: 65vh; /* Altura máxima para evitar que sea demasiado largo */
+    max-height: 65vh;
     position: relative;
     display: grid;
-    grid-template-columns: 50px 1fr; /* Columna de horas + área de eventos */
+    grid-template-columns: 50px 1fr;
+    border: 1px solid var(--muted);
+    border-top: none;
 }
 
 /* Columna de las Horas (00:00, 01:00...) */
 .calendar-time-col {
     background-color: var(--card-bg);
-    border-left: 1px solid var(--muted);
-    border-bottom: 1px solid var(--muted);
 }
+
 .calendar-time-slot {
-    height: 60px; /* 1 hora de altura */
+    height: 60px;
     position: relative;
     border-top: 1px dashed #ddd;
     font-size: 0.8rem;
@@ -387,26 +372,24 @@
     text-align: right;
     padding-right: 5px;
 }
+
 .calendar-time-slot span {
     position: relative;
-    top: -9px; /* Alinea el texto con la línea */
+    top: -9px;
 }
 
 /* Cuadrícula donde se posicionan los eventos */
 .calendar-events-grid {
-    display: grid; /* Columnas se definen dinámicamente */
+    display: grid;
     position: relative;
     width: 100%;
-    background-color: var(--muted); /* Fondo para los bordes */
-    border-right: 1px solid var(--muted);
-    border-bottom: 1px solid var(--muted);
+    background-color: var(--muted);
     gap: 1px;
 }
 
 /* Columna individual de un día en la cuadrícula */
-/* Columna individual de un día en la cuadrícula */
 .calendar-day-col {
-    position: relative; /* ¡LA CLAVE DE LA SOLUCIÓN! */
+    position: relative; /* ¡LA REGLA MÁS IMPORTANTE! */
     background-color: var(--card-bg);
     background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
     background-size: 100% 60px;
@@ -420,9 +403,12 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
+
 .calendar-week-overflow-wrapper .calendar-view-container {
-    min-width: 650px; /* Ancho mínimo antes de que aparezca el scroll */
+    min-width: 650px;
 }
+/* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
+
 /* --- INICIO ESTILOS VISTA SEMANA (DISEÑO GOOGLE) --- */
 .calendar-week-grid-container {
     display: flex;
@@ -435,64 +421,42 @@
 
 .calendar-week-header {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    background-color: var(--muted); /* Fondo para los bordes */
-    gap: 1px; /* Espaciado para los bordes */
-    position: sticky;
-    top: 135px; /* Se pega debajo de los controles principales */
-    z-index: 10;
+    background-color: var(--muted);
+    gap: 1px;
 }
 
 .calendar-week-header .day-label {
     text-align: center;
-    padding: 8px 4px;
-    font-size: 0.9rem;
-    font-weight: 600;
+    padding: 6px 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
     background-color: var(--card-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-.calendar-week-header .day-label.today {
+.calendar-week-header .day-label.today span {
     color: var(--primary);
     font-weight: bold;
 }
 
 .calendar-week-body {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
     background-color: var(--muted);
     gap: 1px;
-    /* La altura se ajustará al contenido */
 }
 
 .calendar-week-day-col {
     background-color: var(--card-bg);
     padding: 4px;
-    min-height: 400px; /* Altura mínima para que se vea bien incluso vacío */
+    min-height: 400px;
     display: flex;
     flex-direction: column;
-    gap: 4px; /* Espacio entre eventos */
+    gap: 4px;
 }
 
-.week-event-pill {
-    background-color: var(--primary);
-    color: var(--action-text);
-    padding: 6px 8px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    overflow: hidden;
-}
-
-.week-event-time {
-    font-weight: bold;
-}
-
-.week-event-title {
-    margin-left: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+/* Estilos eliminados de .week-event-pill, .week-event-time, etc, ya que ahora usamos .month-event-pill y .event-block genéricos */
 /* --- FIN ESTILOS VISTA SEMANA --- */
 /* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
 /* --- INICIO ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
