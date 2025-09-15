@@ -512,6 +512,103 @@
 }
 
 /* --- FIN ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
+/* --- INICIO ESTILOS VISTAS DE CRONOGRAMA (DÍA, SEMANA, 3 DÍAS) --- */
+.calendar-view-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+/* Cabecera Fija con los nombres de los días */
+.calendar-header-grid {
+    display: grid; /* Se ajustará dinámicamente */
+    width: 100%;
+    position: sticky;
+    top: 135px; /* Se pega debajo de los controles principales */
+    z-index: 15;
+    background-color: var(--muted); /* Fondo para los bordes */
+    gap: 1px; /* Espaciado para los bordes */
+    border: 1px solid var(--muted);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+}
+
+/* Estilo para cada celda de la cabecera (Lun 15, Mar 16...) */
+.calendar-header-grid .calendar-day-header {
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background-color: var(--card-bg);
+}
+.calendar-header-grid .calendar-day-header.today span {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+/* Área que contiene las horas y la cuadrícula de eventos */
+.calendar-scroll-area {
+    overflow-y: auto; /* Scroll vertical para las horas */
+    overflow-x: hidden;
+    max-height: 65vh; /* Altura máxima para evitar que sea demasiado largo */
+    position: relative;
+    display: grid;
+    grid-template-columns: 50px 1fr; /* Columna de horas + área de eventos */
+}
+
+/* Columna de las Horas (00:00, 01:00...) */
+.calendar-time-col {
+    background-color: var(--card-bg);
+    border-left: 1px solid var(--muted);
+    border-bottom: 1px solid var(--muted);
+}
+.calendar-time-slot {
+    height: 60px; /* 1 hora de altura */
+    position: relative;
+    border-top: 1px dashed #ddd;
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: right;
+    padding-right: 5px;
+}
+.calendar-time-slot span {
+    position: relative;
+    top: -9px; /* Alinea el texto con la línea */
+}
+
+/* Cuadrícula donde se posicionan los eventos */
+.calendar-events-grid {
+    display: grid; /* Columnas se definen dinámicamente */
+    position: relative;
+    width: 100%;
+    background-color: var(--muted); /* Fondo para los bordes */
+    border-right: 1px solid var(--muted);
+    border-bottom: 1px solid var(--muted);
+    gap: 1px;
+}
+
+/* Columna individual de un día en la cuadrícula */
+.calendar-day-col {
+    position: relative;
+    background-color: var(--card-bg);
+    /* Líneas horarias sutiles */
+    background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
+    background-size: 100% 60px;
+    cursor: pointer;
+    min-height: 1440px; /* 24 horas * 60px por hora */
+}
+
+/* Contenedor extra para la vista semanal para permitir scroll horizontal */
+.calendar-week-overflow-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.calendar-week-overflow-wrapper .calendar-view-container {
+    min-width: 650px; /* Ancho mínimo antes de que aparezca el scroll */
+}
+/* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
 
 /* Contenedor principal para la vista mensual */
 .calendar-month-container {
@@ -3950,13 +4047,18 @@ function renderWeekView(events, startOfWeek) {
 // =========================================================================
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
-    const HOUR_HEIGHT = 60; // 60px por hora
+    const HOUR_HEIGHT = 60; // 60px de alto por cada hora
 
     let finalHtml = `<div class="calendar-view-container">`;
 
     // --- 1. Cabecera Fija con los 3 días ---
+    // Dejamos un espacio inicial para la columna de horas (50px) y 3 columnas para los días.
     let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px 1fr 1fr 1fr;">
-                        <div></div>`; // Espacio para la columna de horas
+                        <div></div>`; // Celda vacía sobre las horas
+    
+    // Contenedores para eventos de "todo el día"
+    let allDayEventsHtml = '';
+
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate);
         day.setDate(startDate.getDate() + i);
@@ -3964,14 +4066,15 @@ function renderThreeDayView(events, startDate) {
         headerHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}">
                         <span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span>
                        </div>`;
+        allDayEventsHtml += `<div class="all-day-col" id="all-day-col-${i}"></div>`;
     }
     headerHtml += `</div>`;
     finalHtml += headerHtml;
 
     // --- 2. Área de Scroll con horas y eventos ---
-    let scrollAreaHtml = `<div class="calendar-scroll-area" style="max-height: 60vh;">`;
+    let scrollAreaHtml = `<div class="calendar-scroll-area">`;
     
-    // Columna de Horas
+    // Columna de Horas a la izquierda
     let timeColHtml = `<div class="calendar-time-col">`;
     for (let hour = 0; hour < 24; hour++) {
         timeColHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
@@ -3979,44 +4082,49 @@ function renderThreeDayView(events, startDate) {
     timeColHtml += `</div>`;
     scrollAreaHtml += timeColHtml;
 
-    // Cuadrícula de Eventos para 3 días
+    // Cuadrícula principal donde irán los eventos
     let eventsGridHtml = `<div class="calendar-events-grid" style="grid-template-columns: repeat(3, 1fr);">`;
+    // Creamos las 3 columnas de los días
     for (let i = 0; i < 3; i++) {
-        const day = new Date(startDate);
-        day.setDate(startDate.getDate() + i);
-        const dateString = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
-        eventsGridHtml += `<div class="calendar-day-col" data-date="${dateString}"></div>`;
+        eventsGridHtml += `<div class="calendar-day-col"></div>`;
     }
     
-    // Posicionar los eventos en la cuadrícula
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 3);
+    // Ahora, posicionamos los eventos sobre esta cuadrícula
+    const viewEndDate = new Date(startDate);
+    viewEndDate.setDate(startDate.getDate() + 3);
     
-    events.filter(e => e.fechaInicio >= startDate && e.fechaInicio < endDate).forEach(event => {
+    events
+      .filter(e => e.fechaInicio >= startDate && e.fechaInicio < viewEndDate && !e.esTodoElDia)
+      .forEach(event => {
         const eventStart = event.fechaInicio;
-        const diffDays = Math.floor((eventStart.getTime() - startDate.getTime()) / (1000 * 3600 * 24));
+        // Calculamos en qué columna (0, 1, o 2) va el evento
+        const diffDays = Math.floor((new Date(eventStart).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000 * 3600 * 24));
         
-        const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
-        const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
-        const top = (startMinutes / 60) * HOUR_HEIGHT;
-        const height = (durationMinutes / 60) * HOUR_HEIGHT;
-        const left = (diffDays / 3) * 100;
+        if(diffDays >= 0 && diffDays < 3) {
+            const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
+            const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
+            const top = (startMinutes / 60) * HOUR_HEIGHT;
+            const height = (durationMinutes / 60) * HOUR_HEIGHT;
+            // La posición horizontal se calcula como un porcentaje
+            const leftPercentage = (diffDays / 3) * 100;
 
-        eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                             style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${left}% + 2px); width: calc(${(1/3)*100}% - 4px); z-index:12; background-color:${event.color || '#36A2EB'};">
-                            <div class="event-block-title">${event.titulo}</div>
-                            <div class="event-block-time">${eventStart.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
-                         </div>`;
+            eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
+                                style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${leftPercentage}% + 2px); width: calc(${(1/3)*100}% - 4px); background-color:${event.color || '#36A2EB'};">
+                                <div class="event-block-title">${event.titulo}</div>
+                                <div class="event-block-time">${eventStart.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
+                            </div>`;
+        }
     });
-    eventsGridHtml += `</div>`;
+
+    eventsGridHtml += `</div>`; // Cierre de events-grid
     scrollAreaHtml += eventsGridHtml;
     
-    scrollAreaHtml += `</div>`;
+    scrollAreaHtml += `</div>`; // Cierre de scroll-area
     finalHtml += scrollAreaHtml;
-    finalHtml += `</div>`;
+    finalHtml += `</div>`; // Cierre de view-container
 
     contentEl.innerHTML = finalHtml;
-
+    
     // Lógica de Interacción (reutilizada)
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
