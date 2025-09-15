@@ -408,6 +408,110 @@
     min-width: 650px; /* Ancho mínimo antes de que aparezca el scroll */
 }
 /* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
+/* --- INICIO ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
+
+/* Contenedor principal para la vista mensual */
+.calendar-month-container {
+    /* Este contenedor ahora solo agrupa */
+}
+
+/* Cabecera de los días de la semana (Lun, Mar...) */
+.calendar-month-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    position: sticky;
+    top: 135px; /* Se pega debajo de los controles de navegación */
+    z-index: 10;
+    
+    /* Efecto de borde sutil usando el fondo y el gap */
+    background-color: var(--muted); 
+    gap: 1px;
+    border: 1px solid var(--muted);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden; /* Asegura que el borde redondeado se aplique a las celdas */
+}
+
+/* Celda individual de la cabecera */
+.calendar-month-header .calendar-day-header {
+    padding: 10px 0;
+    font-size: 0.8rem;
+    font-weight: 500;
+    background-color: var(--card-bg);
+    text-align: center;
+}
+
+/* Cuadrícula principal de los días del mes */
+.calendar-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    /* ¡CLAVE! Todas las filas tendrán la misma altura mínima pero pueden crecer */
+    grid-auto-rows: minmax(100px, auto); 
+    gap: 1px;
+    background-color: var(--muted);
+    border: 1px solid var(--muted);
+    border-top: none;
+}
+
+/* Celda de un día individual */
+.calendar-day-cell {
+    background: var(--card-bg);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    cursor: pointer;
+    border: none;
+    border-radius: 0;
+    min-height: auto;
+    transition: background-color 0.2s; /* Efecto suave al pasar el ratón */
+}
+.calendar-day-cell:not(.empty):hover {
+    background-color: #f0f0f0; /* Un color sutil para el hover, solo en celdas con día */
+}
+
+/* Número del día dentro de la celda */
+.calendar-day-number {
+    font-weight: 500;
+    text-align: center; /* Centrado como en la imagen */
+    font-size: 0.9rem;
+    padding: 4px;
+    width: 26px; /* Ancho y alto para formar un círculo */
+    height: 26px;
+    line-height: 18px; /* Ajuste para centrar el número verticalmente */
+    border-radius: 50%; /* Lo hace circular */
+    margin: 0 auto 4px auto; /* Centra el círculo horizontalmente */
+    transition: background-color 0.2s, color 0.2s;
+}
+
+/* Estilo para el día de HOY */
+.calendar-day-cell.today .calendar-day-number {
+    background-color: var(--primary); /* Fondo azul */
+    color: var(--action-text); /* Texto blanco */
+    font-weight: bold;
+}
+
+/* "Pastilla" para un evento */
+.month-event-pill {
+    font-size: 0.75rem;
+    padding: 3px 6px;
+    border-radius: 4px; /* Bordes menos redondeados, más profesional */
+    margin: 1px 2px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--action-text);
+    font-weight: 500;
+}
+
+/* Contenedor para las pastillas dentro de una celda */
+.month-events-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2px; /* Pequeño espacio entre pastillas */
+}
+
+/* --- FIN ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
 
 /* Contenedor principal para la vista mensual */
 .calendar-month-container {
@@ -3923,7 +4027,7 @@ function renderThreeDayView(events, startDate) {
 
 function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
-    const weekdays = ['Lun', 'Mié', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
     // Contenedor principal que envuelve la cabecera y la cuadrícula
     let finalHtml = `<div class="calendar-month-container">`;
@@ -3953,7 +4057,7 @@ function renderMonthView(events, currentDate) {
     for (let dayNum = 1; dayNum <= lastDay.getDate(); dayNum++) {
         const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
         const isToday = day.toDateString() === new Date().toDateString();
-        const dayStart = new Date(day.setHours(0,0,0,0));
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         
         // Filtra los eventos que ocurren en este día
@@ -3985,12 +4089,11 @@ function renderMonthView(events, currentDate) {
     
     contentEl.innerHTML = finalHtml;
 
-    // Añade el listener para hacer clic en un día y cambiar a la vista de Día
-    contentEl.querySelectorAll('.calendar-day-cell:not(.empty)').forEach(dayCard => {
-        dayCard.onclick = (e) => {
+    // Añade el listener para hacer clic en un día y cambiar a la vista de "Hoy" (vista de día)
+    contentEl.querySelectorAll('.calendar-day-cell:not(.empty)').forEach(dayCell => {
+        dayCell.onclick = (e) => {
             currentCalendarDate = new Date(e.currentTarget.dataset.date);
-            document.querySelector('#calendar-view-tabs .guia-nav-btn.active').classList.remove('active');
-            document.querySelector('#calendar-view-tabs button[data-view="day"]').classList.add('active');
+            // Cambiamos la vista activa a 'day' y recargamos
             currentCalendarView = 'day';
             loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
         };
