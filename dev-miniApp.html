@@ -311,154 +311,6 @@
 .week-view-col { display: flex; flex-direction: column; }
 .week-view-timeline { flex-grow: 1; position: relative; border-left: 1px solid var(--bg); min-height: 500px; }
 /* --- FIN ESTILOS CALENDARIO PROFESIONAL (V2) --- */
-/* --- INICIO ESTILOS VISTAS DE CRONOGRAMA (DÍA, SEMANA, 3 DÍAS) --- */
-.calendar-view-container {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-}
-
-/* Cabecera Fija con los nombres de los días */
-.calendar-header-grid {
-    display: grid;
-    width: 100%;
-    position: sticky;
-    top: 135px;
-    z-index: 15;
-    background-color: var(--muted);
-    gap: 1px;
-    border: 1px solid var(--muted);
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-    overflow: hidden;
-}
-
-.calendar-header-grid .calendar-day-header {
-    text-align: center;
-    padding: 8px 4px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    background-color: var(--card-bg);
-}
-
-.calendar-header-grid .calendar-day-header.today span {
-    color: var(--primary);
-    font-weight: bold;
-}
-
-/* Área que contiene las horas y la cuadrícula de eventos */
-.calendar-scroll-area {
-    overflow-y: auto;
-    overflow-x: hidden;
-    max-height: 65vh;
-    position: relative;
-    display: grid;
-    grid-template-columns: 50px 1fr;
-    border: 1px solid var(--muted);
-    border-top: none;
-}
-
-/* Columna de las Horas (00:00, 01:00...) */
-.calendar-time-col {
-    background-color: var(--card-bg);
-}
-
-.calendar-time-slot {
-    height: 60px;
-    position: relative;
-    border-top: 1px dashed #ddd;
-    font-size: 0.8rem;
-    color: var(--muted);
-    text-align: right;
-    padding-right: 5px;
-}
-
-.calendar-time-slot span {
-    position: relative;
-    top: -9px;
-}
-
-/* Cuadrícula donde se posicionan los eventos */
-.calendar-events-grid {
-    display: grid;
-    position: relative;
-    width: 100%;
-    background-color: var(--muted);
-    gap: 1px;
-}
-
-/* Columna individual de un día en la cuadrícula */
-.calendar-day-col {
-    position: relative; /* ¡LA REGLA MÁS IMPORTANTE! */
-    background-color: var(--card-bg);
-    background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
-    background-size: 100% 60px;
-    cursor: pointer;
-    min-height: 1440px;
-}
-
-/* Contenedor extra para la vista semanal para permitir scroll horizontal */
-.calendar-week-overflow-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-.calendar-week-overflow-wrapper .calendar-view-container {
-    min-width: 650px;
-}
-/* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
-
-/* --- INICIO ESTILOS VISTA SEMANA (DISEÑO GOOGLE) --- */
-.calendar-week-grid-container {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    border: 1px solid var(--muted);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.calendar-week-header {
-    display: grid;
-    background-color: var(--muted);
-    gap: 1px;
-}
-
-.calendar-week-header .day-label {
-    text-align: center;
-    padding: 6px 4px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    background-color: var(--card-bg);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.calendar-week-header .day-label.today span {
-    color: var(--primary);
-    font-weight: bold;
-}
-
-.calendar-week-body {
-    display: grid;
-    background-color: var(--muted);
-    gap: 1px;
-}
-
-.calendar-week-day-col {
-    background-color: var(--card-bg);
-    padding: 4px;
-    min-height: 400px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-/* Estilos eliminados de .week-event-pill, .week-event-time, etc, ya que ahora usamos .month-event-pill y .event-block genéricos */
-/* --- FIN ESTILOS VISTA SEMANA --- */
-/* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
 /* --- INICIO ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
 
 /* Contenedor principal para la vista mensual */
@@ -606,13 +458,14 @@
     position: relative;
     display: grid;
     grid-template-columns: 50px 1fr; /* Columna de horas + área de eventos */
+    border: 1px solid var(--muted);
+    border-top: none; /* El borde superior ya lo pone la cabecera */
 }
 
 /* Columna de las Horas (00:00, 01:00...) */
 .calendar-time-col {
     background-color: var(--card-bg);
-    border-left: 1px solid var(--muted);
-    border-bottom: 1px solid var(--muted);
+    border-right: 1px solid var(--muted); /* Línea que separa las horas de los eventos */
 }
 .calendar-time-slot {
     height: 60px; /* 1 hora de altura */
@@ -634,20 +487,17 @@
     position: relative;
     width: 100%;
     background-color: var(--muted); /* Fondo para los bordes */
-    border-right: 1px solid var(--muted);
-    border-bottom: 1px solid var(--muted);
     gap: 1px;
 }
 
 /* Columna individual de un día en la cuadrícula */
 .calendar-day-col {
-    position: relative;
+    position: relative; /* ¡LA CLAVE DE LA SOLUCIÓN! */
     background-color: var(--card-bg);
-    /* Líneas horarias sutiles */
     background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
     background-size: 100% 60px;
     cursor: pointer;
-    min-height: 1440px; /* 24 horas * 60px por hora */
+    min-height: 1440px;
 }
 
 /* Contenedor extra para la vista semanal para permitir scroll horizontal */
@@ -660,212 +510,6 @@
     min-width: 650px; /* Ancho mínimo antes de que aparezca el scroll */
 }
 /* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
-
-/* Contenedor principal para la vista mensual */
-.calendar-month-container {
-    /* Este contenedor ahora solo agrupa */
-}
-
-/* Cabecera de los días de la semana (Lun, Mar...) */
-.calendar-month-header {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    position: sticky;
-    top: 135px; /* Se pega debajo de los controles de navegación */
-    z-index: 10;
-    
-    /* Efecto de borde sutil usando el fondo y el gap */
-    background-color: var(--muted); 
-    gap: 1px;
-    border: 1px solid var(--muted);
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-    overflow: hidden; /* Asegura que el borde redondeado se aplique a las celdas */
-}
-
-/* Celda individual de la cabecera */
-.calendar-month-header .calendar-day-header {
-    padding: 10px 0;
-    font-size: 0.8rem;
-    font-weight: 500;
-    background-color: var(--card-bg);
-    text-align: center;
-}
-
-/* Cuadrícula principal de los días del mes */
-.calendar-month-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    /* ¡CLAVE! Todas las filas tendrán la misma altura mínima pero pueden crecer */
-    grid-auto-rows: minmax(100px, auto); 
-    gap: 1px;
-    background-color: var(--muted);
-    border: 1px solid var(--muted);
-    border-top: none;
-}
-
-/* Celda de un día individual */
-.calendar-day-cell {
-    background: var(--card-bg);
-    padding: 4px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    cursor: pointer;
-    border: none;
-    border-radius: 0;
-    min-height: auto;
-    transition: background-color 0.2s; /* Efecto suave al pasar el ratón */
-}
-.calendar-day-cell:not(.empty):hover {
-    background-color: #f0f0f0; /* Un color sutil para el hover, solo en celdas con día */
-}
-
-/* Número del día dentro de la celda */
-.calendar-day-number {
-    font-weight: 500;
-    text-align: center; /* Centrado como en la imagen */
-    font-size: 0.9rem;
-    padding: 4px;
-    width: 26px; /* Ancho y alto para formar un círculo */
-    height: 26px;
-    line-height: 18px; /* Ajuste para centrar el número verticalmente */
-    border-radius: 50%; /* Lo hace circular */
-    margin: 0 auto 4px auto; /* Centra el círculo horizontalmente */
-    transition: background-color 0.2s, color 0.2s;
-}
-
-/* Estilo para el día de HOY */
-.calendar-day-cell.today .calendar-day-number {
-    background-color: var(--primary); /* Fondo azul */
-    color: var(--action-text); /* Texto blanco */
-    font-weight: bold;
-}
-
-/* "Pastilla" para un evento */
-.month-event-pill {
-    font-size: 0.75rem;
-    padding: 3px 6px;
-    border-radius: 4px; /* Bordes menos redondeados, más profesional */
-    margin: 1px 2px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    color: var(--action-text);
-    font-weight: 500;
-}
-
-/* Contenedor para las pastillas dentro de una celda */
-.month-events-container {
-    display: flex;
-    flex-direction: column;
-    gap: 2px; /* Pequeño espacio entre pastillas */
-}
-
-/* --- FIN ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
-/* --- INICIO ESTILOS BOTÓN FLOTANTE --- */
-.floating-action-button {
-    position: fixed;
-    bottom: 80px; /* 60px de la barra de tabs + 20px de margen */
-    right: 20px;
-    width: 56px;
-    height: 56px;
-    background-color: var(--primary);
-    color: var(--action-text);
-    border-radius: 50%;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    line-height: 1;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    cursor: pointer;
-    z-index: 999;
-    transition: transform 0.2s ease-out;
-}
-.floating-action-button:hover {
-    transform: scale(1.05);
-}
-/* --- FIN ESTILOS BOTÓN FLOTANTE --- */
-/* --- INICIO ESTILO MENÚ CALENDARIO ACTIVO --- */
-.dropdown-menu .dropdown-item.active {
-    background-color: var(--primary) !important;
-    color: var(--action-text) !important;
-    font-weight: bold;
-}
-/* --- FIN ESTILO MENÚ CALENDARIO ACTIVO --- */
-/* --- INICIO ESTILOS VISTA SEMANA (DISEÑO GOOGLE) --- */
-.calendar-week-grid-container {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    border: 1px solid var(--muted);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.calendar-week-header {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    background-color: var(--muted); /* Fondo para los bordes */
-    gap: 1px; /* Espaciado para los bordes */
-    position: sticky;
-    top: 135px; /* Se pega debajo de los controles principales */
-    z-index: 10;
-}
-
-.calendar-week-header .day-label {
-    text-align: center;
-    padding: 8px 4px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    background-color: var(--card-bg);
-}
-
-.calendar-week-header .day-label.today {
-    color: var(--primary);
-    font-weight: bold;
-}
-
-.calendar-week-body {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    background-color: var(--muted);
-    gap: 1px;
-    /* La altura se ajustará al contenido */
-}
-
-.calendar-week-day-col {
-    background-color: var(--card-bg);
-    padding: 4px;
-    min-height: 400px; /* Altura mínima para que se vea bien incluso vacío */
-    display: flex;
-    flex-direction: column;
-    gap: 4px; /* Espacio entre eventos */
-}
-
-.week-event-pill {
-    background-color: var(--primary);
-    color: var(--action-text);
-    padding: 6px 8px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    overflow: hidden;
-}
-
-.week-event-time {
-    font-weight: bold;
-}
-
-.week-event-title {
-    margin-left: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-/* --- FIN ESTILOS VISTA SEMANA --- */  
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -4047,78 +3691,66 @@ function renderDayView(events, currentDate) {
 function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
-    const MAX_ALL_DAY_PILLS = 2;
+    const MAX_ALL_DAY_PILLS = 1;
 
-    let headerDaysHtml = '';
-    let eventGridColsHtml = '';
+    let finalHtml = `<div class="calendar-week-overflow-wrapper"><div class="calendar-view-container">`;
+
+    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px repeat(7, 1fr); grid-auto-rows: min-content;">
+                        <div style="grid-row: 1 / 3; background-color: var(--card-bg);"></div>`; // Esquina superior izquierda
+
     let todayIndex = -1;
-
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
-        const isToday = day.toDateString() === new Date().toDateString();
-        if (isToday) todayIndex = i;
-        headerDaysHtml += `<div class="calendar-day-header ${isToday ? 'today':''} day-label"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span><span style="font-size:1.1rem;margin-top:2px;">${day.getDate()}</span></div>`;
-        eventGridColsHtml += `<div id="day-col-week-${i}" class="calendar-day-col"></div>`;
+        if (day.toDateString() === new Date().toDateString()) todayIndex = i;
+        headerHtml += `<div class="calendar-day-header ${todayIndex === i ? 'today' : ''}"><span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span></div>`;
     }
-
-    const structureHtml = `
-    <div class="calendar-week-grid-container" style="display: flex; flex-direction: column; height: 70vh;">
-        <!-- Zona 1: Cabecera de Días y Eventos "Todo el día" -->
-        <div style="display: flex; flex-shrink: 0;">
-            <div style="width: 50px; flex-shrink: 0;"></div> <!-- Esquina vacía -->
-            <div id="calendar-header-scroll" style="flex-grow: 1; overflow: hidden;">
-                <div class="calendar-week-header" style="min-width: 650px;">${headerDaysHtml}</div>
-                <div id="all-day-events-container" class="calendar-week-body" style="min-width: 650px; min-height: 28px; border-top: none;"></div>
-            </div>
-        </div>
-        <!-- Zona 2: Columna de Horas y Cuadrícula de Eventos -->
-        <div id="calendar-events-scroll-wrapper" style="flex-grow: 1; overflow: auto; display: flex;">
-            <div class="calendar-time-col" style="width: 50px; flex-shrink: 0; position: sticky; left: 0; z-index: 10;">
-                ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
-            </div>
-            <div class="calendar-events-grid" style="min-width: 650px; flex-grow: 1;">${eventGridColsHtml}</div>
-        </div>
-    </div>`;
-    contentEl.innerHTML = structureHtml;
-
-    const allDayEvents = events.filter(e => e.esTodoElDia);
-    const timedEvents = events.filter(e => !e.esTodoElDia);
-    
-    // Llenar eventos "todo el día"
-    const allDayContainer = document.getElementById('all-day-events-container');
-    let allDayColsHtml = '';
-    for(let i=0; i < 7; i++) {
-        const day = new Date(startOfWeek); day.setDate(startOfWeek.getDate() + i);
-        const dayStart = new Date(day.setHours(0,0,0,0)), dayEnd = new Date(new Date(day).setHours(23,59,59,999));
-        let pillsHtml = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart)
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(startOfWeek);
+        day.setDate(startOfWeek.getDate() + i);
+        const dayStart = new Date(day.setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        let allDayEventsHtml = events.filter(e => e.esTodoElDia && e.fechaInicio <= dayEnd && e.fechaFin >= dayStart)
             .slice(0, MAX_ALL_DAY_PILLS)
-            .map(e => `<div class="month-event-pill" data-event-id="${e.id}" data-action="edit-calendar-event" style="background-color:${e.color || '#36A2EB'}; cursor:pointer;">${e.titulo}</div>`).join('');
-        allDayColsHtml += `<div class="calendar-week-day-col" style="min-height:auto; padding: 2px;">${pillsHtml}</div>`;
+            .map(event => `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`)
+            .join('');
+        headerHtml += `<div class="calendar-day-header all-day-section" style="border-top: 1px solid var(--muted); min-height: 24px;">${allDayEventsHtml}</div>`;
     }
-    allDayContainer.innerHTML = allDayColsHtml;
+    headerHtml += `</div>`;
+    finalHtml += headerHtml;
 
-    // Llenar eventos con hora
-    if (todayIndex !== -1) {
-        const now = new Date(); const nowPos = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
-        document.getElementById(`day-col-week-${todayIndex}`).innerHTML += `<div class="now-line" style="top:${nowPos}px;left:0;right:0;"></div>`;
-    }
+    let scrollAreaHtml = `<div class="calendar-scroll-area">`;
+    let timeColHtml = `<div class="calendar-time-col">`;
+    for (let hour = 0; hour < 24; hour++) { timeColHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`; }
+    timeColHtml += `</div>`;
 
-    const viewEndDate = new Date(startOfWeek); viewEndDate.setDate(startOfWeek.getDate() + 7);
-    timedEvents.filter(e => e.fechaInicio >= startOfWeek && e.fechaInicio < viewEndDate).forEach(event => {
-        const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startOfWeek).setHours(0,0,0,0)) / (1000*3600*24));
-        if (diffDays >= 0 && diffDays < 7) {
-            const dayCol = document.getElementById(`day-col-week-${diffDays}`);
-            const startMins = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
-            const durationMins = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
-            dayCol.innerHTML += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${(startMins/60)*HOUR_HEIGHT}px;height:${Math.max(20,(durationMins/60)*HOUR_HEIGHT)}px;background-color:${event.color||'#36A2EB'};left:2px;right:2px;"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
+    let eventsGridHtml = `<div class="calendar-events-grid" style="grid-template-columns: repeat(7, 1fr);">`;
+    for (let i = 0; i < 7; i++) {
+        eventsGridHtml += `<div class="calendar-day-col">`;
+        if (todayIndex === i) {
+            const now = new Date();
+            const nowPosition = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
+            eventsGridHtml += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
         }
-    });
+        const day = new Date(startOfWeek); day.setDate(startOfWeek.getDate() + i);
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        
+        events.filter(e => !e.esTodoElDia && e.fechaInicio >= dayStart && e.fechaInicio < dayEnd).forEach(event => {
+            const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
+            const durationMinutes = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
+            const top = (startMinutes / 60) * HOUR_HEIGHT;
+            const height = (durationMinutes / 60) * HOUR_HEIGHT;
+            eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${top}px; height:${Math.max(20, height)}px; left: 2px; right: 2px; background-color:${event.color || '#36A2EB'};"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+        });
+        eventsGridHtml += `</div>`;
+    }
+    eventsGridHtml += `</div>`;
 
-    const headerScroll = document.getElementById('calendar-header-scroll');
-    const eventsScrollWrapper = document.getElementById('calendar-events-scroll-wrapper');
-    calendarScrollSyncHandler = () => { headerScroll.scrollLeft = eventsScrollWrapper.scrollLeft; };
-    eventsScrollWrapper.addEventListener('scroll', calendarScrollSyncHandler);
+    scrollAreaHtml += timeColHtml + eventsGridHtml + `</div>`;
+    finalHtml += scrollAreaHtml + `</div></div>`;
+
+    contentEl.innerHTML = finalHtml;
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 }
@@ -4126,71 +3758,65 @@ function renderWeekView(events, startOfWeek) {
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
-    const MAX_ALL_DAY_PILLS = 3;
+    const MAX_ALL_DAY_PILLS = 2;
+    
+    let finalHtml = `<div class="calendar-view-container">`;
 
-    let headerDaysHtml = '', eventGridColsHtml = '', todayIndex = -1;
+    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px repeat(3, 1fr); grid-auto-rows: min-content;">
+                        <div style="grid-row: 1 / 3; background-color: var(--card-bg);"></div>`;
 
+    let todayIndex = -1;
+    for (let i = 0; i < 3; i++) {
+        const day = new Date(startDate);
+        day.setDate(startDate.getDate() + i);
+        if (day.toDateString() === new Date().toDateString()) todayIndex = i;
+        headerHtml += `<div class="calendar-day-header ${todayIndex === i ? 'today' : ''}"><span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span></div>`;
+    }
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate); day.setDate(startDate.getDate() + i);
-        const isToday = day.toDateString() === new Date().toDateString();
-        if (isToday) todayIndex = i;
-        headerDaysHtml += `<div class="calendar-day-header ${isToday ? 'today':''} day-label"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span><span style="font-size:1.1rem;margin-top:2px;">${day.getDate()}</span></div>`;
-        eventGridColsHtml += `<div id="day-col-3day-${i}" class="calendar-day-col"></div>`;
-    }
-
-    const structureHtml = `
-    <div class="calendar-week-grid-container" style="display: flex; flex-direction: column; height: 70vh;">
-        <div style="display: flex; flex-shrink: 0;">
-            <div style="width: 50px; flex-shrink: 0;"></div>
-            <div id="calendar-header-scroll" style="flex-grow: 1; overflow: hidden;">
-                <div class="calendar-week-header" style="grid-template-columns: repeat(3, 1fr);">${headerDaysHtml}</div>
-                <div id="all-day-events-container" class="calendar-week-body" style="grid-template-columns: repeat(3, 1fr); min-height: 28px; border-top: none;"></div>
-            </div>
-        </div>
-        <div id="calendar-events-scroll-wrapper" style="flex-grow: 1; overflow: auto; display: flex;">
-            <div class="calendar-time-col" style="width: 50px; flex-shrink: 0; position: sticky; left: 0; z-index: 10;">
-                ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
-            </div>
-            <div class="calendar-events-grid" style="grid-template-columns: repeat(3, 1fr); flex-grow: 1;">${eventGridColsHtml}</div>
-        </div>
-    </div>`;
-    contentEl.innerHTML = structureHtml;
-
-    const allDayEvents = events.filter(e => e.esTodoElDia);
-    const timedEvents = events.filter(e => !e.esTodoElDia);
-    
-    const allDayContainer = document.getElementById('all-day-events-container');
-    let allDayColsHtml = '';
-    for(let i=0; i < 3; i++) {
-        const day = new Date(startDate); day.setDate(startDate.getDate() + i);
-        const dayStart = new Date(day.setHours(0,0,0,0)), dayEnd = new Date(new Date(day).setHours(23,59,59,999));
-        let pillsHtml = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart)
+        const dayStart = new Date(day.setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        let allDayEventsHtml = events.filter(e => e.esTodoElDia && e.fechaInicio <= dayEnd && e.fechaFin >= dayStart)
             .slice(0, MAX_ALL_DAY_PILLS)
-            .map(e => `<div class="month-event-pill" data-event-id="${e.id}" data-action="edit-calendar-event" style="background-color:${e.color || '#36A2EB'}; cursor:pointer;">${e.titulo}</div>`).join('');
-        allDayColsHtml += `<div class="calendar-week-day-col" style="min-height:auto; padding: 2px;">${pillsHtml}</div>`;
+            .map(event => `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`)
+            .join('');
+        headerHtml += `<div class="calendar-day-header all-day-section" style="border-top: 1px solid var(--muted); min-height: 24px;">${allDayEventsHtml}</div>`;
     }
-    allDayContainer.innerHTML = allDayColsHtml;
+    headerHtml += `</div>`;
+    finalHtml += headerHtml;
 
-    if (todayIndex !== -1) {
-        const now = new Date(); const nowPos = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
-        document.getElementById(`day-col-3day-${todayIndex}`).innerHTML += `<div class="now-line" style="top:${nowPos}px;left:0;right:0;"></div>`;
-    }
-
-    const viewEndDate = new Date(startDate); viewEndDate.setDate(startDate.getDate() + 3);
-    timedEvents.filter(e => e.fechaInicio >= startDate && e.fechaInicio < viewEndDate).forEach(event => {
-        const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000*3600*24));
-        if (diffDays >= 0 && diffDays < 3) {
-            const dayCol = document.getElementById(`day-col-3day-${diffDays}`);
-            const startMins = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
-            const durationMins = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
-            dayCol.innerHTML += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${(startMins/60)*HOUR_HEIGHT}px;height:${Math.max(20,(durationMins/60)*HOUR_HEIGHT)}px;background-color:${event.color||'#36A2EB'};left:2px;right:2px;"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
+    let scrollAreaHtml = `<div class="calendar-scroll-area">`;
+    let timeColHtml = `<div class="calendar-time-col">`;
+    for (let hour = 0; hour < 24; hour++) { timeColHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`; }
+    timeColHtml += `</div>`;
+    
+    let eventsGridHtml = `<div class="calendar-events-grid" style="grid-template-columns: repeat(3, 1fr);">`;
+    for (let i = 0; i < 3; i++) {
+        eventsGridHtml += `<div class="calendar-day-col">`;
+        if (todayIndex === i) {
+            const now = new Date();
+            const nowPosition = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
+            eventsGridHtml += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
         }
-    });
+        const day = new Date(startDate); day.setDate(startDate.getDate() + i);
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        
+        events.filter(e => !e.esTodoElDia && e.fechaInicio >= dayStart && e.fechaInicio < dayEnd).forEach(event => {
+            const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
+            const durationMinutes = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
+            const top = (startMinutes / 60) * HOUR_HEIGHT;
+            const height = (durationMinutes / 60) * HOUR_HEIGHT;
+            eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${top}px; height:${Math.max(20, height)}px; left: 2px; right: 2px; background-color:${event.color || '#36A2EB'};"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+        });
+        eventsGridHtml += `</div>`;
+    }
+    eventsGridHtml += `</div>`;
 
-    const headerScroll = document.getElementById('calendar-header-scroll');
-    const eventsScrollWrapper = document.getElementById('calendar-events-scroll-wrapper');
-    calendarScrollSyncHandler = () => { headerScroll.scrollLeft = eventsScrollWrapper.scrollLeft; };
-    eventsScrollWrapper.addEventListener('scroll', calendarScrollSyncHandler);
+    scrollAreaHtml += timeColHtml + eventsGridHtml + `</div>`;
+    finalHtml += scrollAreaHtml + `</div>`;
+
+    contentEl.innerHTML = finalHtml;
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 }
