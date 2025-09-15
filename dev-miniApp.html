@@ -3944,18 +3944,20 @@ function loadAndDisplayCalendarEvents(view, date) {
 function renderDayView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
+    const isToday = currentDate.toDateString() === new Date().toDateString();
 
-    // 1. Separamos los eventos en dos tipos: los que duran todo el día y los que tienen hora.
+    // 1. Separamos los eventos: los que duran todo el día y los que tienen hora.
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
 
     let finalHtml = `<div class="calendar-view-container">`;
 
-    // 2. Cabecera Fija: solo tiene la columna de "todo el día"
+    // 2. Cabecera Fija: ahora tiene una sección para las píldoras de "todo el día"
     let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px 1fr;">
                         <div></div> <!-- Espacio para las horas -->
-                        <div class="calendar-day-header all-day-section">`;
+                        <div class="calendar-day-header all-day-section" style="min-height: 28px;">`;
     
+    // Dibujamos las píldoras de eventos de todo el día
     allDayEvents.forEach(event => {
         headerHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
     });
@@ -3970,9 +3972,17 @@ function renderDayView(events, currentDate) {
     }
     scrollAreaHtml += `</div>
                        <div class="calendar-events-grid" style="grid-template-columns: 1fr;">
-                           <div class="calendar-day-col">`; // La única columna para hoy
+                           <div class="calendar-day-col">`;
 
-    // 4. Dibujamos los eventos con hora
+    // 4. ¡NUEVO! Añadimos la línea de la hora actual si estamos viendo "Hoy"
+    if (isToday) {
+        const now = new Date();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const nowPosition = (nowMinutes / 60) * HOUR_HEIGHT;
+        scrollAreaHtml += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
+    }
+
+    // 5. Dibujamos los eventos con hora específica
     timedEvents.forEach(event => {
         const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
         const durationMinutes = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
@@ -3986,25 +3996,24 @@ function renderDayView(events, currentDate) {
                            </div>`;
     });
 
-    scrollAreaHtml += `</div></div></div>`; // Cierre de col, grid y scroll-area
+    scrollAreaHtml += `</div></div></div>`;
     finalHtml += scrollAreaHtml;
-    finalHtml += `</div>`; // Cierre de view-container
+    finalHtml += `</div>`;
 
     contentEl.innerHTML = finalHtml;
-    
-    // Reutilizamos el manejador de clics
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 
-    // Scroll automático a la hora actual
-    setTimeout(() => {
-        const now = new Date();
-        const scrollTargetPosition = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
-        const scrollArea = contentEl.querySelector('.calendar-scroll-area');
-        if (scrollArea) {
-            scrollArea.scrollTo({ top: scrollTargetPosition - 50, behavior: 'smooth' });
-        }
-    }, 100);
+    // 6. Scroll automático a la hora actual para una mejor experiencia
+    if (isToday) {
+        setTimeout(() => {
+            const scrollArea = contentEl.querySelector('.calendar-scroll-area');
+            const nowLine = contentEl.querySelector('.now-line');
+            if (scrollArea && nowLine) {
+                scrollArea.scrollTo({ top: nowLine.offsetTop - 50, behavior: 'smooth' });
+            }
+        }, 100);
+    }
 }
 
 function renderWeekView(events, startOfWeek) {
@@ -4081,28 +4090,30 @@ function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
 
-    // 1. Separamos los eventos
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
-
+    
     let finalHtml = `<div class="calendar-view-container">`;
 
-    // 2. Cabecera Fija con 3 días y sección para eventos "todo el día"
-    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px 1fr 1fr 1fr;">
-                        <div></div>`; // Espacio para horas
-    
-    // Creamos las 3 cabeceras de día
+    // 1. Cabecera Fija: la reconstruimos para ser más robusta
+    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px 1fr 1fr 1fr; grid-auto-rows: min-content;">
+                        <div style="grid-row: 1 / 3;"></div>`; // Celda vacía que ocupa dos filas
+
+    let todayIndex = -1; // Para saber en qué columna dibujar la línea de "Ahora"
+
+    // Fila 1 de la cabecera: Nombres de los días (CORREGIDO)
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate);
         day.setDate(startDate.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
+        if (isToday) todayIndex = i; // Guardamos el índice de "hoy"
+        // CORRECCIÓN CLAVE: Usamos toLocaleDateString para el formato correcto
         headerHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}">
-                        <span>${day.toLocaleTimeString('es-ES', {weekday: 'short'})} ${day.getDate()}</span>
+                        <span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span>
                        </div>`;
     }
-    headerHtml += `<div></div>`; // Espacio vacío de nuevo
     
-    // Ahora, las 3 columnas para los eventos de todo el día
+    // Fila 2 de la cabecera: Píldoras de eventos "todo el día"
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate);
         day.setDate(startDate.getDate() + i);
@@ -4120,7 +4131,7 @@ function renderThreeDayView(events, startDate) {
     headerHtml += `</div>`;
     finalHtml += headerHtml;
 
-    // 3. Área de Scroll (idéntica a la de la vista de día)
+    // 2. Área de Scroll
     let scrollAreaHtml = `<div class="calendar-scroll-area">
                             <div class="calendar-time-col">`;
     for (let hour = 0; hour < 24; hour++) {
@@ -4132,7 +4143,17 @@ function renderThreeDayView(events, startDate) {
                            <div class="calendar-day-col"></div>
                            <div class="calendar-day-col"></div>`;
 
-    // 4. Dibujamos los eventos con hora, posicionándolos de forma absoluta
+    // 3. Añadimos la línea "Ahora" solo en la columna de hoy
+    if (todayIndex !== -1) {
+        const now = new Date();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const nowPosition = (nowMinutes / 60) * HOUR_HEIGHT;
+        const leftPercentage = (todayIndex / 3) * 100;
+
+        scrollAreaHtml += `<div class="now-line" style="top: ${nowPosition}px; left: calc(${leftPercentage}% + 1px); width: calc(${(1/3) * 100}% - 2px);"></div>`;
+    }
+
+    // 4. Dibujamos los eventos con hora
     const viewEndDate = new Date(startDate);
     viewEndDate.setDate(startDate.getDate() + 3);
     timedEvents
@@ -4140,7 +4161,6 @@ function renderThreeDayView(events, startDate) {
         .forEach(event => {
             const eventStart = event.fechaInicio;
             const diffDays = Math.floor((new Date(eventStart).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000 * 3600 * 24));
-            
             if(diffDays >= 0 && diffDays < 3) {
                 const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
                 const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
