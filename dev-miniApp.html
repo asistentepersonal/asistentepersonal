@@ -511,6 +511,31 @@
 }
 
 /* --- FIN ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
+/* --- INICIO ESTILOS BOTÓN FLOTANTE --- */
+.floating-action-button {
+    position: fixed;
+    bottom: 80px; /* 60px de la barra de tabs + 20px de margen */
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background-color: var(--primary);
+    color: var(--action-text);
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    line-height: 1;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    cursor: pointer;
+    z-index: 999;
+    transition: transform 0.2s ease-out;
+}
+.floating-action-button:hover {
+    transform: scale(1.05);
+}
+/* --- FIN ESTILOS BOTÓN FLOTANTE --- */  
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -3450,19 +3475,19 @@ function renderTimelineGrid(canales, programas) {
          wrapper.scrollLeft = nowPosition - (wrapper.offsetWidth / 2);
     }
 }
-// ==================================================
-// --- MÓDULO: CALENDARIO INTELIGENTE (VERSIÓN FINAL Y COMPLETA) ---
-// ==================================================
-const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
-let currentCalendarView = 'day';
-let currentCalendarDate = new Date();
+// ====================================================================================
+// --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO SIMPLIFICADO + MENÚ + BOTÓN FLOTANTE) ---
+// ====================================================================================
 
 function renderCalendarView() {
-    // Por defecto, al entrar en el calendario, mostramos la vista mensual.
-    currentCalendarView = 'month'; 
+    currentCalendarView = 'month'; // Siempre empezamos en la vista mensual
     currentCalendarDate = new Date();
     
     navigationHistory.push(() => {
+        // Al volver atrás, nos aseguramos de que los elementos específicos del calendario se eliminen
+        const fab = document.getElementById('calendar-fab');
+        if (fab) fab.remove();
+
         if (typeof unsubscribeCalendarEvents === 'function') {
             unsubscribeCalendarEvents();
             unsubscribeCalendarEvents = null;
@@ -3476,12 +3501,11 @@ function renderCalendarView() {
             <div class="calendar-header-sticky">
                 <div class="list-header" style="padding-bottom:0; justify-content: space-between; align-items: center;">
                     <h2 style="margin:0;">🗓️ Mi Calendario</h2>
-                    <!-- ¡NUEVO! Menú desplegable para las vistas -->
+                    <!-- ¡NUEVO! Icono de Menú para las vistas -->
                     <div style="position: relative;">
-                        <button class="guia-nav-btn active" id="calendar-view-selector" data-view="month" style="padding: 6px 12px;">Mes ▼</button>
+                        <button class="generic-menu-btn" id="calendar-view-menu-btn" style="font-size: 1.8rem; padding: 5px;">☰</button>
                         <div class="dropdown-menu" id="calendar-view-menu" style="top: 100%; right: 0; min-width: 120px;">
                             <a class="dropdown-item" data-view="day">Día</a>
-                            <a class="dropdown-item" data-view="three_day">3 días</a>
                             <a class="dropdown-item" data-view="week">Semana</a>
                             <a class="dropdown-item" data-view="month">Mes</a>
                         </div>
@@ -3494,15 +3518,21 @@ function renderCalendarView() {
                 </div>
             </div>
             <div id="calendar-content" style="min-height:300px;"></div>
-            <div class="add-article-btn-container" style="margin-top:20px;">
-                <button class="add-article-btn" id="calendar-quick-add-btn">➕ Añadir Evento</button>
-            </div>
         </div>`;
-    
+
+    // --- LÓGICA DEL BOTÓN FLOTANTE ---
+    const fab = document.createElement('button');
+    fab.id = 'calendar-fab';
+    fab.className = 'floating-action-button';
+    fab.innerHTML = '+';
+    fab.onclick = () => renderCalendarEventForm(null, renderCalendarView);
+    document.body.appendChild(fab);
+    // --- FIN LÓGICA BOTÓN FLOTANTE ---
+
     // Lógica para el nuevo menú desplegable
-    const viewSelector = document.getElementById('calendar-view-selector');
+    const viewMenuBtn = document.getElementById('calendar-view-menu-btn');
     const viewMenu = document.getElementById('calendar-view-menu');
-    viewSelector.onclick = (e) => {
+    viewMenuBtn.onclick = (e) => {
         e.stopPropagation();
         viewMenu.classList.toggle('show');
     };
@@ -3510,9 +3540,7 @@ function renderCalendarView() {
     viewMenu.addEventListener('click', (e) => {
         const target = e.target.closest('.dropdown-item');
         if (target) {
-            const newView = target.dataset.view;
-            currentCalendarView = newView;
-            viewSelector.textContent = `${target.textContent} ▼`;
+            currentCalendarView = target.dataset.view;
             viewMenu.classList.remove('show');
             loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
         }
@@ -3520,11 +3548,27 @@ function renderCalendarView() {
 
     document.getElementById('calendar-prev-btn').onclick = () => { currentCalendarDate = getPreviousPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
     document.getElementById('calendar-next-btn').onclick = () => { currentCalendarDate = getNextPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
-    document.getElementById('calendar-quick-add-btn').onclick = () => renderCalendarEventForm(null, renderCalendarView);
     
     loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
 }
 
+// Funciones de navegación SIMPLIFICADAS (sin 'three_day')
+function getPreviousPeriodDate(view, date) {
+    const d = new Date(date);
+    if (view === 'day') d.setDate(d.getDate() - 1);
+    else if (view === 'week') d.setDate(d.getDate() - 7);
+    else d.setMonth(d.getMonth() - 1); // month
+    return d;
+}
+function getNextPeriodDate(view, date) {
+    const d = new Date(date);
+    if (view === 'day') d.setDate(d.getDate() + 1);
+    else if (view === 'week') d.setDate(d.getDate() + 7);
+    else d.setMonth(d.getMonth() + 1); // month
+    return d;
+}
+
+// Función de carga SIMPLIFICADA (sin 'three_day')
 function loadAndDisplayCalendarEvents(view, date) {
     showSpinner("Cargando calendario...");
     if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents();
@@ -3532,19 +3576,14 @@ function loadAndDisplayCalendarEvents(view, date) {
     let start = new Date(date), end = new Date(date);
     const periodEl = document.getElementById('calendar-current-period');
     
-    start.setHours(0,0,0,0); // Normalizamos la hora de inicio
+    start.setHours(0,0,0,0);
 
     if (view === 'day') {
         end.setHours(23,59,59,999);
         if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-    } else if (view === 'three_day') {
-        end = new Date(start);
-        end.setDate(start.getDate() + 2);
-        end.setHours(23,59,59,999);
-        if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`;
     } else if (view === 'week') {
         const dayOfWeek = date.getDay();
-        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Lunes como primer día
+        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
         start = new Date(date.getFullYear(), date.getMonth(), diff);
         end = new Date(start);
         end.setDate(start.getDate() + 6);
@@ -3564,40 +3603,15 @@ function loadAndDisplayCalendarEvents(view, date) {
         const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
         
         if (view === 'day') renderDayView(eventsInRange, date);
-        else if (view === 'three_day') renderThreeDayView(eventsInRange, date); // <-- Llama a la nueva función
         else if (view === 'week') renderWeekView(eventsInRange, start);
         else if (view === 'month') renderMonthView(eventsInRange, date);
         hideSpinner();
     }, error => { console.error("Error en listener:", error); hideSpinner(); });
 }
 
-function getPreviousPeriodDate(view, date) { const d = new Date(date); if (view === 'day') d.setDate(d.getDate() - 1); else if (view === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1); return d; }
-function getNextPeriodDate(view, date) { const d = new Date(date); if (view === 'day') d.setDate(d.getDate() + 1); else if (view === 'week') d.setDate(d.getDate() + 7); else d.setMonth(d.getMonth() + 1); return d; }
-
-async function loadAndDisplayCalendarEvents(view, date) {
-    showSpinner("Cargando calendario...");
-    if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents();
-
-    let start = new Date(date), end = new Date(date);
-    const periodEl = document.getElementById('calendar-current-period');
-    
-    if (view === 'day') { start.setHours(0,0,0,0); end.setHours(23,59,59,999); if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }); }
-    else if (view === 'week') { const day = date.getDay(); const diff = date.getDate() - day + (day === 0 ? -6 : 1); start = new Date(date.getFullYear(), date.getMonth(), diff); start.setHours(0,0,0,0); end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999); if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`; }
-    else { start = new Date(date.getFullYear(), date.getMonth(), 1); end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999); if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }); }
-
-    const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).where('fechaInicio', '<=', end).orderBy('fechaInicio', 'asc');
-    
-    unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
-        if (!document.getElementById('calendar-content')) return;
-        const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
-        const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
-        
-        if (view === 'day') renderDayView(eventsInRange, date);
-        else if (view === 'week') renderWeekView(eventsInRange, start);
-        else if (view === 'month') renderMonthView(eventsInRange, date);
-        hideSpinner();
-    }, error => { console.error("Error en listener:", error); hideSpinner(); });
-}
+// ====================================================================================
+// --- FIN DEL BLOQUE DE REEMPLAZO ---
+// ====================================================================================
 
 function renderDayView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
