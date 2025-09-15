@@ -976,7 +976,6 @@ fileInputCamera.accept = 'image/*';
 fileInputCamera.capture = 'camera'; // O 'environment' si 'camera' no funciona mejor
 fileInputCamera.style.display = 'none'; // Asegurarse de que esté oculto
 document.body.appendChild(fileInputCamera);
-
 const fileInputGallery = document.createElement('input');
 fileInputGallery.type = 'file';
 fileInputGallery.accept = 'image/*';
@@ -3759,7 +3758,6 @@ function renderWeekView(events, startOfWeek) {
 // =========================================================================
 // --- INICIO: NUEVA FUNCIÓN PARA LA VISTA DE 3 DÍAS ---
 // =========================================================================
-function renderThreeDayView(events, startDate) {
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60; // 60px por hora
