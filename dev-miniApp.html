@@ -292,25 +292,46 @@
 .guia-program-time { font-size: 0.8rem; color: var(--muted); }
 .guia-now-line { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #e74c3c; z-index: 3; pointer-events: none; }
 /* --- FIN ESTILOS GUÍA TV --- */  
-/* --- INICIO: ESTILOS UNIFICADOS DE CALENDARIO (V4) --- */
+/* --- INICIO: ESTILOS UNIFICADOS DE CALENDARIO (V5 - ESTRUCTURA FINAL) --- */
 
 /* Contenedor principal para vistas de cronograma (Hoy, 3 Días, Semana) */
+.timeline-view-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    background-color: var(--muted); /* Fondo para los bordes */
+}
+
 .timeline-view-container {
     display: grid;
-    grid-template-columns: 50px 1fr; /* Columna de horas + Área de eventos */
-    border: 1px solid #eee;
-    border-radius: 8px;
-    overflow: hidden;
+    grid-template-columns: 50px 1fr; /* Columna de horas | Área de días */
+    grid-template-rows: auto 1fr;    /* Fila de cabecera | Fila de cuerpo */
+}
+
+/* Ancho mínimo para forzar scroll en vistas anchas */
+.timeline-view-container.week-view { min-width: 600px; }
+.timeline-view-container.three-day-view { min-width: 350px; }
+
+/* Celda vacía de la esquina superior izquierda */
+.timeline-corner {
     background-color: var(--card-bg);
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 14;
+    border-bottom: 1px solid var(--muted);
 }
 
 /* Cabecera con los días */
 .timeline-header {
-    grid-column: 2 / -1; /* Alineado con el área de eventos */
+    grid-column: 2 / 3;
     display: grid;
-    background-color: #ddd; /* Fondo para los bordes */
     gap: 1px;
-    border-bottom: 1px solid #ddd;
+    position: sticky;
+    top: 0;
+    z-index: 13;
 }
 .timeline-header-day {
     text-align: center;
@@ -318,77 +339,54 @@
     font-size: 0.85rem;
     font-weight: 500;
     background-color: var(--card-bg);
+    border-bottom: 1px solid var(--muted);
 }
 .timeline-header-day.today {
     color: var(--primary);
     font-weight: bold;
 }
 
-/* Área principal con scroll */
-.timeline-body {
-    grid-column: 1 / -1; /* Ocupa todo el ancho */
-    display: grid;
-    grid-template-columns: 50px 1fr;
-    position: relative;
-    overflow-y: auto;
-    max-height: 65vh; /* Altura máxima con scroll */
-}
-
-/* Columna de horas */
+/* Columna de las Horas */
 .timeline-time-col {
-    grid-column: 1 / 2;
+    grid-row: 2 / 3;
+    background-color: var(--card-bg);
+    position: sticky;
+    left: 0;
+    z-index: 12;
 }
 .timeline-time-slot {
-    height: 60px; /* 1 hora de altura */
+    height: 60px; /* 1 hora = 60px */
     position: relative;
-    border-top: 1px dashed #eee;
+    border-top: 1px solid #eee;
     font-size: 0.8rem;
     color: var(--muted);
     text-align: right;
     padding-right: 5px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
 }
-.timeline-time-slot span {
-    position: relative;
-    top: -8px; /* Alinea el texto con la línea */
-}
+.timeline-time-slot span { transform: translateY(-8px); }
 
-/* Cuadrícula de eventos */
-.timeline-events-grid {
+/* Cuerpo principal con scroll y eventos */
+.timeline-body {
     grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    overflow-y: auto;
+    max-height: 65vh;
     display: grid;
-    position: relative;
-    background-color: #ddd; /* Fondo para los bordes */
     gap: 1px;
-    min-height: 1440px; /* 24 horas * 60px */
+    position: relative;
 }
 .timeline-day-col {
-    position: relative;
     background-color: var(--card-bg);
+    min-height: 1440px; /* 24 * 60px */
+    position: relative;
     background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
     background-size: 100% 60px;
-    cursor: pointer;
 }
 
-/* Línea de Ahora */
-.now-line {
-    position: absolute;
-    height: 2px;
-    background-color: #e74c3c;
-    z-index: 15;
-    pointer-events: none;
-}
-.now-line::before {
-    content: '';
-    position: absolute;
-    left: -5px;
-    top: -4px;
-    width: 12px;
-    height: 12px;
-    background-color: #e74c3c;
-    border-radius: 50%;
-}
-
-/* Bloque de evento */
+/* Bloque de Evento (Corregido) */
 .event-block {
     position: absolute;
     background-color: var(--primary);
@@ -401,17 +399,8 @@
     border-left: 4px solid rgba(0,0,0,0.2);
     box-sizing: border-box;
 }
-.event-block-title {
-    font-weight: bold;
-    font-size: 0.85rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.event-block-time {
-    font-size: 0.75rem;
-    opacity: 0.85;
-}
+.event-block-title { font-weight: bold; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-block-time { font-size: 0.75rem; opacity: 0.85; }
 
 /* Estilos para el Menú Desplegable */
 .dropdown-item.active {
@@ -419,94 +408,7 @@
     color: var(--action-text) !important;
     font-weight: bold;
 }
-
-/* --- ESTILOS VISTA MENSUAL --- */
-.calendar-month-container {}
-.calendar-month-header {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    position: sticky;
-    top: 135px;
-    z-index: 10;
-    background-color: var(--muted); 
-    gap: 1px;
-    border: 1px solid var(--muted);
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-    overflow: hidden;
-}
-.calendar-month-header .calendar-day-header {
-    padding: 10px 0;
-    font-size: 0.8rem;
-    font-weight: 500;
-    background-color: var(--card-bg);
-    text-align: center;
-}
-.calendar-month-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    grid-auto-rows: minmax(100px, auto); 
-    gap: 1px;
-    background-color: var(--muted);
-    border: 1px solid var(--muted);
-    border-top: none;
-}
-.calendar-day-cell {
-    background: var(--card-bg);
-    padding: 4px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    cursor: pointer;
-    border: none;
-    border-radius: 0;
-    min-height: auto;
-    transition: background-color 0.2s;
-}
-.calendar-day-cell:not(.empty):not(.other-month):hover {
-    background-color: #f0f0f0;
-}
-.calendar-day-number {
-    font-weight: 500;
-    text-align: center;
-    font-size: 0.9rem;
-    padding: 4px;
-    width: 26px;
-    height: 26px;
-    line-height: 18px;
-    border-radius: 50%;
-    margin: 0 auto 4px auto;
-    transition: background-color 0.2s, color 0.2s;
-}
-.calendar-day-cell.today .calendar-day-number {
-    background-color: var(--primary);
-    color: var(--action-text);
-    font-weight: bold;
-}
-.month-event-pill {
-    font-size: 0.75rem;
-    padding: 3px 6px;
-    border-radius: 4px;
-    margin: 1px 2px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    color: var(--action-text);
-    font-weight: 500;
-}
-.month-events-container {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-.calendar-day-cell.other-month .calendar-day-number {
-    color: var(--muted);
-    opacity: 0.6;
-}
-.calendar-day-cell.other-month {
-    cursor: default;
-}
-/* --- FIN: ESTILOS UNIFICADOS DE CALENDARIO (V4) --- */
+/* --- FIN: ESTILOS UNIFICADOS DE CALENDARIO (V5) --- */
 /* --- INICIO ESTILOS BOTÓN FLOTANTE --- */
 .floating-action-button {
     position: fixed;
@@ -3684,38 +3586,31 @@ function loadAndDisplayCalendarEvents(view, date) {
 
 function renderDayView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
-    const HOUR_HEIGHT = 60; // 60px por hora
-    const today = new Date();
-    
+    const HOUR_HEIGHT = 60;
+
     let timeColHtml = '';
     for (let hour = 0; hour < 24; hour++) {
         timeColHtml += `<div class="timeline-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
     }
 
-    let nowLineHtml = '';
-    if (currentDate.toDateString() === today.toDateString()) {
-        const nowMinutes = today.getHours() * 60 + today.getMinutes();
-        const nowLineOffset = (nowMinutes / 1440) * (24 * HOUR_HEIGHT);
-        nowLineHtml = `<div class="now-line" style="top: ${nowLineOffset}px; left: 50px; right: 0;"></div>`;
-    }
-
     contentEl.innerHTML = `
-        <div class="timeline-view-container" style="grid-template-columns: 50px 1fr;">
-            <div class="timeline-body">
+        <div class="timeline-view-wrapper">
+            <div class="timeline-view-container">
+                <div class="timeline-corner"></div>
+                <div class="timeline-header" style="grid-template-columns: 1fr;">
+                     <div class="timeline-header-day today">${currentDate.toLocaleDateString('es-ES', { weekday: 'short' })} ${currentDate.getDate()}</div>
+                </div>
                 <div class="timeline-time-col">${timeColHtml}</div>
-                <div class="timeline-events-grid" style="grid-template-columns: 1fr;">
+                <div class="timeline-body" style="grid-template-columns: 1fr;">
                     <div class="timeline-day-col"></div>
-                    ${nowLineHtml}
                 </div>
             </div>
-        </div>
-    `;
-
-    const eventsGrid = contentEl.querySelector('.timeline-events-grid');
+        </div>`;
+    
+    const dayColumn = contentEl.querySelector('.timeline-day-col');
     events.forEach(event => {
         const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
         const durationMinutes = Math.max(15, (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000);
-        
         const top = (startMinutes / 1440) * (24 * HOUR_HEIGHT);
         const height = (durationMinutes / 1440) * (24 * HOUR_HEIGHT);
 
@@ -3725,19 +3620,10 @@ function renderDayView(events, currentDate) {
         eventBlock.dataset.action = 'edit-calendar-event';
         eventBlock.style.cssText = `top:${top}px; height:${height}px; background-color:${event.color || '#36A2EB'}; left: 2px; right: 2px;`;
         eventBlock.innerHTML = `<div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})} - ${event.fechaFin.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>`;
-        eventsGrid.appendChild(eventBlock);
+        dayColumn.appendChild(eventBlock);
     });
 
-    eventsGrid.addEventListener('click', handleCalendarEventClick);
-
-    // Scroll automático
-    const scrollArea = contentEl.querySelector('.timeline-body');
-    if (scrollArea) {
-        const scrollTarget = scrollArea.querySelector('.now-line');
-        if (scrollTarget) {
-            scrollArea.scrollTop = scrollTarget.offsetTop - (scrollArea.clientHeight / 4);
-        }
-    }
+    dayColumn.addEventListener('click', handleCalendarEventClick);
 }
 
 function renderWeekView(events, startOfWeek) {
@@ -3750,56 +3636,50 @@ function renderWeekView(events, startOfWeek) {
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
-        headerHtml += `<div class="day-label ${day.toDateString() === today.toDateString() ? 'today' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
+        headerHtml += `<div class="timeline-header-day ${day.toDateString() === today.toDateString() ? 'today' : ''}">${weekdays[i]} ${day.getDate()}</div>`;
     }
 
     let timeColHtml = '';
     for (let hour = 0; hour < 24; hour++) {
-        timeColHtml += `<div class="calendar-time-slot-label"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
+        timeColHtml += `<div class="timeline-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
     }
 
     let dayColsHtml = '';
-    for (let i = 0; i < 7; i++) {
-        dayColsHtml += `<div class="calendar-day-col-multi"></div>`;
-    }
+    for (let i = 0; i < 7; i++) { dayColsHtml += `<div class="timeline-day-col" data-day-index="${i}"></div>`; }
 
     contentEl.innerHTML = `
-        <div class="calendar-grid-container">
-            <div class="calendar-time-col">${timeColHtml}</div>
-            <div>
-                <div class="calendar-grid-header" style="grid-template-columns: repeat(7, 1fr);">${headerHtml}</div>
-                <div class="calendar-events-area">
-                    <div class="calendar-events-grid-multi" style="grid-template-columns: repeat(7, 1fr);">${dayColsHtml}</div>
-                </div>
+        <div class="timeline-view-wrapper">
+            <div class="timeline-view-container week-view">
+                <div class="timeline-corner"></div>
+                <div class="timeline-header" style="grid-template-columns: repeat(7, 1fr);">${headerHtml}</div>
+                <div class="timeline-time-col">${timeColHtml}</div>
+                <div class="timeline-body" style="grid-template-columns: repeat(7, 1fr);">${dayColsHtml}</div>
             </div>
-        </div>
-    `;
+        </div>`;
 
-    const eventsGrid = contentEl.querySelector('.calendar-events-grid-multi');
+    const dayColumns = contentEl.querySelectorAll('.timeline-day-col');
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 7);
 
     events.forEach(event => {
         if (event.fechaFin > startOfWeek && event.fechaInicio < endOfWeek) {
-            const eventStart = new Date(Math.max(event.fechaInicio, startOfWeek));
-            const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1;
-            const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
-            const durationMinutes = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
-            
-            const top = (startMinutes / 60) * HOUR_HEIGHT;
-            const height = (durationMinutes / 60) * HOUR_HEIGHT;
+            const dayIndex = event.fechaInicio.getDay() === 0 ? 6 : event.fechaInicio.getDay() - 1;
+            const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
+            const durationMinutes = Math.max(15, (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000);
+            const top = (startMinutes / 1440) * (24 * HOUR_HEIGHT);
+            const height = (durationMinutes / 1440) * (24 * HOUR_HEIGHT);
 
             const eventBlock = document.createElement('div');
             eventBlock.className = 'event-block';
             eventBlock.dataset.eventId = event.id;
             eventBlock.dataset.action = 'edit-calendar-event';
-            eventBlock.style.cssText = `grid-column: ${dayOfWeek + 1}; top:${top}px; height:${Math.max(20, height)}px; background-color:${event.color || '#36A2EB'}; position:absolute; left: 4px; right: 4px;`;
+            eventBlock.style.cssText = `top:${top}px; height:${height}px; background-color:${event.color || '#36A2EB'}; left: 2px; right: 2px;`;
             eventBlock.innerHTML = `<div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>`;
-            eventsGrid.appendChild(eventBlock);
+            dayColumns[dayIndex].appendChild(eventBlock);
         }
     });
     
-    eventsGrid.addEventListener('click', handleCalendarEventClick);
+    dayColumns.forEach(col => col.addEventListener('click', handleCalendarEventClick));
 }
 
 // =========================================================================
@@ -3823,26 +3703,19 @@ function renderThreeDayView(events, startDate) {
     }
 
     let dayColsHtml = '';
-    for (let i = 0; i < 3; i++) { dayColsHtml += `<div class="timeline-day-col"></div>`; }
-    
-    let nowLineHtml = '';
-    const dayDiff = Math.floor((today.setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000 * 3600 * 24));
-    if (dayDiff >= 0 && dayDiff < 3) {
-        const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
-        const nowLineOffset = (nowMinutes / 1440) * (24 * HOUR_HEIGHT);
-        nowLineHtml = `<div class="now-line" style="grid-column: ${dayDiff + 1}; top: ${nowLineOffset}px; position: absolute; left: 0; right: 0;"></div>`;
-    }
+    for (let i = 0; i < 3; i++) { dayColsHtml += `<div class="timeline-day-col" data-day-index="${i}"></div>`; }
 
     contentEl.innerHTML = `
-        <div class="timeline-view-container">
-            <div class="timeline-header" style="grid-template-columns: repeat(3, 1fr);">${headerHtml}</div>
-            <div class="timeline-body">
+        <div class="timeline-view-wrapper">
+            <div class="timeline-view-container three-day-view">
+                <div class="timeline-corner"></div>
+                <div class="timeline-header" style="grid-template-columns: repeat(3, 1fr);">${headerHtml}</div>
                 <div class="timeline-time-col">${timeColHtml}</div>
-                <div class="timeline-events-grid" style="grid-template-columns: repeat(3, 1fr);">${dayColsHtml}${nowLineHtml}</div>
+                <div class="timeline-body" style="grid-template-columns: repeat(3, 1fr);">${dayColsHtml}</div>
             </div>
         </div>`;
 
-    const eventsGrid = contentEl.querySelector('.timeline-events-grid');
+    const dayColumns = contentEl.querySelectorAll('.timeline-day-col');
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 3);
 
@@ -3852,7 +3725,6 @@ function renderThreeDayView(events, startDate) {
             if (dayIndex >= 0 && dayIndex < 3) {
                 const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
                 const durationMinutes = Math.max(15, (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000);
-                
                 const top = (startMinutes / 1440) * (24 * HOUR_HEIGHT);
                 const height = (durationMinutes / 1440) * (24 * HOUR_HEIGHT);
 
@@ -3860,14 +3732,14 @@ function renderThreeDayView(events, startDate) {
                 eventBlock.className = 'event-block';
                 eventBlock.dataset.eventId = event.id;
                 eventBlock.dataset.action = 'edit-calendar-event';
-                eventBlock.style.cssText = `grid-column: ${dayIndex + 1}; top:${top}px; height:${height}px; background-color:${event.color || '#36A2EB'}; position:absolute; left: 2px; right: 2px;`;
+                eventBlock.style.cssText = `top:${top}px; height:${height}px; background-color:${event.color || '#36A2EB'}; left: 2px; right: 2px;`;
                 eventBlock.innerHTML = `<div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>`;
-                eventsGrid.appendChild(eventBlock);
+                dayColumns[dayIndex].appendChild(eventBlock);
             }
         }
     });
 
-    eventsGrid.addEventListener('click', handleCalendarEventClick);
+    dayColumns.forEach(col => col.addEventListener('click', handleCalendarEventClick));
 }
 // =========================================================================
 // --- FIN: NUEVA FUNCIÓN ---
