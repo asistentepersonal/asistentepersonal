@@ -404,14 +404,14 @@
 }
 
 /* Columna individual de un día en la cuadrícula */
+/* Columna individual de un día en la cuadrícula */
 .calendar-day-col {
-    position: relative;
+    position: relative; /* ¡LA CLAVE DE LA SOLUCIÓN! */
     background-color: var(--card-bg);
-    /* Líneas horarias sutiles */
     background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
     background-size: 100% 60px;
     cursor: pointer;
-    min-height: 1440px; /* 24 horas * 60px por hora */
+    min-height: 1440px;
 }
 
 /* Contenedor extra para la vista semanal para permitir scroll horizontal */
@@ -4168,74 +4168,75 @@ function renderWeekView(events, startOfWeek) {
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
-    const MAX_ALL_DAY_PILLS = 2;
 
-    const allDayEvents = events.filter(e => e.esTodoElDia);
-    const timedEvents = events.filter(e => !e.esTodoElDia);
-    
-    let finalHtml = `<div class="calendar-view-container">
-        <div class="calendar-header-grid" style="grid-template-columns: 50px 1fr 1fr 1fr; grid-auto-rows: min-content;">
-            <div style="grid-row: 1 / 3;"></div>`;
-
+    // --- 1. DIBUJAR LA ESTRUCTURA BASE PRIMERO ---
+    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px 1fr 1fr 1fr; grid-auto-rows: min-content;"><div style="grid-row: 1 / 3;"></div>`;
     let todayIndex = -1;
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate);
         day.setDate(startDate.getDate() + i);
         if (day.toDateString() === new Date().toDateString()) todayIndex = i;
-        finalHtml += `<div class="calendar-day-header ${todayIndex === i ? 'today' : ''}"><span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span></div>`;
+        headerHtml += `<div class="calendar-day-header ${todayIndex === i ? 'today' : ''}"><span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span></div>`;
     }
+    for (let i = 0; i < 3; i++) { headerHtml += `<div id="all-day-container-${i}" class="calendar-day-header all-day-section" style="border-top: 1px solid var(--muted);"></div>`; }
+    headerHtml += `</div>`;
+    
+    let baseHtml = `<div class="calendar-view-container">${headerHtml}
+        <div class="calendar-scroll-area">
+            <div class="calendar-time-col">
+                ${Array.from({length: 24}, (_, i) => `<div class="calendar-time-slot"><span>${i.toString().padStart(2, '0')}:00</span></div>`).join('')}
+            </div>
+            <div class="calendar-events-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <div id="day-col-0" class="calendar-day-col"></div>
+                <div id="day-col-1" class="calendar-day-col"></div>
+                <div id="day-col-2" class="calendar-day-col"></div>
+            </div>
+        </div>
+    </div>`;
+    contentEl.innerHTML = baseHtml;
+
+    // --- 2. INSERTAR EVENTOS EN LA ESTRUCTURA YA CREADA ---
+    const allDayEvents = events.filter(e => e.esTodoElDia);
+    const timedEvents = events.filter(e => !e.esTodoElDia);
+
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate);
         day.setDate(startDate.getDate() + i);
         const dayStart = new Date(day.setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
-        finalHtml += `<div class="calendar-day-header all-day-section" style="border-top: 1px solid var(--muted);">`;
-        const eventsForDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
-        eventsForDay.slice(0, MAX_ALL_DAY_PILLS).forEach(event => {
-            finalHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+        const allDayContainer = document.getElementById(`all-day-container-${i}`);
+        allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart).forEach(event => {
+            const pill = document.createElement('div');
+            pill.className = 'month-event-pill'; pill.dataset.eventId = event.id; pill.dataset.action = 'edit-calendar-event';
+            pill.style.backgroundColor = event.color || '#36A2EB'; pill.style.cursor = 'pointer'; pill.textContent = event.titulo;
+            allDayContainer.appendChild(pill);
         });
-        if (eventsForDay.length > MAX_ALL_DAY_PILLS) {
-            finalHtml += `<div class="more-events-pill">+${eventsForDay.length - MAX_ALL_DAY_PILLS} más</div>`;
-        }
-        finalHtml += `</div>`;
     }
-    finalHtml += `</div>`;
-    
-    // --- INICIO DE LA CORRECCIÓN ESTRUCTURAL ---
-    let scrollAreaHtml = `<div class="calendar-scroll-area">`;
-    let timeColHtml = `<div class="calendar-time-col">`;
-    for (let hour = 0; hour < 24; hour++) { timeColHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;}
-    timeColHtml += `</div>`;
-    
-    let eventsGridHtml = `<div class="calendar-events-grid" style="grid-template-columns: repeat(3, 1fr);">${'<div class="calendar-day-col"></div>'.repeat(3)}`;
+
     if (todayIndex !== -1) {
         const now = new Date();
         const nowPosition = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
-        const leftPercentage = (todayIndex / 3) * 100;
-        eventsGridHtml += `<div class="now-line" style="top: ${nowPosition}px; left: calc(${leftPercentage}% + 1px); width: calc(${(1/3) * 100}% - 2px);"></div>`;
+        document.getElementById(`day-col-${todayIndex}`).innerHTML += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
     }
+
     const viewEndDate = new Date(startDate);
     viewEndDate.setDate(startDate.getDate() + 3);
     timedEvents.filter(e => e.fechaInicio >= startDate && e.fechaInicio < viewEndDate).forEach(event => {
         const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000 * 3600 * 24));
         if (diffDays >= 0 && diffDays < 3) {
+            const dayColumn = document.getElementById(`day-col-${diffDays}`);
+            const eventBlock = document.createElement('div');
+            eventBlock.className = 'event-block'; eventBlock.dataset.eventId = event.id; eventBlock.dataset.action = 'edit-calendar-event';
             const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
             const durationMinutes = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
-            const top = (startMinutes / 60) * HOUR_HEIGHT;
-            const height = (durationMinutes / 60) * HOUR_HEIGHT;
-            const leftPercentage = (diffDays / 3) * 100;
-            // ¡CORRECCIÓN CLAVE! Los eventos se añaden a `eventsGridHtml`
-            eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${leftPercentage}% + 2px); width: calc(${(1/3)*100}% - 4px); background-color:${event.color || '#36A2EB'};"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+            eventBlock.style.top = `${(startMinutes / 60) * HOUR_HEIGHT}px`;
+            eventBlock.style.height = `${Math.max(20, (durationMinutes / 60) * HOUR_HEIGHT)}px`;
+            eventBlock.style.backgroundColor = event.color || '#36A2EB';
+            eventBlock.innerHTML = `<div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>`;
+            dayColumn.appendChild(eventBlock); // ¡Inserción como hijo!
         }
     });
-    eventsGridHtml += `</div>`;
 
-    // Unimos las partes en el orden correcto
-    scrollAreaHtml += timeColHtml + eventsGridHtml + `</div>`;
-    finalHtml += scrollAreaHtml + `</div>`;
-    // --- FIN DE LA CORRECCIÓN ESTRUCTURAL ---
-
-    contentEl.innerHTML = finalHtml;
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 }
