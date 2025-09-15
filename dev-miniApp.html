@@ -4089,7 +4089,7 @@ function renderDayView(events, currentDate) {
 function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
-    const MAX_ALL_DAY_PILLS = 1; // En semana, mostramos menos para que quepa
+    const MAX_ALL_DAY_PILLS = 1;
 
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
@@ -4147,6 +4147,7 @@ function renderWeekView(events, startOfWeek) {
             const top = (startMinutes / 60) * HOUR_HEIGHT;
             const height = (durationMinutes / 60) * HOUR_HEIGHT;
             const leftPercentage = (diffDays / 7) * 100;
+            // ¡CORRECCIÓN CLAVE! Los eventos se añaden a `eventsGridHtml`
             eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${leftPercentage}% + 2px); width: calc(${(1/7)*100}% - 4px); background-color:${event.color || '#36A2EB'};"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div></div>`;
         }
     });
