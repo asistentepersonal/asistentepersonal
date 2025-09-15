@@ -342,6 +342,22 @@
     background-color: var(--card-bg);
 }
 .calendar-header-grid .calendar-day-header.today span {
+/* Estilo para la sección de eventos de "todo el día" */
+.calendar-day-header.all-day-section {
+    display: flex; /* Alinea las píldoras horizontalmente */
+    flex-direction: column; /* Apila las píldoras verticalmente */
+    gap: 2px; /* Espacio entre píldoras */
+    overflow: hidden; /* ¡CLAVE! Oculta lo que no quepa */
+    padding: 2px;
+}
+/* Estilo para el indicador "+X más" */
+.more-events-pill {
+    font-size: 0.7rem;
+    font-weight: bold;
+    color: var(--muted);
+    padding: 2px 4px;
+    cursor: pointer;
+}
     color: var(--primary);
     font-weight: bold;
 }
@@ -3949,58 +3965,54 @@ function getNextPeriodDate(view, date) {
 // Función principal que carga los datos de Firestore y decide qué vista renderizar
 function loadAndDisplayCalendarEvents(view, date) {
     showSpinner("Cargando calendario...");
-    if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents(); // Limpiamos listener anterior
+    if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents();
 
-    // Lógica para resaltar la vista activa en el menú desplegable
     const menuItems = document.querySelectorAll('#calendar-view-menu .dropdown-item');
-    menuItems.forEach(item => item.classList.remove('active')); // Quitamos la clase a todos
+    menuItems.forEach(item => item.classList.remove('active'));
     const activeItem = document.querySelector(`#calendar-view-menu .dropdown-item[data-view="${view}"]`);
-    if (activeItem) activeItem.classList.add('active'); // La añadimos al actual
+    if (activeItem) activeItem.classList.add('active');
 
-    let start = new Date(date), end = new Date(date);
+    let start = new Date(date); // Siempre creamos una nueva instancia para evitar mutaciones
+    let end = new Date(date);
     const periodEl = document.getElementById('calendar-current-period');
+    
     start.setHours(0,0,0,0);
 
-    // Definimos el rango de fechas y el título para cada vista
     if (view === 'day') {
         const today = new Date();
-        start = today; end = today; // La vista "Hoy" siempre muestra el día actual
-        currentCalendarDate = today; // Forzamos la fecha a hoy
+        start = new Date(today.setHours(0,0,0,0));
+        // CORRECCIÓN CLAVE: Creamos un nuevo objeto para 'end' para no modificar 'start'
+        end = new Date(start); 
         end.setHours(23,59,59,999);
-        if (periodEl) periodEl.textContent = today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+        currentCalendarDate = new Date(start);
+        if (periodEl) periodEl.textContent = start.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     } else if (view === 'three_day') {
         end.setDate(end.getDate() + 2);
         end.setHours(23,59,59,999);
         if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
     } else if (view === 'week') {
         const dayOfWeek = date.getDay();
-        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Lunes como primer día
-        start = new Date(date.getFullYear(), date.getMonth(), diff);
+        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        start = new Date(date.getFullYear(), date.getMonth(), diff, 0, 0, 0, 0);
         end = new Date(start);
         end.setDate(start.getDate() + 6);
         end.setHours(23,59,59,999);
         if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
     } else { // 'month'
-        start = new Date(date.getFullYear(), date.getMonth(), 1);
+        start = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
         end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
         if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     }
 
-    // Consulta a Firestore para obtener los eventos en el rango de fechas
-    const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION)
-                .where('fechaInicio', '<=', end) // Obtenemos eventos que empiezan antes de que termine el período
-                .orderBy('fechaInicio', 'asc');
+    const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).where('fechaInicio', '<=', end).orderBy('fechaInicio', 'asc');
     
     unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
-        if (!document.getElementById('calendar-content')) return; // Si el usuario salió, no hacemos nada
-        
+        if (!document.getElementById('calendar-content')) return;
         const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
-        // Filtramos para quedarnos solo con los que son visibles en el período actual
         const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
         
-        // Llamamos a la función de renderizado correspondiente a la vista actual
         if (view === 'day') renderDayView(eventsInRange, currentCalendarDate);
-        else if (view === 'three_day') renderThreeDayView(eventsInRange, date); // Dejamos preparada la llamada
+        else if (view === 'three_day') renderThreeDayView(eventsInRange, date);
         else if (view === 'week') renderWeekView(eventsInRange, start);
         else if (view === 'month') renderMonthView(eventsInRange, date);
         
@@ -4016,57 +4028,43 @@ function renderDayView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
     const isToday = currentDate.toDateString() === new Date().toDateString();
+    const MAX_ALL_DAY_PILLS = 2; // Máximo de píldoras a mostrar antes del "+X más"
 
-    // 1. Separamos los eventos: los que duran todo el día y los que tienen hora.
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
 
-    let finalHtml = `<div class="calendar-view-container">`;
+    let finalHtml = `<div class="calendar-view-container">
+        <div class="calendar-header-grid" style="grid-template-columns: 50px 1fr;">
+            <div></div>
+            <div class="calendar-day-header all-day-section">`;
 
-    // 2. Cabecera Fija: ahora tiene una sección para las píldoras de "todo el día"
-    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px 1fr;">
-                        <div></div> <!-- Espacio para las horas -->
-                        <div class="calendar-day-header all-day-section" style="min-height: 28px;">`;
-    
-    // Dibujamos las píldoras de eventos de todo el día
-    allDayEvents.forEach(event => {
-        headerHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+    // LÓGICA PARA "+X MÁS"
+    allDayEvents.slice(0, MAX_ALL_DAY_PILLS).forEach(event => {
+        finalHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
     });
-    headerHtml += `</div></div>`;
-    finalHtml += headerHtml;
+    if (allDayEvents.length > MAX_ALL_DAY_PILLS) {
+        finalHtml += `<div class="more-events-pill">+${allDayEvents.length - MAX_ALL_DAY_PILLS} más</div>`;
+    }
+    finalHtml += `</div></div>`;
 
-    // 3. Área de Scroll con la línea de tiempo
     let scrollAreaHtml = `<div class="calendar-scroll-area">
                             <div class="calendar-time-col">`;
-    for (let hour = 0; hour < 24; hour++) {
-        scrollAreaHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
-    }
+    for (let hour = 0; hour < 24; hour++) { scrollAreaHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`; }
     scrollAreaHtml += `</div>
                        <div class="calendar-events-grid" style="grid-template-columns: 1fr;">
                            <div class="calendar-day-col">`;
-
-    // 4. ¡NUEVO! Añadimos la línea de la hora actual si estamos viendo "Hoy"
     if (isToday) {
         const now = new Date();
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        const nowPosition = (nowMinutes / 60) * HOUR_HEIGHT;
+        const nowPosition = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
         scrollAreaHtml += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
     }
-
-    // 5. Dibujamos los eventos con hora específica
     timedEvents.forEach(event => {
         const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
         const durationMinutes = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
         const top = (startMinutes / 60) * HOUR_HEIGHT;
         const height = (durationMinutes / 60) * HOUR_HEIGHT;
-
-        scrollAreaHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                                style="top:${top}px; height:${Math.max(20, height)}px; left: 2px; right: 2px; width: auto; background-color:${event.color || '#36A2EB'};">
-                                <div class="event-block-title">${event.titulo}</div>
-                                <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
-                           </div>`;
+        scrollAreaHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${top}px; height:${Math.max(20, height)}px; left: 2px; right: 2px; width: auto; background-color:${event.color || '#36A2EB'};"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div></div>`;
     });
-
     scrollAreaHtml += `</div></div></div>`;
     finalHtml += scrollAreaHtml;
     finalHtml += `</div>`;
@@ -4075,14 +4073,11 @@ function renderDayView(events, currentDate) {
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 
-    // 6. Scroll automático a la hora actual para una mejor experiencia
     if (isToday) {
         setTimeout(() => {
             const scrollArea = contentEl.querySelector('.calendar-scroll-area');
             const nowLine = contentEl.querySelector('.now-line');
-            if (scrollArea && nowLine) {
-                scrollArea.scrollTo({ top: nowLine.offsetTop - 50, behavior: 'smooth' });
-            }
+            if (scrollArea && nowLine) scrollArea.scrollTo({ top: nowLine.offsetTop - 50, behavior: 'smooth' });
         }, 100);
     }
 }
@@ -4171,48 +4166,42 @@ function renderWeekView(events, startOfWeek) {
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
+    const MAX_ALL_DAY_PILLS = 2;
 
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
     
-    let finalHtml = `<div class="calendar-view-container">`;
-
-    // 1. Cabecera Fija: reconstruida con la lógica robusta
-    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px 1fr 1fr 1fr; grid-auto-rows: min-content;">
-                        <div style="grid-row: 1 / 3;"></div>`; // Celda vacía
+    let finalHtml = `<div class="calendar-view-container">
+        <div class="calendar-header-grid" style="grid-template-columns: 50px 1fr 1fr 1fr; grid-auto-rows: min-content;">
+            <div style="grid-row: 1 / 3;"></div>`;
 
     let todayIndex = -1;
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate);
         day.setDate(startDate.getDate() + i);
         if (day.toDateString() === new Date().toDateString()) todayIndex = i;
-        headerHtml += `<div class="calendar-day-header ${todayIndex === i ? 'today' : ''}">
-                        <span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span>
-                       </div>`;
+        finalHtml += `<div class="calendar-day-header ${todayIndex === i ? 'today' : ''}"><span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span></div>`;
     }
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate);
         day.setDate(startDate.getDate() + i);
         const dayStart = new Date(day.setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
-        headerHtml += `<div class="calendar-day-header all-day-section" style="border-top: 1px solid var(--muted); min-height: 28px;">`;
-        allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart).forEach(event => {
-            headerHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+        finalHtml += `<div class="calendar-day-header all-day-section" style="border-top: 1px solid var(--muted);">`;
+        const eventsForDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
+        eventsForDay.slice(0, MAX_ALL_DAY_PILLS).forEach(event => {
+            finalHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
         });
-        headerHtml += `</div>`;
+        if (eventsForDay.length > MAX_ALL_DAY_PILLS) {
+            finalHtml += `<div class="more-events-pill">+${eventsForDay.length - MAX_ALL_DAY_PILLS} más</div>`;
+        }
+        finalHtml += `</div>`;
     }
-    headerHtml += `</div>`;
-    finalHtml += headerHtml;
+    finalHtml += `</div>`;
 
-    // 2. Área de Scroll
-    let scrollAreaHtml = `<div class="calendar-scroll-area">
-                            <div class="calendar-time-col">`;
-    for (let hour = 0; hour < 24; hour++) {
-        scrollAreaHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
-    }
-    scrollAreaHtml += `</div>
-                       <div class="calendar-events-grid" style="grid-template-columns: repeat(3, 1fr);">
-                           ${'<div class="calendar-day-col"></div>'.repeat(3)}`;
+    let scrollAreaHtml = `<div class="calendar-scroll-area"><div class="calendar-time-col">`;
+    for (let hour = 0; hour < 24; hour++) { scrollAreaHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;}
+    scrollAreaHtml += `</div><div class="calendar-events-grid" style="grid-template-columns: repeat(3, 1fr);">${'<div class="calendar-day-col"></div>'.repeat(3)}`;
 
     if (todayIndex !== -1) {
         const now = new Date();
@@ -4231,11 +4220,7 @@ function renderThreeDayView(events, startDate) {
             const top = (startMinutes / 60) * HOUR_HEIGHT;
             const height = (durationMinutes / 60) * HOUR_HEIGHT;
             const leftPercentage = (diffDays / 3) * 100;
-            scrollAreaHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                                style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${leftPercentage}% + 2px); width: calc(${(1/3)*100}% - 4px); background-color:${event.color || '#36A2EB'};">
-                                <div class="event-block-title">${event.titulo}</div>
-                                <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
-                             </div>`;
+            scrollAreaHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${leftPercentage}% + 2px); width: calc(${(1/3)*100}% - 4px); background-color:${event.color || '#36A2EB'};"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div></div>`;
         }
     });
     scrollAreaHtml += `</div></div>`;
