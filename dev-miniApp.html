@@ -311,24 +311,20 @@
 .week-view-col { display: flex; flex-direction: column; }
 .week-view-timeline { flex-grow: 1; position: relative; border-left: 1px solid var(--bg); min-height: 500px; }
 /* --- FIN ESTILOS CALENDARIO PROFESIONAL (V2) --- */
-/* --- INICIO ESTILOS VISTA SEMANAL HORARIA (V3 - ESTILO MES) --- */
-.calendar-week-container {
+/* --- INICIO ESTILOS VISTAS DE CRONOGRAMA (DÍA, SEMANA, 3 DÍAS) --- */
+.calendar-view-container {
     display: flex;
     flex-direction: column;
     width: 100%;
 }
-.calendar-week-header {
-    display: grid;
-    grid-template-columns: 50px 1fr; /* Columna horas y área de días */
+
+/* Cabecera Fija con los nombres de los días */
+.calendar-header-grid {
+    display: grid; /* Se ajustará dinámicamente */
     width: 100%;
-    position: sticky; /* Cabecera de semana pegajosa */
-    top: 135px; /* Altura ajustada para quedar debajo de los controles */
+    position: sticky;
+    top: 135px; /* Se pega debajo de los controles principales */
     z-index: 15;
-    background-color: var(--bg);
-}
-.calendar-week-header .header-days-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
     background-color: var(--muted); /* Fondo para los bordes */
     gap: 1px; /* Espaciado para los bordes */
     border: 1px solid var(--muted);
@@ -336,31 +332,38 @@
     border-radius: 8px 8px 0 0;
     overflow: hidden;
 }
-.calendar-week-header .calendar-day-header {
+
+/* Estilo para cada celda de la cabecera (Lun 15, Mar 16...) */
+.calendar-header-grid .calendar-day-header {
     text-align: center;
     padding: 8px 4px;
     font-size: 0.8rem;
     font-weight: 600;
     background-color: var(--card-bg);
 }
-.calendar-week-header .calendar-day-header.today span {
+.calendar-header-grid .calendar-day-header.today span {
     color: var(--primary);
     font-weight: bold;
 }
-.calendar-week-scroll-area {
-    overflow-y: visible; /* Evita el doble scroll */
+
+/* Área que contiene las horas y la cuadrícula de eventos */
+.calendar-scroll-area {
+    overflow-y: auto; /* Scroll vertical para las horas */
     overflow-x: hidden;
+    max-height: 65vh; /* Altura máxima para evitar que sea demasiado largo */
     position: relative;
     display: grid;
-    grid-template-columns: 50px 1fr;
+    grid-template-columns: 50px 1fr; /* Columna de horas + área de eventos */
 }
-.calendar-week-time-col {
+
+/* Columna de las Horas (00:00, 01:00...) */
+.calendar-time-col {
     background-color: var(--card-bg);
     border-left: 1px solid var(--muted);
     border-bottom: 1px solid var(--muted);
 }
-.calendar-week-time-slot {
-    height: 60px; /* 1 hora */
+.calendar-time-slot {
+    height: 60px; /* 1 hora de altura */
     position: relative;
     border-top: 1px dashed #ddd;
     font-size: 0.8rem;
@@ -368,29 +371,43 @@
     text-align: right;
     padding-right: 5px;
 }
-.calendar-week-time-slot span {
+.calendar-time-slot span {
     position: relative;
-    top: -9px;
+    top: -9px; /* Alinea el texto con la línea */
 }
-.calendar-week-events-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 1px; /* Bordes finos */
+
+/* Cuadrícula donde se posicionan los eventos */
+.calendar-events-grid {
+    display: grid; /* Columnas se definen dinámicamente */
     position: relative;
     width: 100%;
     background-color: var(--muted); /* Fondo para los bordes */
     border-right: 1px solid var(--muted);
     border-bottom: 1px solid var(--muted);
+    gap: 1px;
 }
-.calendar-week-day-col {
+
+/* Columna individual de un día en la cuadrícula */
+.calendar-day-col {
     position: relative;
     background-color: var(--card-bg);
+    /* Líneas horarias sutiles */
     background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
     background-size: 100% 60px;
     cursor: pointer;
-    min-height: 1440px; /* 24 * 60px */
+    min-height: 1440px; /* 24 horas * 60px por hora */
 }
-/* --- INICIO ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
+
+/* Contenedor extra para la vista semanal para permitir scroll horizontal */
+.calendar-week-overflow-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.calendar-week-overflow-wrapper .calendar-view-container {
+    min-width: 650px; /* Ancho mínimo antes de que aparezca el scroll */
+}
+/* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
 
 /* Contenedor principal para la vista mensual */
 .calendar-month-container {
@@ -3441,6 +3458,7 @@ let currentCalendarView = 'day';
 let currentCalendarDate = new Date();
 
 function renderCalendarView() {
+    // Por defecto, al entrar en el calendario, mostramos la vista mensual.
     currentCalendarView = 'month'; 
     currentCalendarDate = new Date();
     
@@ -3456,13 +3474,20 @@ function renderCalendarView() {
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="calendar-header-sticky">
-                <div class="list-header" style="padding-bottom:0;"><h2>🗓️ Mi Calendario</h2></div>
-                <div class="guia-nav" id="calendar-view-tabs" style="justify-content: center; margin-bottom: 15px;">
-                    <button class="guia-nav-btn" data-view="day">Día</button>
-                    <button class="guia-nav-btn" data-view="week">Semana</button>
-                    <button class="guia-nav-btn active" data-view="month">Mes</button>
+                <div class="list-header" style="padding-bottom:0; justify-content: space-between; align-items: center;">
+                    <h2 style="margin:0;">🗓️ Mi Calendario</h2>
+                    <!-- ¡NUEVO! Menú desplegable para las vistas -->
+                    <div style="position: relative;">
+                        <button class="guia-nav-btn active" id="calendar-view-selector" data-view="month" style="padding: 6px 12px;">Mes ▼</button>
+                        <div class="dropdown-menu" id="calendar-view-menu" style="top: 100%; right: 0; min-width: 120px;">
+                            <a class="dropdown-item" data-view="day">Día</a>
+                            <a class="dropdown-item" data-view="three_day">3 días</a>
+                            <a class="dropdown-item" data-view="week">Semana</a>
+                            <a class="dropdown-item" data-view="month">Mes</a>
+                        </div>
+                    </div>
                 </div>
-                <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
+                <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0; padding: 0 10px;">
                     <button id="calendar-prev-btn" class="back-btn" style="font-size:1.5rem; margin-right:0;">◀️</button>
                     <h3 id="calendar-current-period" style="font-size:1.1rem; flex-grow:1; text-align:center; margin:0;">Cargando...</h3>
                     <button id="calendar-next-btn" class="back-btn" style="font-size:1.5rem; margin-left:0;">▶️</button>
@@ -3473,18 +3498,77 @@ function renderCalendarView() {
                 <button class="add-article-btn" id="calendar-quick-add-btn">➕ Añadir Evento</button>
             </div>
         </div>`;
+    
+    // Lógica para el nuevo menú desplegable
+    const viewSelector = document.getElementById('calendar-view-selector');
+    const viewMenu = document.getElementById('calendar-view-menu');
+    viewSelector.onclick = (e) => {
+        e.stopPropagation();
+        viewMenu.classList.toggle('show');
+    };
 
-    document.querySelectorAll('#calendar-view-tabs .guia-nav-btn').forEach(btn => btn.onclick = () => {
-        document.querySelector('#calendar-view-tabs .guia-nav-btn.active').classList.remove('active');
-        btn.classList.add('active');
-        currentCalendarView = btn.dataset.view;
-        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
+    viewMenu.addEventListener('click', (e) => {
+        const target = e.target.closest('.dropdown-item');
+        if (target) {
+            const newView = target.dataset.view;
+            currentCalendarView = newView;
+            viewSelector.textContent = `${target.textContent} ▼`;
+            viewMenu.classList.remove('show');
+            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
+        }
     });
+
     document.getElementById('calendar-prev-btn').onclick = () => { currentCalendarDate = getPreviousPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
     document.getElementById('calendar-next-btn').onclick = () => { currentCalendarDate = getNextPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
     document.getElementById('calendar-quick-add-btn').onclick = () => renderCalendarEventForm(null, renderCalendarView);
     
     loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
+}
+
+function loadAndDisplayCalendarEvents(view, date) {
+    showSpinner("Cargando calendario...");
+    if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents();
+
+    let start = new Date(date), end = new Date(date);
+    const periodEl = document.getElementById('calendar-current-period');
+    
+    start.setHours(0,0,0,0); // Normalizamos la hora de inicio
+
+    if (view === 'day') {
+        end.setHours(23,59,59,999);
+        if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    } else if (view === 'three_day') {
+        end = new Date(start);
+        end.setDate(start.getDate() + 2);
+        end.setHours(23,59,59,999);
+        if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`;
+    } else if (view === 'week') {
+        const dayOfWeek = date.getDay();
+        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Lunes como primer día
+        start = new Date(date.getFullYear(), date.getMonth(), diff);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23,59,59,999);
+        if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    } else { // month
+        start = new Date(date.getFullYear(), date.getMonth(), 1);
+        end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+        if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    }
+
+    const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).where('fechaInicio', '<=', end).orderBy('fechaInicio', 'asc');
+    
+    unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
+        if (!document.getElementById('calendar-content')) return;
+        const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
+        const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
+        
+        if (view === 'day') renderDayView(eventsInRange, date);
+        else if (view === 'three_day') renderThreeDayView(eventsInRange, date); // <-- Llama a la nueva función
+        else if (view === 'week') renderWeekView(eventsInRange, start);
+        else if (view === 'month') renderMonthView(eventsInRange, date);
+        hideSpinner();
+    }, error => { console.error("Error en listener:", error); hideSpinner(); });
 }
 
 function getPreviousPeriodDate(view, date) { const d = new Date(date); if (view === 'day') d.setDate(d.getDate() - 1); else if (view === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1); return d; }
@@ -3654,6 +3738,86 @@ function renderWeekView(events, startOfWeek) {
         }
     }, 100);
 }
+
+// =========================================================================
+// --- INICIO: NUEVA FUNCIÓN PARA LA VISTA DE 3 DÍAS ---
+// =========================================================================
+function renderThreeDayView(events, startDate) {
+    const contentEl = document.getElementById('calendar-content');
+    const HOUR_HEIGHT = 60; // 60px por hora
+
+    let finalHtml = `<div class="calendar-view-container">`;
+
+    // --- 1. Cabecera Fija con los 3 días ---
+    let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 50px 1fr 1fr 1fr;">
+                        <div></div>`; // Espacio para la columna de horas
+    for (let i = 0; i < 3; i++) {
+        const day = new Date(startDate);
+        day.setDate(startDate.getDate() + i);
+        const isToday = day.toDateString() === new Date().toDateString();
+        headerHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}">
+                        <span>${day.toLocaleDateString('es-ES', { weekday: 'short' })} ${day.getDate()}</span>
+                       </div>`;
+    }
+    headerHtml += `</div>`;
+    finalHtml += headerHtml;
+
+    // --- 2. Área de Scroll con horas y eventos ---
+    let scrollAreaHtml = `<div class="calendar-scroll-area" style="max-height: 60vh;">`;
+    
+    // Columna de Horas
+    let timeColHtml = `<div class="calendar-time-col">`;
+    for (let hour = 0; hour < 24; hour++) {
+        timeColHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
+    }
+    timeColHtml += `</div>`;
+    scrollAreaHtml += timeColHtml;
+
+    // Cuadrícula de Eventos para 3 días
+    let eventsGridHtml = `<div class="calendar-events-grid" style="grid-template-columns: repeat(3, 1fr);">`;
+    for (let i = 0; i < 3; i++) {
+        const day = new Date(startDate);
+        day.setDate(startDate.getDate() + i);
+        const dateString = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+        eventsGridHtml += `<div class="calendar-day-col" data-date="${dateString}"></div>`;
+    }
+    
+    // Posicionar los eventos en la cuadrícula
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 3);
+    
+    events.filter(e => e.fechaInicio >= startDate && e.fechaInicio < endDate).forEach(event => {
+        const eventStart = event.fechaInicio;
+        const diffDays = Math.floor((eventStart.getTime() - startDate.getTime()) / (1000 * 3600 * 24));
+        
+        const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
+        const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
+        const top = (startMinutes / 60) * HOUR_HEIGHT;
+        const height = (durationMinutes / 60) * HOUR_HEIGHT;
+        const left = (diffDays / 3) * 100;
+
+        eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
+                             style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${left}% + 2px); width: calc(${(1/3)*100}% - 4px); z-index:12; background-color:${event.color || '#36A2EB'};">
+                            <div class="event-block-title">${event.titulo}</div>
+                            <div class="event-block-time">${eventStart.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
+                         </div>`;
+    });
+    eventsGridHtml += `</div>`;
+    scrollAreaHtml += eventsGridHtml;
+    
+    scrollAreaHtml += `</div>`;
+    finalHtml += scrollAreaHtml;
+    finalHtml += `</div>`;
+
+    contentEl.innerHTML = finalHtml;
+
+    // Lógica de Interacción (reutilizada)
+    contentEl.removeEventListener('click', handleCalendarEventClick);
+    contentEl.addEventListener('click', handleCalendarEventClick);
+}
+// =========================================================================
+// --- FIN: NUEVA FUNCIÓN ---
+// =========================================================================
 
 function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
