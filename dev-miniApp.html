@@ -3468,7 +3468,7 @@ function loadAndDisplayCalendarEvents(view, date) {
     showSpinner("Cargando calendario...");
     if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents();
 
-    // --- INICIO: Lógica para resaltar la vista activa en el menú ---
+    // --- INICIO: Lógica para resaltar la vista activa en el menú (RESTAURADA) ---
     const menuItems = document.querySelectorAll('#calendar-view-menu .dropdown-item');
     menuItems.forEach(item => item.classList.remove('active'));
     const activeItem = document.querySelector(`#calendar-view-menu .dropdown-item[data-view="${view}"]`);
@@ -3485,7 +3485,7 @@ function loadAndDisplayCalendarEvents(view, date) {
     if (view === 'day') {
         end.setHours(23,59,59,999);
         if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-    } else if (view === 'three_day') { // --- NUEVO: Lógica para la vista de 3 días ---
+    } else if (view === 'three_day') {
         end.setDate(end.getDate() + 2);
         end.setHours(23,59,59,999);
         if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
@@ -3511,52 +3511,86 @@ function loadAndDisplayCalendarEvents(view, date) {
         const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
         
         if (view === 'day') renderDayView(eventsInRange, date);
-        else if (view === 'three_day') renderThreeDayView(eventsInRange, date); // --- NUEVO: Llamada a la función de 3 días ---
+        else if (view === 'three_day') renderThreeDayView(eventsInRange, date);
         else if (view === 'week') renderWeekView(eventsInRange, start);
         else if (view === 'month') renderMonthView(eventsInRange, date);
         hideSpinner();
     }, error => { console.error("Error en listener:", error); hideSpinner(); });
 }
 
-// ====================================================================================
-// --- FIN DEL BLOQUE DE REEMPLAZO ---
-// ====================================================================================
-
 // =========================================================================
-// --- INICIO: NUEVO BLOQUE DE FUNCIONES DE RENDERIZADO DE CRONOGRAMA ---
+// --- INICIO: BLOQUE DE FUNCIONES DE VISTAS RESTAURADO Y CORREGIDO ---
 // =========================================================================
 
-// Función genérica para construir la base del cronograma
-function buildScheduleView(dates) {
+function renderDayView(events, currentDate) {
+    const contentEl = document.getElementById('calendar-content');
+    let timelineHtml = '<div class="calendar-timeline">';
+    for(let hour = 0; hour < 24; hour++) {
+        timelineHtml += `<div class="time-slot" id="hour-${hour}" data-time="${hour.toString().padStart(2, '0')}:00"></div>`;
+    }
+    const now = new Date();
+    if (now.toDateString() === currentDate.toDateString()) {
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        timelineHtml += `<div class="now-line" style="top: ${nowMinutes}px;"></div>`;
+    }
+
+    events.forEach(event => {
+        const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
+        const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
+        const duration = Math.max(30, endMinutes - startMinutes);
+        timelineHtml += `
+            <div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${startMinutes}px; height:${duration}px; background-color:${event.color || '#36A2EB'};">
+                <div class="event-block-title">${event.titulo}</div>
+                <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})} - ${event.fechaFin.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
+            </div>`;
+    });
+    timelineHtml += '</div>';
+    contentEl.innerHTML = timelineHtml;
+    
+    // Listener y scroll (original)
+    contentEl.removeEventListener('click', handleCalendarEventClick);
+    contentEl.addEventListener('click', handleCalendarEventClick);
+    setTimeout(() => {
+        const scrollTarget = contentEl.querySelector('.now-line') || document.getElementById(`hour-${Math.max(0, new Date().getHours() - 1)}`);
+        if (scrollTarget) {
+            scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 100);
+}
+
+// Función genérica para construir la base de las vistas multi-día
+function buildMultiDayView(dates, container) {
     const numDays = dates.length;
-    let gridTemplateColumns = 'repeat(' + numDays + ', 1fr)';
+    let gridTemplateColumns = `repeat(${numDays}, 1fr)`;
 
+    // Cabecera con los días
     let headerHtml = `<div class="calendar-header-grid" style="grid-template-columns: 60px ${gridTemplateColumns};">
                         <div></div>`; // Espacio para la columna de horas
-    
     dates.forEach(date => {
         const isToday = date.toDateString() === new Date().toDateString();
         headerHtml += `<div class="calendar-header-cell ${isToday ? 'today' : ''}">
-                        <span>${date.toLocaleDateString('es-ES', { weekday: 'short' })} ${date.getDate()}</span>
+                        <span>${date.toLocaleTimeString('es-ES', {weekday: 'short', day: 'numeric'})}</span>
                        </div>`;
     });
     headerHtml += `</div>`;
 
+    // Columna de horas
     let timeColHtml = `<div class="calendar-time-col">`;
     for (let hour = 0; hour < 24; hour++) {
         timeColHtml += `<div class="calendar-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
     }
     timeColHtml += `</div>`;
 
+    // Cuadrícula para los eventos
     let eventsGridHtml = `<div class="calendar-events-grid" style="grid-template-columns: ${gridTemplateColumns};">`;
     dates.forEach(date => {
         const dateId = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-        eventsGridHtml += `<div class="calendar-day-col" data-dateid="${dateId}"></div>`;
+        // La columna ahora es un contenedor de línea de tiempo vertical
+        eventsGridHtml += `<div class="calendar-day-col" data-dateid="${dateId}" style="min-height: 1440px;"></div>`;
     });
-    
     eventsGridHtml += `</div>`;
 
-    const finalHtml = `
+    container.innerHTML = `
         <div class="calendar-view-container">
             ${headerHtml}
             <div class="calendar-scroll-area">
@@ -3564,60 +3598,47 @@ function buildScheduleView(dates) {
                 ${eventsGridHtml}
             </div>
         </div>`;
-    
-    return finalHtml;
 }
 
-// Función genérica para pintar los eventos en la cuadrícula
-function paintEventsOnSchedule(events, startDate, numDays) {
-    const HOUR_HEIGHT_PX = 60;
-
+// Función genérica para pintar eventos en vistas multi-día
+function paintEventsInMultiDayView(events, startDate) {
     events.forEach(event => {
-        const eventStart = event.fechaInicio;
-        const diffInMs = eventStart.setHours(0,0,0,0) - startDate.setHours(0,0,0,0);
-        const dayIndex = Math.round(diffInMs / (1000 * 60 * 60 * 24));
+        const eventDate = event.fechaInicio;
+        const dateId = `${eventDate.getFullYear()}-${eventDate.getMonth()}-${eventDate.getDate()}`;
+        const column = document.querySelector(`.calendar-day-col[data-dateid="${dateId}"]`);
 
-        if (dayIndex >= 0 && dayIndex < numDays) {
-            const eventsGrid = document.querySelector('.calendar-events-grid');
-            if (!eventsGrid) return;
-            
+        if (column) {
             const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
-            const durationMinutes = Math.max(15, (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000);
-            
+            const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
+            const duration = Math.max(30, endMinutes - startMinutes);
+
             const eventBlock = document.createElement('div');
-            eventBlock.className = 'event-block';
+            eventBlock.className = 'event-block'; // Reutilizamos el estilo del evento
             eventBlock.dataset.action = 'edit-calendar-event';
             eventBlock.dataset.eventId = event.id;
             eventBlock.style.backgroundColor = event.color || 'var(--primary)';
             
-            eventBlock.style.top = `${(startMinutes / 60) * HOUR_HEIGHT_PX}px`;
-            eventBlock.style.height = `${(durationMinutes / 60) * HOUR_HEIGHT_PX}px`;
-            eventBlock.style.left = `calc(${(dayIndex / numDays) * 100}% + 4px)`;
-            eventBlock.style.width = `calc(${(1 / numDays) * 100}% - 8px)`;
+            // Posicionamiento vertical dentro de la columna
+            eventBlock.style.position = 'absolute';
+            eventBlock.style.top = `${startMinutes}px`;
+            eventBlock.style.height = `${duration}px`;
+            eventBlock.style.left = '4px'; // Pequeño margen
+            eventBlock.style.width = 'calc(100% - 8px)'; // Ocupa casi todo el ancho
 
             eventBlock.innerHTML = `
                 <div class="event-block-title">${event.titulo}</div>
                 <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
             `;
-            
-            eventsGrid.appendChild(eventBlock);
+            column.appendChild(eventBlock);
         }
     });
-}
-
-function renderDayView(events, currentDate) {
-    const contentEl = document.getElementById('calendar-content');
-    contentEl.innerHTML = buildScheduleView([currentDate]);
-    paintEventsOnSchedule(events, currentDate, 1);
-    contentEl.removeEventListener('click', handleCalendarEventClick);
-    contentEl.addEventListener('click', handleCalendarEventClick);
 }
 
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const dates = [startDate, new Date(new Date(startDate).setDate(startDate.getDate() + 1)), new Date(new Date(startDate).setDate(startDate.getDate() + 2))];
-    contentEl.innerHTML = buildScheduleView(dates);
-    paintEventsOnSchedule(events, startDate, 3);
+    buildMultiDayView(dates, contentEl);
+    paintEventsInMultiDayView(events, startDate);
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 }
@@ -3629,8 +3650,8 @@ function renderWeekView(events, startOfWeek) {
         d.setDate(startOfWeek.getDate() + i);
         return d;
     });
-    contentEl.innerHTML = buildScheduleView(dates);
-    paintEventsOnSchedule(events, startOfWeek, 7);
+    buildMultiDayView(dates, contentEl);
+    paintEventsInMultiDayView(events, startOfWeek);
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
 }
@@ -3655,62 +3676,53 @@ function renderMonthView(events, currentDate) {
 
     const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    // Ajuste para que la semana empiece en Lunes (getDay() 0=Dom, 1=Lun...)
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; 
 
-    // Añadir celdas vacías para los días del mes anterior
     for (let i = 0; i < startDayOfWeek; i++) {
         gridHtml += `<div class="calendar-day-cell empty" style="background-color: var(--bg);"></div>`; 
     }
     
-    // Generar las celdas para cada día del mes
     for (let dayNum = 1; dayNum <= lastDay.getDate(); dayNum++) {
         const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
         const isToday = day.toDateString() === new Date().toDateString();
         const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         
-        // Filtra los eventos que ocurren en este día
         const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
         
-        // Empieza la celda del día
         gridHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}">
                         <div class="calendar-day-number">${dayNum}</div>
-                        <div class="month-events-container">`; // Contenedor para las pastillas
+                        <div class="month-events-container">`;
 
-        // Genera las "pastillas" para los eventos del día
-        eventsForDay.slice(0, 3).forEach(event => { // Muestra un máximo de 3 eventos
+        eventsForDay.slice(0, 3).forEach(event => {
             gridHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`;
         });
 
-        // Si hay más de 3 eventos, muestra un indicador
         if (eventsForDay.length > 3) {
             gridHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 3} más...</div>`;
         }
         
-        // Cierra los contenedores
         gridHtml += `   </div>
                       </div>`;
     }
     
-    gridHtml += `</div>`; // Cierre de calendar-month-grid
+    gridHtml += `</div>`;
     finalHtml += gridHtml;
-    finalHtml += `</div>`; // Cierre de calendar-month-container
+    finalHtml += `</div>`;
     
     contentEl.innerHTML = finalHtml;
 
-    // Añade el listener para hacer clic en un día y cambiar a la vista de Día
     contentEl.querySelectorAll('.calendar-day-cell:not(.empty)').forEach(dayCard => {
         dayCard.onclick = (e) => {
             currentCalendarDate = new Date(e.currentTarget.dataset.date);
-            currentCalendarView = 'day'; // Cambia la vista a 'day' (Hoy)
+            currentCalendarView = 'day';
             loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
         };
     });
 }
 
 // =========================================================================
-// --- FIN: NUEVO BLOQUE DE FUNCIONES DE RENDERIZADO ---
+// --- FIN: BLOQUE DE FUNCIONES DE VISTAS RESTAURADO Y CORREGIDO ---
 // =========================================================================
 
 function handleCalendarEventClick(e) {
