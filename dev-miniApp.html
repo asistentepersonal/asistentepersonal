@@ -542,7 +542,78 @@
     color: var(--action-text) !important;
     font-weight: bold;
 }
-/* --- FIN ESTILO MENÚ CALENDARIO ACTIVO --- */  
+/* --- FIN ESTILO MENÚ CALENDARIO ACTIVO --- */
+/* --- INICIO ESTILOS VISTA SEMANA (DISEÑO GOOGLE) --- */
+.calendar-week-grid-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.calendar-week-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background-color: var(--muted); /* Fondo para los bordes */
+    gap: 1px; /* Espaciado para los bordes */
+    position: sticky;
+    top: 135px; /* Se pega debajo de los controles principales */
+    z-index: 10;
+}
+
+.calendar-week-header .day-label {
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background-color: var(--card-bg);
+}
+
+.calendar-week-header .day-label.today {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+.calendar-week-body {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background-color: var(--muted);
+    gap: 1px;
+    /* La altura se ajustará al contenido */
+}
+
+.calendar-week-day-col {
+    background-color: var(--card-bg);
+    padding: 4px;
+    min-height: 400px; /* Altura mínima para que se vea bien incluso vacío */
+    display: flex;
+    flex-direction: column;
+    gap: 4px; /* Espacio entre eventos */
+}
+
+.week-event-pill {
+    background-color: var(--primary);
+    color: var(--action-text);
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.week-event-time {
+    font-weight: bold;
+}
+
+.week-event-title {
+    margin-left: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* --- FIN ESTILOS VISTA SEMANA --- */  
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -3678,108 +3749,69 @@ function renderDayView(events, currentDate) {
 
 function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
-    const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-    const HOUR_HEIGHT = 60;
+    
+    // 1. Construir la estructura principal
+    let finalHtml = `<div class="calendar-week-grid-container">`;
+    let headerHtml = `<div class="calendar-week-header">`;
+    let bodyHtml = `<div class="calendar-week-body">`;
 
-    let finalHtml = `<div class="calendar-week-container">`;
+    const weekdaysShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-    // --- Cabecera Fija ---
-    let headerHtml = `<div class="calendar-week-header">
-                        <div></div> 
-                        <div class="header-days-grid">`;
+    // 2. Preparar la cabecera y las columnas del cuerpo
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
         const isToday = day.toDateString() === new Date().toDateString();
-        headerHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}">
-                        <span>${weekdays[i]} ${day.getDate()}</span>
+        
+        // Formato para la cabecera: "Lun 15"
+        headerHtml += `<div class="day-label ${isToday ? 'today' : ''}">
+                           ${weekdaysShort[i]} ${day.getDate()}
                        </div>`;
-    }
-    headerHtml += `</div></div>`;
-    finalHtml += headerHtml;
 
-    // --- Área de Scroll ---
-    let scrollAreaHtml = `<div class="calendar-week-scroll-area">`;
-    
-    // 1. Columna de Horas (CORRECCIÓN: El bucle ahora empieza en 0)
-    let timeColHtml = `<div class="calendar-week-time-col">`;
-    for (let hour = 0; hour < 24; hour++) {
-        timeColHtml += `<div class="calendar-week-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
+        // Crear una columna vacía para cada día en el cuerpo. Le añadimos un ID único.
+        const dateId = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+        bodyHtml += `<div class="calendar-week-day-col" id="day-col-${dateId}"></div>`;
     }
-    timeColHtml += `</div>`;
-    scrollAreaHtml += timeColHtml;
 
-    // 2. Cuadrícula de Eventos y Días
-    let eventsGridHtml = `<div class="calendar-week-events-grid">`;
-    for (let i = 0; i < 7; i++) {
-        const day = new Date(startOfWeek);
-        day.setDate(startOfWeek.getDate() + i);
-        const isToday = day.toDateString() === new Date().toDateString();
-        const dateString = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
-        eventsGridHtml += `<div class="calendar-week-day-col ${isToday ? 'today' : ''}" data-date="${dateString}"></div>`;
-    }
-    
-    events.forEach(event => {
-        const eventStart = event.fechaInicio;
-        const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1;
-        if (eventStart >= startOfWeek && eventStart < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) {
-            const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
-            const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
-            const top = (startMinutes / 60) * HOUR_HEIGHT;
-            const height = (durationMinutes / 60) * HOUR_HEIGHT;
-            const left = (dayOfWeek / 7) * 100;
-            eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                                 style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${left}% + 4px); width: calc(${(1/7)*100}% - 8px); z-index:12; background-color:${event.color || '#36A2EB'};">
-                                <div class="event-block-title">${event.titulo}</div>
-                                <div class="event-block-time">${eventStart.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
-                             </div>`;
-        }
-    });
-    eventsGridHtml += `</div>`;
-    scrollAreaHtml += eventsGridHtml;
-    
-    scrollAreaHtml += `</div>`;
-    finalHtml += scrollAreaHtml;
-    
-    finalHtml += `</div>`;
+    headerHtml += `</div>`;
+    bodyHtml += `</div>`;
+    finalHtml += headerHtml + bodyHtml + `</div>`;
+
     contentEl.innerHTML = finalHtml;
 
-    // Lógica de Interacción
-    contentEl.removeEventListener('click', handleCalendarEventClick);
-    contentEl.addEventListener('click', handleCalendarEventClick);
+    // 3. Ordenar los eventos por hora de inicio para un renderizado visual correcto
+    events.sort((a, b) => a.fechaInicio - b.fechaInicio);
 
-    contentEl.querySelectorAll('.calendar-week-day-col').forEach(col => {
-        col.onclick = function(e) {
-            if (e.target.closest('.event-block')) return;
+    // 4. "Pintar" los eventos en sus columnas correspondientes
+    events.forEach(event => {
+        const eventDate = event.fechaInicio;
+        const eventDateId = `${eventDate.getFullYear()}-${eventDate.getMonth()}-${eventDate.getDate()}`;
+        const column = document.getElementById(`day-col-${eventDateId}`);
+
+        // Si la columna para ese día existe en la vista actual
+        if (column) {
+            const eventPill = document.createElement('div');
+            eventPill.className = 'week-event-pill';
+            eventPill.style.backgroundColor = event.color || 'var(--primary)';
+            eventPill.dataset.action = 'edit-calendar-event'; // Para que se pueda hacer clic
+            eventPill.dataset.eventId = event.id;
+
+            const startTime = event.esTodoElDia 
+                ? 'Todo el día' 
+                : event.fechaInicio.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+            eventPill.innerHTML = `
+                <span class="week-event-time">${startTime}</span>
+                <span class="week-event-title">${event.titulo}</span>
+            `;
             
-            // --- CORRECCIÓN FINAL Y DEFINITIVA DEL CÁLCULO DE HORA ---
-            const scrollArea = col.closest('.calendar-week-scroll-area');
-            const scrollAreaRect = scrollArea.getBoundingClientRect();
-            // Este cálculo es robusto y tiene en cuenta el scroll de la página.
-            const y = e.clientY - scrollAreaRect.top + scrollArea.scrollTop;
-            
-            const totalMinutes = (y / (24 * HOUR_HEIGHT)) * 1440;
-            const hour = Math.floor(totalMinutes / 60);
-            const minute = Math.round((totalMinutes % 60) / 15) * 15;
-            
-            const dateParts = col.dataset.date.split('-').map(Number);
-            const selectedDate = new Date(dateParts[0], dateParts[1], dateParts[2], hour, minute);
-            
-            const draftEvent = { fechaInicio: selectedDate, fechaFin: new Date(selectedDate.getTime() + 60 * 60000) };
-            renderCalendarEventForm(draftEvent, renderCalendarView);
-        };
+            column.appendChild(eventPill);
+        }
     });
 
-    // Scroll Automático
-    setTimeout(() => {
-        const scrollArea = contentEl.querySelector('.calendar-week-scroll-area');
-        if (scrollArea) {
-            const now = new Date();
-            const currentMinutes = now.getHours() * 60 + now.getMinutes();
-            const scrollTop = (currentMinutes / 60) * HOUR_HEIGHT - (scrollArea.clientHeight / 4);
-            scrollArea.scrollTo({ top: scrollTop, behavior: 'smooth' });
-        }
-    }, 100);
+    // 5. Reutilizar el manejador de clics que ya existe
+    contentEl.removeEventListener('click', handleCalendarEventClick);
+    contentEl.addEventListener('click', handleCalendarEventClick);
 }
 
 // =========================================================================
