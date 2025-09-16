@@ -303,14 +303,20 @@
 .event-block-title {
     font-weight: bold;
     font-size: 0.9rem;
-    white-space: normal; /* Permite que el texto salte a la siguiente línea */
-    word-wrap: break-word; /* Fuerza el corte de palabras largas si es necesario */
+    white-space: normal;
+    word-wrap: break-word;
     overflow-wrap: break-word;
 }
 
-/* --- NUEVO: Corrección de posicionamiento del Menú --- */
-.list-header .dropdown-menu {
-    z-index: 110; /* Asegura que el menú esté por encima de las cabeceras fijas */
+/* --- CORRECCIÓN DEFINITIVA DE MENÚ Y LÍNEAS --- */
+/* Le da al menú la máxima prioridad para que siempre esté visible */
+#calendar-view-menu {
+    z-index: 100 !important;
+}
+
+/* Asegura que la columna de horas tenga la altura mínima correcta */
+.calendar-time-col {
+    min-height: 1440px; /* 24h * 60px */
 }
 .event-block-time { font-size: 0.8rem; opacity: 0.8; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; } /* Ajuste de gap para bordes */
@@ -3861,15 +3867,8 @@ function renderDayView(events, currentDate) {
 function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
-
-    // --- LÓGICA MODIFICADA PARA SEPARAR EVENTOS ---
-    const allDayEvents = events.filter(e => e.esTodoElDia);
-    const timedEvents = events.filter(e => !e.esTodoElDia);
     
-    let headerDaysHtml = '';
-    let allDaySlotsHtml = ''; // Contenedor para las píldoras de "Todo el día"
-    let eventGridColsHtml = '';
-    const eventsByDay = {}; 
+    let headerDaysHtml = '', allDaySlotsHtml = '', eventGridColsHtml = '';
 
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
@@ -3878,36 +3877,20 @@ function renderWeekView(events, startOfWeek) {
         const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
         
         headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
-        
-        // Generar las píldoras para la sección "Todo el día"
-        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
-        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
-        const allDayEventsForThisDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
-        
-        let pillsHtml = '';
-        allDayEventsForThisDay.forEach(event => {
-            pillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
-        });
-
-        allDaySlotsHtml += `<div class="all-day-slot">${pillsHtml}</div>`;
+        allDaySlotsHtml += `<div id="all-day-slot-week-${i}" class="all-day-slot"></div>`;
         eventGridColsHtml += `<div id="day-col-week-${i}" class="calendar-day-col"></div>`;
-        eventsByDay[i] = [];
     }
 
-    // --- ESTRUCTURA HTML ACTUALIZADA ---
     const structureHtml = `
     <div class="calendar-grid-container">
-        <!-- Cabecera de Días (se hará sticky) -->
         <div class="calendar-header" style="grid-template-columns: 50px repeat(7, 1fr);">
             <div style="background-color: var(--card-bg);"></div>
             ${headerDaysHtml}
         </div>
-        <!-- NUEVA: Cabecera de Eventos "Todo el Día" (se hará sticky) -->
         <div class="calendar-all-day-header" style="grid-template-columns: 50px repeat(7, 1fr);">
              <div class="all-day-label">Todo el día</div>
             ${allDaySlotsHtml}
         </div>
-        <!-- Cuerpo con Scroll -->
         <div class="calendar-scroll-body">
             <div class="calendar-time-col">
                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
@@ -3917,19 +3900,24 @@ function renderWeekView(events, startOfWeek) {
     </div>`;
     contentEl.innerHTML = structureHtml;
 
-    // --- LÓGICA DE PROCESAMIENTO (AHORA SOLO PARA EVENTOS CON HORA) ---
-    const viewEndDate = new Date(startOfWeek); viewEndDate.setDate(startOfWeek.getDate() + 7);
-    timedEvents.filter(e => e.fechaInicio >= startOfWeek && e.fechaInicio < viewEndDate).forEach(event => {
-        const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startOfWeek).setHours(0,0,0,0)) / (1000*3600*24));
-        if (diffDays >= 0 && diffDays < 7) {
-            eventsByDay[diffDays].push(event);
-        }
-    });
-    
+    // --- LÓGICA DE PROCESAMIENTO MEJORADA QUE "REBANA" EVENTOS ---
     for (let i = 0; i < 7; i++) {
-        const dayCol = document.getElementById(`day-col-week-${i}`);
-        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
+        const day = new Date(startOfWeek);
+        day.setDate(startOfWeek.getDate() + i);
+        const dayStart = new Date(day.setHours(0,0,0,0));
+        const dayEnd = new Date(day.setHours(23,59,59,999));
+        
+        // Eventos CON HORA activos en este día
+        const timedEventsForDay = events.filter(e => !e.esTodoElDia && e.fechaFin > dayStart && e.fechaInicio < dayEnd)
+            .map(event => {
+                // "Rebanamos" el evento para que solo ocupe este día
+                const sliceStart = new Date(Math.max(event.fechaInicio, dayStart));
+                const sliceEnd = new Date(Math.min(event.fechaFin, dayEnd));
+                return { ...event, fechaInicio: sliceStart, fechaFin: sliceEnd };
+            });
 
+        const dayCol = document.getElementById(`day-col-week-${i}`);
+        const layoutReadyEvents = calculateEventLayout(timedEventsForDay, HOUR_HEIGHT);
         let dayEventsHtml = '';
         layoutReadyEvents.forEach(event => {
             const width = 100 / event.layout.collisions;
@@ -3941,6 +3929,15 @@ function renderWeekView(events, startOfWeek) {
                               </div>`;
         });
         dayCol.innerHTML = dayEventsHtml;
+        
+        // Eventos TODO EL DÍA activos en este día
+        const allDayEventsForDay = events.filter(e => e.esTodoElDia && e.fechaFin >= dayStart && e.fechaInicio <= dayEnd);
+        const allDaySlot = document.getElementById(`all-day-slot-week-${i}`);
+        let pillsHtml = '';
+        allDayEventsForDay.forEach(event => {
+            pillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+        });
+        allDaySlot.innerHTML = pillsHtml;
     }
 
     contentEl.removeEventListener('click', handleCalendarEventClick);
@@ -3951,12 +3948,7 @@ function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
     
-    // --- LÓGICA MODIFICADA PARA SEPARAR EVENTOS ---
-    const allDayEvents = events.filter(e => e.esTodoElDia);
-    const timedEvents = events.filter(e => !e.esTodoElDia);
-
     let headerDaysHtml = '', allDaySlotsHtml = '', eventGridColsHtml = '';
-    const eventsByDay = {}; 
 
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate); day.setDate(startDate.getDate() + i);
@@ -3964,35 +3956,20 @@ function renderThreeDayView(events, startDate) {
         const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
         
         headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
-        
-        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
-        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
-        const allDayEventsForThisDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
-        
-        let pillsHtml = '';
-        allDayEventsForThisDay.forEach(event => {
-            pillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
-        });
-
-        allDaySlotsHtml += `<div class="all-day-slot">${pillsHtml}</div>`;
+        allDaySlotsHtml += `<div id="all-day-slot-3day-${i}" class="all-day-slot"></div>`;
         eventGridColsHtml += `<div id="day-col-3day-${i}" class="calendar-day-col"></div>`;
-        eventsByDay[i] = [];
     }
     
-    // --- ESTRUCTURA HTML ACTUALIZADA ---
     const structureHtml = `
     <div class="calendar-grid-container">
-        <!-- Cabecera de Días -->
         <div class="calendar-header" style="grid-template-columns: 50px repeat(3, 1fr);">
             <div style="background-color: var(--card-bg);"></div>
             ${headerDaysHtml}
         </div>
-        <!-- NUEVA: Cabecera de Eventos "Todo el Día" -->
         <div class="calendar-all-day-header" style="grid-template-columns: 50px repeat(3, 1fr);">
             <div class="all-day-label">Todo el día</div>
             ${allDaySlotsHtml}
         </div>
-        <!-- Cuerpo con Scroll -->
         <div class="calendar-scroll-body">
             <div class="calendar-time-col">
                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
@@ -4002,19 +3979,22 @@ function renderThreeDayView(events, startDate) {
     </div>`;
     contentEl.innerHTML = structureHtml;
     
-    // --- LÓGICA DE PROCESAMIENTO (AHORA SOLO PARA EVENTOS CON HORA) ---
-    const viewEndDate = new Date(startDate); viewEndDate.setDate(startDate.getDate() + 3);
-    timedEvents.filter(e => e.fechaInicio >= startDate && e.fechaInicio < viewEndDate).forEach(event => {
-        const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000*3600*24));
-        if (diffDays >= 0 && diffDays < 3) {
-            eventsByDay[diffDays].push(event);
-        }
-    });
-    
+    // --- LÓGICA DE PROCESAMIENTO MEJORADA QUE "REBANA" EVENTOS ---
     for (let i = 0; i < 3; i++) {
+        const day = new Date(startDate);
+        day.setDate(startDate.getDate() + i);
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+
+        const timedEventsForDay = events.filter(e => !e.esTodoElDia && e.fechaFin > dayStart && e.fechaInicio < dayEnd)
+            .map(event => {
+                const sliceStart = new Date(Math.max(event.fechaInicio, dayStart));
+                const sliceEnd = new Date(Math.min(event.fechaFin, dayEnd));
+                return { ...event, fechaInicio: sliceStart, fechaFin: sliceEnd };
+            });
+
         const dayCol = document.getElementById(`day-col-3day-${i}`);
-        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
-        
+        const layoutReadyEvents = calculateEventLayout(timedEventsForDay, HOUR_HEIGHT);
         let dayEventsHtml = '';
         layoutReadyEvents.forEach(event => {
             const width = 100 / event.layout.collisions;
@@ -4026,6 +4006,14 @@ function renderThreeDayView(events, startDate) {
                               </div>`;
         });
         dayCol.innerHTML = dayEventsHtml;
+
+        const allDayEventsForDay = events.filter(e => e.esTodoElDia && e.fechaFin >= dayStart && e.fechaInicio <= dayEnd);
+        const allDaySlot = document.getElementById(`all-day-slot-3day-${i}`);
+        let pillsHtml = '';
+        allDayEventsForDay.forEach(event => {
+            pillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+        });
+        allDaySlot.innerHTML = pillsHtml;
     }
 
     contentEl.removeEventListener('click', handleCalendarEventClick);
