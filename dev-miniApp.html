@@ -522,6 +522,45 @@
 .calendar-week-overflow-wrapper .calendar-view-container {
     min-width: 650px; /* Ancho mínimo antes de que aparezca el scroll */
 }
+
+/* --- INICIO ESTILOS CABECERA STICKY Y SECCIÓN TODO EL DÍA --- */
+.calendar-header {
+    position: sticky;
+    top: 0;
+    z-index: 20; /* Prioridad alta para estar por encima del scroll */
+}
+
+.calendar-all-day-header {
+    display: grid;
+    background-color: var(--muted);
+    gap: 1px;
+    position: sticky;
+    top: 35px; /* Altura aproximada de la cabecera de días. AJUSTAR SI ES NECESARIO */
+    z-index: 20;
+    border-bottom: 1px solid var(--muted);
+}
+
+.all-day-label {
+    background-color: var(--card-bg);
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: right;
+    padding: 5px;
+    border-right: 1px solid var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.all-day-slot {
+    background-color: var(--card-bg);
+    min-height: 28px; /* Altura mínima para que la fila sea visible */
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+/* --- FIN ESTILOS CABECERA STICKY Y SECCIÓN TODO EL DÍA --- */
 /* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
   </style>
   <script>
@@ -3760,9 +3799,14 @@ function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
 
+    // --- LÓGICA MODIFICADA PARA SEPARAR EVENTOS ---
+    const allDayEvents = events.filter(e => e.esTodoElDia);
+    const timedEvents = events.filter(e => !e.esTodoElDia);
+    
     let headerDaysHtml = '';
+    let allDaySlotsHtml = ''; // Contenedor para las píldoras de "Todo el día"
     let eventGridColsHtml = '';
-    const eventsByDay = {}; // Objeto para agrupar eventos por día
+    const eventsByDay = {}; 
 
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
@@ -3771,16 +3815,36 @@ function renderWeekView(events, startOfWeek) {
         const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
         
         headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
+        
+        // Generar las píldoras para la sección "Todo el día"
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        const allDayEventsForThisDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
+        
+        let pillsHtml = '';
+        allDayEventsForThisDay.forEach(event => {
+            pillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+        });
+
+        allDaySlotsHtml += `<div class="all-day-slot">${pillsHtml}</div>`;
         eventGridColsHtml += `<div id="day-col-week-${i}" class="calendar-day-col"></div>`;
-        eventsByDay[i] = []; // Inicializar array para cada día
+        eventsByDay[i] = [];
     }
 
+    // --- ESTRUCTURA HTML ACTUALIZADA ---
     const structureHtml = `
     <div class="calendar-grid-container">
+        <!-- Cabecera de Días (se hará sticky) -->
         <div class="calendar-header" style="grid-template-columns: 50px repeat(7, 1fr);">
             <div style="background-color: var(--card-bg);"></div>
             ${headerDaysHtml}
         </div>
+        <!-- NUEVA: Cabecera de Eventos "Todo el Día" (se hará sticky) -->
+        <div class="calendar-all-day-header" style="grid-template-columns: 50px repeat(7, 1fr);">
+             <div class="all-day-label">Todo el día</div>
+            ${allDaySlotsHtml}
+        </div>
+        <!-- Cuerpo con Scroll -->
         <div class="calendar-scroll-body">
             <div class="calendar-time-col">
                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
@@ -3790,17 +3854,15 @@ function renderWeekView(events, startOfWeek) {
     </div>`;
     contentEl.innerHTML = structureHtml;
 
-    // --- NUEVA LÓGICA DE PROCESAMIENTO ---
-    // 1. Agrupar eventos por día
+    // --- LÓGICA DE PROCESAMIENTO (AHORA SOLO PARA EVENTOS CON HORA) ---
     const viewEndDate = new Date(startOfWeek); viewEndDate.setDate(startOfWeek.getDate() + 7);
-    events.filter(e => !e.esTodoElDia && e.fechaInicio >= startOfWeek && e.fechaInicio < viewEndDate).forEach(event => {
+    timedEvents.filter(e => e.fechaInicio >= startOfWeek && e.fechaInicio < viewEndDate).forEach(event => {
         const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startOfWeek).setHours(0,0,0,0)) / (1000*3600*24));
         if (diffDays >= 0 && diffDays < 7) {
             eventsByDay[diffDays].push(event);
         }
     });
     
-    // 2. Calcular y renderizar eventos para cada día
     for (let i = 0; i < 7; i++) {
         const dayCol = document.getElementById(`day-col-week-${i}`);
         const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
@@ -3817,7 +3879,6 @@ function renderWeekView(events, startOfWeek) {
         });
         dayCol.innerHTML = dayEventsHtml;
     }
-    // --- FIN NUEVA LÓGICA ---
 
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
@@ -3827,8 +3888,12 @@ function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
     
-    let headerDaysHtml = '', eventGridColsHtml = '';
-    const eventsByDay = {}; // Objeto para agrupar eventos por día
+    // --- LÓGICA MODIFICADA PARA SEPARAR EVENTOS ---
+    const allDayEvents = events.filter(e => e.esTodoElDia);
+    const timedEvents = events.filter(e => !e.esTodoElDia);
+
+    let headerDaysHtml = '', allDaySlotsHtml = '', eventGridColsHtml = '';
+    const eventsByDay = {}; 
 
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate); day.setDate(startDate.getDate() + i);
@@ -3836,16 +3901,35 @@ function renderThreeDayView(events, startDate) {
         const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
         
         headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
+        
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        const allDayEventsForThisDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
+        
+        let pillsHtml = '';
+        allDayEventsForThisDay.forEach(event => {
+            pillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+        });
+
+        allDaySlotsHtml += `<div class="all-day-slot">${pillsHtml}</div>`;
         eventGridColsHtml += `<div id="day-col-3day-${i}" class="calendar-day-col"></div>`;
-        eventsByDay[i] = []; // Inicializar array para cada día
+        eventsByDay[i] = [];
     }
     
+    // --- ESTRUCTURA HTML ACTUALIZADA ---
     const structureHtml = `
     <div class="calendar-grid-container">
+        <!-- Cabecera de Días -->
         <div class="calendar-header" style="grid-template-columns: 50px repeat(3, 1fr);">
             <div style="background-color: var(--card-bg);"></div>
             ${headerDaysHtml}
         </div>
+        <!-- NUEVA: Cabecera de Eventos "Todo el Día" -->
+        <div class="calendar-all-day-header" style="grid-template-columns: 50px repeat(3, 1fr);">
+            <div class="all-day-label">Todo el día</div>
+            ${allDaySlotsHtml}
+        </div>
+        <!-- Cuerpo con Scroll -->
         <div class="calendar-scroll-body">
             <div class="calendar-time-col">
                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
@@ -3855,17 +3939,15 @@ function renderThreeDayView(events, startDate) {
     </div>`;
     contentEl.innerHTML = structureHtml;
     
-    // --- NUEVA LÓGICA DE PROCESAMIENTO ---
-    // 1. Agrupar eventos por día
+    // --- LÓGICA DE PROCESAMIENTO (AHORA SOLO PARA EVENTOS CON HORA) ---
     const viewEndDate = new Date(startDate); viewEndDate.setDate(startDate.getDate() + 3);
-    events.filter(e => !e.esTodoElDia && e.fechaInicio >= startDate && e.fechaInicio < viewEndDate).forEach(event => {
+    timedEvents.filter(e => e.fechaInicio >= startDate && e.fechaInicio < viewEndDate).forEach(event => {
         const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000*3600*24));
         if (diffDays >= 0 && diffDays < 3) {
             eventsByDay[diffDays].push(event);
         }
     });
     
-    // 2. Calcular y renderizar eventos para cada día
     for (let i = 0; i < 3; i++) {
         const dayCol = document.getElementById(`day-col-3day-${i}`);
         const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
@@ -3882,7 +3964,6 @@ function renderThreeDayView(events, startDate) {
         });
         dayCol.innerHTML = dayEventsHtml;
     }
-    // --- FIN NUEVA LÓGICA ---
 
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
