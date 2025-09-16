@@ -415,22 +415,22 @@
 }
 
 /* --- FIN ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
-/* --- INICIO ESTILOS VISTAS DE CRONOGRAMA Y SEMANA (ARQUITECTURA GOOGLE) --- */
+/* --- INICIO ESTILOS VISTAS DE CRONOGRAMA Y SEMANA (ARQUITECTURA GOOGLE) - v2 CORREGIDO --- */
 .calendar-grid-container {
     display: flex;
     flex-direction: column;
     border: 1px solid var(--muted);
     border-radius: 8px;
     overflow: hidden;
-    height: 70vh; /* Altura fija para controlar el scroll */
+    height: calc(100vh - 220px); /* Altura dinámica para ocupar espacio disponible */
 }
 
 /* Contenedor de la cabecera (Lun 15, Mar 16...) */
 .calendar-header {
-    display: grid; /* El número de columnas se define en línea */
+    display: grid;
     background-color: var(--muted);
     gap: 1px;
-    flex-shrink: 0; /* Evita que la cabecera se encoja */
+    flex-shrink: 0;
     border-bottom: 1px solid var(--muted);
 }
 
@@ -459,9 +459,9 @@
 
 /* Contenedor del cuerpo (horas y eventos) */
 .calendar-scroll-body {
-    flex-grow: 1; /* Ocupa el resto del espacio */
+    flex-grow: 1;
     display: flex;
-    overflow: auto; /* ¡LA CLAVE! Este es el único contenedor con scroll */
+    overflow: auto;
     position: relative;
 }
 
@@ -470,35 +470,34 @@
     width: 50px;
     flex-shrink: 0;
     background-color: var(--card-bg);
-    position: sticky; /* Se queda pegada a la izquierda */
+    position: sticky;
     left: 0;
     z-index: 10;
-    border-right: 1px solid var(--muted);
 }
 
 .calendar-time-slot {
     height: 60px;
     position: relative;
-    border-top: 1px dashed #ddd;
     font-size: 0.8rem;
-    color: var(--muted);
+    color: var(--muted); /* El color original se mantiene, pero se anula para tema oscuro abajo */
     text-align: right;
     padding-right: 5px;
 }
 .calendar-time-slot span {
     position: relative;
     top: -9px;
+    /* Ajuste para Tema Oscuro: Texto de horas legible */
+    color: var(--text);
+    opacity: 0.7;
 }
 
 /* Cuadrícula de eventos (fondo para las líneas) */
 .calendar-events-grid {
     display: grid;
-    /* YA NO NECESITAMOS EL FONDO NI EL ESPACIO PARA EL TRUCO VISUAL */
     gap: 0;
     flex-grow: 1;
     min-width: 650px;
 }
-/* Para la vista de 3 días, anulamos el ancho mínimo */
 .calendar-events-grid.three-day {
     min-width: auto;
 }
@@ -507,12 +506,14 @@
 .calendar-day-col {
     position: relative;
     background-color: var(--card-bg);
-    background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
+    /* Ajuste para Tema Oscuro: Líneas horizontales sutiles */
+    background-image: linear-gradient(to bottom, transparent 59px, rgba(128, 128, 128, 0.2) 1px);
     background-size: 100% 60px;
-    min-height: 1440px; /* 24h * 60px */
-    /* AÑADIMOS UN BORDE REAL A LA IZQUIERDA DE CADA COLUMNA */
-    border-left: 1px solid var(--muted);
+    min-height: 1440px;
+    /* Ajuste para Tema Oscuro: Líneas verticales sutiles */
+    border-left: 1px solid rgba(128, 128, 128, 0.2);
 }
+/* --- FIN ESTILOS VISTA SEMANA --- */
 
 /* Contenedor extra para la vista semanal para permitir scroll horizontal */
 .calendar-week-overflow-wrapper {
