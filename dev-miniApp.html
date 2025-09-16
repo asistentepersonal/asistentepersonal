@@ -3624,6 +3624,75 @@ function loadAndDisplayCalendarEvents(view, date) {
 // ====================================================================================
 // --- FIN DEL BLOQUE DE REEMPLAZO ---
 // ====================================================================================
+// =========================================================================
+// --- INICIO: NUEVA FUNCIÓN DE CÁLCULO DE DISEÑO DE EVENTOS ---
+// =========================================================================
+function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
+    if (!eventsForDay || eventsForDay.length === 0) return [];
+
+    // 1. Ordenar eventos por hora de inicio
+    const sortedEvents = [...eventsForDay].sort((a, b) => a.fechaInicio - b.fechaInicio);
+
+    // 2. Calcular 'top' y 'height' inicial para cada evento
+    sortedEvents.forEach(event => {
+        const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
+        const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
+        const durationMinutes = Math.max(30, (endMinutes - startMinutes)); // Duración mínima visual de 30 min
+        
+        event.layout = {
+            top: (startMinutes / 60) * HOUR_HEIGHT,
+            height: (durationMinutes / 60) * HOUR_HEIGHT,
+            collisions: 1,
+            colIndex: 0
+        };
+    });
+
+    // 3. Detectar colisiones y determinar el ancho y la posición
+    for (let i = 0; i < sortedEvents.length; i++) {
+        const eventA = sortedEvents[i];
+        let collisionGroup = [eventA];
+
+        for (let j = i + 1; j < sortedEvents.length; j++) {
+            const eventB = sortedEvents[j];
+            // Si el evento B empieza antes de que el A termine, hay colisión
+            if (eventB.fechaInicio < eventA.fechaFin) {
+                collisionGroup.push(eventB);
+            }
+        }
+        
+        // Solo si hay más de un evento colisionando, ajustamos el layout
+        if (collisionGroup.length > 1) {
+            // Re-evaluar el grupo para encontrar el número máximo de solapamientos simultáneos
+            const maxCollisions = collisionGroup.reduce((max, currentEvent) => {
+                const simultaneous = collisionGroup.filter(e => e.fechaInicio < currentEvent.fechaFin && e.fechaFin > currentEvent.fechaInicio).length;
+                return Math.max(max, simultaneous);
+            }, 1);
+
+            collisionGroup.forEach(eventInGroup => {
+                // Asignamos el número máximo de colisiones detectado a todos los miembros del grupo
+                eventInGroup.layout.collisions = Math.max(eventInGroup.layout.collisions, maxCollisions);
+            });
+        }
+    }
+
+    // 4. Asignar el índice de columna (posición horizontal)
+    sortedEvents.forEach(event => {
+        const collidingEvents = sortedEvents.filter(e => e !== event && e.fechaInicio < event.fechaFin && e.fechaFin > event.fechaInicio);
+        const colIndicesTaken = collidingEvents.map(e => e.layout.colIndex);
+        
+        let assignedColIndex = 0;
+        while (colIndicesTaken.includes(assignedColIndex)) {
+            assignedColIndex++;
+        }
+        event.layout.colIndex = assignedColIndex;
+    });
+
+
+    return sortedEvents;
+}
+// =========================================================================
+// --- FIN: NUEVA FUNCIÓN DE CÁLCULO ---
+// =========================================================================
 
 function renderDayView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
@@ -3693,7 +3762,8 @@ function renderWeekView(events, startOfWeek) {
 
     let headerDaysHtml = '';
     let eventGridColsHtml = '';
-    
+    const eventsByDay = {}; // Objeto para agrupar eventos por día
+
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
@@ -3702,16 +3772,15 @@ function renderWeekView(events, startOfWeek) {
         
         headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
         eventGridColsHtml += `<div id="day-col-week-${i}" class="calendar-day-col"></div>`;
+        eventsByDay[i] = []; // Inicializar array para cada día
     }
 
     const structureHtml = `
     <div class="calendar-grid-container">
-        <!-- Caja 1: Cabecera Fija -->
         <div class="calendar-header" style="grid-template-columns: 50px repeat(7, 1fr);">
-            <div style="background-color: var(--card-bg);"></div> <!-- Esquina vacía -->
+            <div style="background-color: var(--card-bg);"></div>
             ${headerDaysHtml}
         </div>
-        <!-- Caja 2: Cuerpo con Scroll -->
         <div class="calendar-scroll-body">
             <div class="calendar-time-col">
                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
@@ -3721,17 +3790,34 @@ function renderWeekView(events, startOfWeek) {
     </div>`;
     contentEl.innerHTML = structureHtml;
 
-    // --- Llenar eventos en la estructura ya renderizada ---
+    // --- NUEVA LÓGICA DE PROCESAMIENTO ---
+    // 1. Agrupar eventos por día
     const viewEndDate = new Date(startOfWeek); viewEndDate.setDate(startOfWeek.getDate() + 7);
     events.filter(e => !e.esTodoElDia && e.fechaInicio >= startOfWeek && e.fechaInicio < viewEndDate).forEach(event => {
         const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startOfWeek).setHours(0,0,0,0)) / (1000*3600*24));
         if (diffDays >= 0 && diffDays < 7) {
-            const dayCol = document.getElementById(`day-col-week-${diffDays}`);
-            const startMins = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
-            const durationMins = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
-            dayCol.innerHTML += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${(startMins/60)*HOUR_HEIGHT}px;height:${Math.max(20,(durationMins/60)*HOUR_HEIGHT)}px;background-color:${event.color||'#36A2EB'};"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
+            eventsByDay[diffDays].push(event);
         }
     });
+    
+    // 2. Calcular y renderizar eventos para cada día
+    for (let i = 0; i < 7; i++) {
+        const dayCol = document.getElementById(`day-col-week-${i}`);
+        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
+
+        let dayEventsHtml = '';
+        layoutReadyEvents.forEach(event => {
+            const width = 100 / event.layout.collisions;
+            const left = event.layout.colIndex * width;
+            dayEventsHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
+                                 style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'};">
+                                 <div class="event-block-title">${event.titulo}</div>
+                                 <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                              </div>`;
+        });
+        dayCol.innerHTML = dayEventsHtml;
+    }
+    // --- FIN NUEVA LÓGICA ---
 
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
@@ -3742,6 +3828,7 @@ function renderThreeDayView(events, startDate) {
     const HOUR_HEIGHT = 60;
     
     let headerDaysHtml = '', eventGridColsHtml = '';
+    const eventsByDay = {}; // Objeto para agrupar eventos por día
 
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate); day.setDate(startDate.getDate() + i);
@@ -3750,16 +3837,15 @@ function renderThreeDayView(events, startDate) {
         
         headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
         eventGridColsHtml += `<div id="day-col-3day-${i}" class="calendar-day-col"></div>`;
+        eventsByDay[i] = []; // Inicializar array para cada día
     }
     
     const structureHtml = `
     <div class="calendar-grid-container">
-        <!-- Caja 1: Cabecera Fija -->
         <div class="calendar-header" style="grid-template-columns: 50px repeat(3, 1fr);">
             <div style="background-color: var(--card-bg);"></div>
             ${headerDaysHtml}
         </div>
-        <!-- Caja 2: Cuerpo con Scroll -->
         <div class="calendar-scroll-body">
             <div class="calendar-time-col">
                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
@@ -3769,17 +3855,34 @@ function renderThreeDayView(events, startDate) {
     </div>`;
     contentEl.innerHTML = structureHtml;
     
-    // --- Llenar eventos ---
+    // --- NUEVA LÓGICA DE PROCESAMIENTO ---
+    // 1. Agrupar eventos por día
     const viewEndDate = new Date(startDate); viewEndDate.setDate(startDate.getDate() + 3);
     events.filter(e => !e.esTodoElDia && e.fechaInicio >= startDate && e.fechaInicio < viewEndDate).forEach(event => {
         const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000*3600*24));
         if (diffDays >= 0 && diffDays < 3) {
-            const dayCol = document.getElementById(`day-col-3day-${diffDays}`);
-            const startMins = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
-            const durationMins = (event.fechaFin.getTime() - event.fechaInicio.getTime()) / 60000;
-            dayCol.innerHTML += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${(startMins/60)*HOUR_HEIGHT}px;height:${Math.max(20,(durationMins/60)*HOUR_HEIGHT)}px;background-color:${event.color||'#36A2EB'};"><div class="event-block-title">${event.titulo}</div><div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
+            eventsByDay[diffDays].push(event);
         }
     });
+    
+    // 2. Calcular y renderizar eventos para cada día
+    for (let i = 0; i < 3; i++) {
+        const dayCol = document.getElementById(`day-col-3day-${i}`);
+        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
+        
+        let dayEventsHtml = '';
+        layoutReadyEvents.forEach(event => {
+            const width = 100 / event.layout.collisions;
+            const left = event.layout.colIndex * width;
+            dayEventsHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
+                                 style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'};">
+                                 <div class="event-block-title">${event.titulo}</div>
+                                 <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                              </div>`;
+        });
+        dayCol.innerHTML = dayEventsHtml;
+    }
+    // --- FIN NUEVA LÓGICA ---
 
     contentEl.removeEventListener('click', handleCalendarEventClick);
     contentEl.addEventListener('click', handleCalendarEventClick);
