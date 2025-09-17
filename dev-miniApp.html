@@ -724,6 +724,30 @@
     border-radius: 8px;
     min-height: 40px;
 }
+/* --- INICIO: Estilos para botones de modal modernos --- */
+.modal-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.modal-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+.modal-btn-primary {
+    background-color: #2980b9; /* Azul brillante */
+    color: white;
+}
+.modal-btn-secondary {
+    background-color: #f1f3f4; /* Gris claro sutil */
+    color: #3c4043;
+}
+/* --- FIN: Estilos para botones de modal modernos --- */
 /* --- FIN: ESTILOS PARA MODAL Y CONTROLES PERSONALIZADOS --- */
   </style>
   <script>
@@ -771,6 +795,8 @@
             <div id="notification-presets-list">
                 <!-- Los presets se generarán con JS -->
             <div class="button-group" style="margin-top: 20px;">
+            <button id="notification-modal-cancel" class="modal-btn modal-btn-secondary">Cancelar</button>
+</div>
                 <button id="notification-modal-cancel" class="cancel">Cancelar</button>
             </div>
         </div>
@@ -804,10 +830,10 @@
                 <span>En un correo</span>
             </label>
             
-            <div class="button-group" style="margin-top: 20px;">
-                <button id="custom-notification-back" class="cancel">Cancelar</button>
-                <button id="custom-notification-done" class="enabled">Hecho</button>
-            </div>
+			<div class="button-group" style="margin-top: 20px;">
+				<button id="custom-notification-back" class="modal-btn modal-btn-secondary">Cancelar</button>
+				<button id="custom-notification-done" class="modal-btn modal-btn-primary">Hecho</button>
+			</div>
         </div>
     </div>
 </div>
@@ -2821,7 +2847,8 @@ async function saveEditedGasto(idUnico) {
 // --- MÓDULO: CHEF ASISTENTE (VERSIÓN FINAL) ---
 // ==================================================
 function renderChefPage() {
-    setActiveTab('tab-chef');
+    removeCalendarFAB();
+	setActiveTab('tab-chef');
     navigationHistory.push(renderDashboard);
     updateBackButton();
 
@@ -3273,6 +3300,7 @@ async function addIngredientsToShoppingList(buttonElement) {
 // --- MÓDULO: AJUSTES (CON GUARDADO SEGURO) ---
 // ==================================================
 function renderSettings() {
+    removeCalendarFAB();
     setActiveTab('tab-settings');
     navigationHistory.push(renderDashboard);
     updateBackButton();
@@ -3334,7 +3362,8 @@ function renderSettings() {
             <div class="form-card" style="margin-top: 20px;"><div class="button-group">
                 <button id="settings-cancel-btn" class="cancel">Cancelar</button>
                 <button id="settings-save-btn" disabled>Guardar Cambios</button>
-            </div></div>
+            </div>
+			</div>
             <div class="form-card" style="margin-top: 20px;">
                  <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; background-color: var(--muted);">Sincronizar Contadores</button>
             </div>
@@ -3503,7 +3532,8 @@ async function syncCounts() {
 }
 
 function renderExportPage() {
-    setActiveTab('tab-export');
+    removeCalendarFAB();
+	setActiveTab('tab-export');
     navigationHistory.push(renderDashboard);
     updateBackButton();
     mainContentArea.innerHTML = `
@@ -3721,7 +3751,11 @@ function renderTimelineGrid(canales, programas) {
 // ====================================================================================
 // --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO SIMPLIFICADO + MENÚ + BOTÓN FLOTANTE) ---
 // ====================================================================================
-
+// --- NUEVA FUNCIÓN DE AYUDA ---
+function removeCalendarFAB() {
+    const fab = document.getElementById('calendar-fab');
+    if (fab) fab.remove();
+}
 function renderCalendarView() {
     currentCalendarView = 'month';
     currentCalendarDate = new Date();
@@ -4324,7 +4358,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
 
                 <label style="margin-top:20px;">Notificaciones</label>
                 <div id="notification-chips-container"></div>
-                <button id="add-notification-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin:15px 0;">Añadir Notificación</button>
+                <button id="add-notification-btn" class="modal-btn modal-btn-primary" style="width:100%; max-width:100%; margin:15px 0;">Añadir Notificación</button>
                 
                 <div class="button-group">
                     ${isEditing ? `<button id="delete-event-btn" class="cancel">Eliminar</button>` : `<button id="cancel-event-btn" class="cancel">Cancelar</button>`}
@@ -4345,15 +4379,15 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
         defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
     });
 
-    const fpStart = flatpickr("#event-start-date", {
-        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-        defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
-        onChange: function(selectedDates, dateStr, instance) {
-            // --- INICIO DE LA CORRECCIÓN: Comprobamos la bandera ---
-            if (isFormInitializing) return;
-            // --- FIN DE LA CORRECCIÓN ---
-
-            const startDate = selectedDates[0];
+const fpStart = flatpickr("#event-start-date", {
+    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+    defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
+    
+    // --- LÓGICA CORREGIDA Y ROBUSTA ---
+    onChange: function(selectedDates, dateStr, instance) {
+        // Solo actuar si el cambio lo hizo el usuario (no en la carga inicial)
+        if (!instance.isOpen && instance.input.value !== instance.latestSelectedDateStr) {
+             const startDate = selectedDates[0];
             if (!startDate) return;
 
             const currentEndDate = fpEnd.selectedDates[0];
@@ -4362,8 +4396,8 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
                 fpEnd.setDate(newEndDate, true);
             }
         }
-    });
-
+    }
+});
     const toggleTimePickers = () => {
         const isAllDay = allDayCheckbox.checked;
         timePickersDiv.style.display = isAllDay ? 'none' : 'block';
@@ -4654,6 +4688,7 @@ async function handleDeleteCalendarEvent(eventId) {
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
 function renderDashboard() {
+  removeCalendarFAB();
   setActiveTab('tab-home');
   navigationHistory = [];
   updateBackButton();
