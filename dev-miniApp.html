@@ -4320,10 +4320,6 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     let currentNotifications = (isEditing && event.notificaciones) ? 
         event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
         [];
-    
-    // --- INICIO DE LA CORRECCIÓN: Bandera de inicialización ---
-    let isFormInitializing = true;
-    // --- FIN DE LA CORRECCIÓN ---
 
     const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
         `<div class="custom-dropdown-item" data-value="${preset.value}">
@@ -4358,7 +4354,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
 
                 <label style="margin-top:20px;">Notificaciones</label>
                 <div id="notification-chips-container"></div>
-                <button id="add-notification-btn" class="modal-btn modal-btn-primary" style="width:100%; max-width:100%; margin:15px 0;">Añadir Notificación</button>
+                <button id="add-notification-btn" class="add-article-btn" style="width:100%; max-width:100%; margin:15px 0;" disabled>Añadir Notificación</button>
                 
                 <div class="button-group">
                     ${isEditing ? `<button id="delete-event-btn" class="cancel">Eliminar</button>` : `<button id="cancel-event-btn" class="cancel">Cancelar</button>`}
@@ -4374,30 +4370,40 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     const chipsContainer = document.getElementById('notification-chips-container');
     const addNotificationBtn = document.getElementById('add-notification-btn');
 
+    let initialStartDate; // Variable para almacenar la fecha de inicio original al cargar
+
     const fpEnd = flatpickr("#event-end-date", {
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
     });
 
-const fpStart = flatpickr("#event-start-date", {
-    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-    defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
-    
-    // --- LÓGICA CORREGIDA Y ROBUSTA ---
-    onChange: function(selectedDates, dateStr, instance) {
-        // Solo actuar si el cambio lo hizo el usuario (no en la carga inicial)
-        if (!instance.isOpen && instance.input.value !== instance.latestSelectedDateStr) {
-             const startDate = selectedDates[0];
-            if (!startDate) return;
+    const fpStart = flatpickr("#event-start-date", {
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+        defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
+        onReady: function(selectedDates) {
+            // Se ejecuta solo una vez al cargar. Guardamos la fecha inicial.
+            if (selectedDates.length > 0) {
+                initialStartDate = new Date(selectedDates[0].getTime());
+            }
+        },
+        onChange: function(selectedDates) {
+            const newStartDate = selectedDates[0];
+            // Si no hay fecha o la fecha no ha cambiado desde la carga inicial, no hacemos nada.
+            if (!newStartDate || !initialStartDate || newStartDate.getTime() === initialStartDate.getTime()) {
+                return;
+            }
+            
+            // Actualizamos la fecha de referencia para futuros cambios manuales.
+            initialStartDate = new Date(newStartDate.getTime());
 
             const currentEndDate = fpEnd.selectedDates[0];
-            if (!currentEndDate || startDate >= currentEndDate) {
-                const newEndDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+            if (!currentEndDate || newStartDate >= currentEndDate) {
+                const newEndDate = new Date(newStartDate.getTime() + 60 * 60 * 1000);
                 fpEnd.setDate(newEndDate, true);
             }
         }
-    }
-});
+    });
+
     const toggleTimePickers = () => {
         const isAllDay = allDayCheckbox.checked;
         timePickersDiv.style.display = isAllDay ? 'none' : 'block';
@@ -4461,9 +4467,16 @@ const fpStart = flatpickr("#event-start-date", {
     addNotificationBtn.onclick = () => showNotificationModal(currentNotifications, renderChips);
     renderChips();
 
-    const validate = () => { const isValid = titleInput.value.trim() !== ''; saveBtn.disabled = !isValid; saveBtn.classList.toggle('enabled', isValid); };
+    // --- LÓGICA DE ACTIVACIÓN INTELIGENTE ---
+    const validate = () => { 
+        const isValid = titleInput.value.trim() !== '';
+        saveBtn.disabled = !isValid;
+        addNotificationBtn.disabled = !isValid;
+        saveBtn.classList.toggle('enabled', isValid);
+        addNotificationBtn.classList.toggle('enabled', isValid);
+    };
     titleInput.oninput = validate;
-    validate();
+    validate(); // Llamada inicial para establecer el estado correcto al cargar
     
     saveBtn.onclick = () => {
         const finalEventData = isEditing ? { ...event } : {};
@@ -4476,14 +4489,6 @@ const fpStart = flatpickr("#event-start-date", {
     } else {
         document.getElementById('cancel-event-btn').onclick = goBack;
     }
-
-    // --- INICIO DE LA CORRECCIÓN: Desactivamos la bandera ---
-    // Usamos un setTimeout para asegurar que ambos selectores de fecha se hayan inicializado
-    // completamente antes de permitir que la lógica onChange funcione.
-    setTimeout(() => {
-        isFormInitializing = false;
-    }, 100);
-    // --- FIN DE LA CORRECCIÓN ---
 }
 function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     const modal = document.getElementById('notification-modal');
