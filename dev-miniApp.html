@@ -786,7 +786,7 @@
         <button id="preview-send-btn">Enviar</button>
     </div>
   </div>
-  <!-- INICIO MODAL DE NOTIFICACIONES -->
+<!-- INICIO MODAL DE NOTIFICACIONES -->
 <div class="modal-overlay" id="notification-modal" style="display: none;">
     <div class="modal-content">
         <!-- Vista de Presets (inicial) -->
@@ -794,9 +794,8 @@
             <h3 class="modal-title">Añadir notificación</h3>
             <div id="notification-presets-list">
                 <!-- Los presets se generarán con JS -->
+            </div>
             <div class="button-group" style="margin-top: 20px;">
-            <button id="notification-modal-cancel" class="modal-btn modal-btn-secondary">Cancelar</button>
-</div>
                 <button id="notification-modal-cancel" class="cancel">Cancelar</button>
             </div>
         </div>
@@ -821,7 +820,7 @@
             
             <hr style="margin: 15px 0; border-top: 1px solid var(--muted);">
 
-                        <label class="preset-list-item">
+            <label class="preset-list-item">
                 <input type="radio" name="custom_method" value="telegram" checked>
                 <span>En una notificación</span>
             </label>
@@ -830,10 +829,10 @@
                 <span>En un correo</span>
             </label>
             
-			<div class="button-group" style="margin-top: 20px;">
-				<button id="custom-notification-back" class="modal-btn modal-btn-secondary">Cancelar</button>
-				<button id="custom-notification-done" class="modal-btn modal-btn-primary">Hecho</button>
-			</div>
+            <div class="button-group" style="margin-top: 20px;">
+                <button id="custom-notification-back" class="cancel">Cancelar</button>
+                <button id="custom-notification-done" class="enabled">Hecho</button>
+            </div>
         </div>
     </div>
 </div>
