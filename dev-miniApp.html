@@ -796,11 +796,15 @@
             
             <hr style="margin: 15px 0; border-top: 1px solid var(--muted);">
 
-            <label class="preset-list-item">
-                <input type="radio" name="custom_method" value="telegram" checked>
-                <span>En una notificación</span>
-            </label>
-            
+            <pre><code class="language-html">
+			<label class="preset-list-item">
+			<input type="radio" name="custom_method" value="telegram" checked>
+			<span>En una notificación</span>
+			</label>
+			<label class="preset-list-item">
+			<input type="radio" name="custom_method" value="email">
+			<span>En un correo</span>
+		</label>          
             <div class="button-group" style="margin-top: 20px;">
                 <button id="custom-notification-back" class="cancel">Atrás</button>
                 <button id="custom-notification-done" class="enabled">Hecho</button>
@@ -4427,89 +4431,95 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
         document.getElementById('cancel-event-btn').onclick = goBack;
     }
 }
+<br>
+<pre><code class="language-javascript">
 function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
-    const modal = document.getElementById('notification-modal');
-    const presetsView = document.getElementById('notification-presets-view');
-    const customView = document.getElementById('notification-custom-view');
-    const presetsList = document.getElementById('notification-presets-list');
-    
-    const notificationPresets = [
-        { label: '5 minutos antes', value: 5, method: 'telegram' },
-        { label: '10 minutos antes', value: 10, method: 'telegram' },
-        { label: '1 hora antes', value: 60, method: 'telegram' },
-        { label: '2 horas antes', value: 120, method: 'telegram' },
-        { label: '1 día antes', value: 1440, method: 'telegram' },
-        { label: 'Personalizar...', value: 'custom' }
-    ];
+const modal = document.getElementById('notification-modal');
+const presetsView = document.getElementById('notification-presets-view');
+const customView = document.getElementById('notification-custom-view');
+const presetsList = document.getElementById('notification-presets-list');
 
-    presetsList.innerHTML = notificationPresets.map(p => `
-        <div class="preset-list-item" data-value='${JSON.stringify(p)}'>
-             <span style="font-size:1.5rem; width: 35px; text-align:center;">🔔</span>
-             <span>${p.label}</span>
-        </div>
-    `).join('');
+// --- MODIFICADO: Se añaden las opciones de correo ---
+const notificationPresets = [
+{ label: '5 minutos antes', value: 5, method: 'telegram' },
+{ label: '10 minutos antes', value: 10, method: 'telegram' },
+{ label: '1 hora antes', value: 60, method: 'telegram' },
+{ label: '2 horas antes - correo', value: 120, method: 'email' },
+{ label: '2 horas antes', value: 120, method: 'telegram' },
+{ label: '1 día antes - correo', value: 1440, method: 'email' },
+{ label: 'Personalizar...', value: 'custom' }
+];
 
-    const hideModal = () => {
-        modal.classList.remove('show');
-        setTimeout(() => { modal.style.display = 'none'; }, 300);
-    };
+presetsList.innerHTML = notificationPresets.map(p => {
+const icon = p.method === 'email' ? '✉️' : '🔔';
+return `
+<div class="preset-list-item" data-value='${JSON.stringify(p)}'>
+<span style="font-size:1.5rem; width: 35px; text-align:center;">${icon}</span>
+<span>${p.label}</span>
+</div>`;
+}).join('');
 
-    const addNotification = (notifData) => {
-        if (currentNotificationsRef.length >= 5) {
-            showToast("Puedes añadir un máximo de 5 notificaciones.", true);
-            return;
-        }
-        currentNotificationsRef.push({ 
-            metodo: notifData.method, 
-            minutosAntes: notifData.value, 
-            status: 'pending_creation' 
-        });
-        renderChipsCallback();
-        hideModal();
-    };
+const hideModal = () => {
+modal.classList.remove('show');
+setTimeout(() => { modal.style.display = 'none'; }, 300);
+};
 
-    presetsList.querySelectorAll('.preset-list-item').forEach(item => {
-        item.onclick = () => {
-            const data = JSON.parse(item.dataset.value);
-            if (data.value === 'custom') {
-                presetsView.style.display = 'none';
-                customView.style.display = 'block';
-            } else {
-                addNotification(data);
-            }
-        };
-    });
+const addNotification = (notifData) => {
+if (currentNotificationsRef.length >= 5) {
+showToast("Puedes añadir un máximo de 5 notificaciones.", true);
+return;
+}
+currentNotificationsRef.push({
+metodo: notifData.method,
+minutosAntes: notifData.value,
+status: 'pending_creation'
+});
+renderChipsCallback();
+hideModal();
+};
 
-    document.getElementById('notification-modal-cancel').onclick = hideModal;
-    document.getElementById('custom-notification-back').onclick = () => {
-        customView.style.display = 'none';
-        presetsView.style.display = 'block';
-    };
-    document.getElementById('custom-notification-done').onclick = () => {
-        const value = parseInt(document.getElementById('custom-notification-value').value, 10);
-        const unit = document.querySelector('input[name="custom_unit"]:checked').value;
-        const method = document.querySelector('input[name="custom_method"]:checked').value;
-        if (isNaN(value) || value < 1) {
-            showToast("Introduce un número válido.", true);
-            return;
-        }
-        let mins = value;
-        if (unit === 'hours') mins = value * 60;
-        else if (unit === 'days') mins = value * 1440;
-        
-        addNotification({ value: mins, method: method });
-        
-        // Reset custom view for next time
-        setTimeout(() => {
-            customView.style.display = 'none';
-            presetsView.style.display = 'block';
-        }, 300);
-    };
+presetsList.querySelectorAll('.preset-list-item').forEach(item => {
+item.onclick = () => {
+const data = JSON.parse(item.dataset.value);
+if (data.value === 'custom') {
+presetsView.style.display = 'none';
+customView.style.display = 'block';
+} else {
+addNotification(data);
+}
+};
+});
 
-    modal.onclick = (e) => { if (e.target === modal) hideModal(); };
-    
-    modal.style.display = 'flex';
-    setTimeout(() => { modal.classList.add('show'); }, 10);
+document.getElementById('notification-modal-cancel').onclick = hideModal;
+document.getElementById('custom-notification-back').onclick = () => {
+customView.style.display = 'none';
+presetsView.style.display = 'block';
+};
+document.getElementById('custom-notification-done').onclick = () => {
+const value = parseInt(document.getElementById('custom-notification-value').value, 10);
+const unit = document.querySelector('input[name="custom_unit"]:checked').value;
+const method = document.querySelector('input[name="custom_method"]:checked').value;
+if (isNaN(value) || value < 1) {
+showToast("Introduce un número válido.", true);
+return;
+}
+let mins = value;
+if (unit === 'hours') mins = value * 60;
+else if (unit === 'days') mins = value * 1440;
+
+addNotification({ value: mins, method: method });
+
+// Reset custom view for next time
+setTimeout(() => {
+customView.style.display = 'none';
+presetsView.style.display = 'block';
+}, 300);
+};
+
+modal.onclick = (e) => { if (e.target === modal) hideModal(); };
+
+modal.style.display = 'flex';
+setTimeout(() => { modal.classList.add('show'); }, 10);
 }
 
 async function handleDeleteCalendarEvent(eventId) {
