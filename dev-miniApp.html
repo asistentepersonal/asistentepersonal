@@ -770,7 +770,6 @@
             <h3 class="modal-title">Añadir notificación</h3>
             <div id="notification-presets-list">
                 <!-- Los presets se generarán con JS -->
-            </div>
             <div class="button-group" style="margin-top: 20px;">
                 <button id="notification-modal-cancel" class="cancel">Cancelar</button>
             </div>
@@ -4284,10 +4283,13 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     navigationHistory.push(onBackCallback);
     updateBackButton();
     const isEditing = event && event.id;
-    // Corregimos la inicialización de notificaciones para manejar correctamente el formato de Firestore
     let currentNotifications = (isEditing && event.notificaciones) ? 
         event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
         [];
+    
+    // --- INICIO DE LA CORRECCIÓN: Bandera de inicialización ---
+    let isFormInitializing = true;
+    // --- FIN DE LA CORRECCIÓN ---
 
     const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
         `<div class="custom-dropdown-item" data-value="${preset.value}">
@@ -4338,27 +4340,24 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     const chipsContainer = document.getElementById('notification-chips-container');
     const addNotificationBtn = document.getElementById('add-notification-btn');
 
-    // --- LÓGICA DE FECHAS MEJORADA ---
     const fpEnd = flatpickr("#event-end-date", {
-        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es", // Usamos 'Z' para formato ISO 8601
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
     });
 
     const fpStart = flatpickr("#event-start-date", {
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
-        // ¡Aquí está la lógica que pediste!
         onChange: function(selectedDates, dateStr, instance) {
+            // --- INICIO DE LA CORRECCIÓN: Comprobamos la bandera ---
+            if (isFormInitializing) return;
+            // --- FIN DE LA CORRECCIÓN ---
+
             const startDate = selectedDates[0];
             if (!startDate) return;
 
-            // Solo actuamos si el cambio fue hecho por el usuario y no programáticamente
-            if (instance.isMobile) return; // Flatpickr en móvil a veces se comporta raro, lo evitamos.
-
             const currentEndDate = fpEnd.selectedDates[0];
-            // Si no hay fecha de fin o la fecha de inicio supera a la de fin
             if (!currentEndDate || startDate >= currentEndDate) {
-                // Se establece la fecha de fin una hora después de la de inicio
                 const newEndDate = new Date(startDate.getTime() + 60 * 60 * 1000);
                 fpEnd.setDate(newEndDate, true);
             }
@@ -4432,12 +4431,10 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     titleInput.oninput = validate;
     validate();
     
-    // --- CONEXIÓN FINAL ---
-    // El botón de guardar ahora prepara los datos y llama a la nueva función
     saveBtn.onclick = () => {
         const finalEventData = isEditing ? { ...event } : {};
-        finalEventData.notificaciones = currentNotifications; // Pasa las notificaciones del sistema de chips
-        saveCalendarEvent(finalEventData); // Llama a la función de guardado
+        finalEventData.notificaciones = currentNotifications;
+        saveCalendarEvent(finalEventData);
     };
 
     if (isEditing) {
@@ -4445,6 +4442,14 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     } else {
         document.getElementById('cancel-event-btn').onclick = goBack;
     }
+
+    // --- INICIO DE LA CORRECCIÓN: Desactivamos la bandera ---
+    // Usamos un setTimeout para asegurar que ambos selectores de fecha se hayan inicializado
+    // completamente antes de permitir que la lógica onChange funcione.
+    setTimeout(() => {
+        isFormInitializing = false;
+    }, 100);
+    // --- FIN DE LA CORRECCIÓN ---
 }
 function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     const modal = document.getElementById('notification-modal');
