@@ -3581,11 +3581,11 @@ function renderCalendarView() {
     currentCalendarDate = new Date();
     
     navigationHistory.push(() => {
-        // Al salir, nos aseguramos de que el listener y el botón se eliminen
         if (typeof unsubscribeCalendarEvents === 'function') {
             unsubscribeCalendarEvents();
             unsubscribeCalendarEvents = null;
         }
+        // Asegurarse de que el botón + se elimina al salir de la vista de calendario
         const fab = document.getElementById('calendar-fab');
         if (fab) fab.remove();
         renderDashboard();
@@ -3596,7 +3596,7 @@ function renderCalendarView() {
         <div class="list-container">
             <div class="calendar-header-sticky">
                  <div class="list-header" style="padding-bottom:0; justify-content: space-between; align-items: center;">
-                    <div style="position: relative;">
+                    <div style="position: relative; z-index: 100;">
                         <button class="generic-menu-btn" id="calendar-view-menu-btn" style="font-size: 1.8rem; padding: 5px;">☰</button>
                         <div class="dropdown-menu" id="calendar-view-menu" style="top: 100%; left: 0; min-width: 120px;">
                             <a class="dropdown-item" data-view="day">Hoy</a>
