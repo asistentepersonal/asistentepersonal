@@ -806,7 +806,7 @@
             </label>
             
             <div class="button-group" style="margin-top: 20px;">
-                <button id="custom-notification-back" class="cancel">Atrás</button>
+                <button id="custom-notification-back" class="cancel">Cancelar</button>
                 <button id="custom-notification-done" class="enabled">Hecho</button>
             </div>
         </div>
@@ -4452,7 +4452,6 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     const customView = document.getElementById('notification-custom-view');
     const presetsList = document.getElementById('notification-presets-list');
     
-    // --- MODIFICADO: Se añaden las opciones de correo y se ajusta la lista ---
     const notificationPresets = [
         { label: '5 minutos antes', value: 5, method: 'telegram' },
         { label: '10 minutos antes', value: 10, method: 'telegram' },
@@ -4464,7 +4463,6 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     ];
 
     presetsList.innerHTML = notificationPresets.map(p => {
-        // Se añade un icono visual para diferenciar correo de notificación
         const icon = p.method === 'email' ? '✉️' : '🔔';
         return `
         <div class="preset-list-item" data-value='${JSON.stringify(p)}'>
@@ -4476,6 +4474,12 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     const hideModal = () => {
         modal.classList.remove('show');
         setTimeout(() => { modal.style.display = 'none'; }, 300);
+
+        // --- INICIO: Restaurar el comportamiento original del botón "Atrás" ---
+        // Al cerrar el modal, devolvemos al botón "Atrás" su función de navegación normal.
+        tg.BackButton.onClick(goBack);
+        updateBackButton(); // Esto lo ocultará si no hay más historial de navegación.
+        // --- FIN: Restaurar el comportamiento ---
     };
 
     const addNotification = (notifData) => {
@@ -4523,7 +4527,6 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
         
         addNotification({ value: mins, method: method });
         
-        // Reset custom view for next time
         setTimeout(() => {
             customView.style.display = 'none';
             presetsView.style.display = 'block';
@@ -4532,6 +4535,15 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
 
     modal.onclick = (e) => { if (e.target === modal) hideModal(); };
     
+    // --- INICIO: Lógica para controlar el botón "Atrás" del móvil ---
+    // Justo antes de mostrar el modal, le decimos al botón "Atrás" que su nueva
+    // función es, simplemente, cerrar el modal.
+    if (tg && tg.BackButton) {
+        tg.BackButton.onClick(hideModal);
+        tg.BackButton.show();
+    }
+    // --- FIN: Lógica para controlar el botón "Atrás" ---
+
     modal.style.display = 'flex';
     setTimeout(() => { modal.classList.add('show'); }, 10);
 }
