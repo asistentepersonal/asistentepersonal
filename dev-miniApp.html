@@ -303,9 +303,20 @@
 .event-block-title {
     font-weight: bold;
     font-size: 0.9rem;
-    white-space: normal; /* Permite que el texto salte a la siguiente línea */
-    word-wrap: break-word; /* Fuerza el corte de palabras largas si es necesario */
+    white-space: normal;
+    word-wrap: break-word;
     overflow-wrap: break-word;
+}
+
+/* --- CORRECCIÓN DEFINITIVA DE MENÚ Y LÍNEAS --- */
+/* Le da al menú la máxima prioridad para que siempre esté visible */
+#calendar-view-menu {
+    z-index: 100 !important;
+}
+
+/* Asegura que la columna de horas tenga la altura mínima correcta */
+.calendar-time-col {
+    min-height: 1440px; /* 24h * 60px */
 }
 
 /* --- NUEVO: Corrección de posicionamiento del Menú --- */
