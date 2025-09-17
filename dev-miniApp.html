@@ -3774,7 +3774,55 @@ function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
 // =========================================================================
 // --- FIN: NUEVA FUNCIÓN DE CÁLCULO ---
 // =========================================================================
+async function handleTimelineClick(event) {
+    const eventBlock = event.target.closest('.event-block, .month-event-pill');
+    const emptySlot = event.target.closest('.calendar-day-col');
 
+    // CASO 1: Se ha hecho clic en un evento existente
+    if (eventBlock) {
+        const eventId = eventBlock.dataset.eventId;
+        if (!eventId) return;
+        
+        showSpinner();
+        try {
+            const eventDoc = await db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get();
+            if (eventDoc.exists) {
+                const eventData = eventDoc.data();
+                renderCalendarEventForm({ id: eventDoc.id, ...eventData, fechaInicio: eventData.fechaInicio.toDate(), fechaFin: eventData.fechaFin.toDate() }, renderCalendarView);
+            } else {
+                showToast("El evento ya no existe.", true);
+            }
+        } catch (err) {
+            showToast(`Error al cargar evento: ${err.message}`, true);
+        } finally {
+            hideSpinner();
+        }
+        return;
+    }
+
+    // CASO 2: Se ha hecho clic en un hueco vacío
+    if (emptySlot) {
+        const HOUR_HEIGHT = 60;
+        const dateISO = emptySlot.dataset.dateIso;
+        if (!dateISO) return;
+
+        const baseDate = new Date(dateISO);
+        const clickY = event.offsetY;
+        
+        const totalMinutes = (clickY / HOUR_HEIGHT) * 60;
+        const roundedMinutes = Math.floor(totalMinutes / 15) * 15; // Redondear hacia abajo al cuarto de hora más cercano
+        
+        const startHour = Math.floor(roundedMinutes / 60);
+        const startMinute = roundedMinutes % 60;
+
+        const prefilledStartDate = new Date(baseDate);
+        prefilledStartDate.setHours(startHour, startMinute, 0, 0);
+
+        const prefilledEndDate = new Date(prefilledStartDate.getTime() + 60 * 60 * 1000); // 1 hora después
+
+        renderCalendarEventForm(null, renderCalendarView, prefilledStartDate, prefilledEndDate);
+    }
+}
 function renderDayView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
@@ -3783,31 +3831,28 @@ function renderDayView(events, currentDate) {
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
 
-    // --- ESTRUCTURA MODERNA, IGUAL A LAS OTRAS VISTAS ---
     let allDayPillsHtml = '';
     allDayEvents.forEach(event => {
-        allDayPillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+        allDayPillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
     });
 
     const structureHtml = `
-    <div class="calendar-grid-container" style="height: calc(100vh - 220px);"> <!-- Altura ajustada para vista de día -->
-        <!-- La cabecera de día no es necesaria aquí porque ya está en el título principal -->
+    <div class="calendar-grid-container" style="height: calc(100vh - 220px);">
         <div class="calendar-all-day-header" style="grid-template-columns: 50px 1fr; top: 0;">
             <div class="all-day-label">Todo el día</div>
             <div class="all-day-slot">${allDayPillsHtml}</div>
         </div>
         <div class="calendar-scroll-body">
-            <div class="calendar-time-col" style="margin-top:0; padding-top:0;">
+            <div class="calendar-time-col">
                  ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
             </div>
             <div class="calendar-events-grid" style="grid-template-columns: 1fr;">
-                <div id="day-col-today" class="calendar-day-col"></div>
+                <div id="day-col-today" class="calendar-day-col" data-date-iso="${currentDate.toISOString()}"></div>
             </div>
         </div>
     </div>`;
     contentEl.innerHTML = structureHtml;
 
-    // --- LÓGICA DE CÁLCULO Y RENDERIZADO DE EVENTOS ---
     const dayCol = document.getElementById('day-col-today');
     const layoutReadyEvents = calculateEventLayout(timedEvents, HOUR_HEIGHT);
     let dayEventsHtml = '';
@@ -3821,17 +3866,16 @@ function renderDayView(events, currentDate) {
     layoutReadyEvents.forEach(event => {
         const width = 100 / event.layout.collisions;
         const left = event.layout.colIndex * width;
-        dayEventsHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                             style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'};">
+        dayEventsHtml += `<div class="event-block" data-event-id="${event.id}" 
+                             style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
                              <div class="event-block-title">${event.titulo}</div>
                              <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
                           </div>`;
     });
     dayCol.innerHTML = dayEventsHtml;
-    // --- FIN DE LÓGICA ---
-
-    contentEl.removeEventListener('click', handleCalendarEventClick);
-    contentEl.addEventListener('click', handleCalendarEventClick);
+    
+    contentEl.removeEventListener('click', handleTimelineClick);
+    contentEl.addEventListener('click', handleTimelineClick);
 
     if (isToday) {
         setTimeout(() => {
@@ -3846,14 +3890,10 @@ function renderDayView(events, currentDate) {
 function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
-
-    // --- LÓGICA MODIFICADA PARA SEPARAR EVENTOS ---
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
     
-    let headerDaysHtml = '';
-    let allDaySlotsHtml = ''; // Contenedor para las píldoras de "Todo el día"
-    let eventGridColsHtml = '';
+    let headerDaysHtml = '', allDaySlotsHtml = '', eventGridColsHtml = '';
     const eventsByDay = {}; 
 
     for (let i = 0; i < 7; i++) {
@@ -3862,37 +3902,29 @@ function renderWeekView(events, startOfWeek) {
         const isToday = day.toDateString() === new Date().toDateString();
         const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
         
-        headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
+        headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span class="day-name">${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
         
-        // Generar las píldoras para la sección "Todo el día"
         const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         const allDayEventsForThisDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
         
-        let pillsHtml = '';
-        allDayEventsForThisDay.forEach(event => {
-            pillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
-        });
+        let pillsHtml = allDayEventsForThisDay.map(event => 
+            `<div class="month-event-pill" data-event-id="${event.id}" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`
+        ).join('');
 
         allDaySlotsHtml += `<div class="all-day-slot">${pillsHtml}</div>`;
-        eventGridColsHtml += `<div id="day-col-week-${i}" class="calendar-day-col"></div>`;
+        eventGridColsHtml += `<div id="day-col-week-${i}" class="calendar-day-col" data-date-iso="${day.toISOString()}"></div>`;
         eventsByDay[i] = [];
     }
 
-    // --- ESTRUCTURA HTML ACTUALIZADA ---
     const structureHtml = `
     <div class="calendar-grid-container">
-        <!-- Cabecera de Días (se hará sticky) -->
         <div class="calendar-header" style="grid-template-columns: 50px repeat(7, 1fr);">
-            <div style="background-color: var(--card-bg);"></div>
-            ${headerDaysHtml}
+            <div style="background-color: var(--card-bg);"></div>${headerDaysHtml}
         </div>
-        <!-- NUEVA: Cabecera de Eventos "Todo el Día" (se hará sticky) -->
         <div class="calendar-all-day-header" style="grid-template-columns: 50px repeat(7, 1fr);">
-             <div class="all-day-label">Todo el día</div>
-            ${allDaySlotsHtml}
+            <div class="all-day-label">Todo el día</div>${allDaySlotsHtml}
         </div>
-        <!-- Cuerpo con Scroll -->
         <div class="calendar-scroll-body">
             <div class="calendar-time-col">
                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
@@ -3902,40 +3934,32 @@ function renderWeekView(events, startOfWeek) {
     </div>`;
     contentEl.innerHTML = structureHtml;
 
-    // --- LÓGICA DE PROCESAMIENTO (AHORA SOLO PARA EVENTOS CON HORA) ---
     const viewEndDate = new Date(startOfWeek); viewEndDate.setDate(startOfWeek.getDate() + 7);
     timedEvents.filter(e => e.fechaInicio >= startOfWeek && e.fechaInicio < viewEndDate).forEach(event => {
         const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startOfWeek).setHours(0,0,0,0)) / (1000*3600*24));
-        if (diffDays >= 0 && diffDays < 7) {
-            eventsByDay[diffDays].push(event);
-        }
+        if (diffDays >= 0 && diffDays < 7) { eventsByDay[diffDays].push(event); }
     });
     
     for (let i = 0; i < 7; i++) {
         const dayCol = document.getElementById(`day-col-week-${i}`);
         const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
-
-        let dayEventsHtml = '';
-        layoutReadyEvents.forEach(event => {
+        dayCol.innerHTML = layoutReadyEvents.map(event => {
             const width = 100 / event.layout.collisions;
             const left = event.layout.colIndex * width;
-            dayEventsHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                                 style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'};">
-                                 <div class="event-block-title">${event.titulo}</div>
-                                 <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
-                              </div>`;
-        });
-        dayCol.innerHTML = dayEventsHtml;
+            return `<div class="event-block" data-event-id="${event.id}" 
+                         style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
+                         <div class="event-block-title">${event.titulo}</div>
+                         <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                      </div>`;
+        }).join('');
     }
 
-    contentEl.removeEventListener('click', handleCalendarEventClick);
-    contentEl.addEventListener('click', handleCalendarEventClick);
+    contentEl.removeEventListener('click', handleTimelineClick);
+    contentEl.addEventListener('click', handleTimelineClick);
 }
 function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
-    
-    // --- LÓGICA MODIFICADA PARA SEPARAR EVENTOS ---
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
 
@@ -3947,36 +3971,29 @@ function renderThreeDayView(events, startDate) {
         const isToday = day.toDateString() === new Date().toDateString();
         const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
         
-        headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span>${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
+        headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span class="day-name">${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
         
         const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         const allDayEventsForThisDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
         
-        let pillsHtml = '';
-        allDayEventsForThisDay.forEach(event => {
-            pillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" data-action="edit-calendar-event" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
-        });
+        let pillsHtml = allDayEventsForThisDay.map(event => 
+            `<div class="month-event-pill" data-event-id="${event.id}" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`
+        ).join('');
 
         allDaySlotsHtml += `<div class="all-day-slot">${pillsHtml}</div>`;
-        eventGridColsHtml += `<div id="day-col-3day-${i}" class="calendar-day-col"></div>`;
+        eventGridColsHtml += `<div id="day-col-3day-${i}" class="calendar-day-col" data-date-iso="${day.toISOString()}"></div>`;
         eventsByDay[i] = [];
     }
     
-    // --- ESTRUCTURA HTML ACTUALIZADA ---
     const structureHtml = `
     <div class="calendar-grid-container">
-        <!-- Cabecera de Días -->
         <div class="calendar-header" style="grid-template-columns: 50px repeat(3, 1fr);">
-            <div style="background-color: var(--card-bg);"></div>
-            ${headerDaysHtml}
+            <div style="background-color: var(--card-bg);"></div>${headerDaysHtml}
         </div>
-        <!-- NUEVA: Cabecera de Eventos "Todo el Día" -->
         <div class="calendar-all-day-header" style="grid-template-columns: 50px repeat(3, 1fr);">
-            <div class="all-day-label">Todo el día</div>
-            ${allDaySlotsHtml}
+            <div class="all-day-label">Todo el día</div>${allDaySlotsHtml}
         </div>
-        <!-- Cuerpo con Scroll -->
         <div class="calendar-scroll-body">
             <div class="calendar-time-col">
                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
@@ -3986,34 +4003,28 @@ function renderThreeDayView(events, startDate) {
     </div>`;
     contentEl.innerHTML = structureHtml;
     
-    // --- LÓGICA DE PROCESAMIENTO (AHORA SOLO PARA EVENTOS CON HORA) ---
     const viewEndDate = new Date(startDate); viewEndDate.setDate(startDate.getDate() + 3);
     timedEvents.filter(e => e.fechaInicio >= startDate && e.fechaInicio < viewEndDate).forEach(event => {
         const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000*3600*24));
-        if (diffDays >= 0 && diffDays < 3) {
-            eventsByDay[diffDays].push(event);
-        }
+        if (diffDays >= 0 && diffDays < 3) { eventsByDay[diffDays].push(event); }
     });
     
     for (let i = 0; i < 3; i++) {
         const dayCol = document.getElementById(`day-col-3day-${i}`);
         const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
-        
-        let dayEventsHtml = '';
-        layoutReadyEvents.forEach(event => {
+        dayCol.innerHTML = layoutReadyEvents.map(event => {
             const width = 100 / event.layout.collisions;
             const left = event.layout.colIndex * width;
-            dayEventsHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                                 style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'};">
-                                 <div class="event-block-title">${event.titulo}</div>
-                                 <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
-                              </div>`;
-        });
-        dayCol.innerHTML = dayEventsHtml;
+            return `<div class="event-block" data-event-id="${event.id}" 
+                         style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
+                         <div class="event-block-title">${event.titulo}</div>
+                         <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                      </div>`;
+        }).join('');
     }
 
-    contentEl.removeEventListener('click', handleCalendarEventClick);
-    contentEl.addEventListener('click', handleCalendarEventClick);
+    contentEl.removeEventListener('click', handleTimelineClick);
+    contentEl.addEventListener('click', handleTimelineClick);
 }
 function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
@@ -4091,72 +4102,99 @@ function renderMonthView(events, currentDate) {
     });
 }
 
-function handleCalendarEventClick(e) {
-    const target = e.target.closest('[data-action]');
-    if (!target) return;
-    const eventId = target.dataset.eventId;
-    const action = target.dataset.action;
+function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDate = null, prefilledEndDate = null) {
+    navigationHistory.push(onBackCallback);
+    updateBackButton();
+    const isEditing = event && event.id;
 
-    if (action === 'edit-calendar-event') {
-        db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get().then(doc => {
-            if (doc.exists) renderCalendarEventForm({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }, renderCalendarView);
-        });
-    } else if (action === 'delete-calendar-event') {
-        confirmDelete('calendar_event', eventId);
-    }
-}
-async function saveCalendarEvent(eventToEdit = null) {
-    showSpinner("Guardando...");
-    const isAllDay = document.getElementById('event-all-day').checked;
-    let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-    let endDate = isAllDay ? startDate : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
-
-    if (!startDate) { hideSpinner(); showToast("La fecha de inicio es obligatoria.", true); return; }
-    if (isAllDay) {
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date(startDate);
-        endDate.setHours(23, 59, 59, 999);
-    }
-    if (!endDate) { hideSpinner(); showToast("La fecha de fin es obligatoria.", true); return; }
-    if (endDate < startDate) { hideSpinner(); showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
+            <div class="form-card">
+                <label>Título</label><input type="text" id="event-title" value="${isEditing ? event.titulo : ''}" required />
+                <label>Descripción</label><textarea id="event-description" rows="5">${isEditing ? event.descripcion : ''}</textarea>
+                <div class="settings-item"><span class="settings-item-label">Todo el día</span><label class="switch"><input type="checkbox" id="event-all-day" ${isEditing && event.esTodoElDia ? 'checked' : ''}><span class="slider"></span></label></div>
+                <div id="time-pickers">
+                    <label>Inicio</label><input type="text" id="event-start-date" required/>
+                    <label>Fin</label><input type="text" id="event-end-date" required/>
+                </div>
+                <label>Color</label><input type="color" id="event-color" value="${isEditing ? event.color : '#36A2EB'}" style="width:100%; height:40px; border-radius:8px;"/>
+                <label style="margin-top:20px;">Notificaciones</label>
+                <div id="notifications-container"></div>
+                <button id="add-notification-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin:15px 0; background-color: var(--muted);">Añadir Notificación</button>
+                <div class="button-group">
+                    ${isEditing ? `<button id="delete-event-btn" class="cancel">Eliminar</button>` : `<button id="cancel-event-btn" class="cancel">Cancelar</button>`}
+                    <button id="save-event-btn" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button>
+                </div>
+            </div>
+        </div>`;
     
-    const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
-        const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
-        const unit = row.querySelector('.event-reminder-unit').value;
-        const mins = unit === 'days' ? qty * 1440 : (unit === 'hours' ? qty * 60 : qty);
-        return {
-            metodo: row.querySelector('.event-reminder-method').value,
-            minutosAntes: mins,
-            trigger_id: null,
-            status: 'pending_creation' // Estandarizamos al valor correcto
-        };
-    });
+    const titleInput = document.getElementById('event-title');
+    const saveBtn = document.getElementById('save-event-btn');
+    const allDayCheckbox = document.getElementById('event-all-day');
+    const timePickersDiv = document.getElementById('time-pickers');
+    const notificationsContainer = document.getElementById('notifications-container');
 
-    const eventData = {
-        titulo: document.getElementById('event-title').value.trim(),
-        descripcion: document.getElementById('event-description').value.trim(),
-        color: document.getElementById('event-color').value,
-        fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
-        fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
-        esTodoElDia: isAllDay,
-        notificaciones: notifications,
-        status: 'pending_creation'
+    const startDateConfig = {
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+        defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date())
     };
+    const endDateConfig = {
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+        defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
+    };
+    
+    const fpStart = flatpickr("#event-start-date", startDateConfig);
+    const fpEnd = flatpickr("#event-end-date", endDateConfig);
 
-    const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
-    try {
-        if (eventToEdit) {
-            await collectionRef.doc(eventToEdit.id).update(eventData);
-            showToast("Evento actualizado.");
+    const toggleTimePickers = () => {
+        const isAllDay = allDayCheckbox.checked;
+        timePickersDiv.style.display = isAllDay ? 'none' : 'block';
+        if (isAllDay) {
+            fpStart.config.enableTime = false;
+            fpStart.set('altFormat', 'd/m/Y');
         } else {
-            await collectionRef.add(eventData);
-            showToast("Evento creado.");
+            fpStart.config.enableTime = true;
+            fpStart.set('altFormat', 'd/m/Y H:i');
         }
-        goBack();
-    } catch (err) {
-        showToast(`Error al guardar: ${err.message}`, true);
-    } finally {
-        hideSpinner();
+        fpStart.redraw();
+    };
+    allDayCheckbox.onchange = toggleTimePickers;
+    toggleTimePickers();
+
+    const addNotificationRow = (notification = null) => {
+        const row = document.createElement('div');
+        row.className = 'notification-row';
+        row.innerHTML = `
+            <div class="notification-controls-wrapper">
+                <select class="event-reminder-method"><option value="telegram">Telegram</option></select>
+                <input type="number" class="event-reminder-quantity" value="5" min="1">
+                <select class="event-reminder-unit"><option value="minutes">minutos</option><option value="hours">horas</option><option value="days">días</option></select>
+            </div>
+            <button class="remove-notification-btn">&times;</button>`;
+        if (notification) {
+            const qtyInput = row.querySelector('.event-reminder-quantity');
+            const unitSelect = row.querySelector('.event-reminder-unit');
+            const mins = notification.minutosAntes;
+            if (mins % 1440 === 0) { unitSelect.value = 'days'; qtyInput.value = mins / 1440; } 
+            else if (mins % 60 === 0) { unitSelect.value = 'hours'; qtyInput.value = mins / 60; } 
+            else { unitSelect.value = 'minutes'; qtyInput.value = mins; }
+        }
+        row.querySelector('.remove-notification-btn').onclick = () => row.remove();
+        notificationsContainer.appendChild(row);
+    };
+    document.getElementById('add-notification-btn').onclick = () => addNotificationRow();
+    if (isEditing && event.notificaciones) event.notificaciones.forEach(addNotificationRow);
+
+    const validate = () => { const isValid = titleInput.value.trim() !== ''; saveBtn.disabled = !isValid; saveBtn.classList.toggle('enabled', isValid); };
+    titleInput.oninput = validate;
+    validate();
+    
+    saveBtn.onclick = () => saveCalendarEvent(event);
+    if (isEditing) {
+        document.getElementById('delete-event-btn').onclick = () => { goBack(); confirmDelete('calendar_event', event.id); };
+    } else {
+        document.getElementById('cancel-event-btn').onclick = goBack;
     }
 }
 
