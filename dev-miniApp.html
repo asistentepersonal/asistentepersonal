@@ -4467,12 +4467,12 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     renderChips();
 
     // --- LÓGICA DE ACTIVACIÓN INTELIGENTE ---
-    const validate = () => { 
+        const validate = () => { 
         const isValid = titleInput.value.trim() !== '';
         saveBtn.disabled = !isValid;
-        addNotificationBtn.disabled = !isValid;
-        saveBtn.classList.toggle('enabled', isValid);
-        addNotificationBtn.classList.toggle('enabled', isValid);
+        addNotificationBtn.disabled = !isValid; // Controla la funcionalidad
+        saveBtn.classList.toggle('enabled', isValid); // Controla el estilo visual de "Guardar"
+        addNotificationBtn.classList.toggle('enabled', isValid); // <-- ESTA LÍNEA FALTABA Y SOLUCIONA TODO
     };
     titleInput.oninput = validate;
     validate(); // Llamada inicial para establecer el estado correcto al cargar
