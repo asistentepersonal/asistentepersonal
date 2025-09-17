@@ -605,6 +605,78 @@
     border-radius: 50%; /* Efecto suave al pasar el ratón */
 }
 /* --- FIN: NUEVA ARQUITECTURA VISUAL CALENDARIO --- */
+/* --- INICIO: ESTILOS PARA MODAL DE NOTIFICACIONES --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    z-index: 1500;
+    display: flex;
+    align-items: flex-end; /* Alinea el modal abajo */
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.modal-overlay.show {
+    opacity: 1;
+}
+.modal-content {
+    background-color: var(--card-bg);
+    width: 100%;
+    max-width: 480px;
+    padding: 20px;
+    border-radius: 16px 16px 0 0; /* Bordes redondeados solo arriba */
+    transform: translateY(100%);
+    transition: transform 0.3s ease-out;
+}
+.modal-overlay.show .modal-content {
+    transform: translateY(0);
+}
+.modal-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+}
+.preset-list-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    cursor: pointer;
+}
+.preset-list-item input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 15px;
+}
+.notification-chip {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bg);
+    border: 1px solid var(--muted);
+    border-radius: 16px;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+    margin: 4px;
+}
+.notification-chip-remove {
+    margin-left: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1rem;
+    line-height: 1;
+}
+#notification-chips-container {
+    margin-top: 10px;
+    padding: 5px;
+    border: 1px dashed var(--muted);
+    border-radius: 8px;
+    min-height: 40px;
+}
+/* --- FIN: ESTILOS PARA MODAL DE NOTIFICACIONES --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -642,6 +714,53 @@
         <button id="preview-send-btn">Enviar</button>
     </div>
   </div>
+  <!-- INICIO MODAL DE NOTIFICACIONES -->
+<div class="modal-overlay" id="notification-modal" style="display: none;">
+    <div class="modal-content">
+        <!-- Vista de Presets (inicial) -->
+        <div id="notification-presets-view">
+            <h3 class="modal-title">Añadir notificación</h3>
+            <div id="notification-presets-list">
+                <!-- Los presets se generarán con JS -->
+            </div>
+            <div class="button-group" style="margin-top: 20px;">
+                <button id="notification-modal-cancel" class="cancel">Cancelar</button>
+            </div>
+        </div>
+        <!-- Vista Personalizada (oculta por defecto) -->
+        <div id="notification-custom-view" style="display: none;">
+            <h3 class="modal-title">Notificación personalizada</h3>
+            
+            <input type="number" id="custom-notification-value" placeholder="10" value="10" min="1" style="margin-bottom: 15px; text-align: center; font-size: 1.2rem;">
+            
+            <label class="preset-list-item">
+                <input type="radio" name="custom_unit" value="minutes" checked>
+                <span>Minutos antes</span>
+            </label>
+            <label class="preset-list-item">
+                <input type="radio" name="custom_unit" value="hours">
+                <span>Horas antes</span>
+            </label>
+            <label class="preset-list-item">
+                <input type="radio" name="custom_unit" value="days">
+                <span>Días antes</span>
+            </label>
+            
+            <hr style="margin: 15px 0; border-top: 1px solid var(--muted);">
+
+            <label class="preset-list-item">
+                <input type="radio" name="custom_method" value="telegram" checked>
+                <span>En una notificación</span>
+            </label>
+            
+            <div class="button-group" style="margin-top: 20px;">
+                <button id="custom-notification-back" class="cancel">Atrás</button>
+                <button id="custom-notification-done" class="enabled">Hecho</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- FIN MODAL DE NOTIFICACIONES -->
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -3771,6 +3890,13 @@ function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
 
     return sortedEvents;
 }
+const EVENT_COLORS_PRESETS = [
+    { value: '#039be5', label: 'Predeterminado (Trabajo)' },
+    { value: '#e67c73', label: 'Salud / Citas' },
+    { value: '#f6bf26', label: 'Personal / Ocio' },
+    { value: '#33b679', label: 'Cumpleaños / Eventos' },
+    { value: '#8e24aa', label: 'Importante / Urgente' }
+];
 // =========================================================================
 // --- FIN: NUEVA FUNCIÓN DE CÁLCULO ---
 // =========================================================================
@@ -4106,6 +4232,11 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     navigationHistory.push(onBackCallback);
     updateBackButton();
     const isEditing = event && event.id;
+    let currentNotifications = (isEditing && event.notificaciones) ? [...event.notificaciones] : [];
+
+    const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
+        `<option value="${preset.value}" ${isEditing && event.color === preset.value ? 'selected' : ''}>${preset.label}</option>`
+    ).join('');
 
     mainContentArea.innerHTML = `
         <div class="list-container">
@@ -4118,10 +4249,13 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
                     <label>Inicio</label><input type="text" id="event-start-date" required/>
                     <label>Fin</label><input type="text" id="event-end-date" required/>
                 </div>
-                <label>Color</label><input type="color" id="event-color" value="${isEditing ? event.color : '#36A2EB'}" style="width:100%; height:40px; border-radius:8px;"/>
+                <label>Color</label>
+                <select id="event-color">${colorOptionsHtml}</select>
+                
                 <label style="margin-top:20px;">Notificaciones</label>
-                <div id="notifications-container"></div>
-                <button id="add-notification-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin:15px 0; background-color: var(--muted);">Añadir Notificación</button>
+                <div id="notification-chips-container"></div>
+                <button id="add-notification-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin:15px 0;">Añadir Notificación</button>
+                
                 <div class="button-group">
                     ${isEditing ? `<button id="delete-event-btn" class="cancel">Eliminar</button>` : `<button id="cancel-event-btn" class="cancel">Cancelar</button>`}
                     <button id="save-event-btn" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button>
@@ -4133,69 +4267,162 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     const saveBtn = document.getElementById('save-event-btn');
     const allDayCheckbox = document.getElementById('event-all-day');
     const timePickersDiv = document.getElementById('time-pickers');
-    const notificationsContainer = document.getElementById('notifications-container');
+    const chipsContainer = document.getElementById('notification-chips-container');
+    const addNotificationBtn = document.getElementById('add-notification-btn');
 
-    const startDateConfig = {
+    const fpStart = flatpickr("#event-start-date", {
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-        defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date())
-    };
-    const endDateConfig = {
+        defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
+        onChange: function(selectedDates, dateStr, instance) {
+            const startDate = selectedDates[0];
+            if (startDate) {
+                const currentEndDate = fpEnd.selectedDates[0];
+                if (!currentEndDate || startDate >= currentEndDate) {
+                    const newEndDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+                    fpEnd.setDate(newEndDate, true);
+                }
+            }
+        }
+    });
+
+    const fpEnd = flatpickr("#event-end-date", {
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
-    };
-    
-    const fpStart = flatpickr("#event-start-date", startDateConfig);
-    const fpEnd = flatpickr("#event-end-date", endDateConfig);
+    });
 
     const toggleTimePickers = () => {
         const isAllDay = allDayCheckbox.checked;
         timePickersDiv.style.display = isAllDay ? 'none' : 'block';
-        if (isAllDay) {
-            fpStart.config.enableTime = false;
-            fpStart.set('altFormat', 'd/m/Y');
-        } else {
-            fpStart.config.enableTime = true;
-            fpStart.set('altFormat', 'd/m/Y H:i');
-        }
+        const newFormat = isAllDay ? "d/m/Y" : "d/m/Y H:i";
+        fpStart.set('enableTime', !isAllDay);
+        fpStart.set('altFormat', newFormat);
         fpStart.redraw();
     };
     allDayCheckbox.onchange = toggleTimePickers;
     toggleTimePickers();
-
-    const addNotificationRow = (notification = null) => {
-        const row = document.createElement('div');
-        row.className = 'notification-row';
-        row.innerHTML = `
-            <div class="notification-controls-wrapper">
-                <select class="event-reminder-method"><option value="telegram">Telegram</option></select>
-                <input type="number" class="event-reminder-quantity" value="5" min="1">
-                <select class="event-reminder-unit"><option value="minutes">minutos</option><option value="hours">horas</option><option value="days">días</option></select>
-            </div>
-            <button class="remove-notification-btn">&times;</button>`;
-        if (notification) {
-            const qtyInput = row.querySelector('.event-reminder-quantity');
-            const unitSelect = row.querySelector('.event-reminder-unit');
-            const mins = notification.minutosAntes;
-            if (mins % 1440 === 0) { unitSelect.value = 'days'; qtyInput.value = mins / 1440; } 
-            else if (mins % 60 === 0) { unitSelect.value = 'hours'; qtyInput.value = mins / 60; } 
-            else { unitSelect.value = 'minutes'; qtyInput.value = mins; }
-        }
-        row.querySelector('.remove-notification-btn').onclick = () => row.remove();
-        notificationsContainer.appendChild(row);
+    
+    const getNotificationText = (mins) => {
+        if (mins % 1440 === 0) return `${mins/1440} día(s) antes`;
+        if (mins % 60 === 0) return `${mins/60} hora(s) antes`;
+        return `${mins} minutos antes`;
     };
-    document.getElementById('add-notification-btn').onclick = () => addNotificationRow();
-    if (isEditing && event.notificaciones) event.notificaciones.forEach(addNotificationRow);
+
+    const renderChips = () => {
+        chipsContainer.innerHTML = '';
+        currentNotifications.forEach((notif, index) => {
+            const chip = document.createElement('div');
+            chip.className = 'notification-chip';
+            chip.innerHTML = `<span>${getNotificationText(notif.minutosAntes)}</span><span class="notification-chip-remove" data-index="${index}">&times;</span>`;
+            chip.querySelector('.notification-chip-remove').onclick = (e) => {
+                currentNotifications.splice(parseInt(e.target.dataset.index, 10), 1);
+                renderChips();
+            };
+            chipsContainer.appendChild(chip);
+        });
+    };
+
+    addNotificationBtn.onclick = () => showNotificationModal();
+    renderChips();
 
     const validate = () => { const isValid = titleInput.value.trim() !== ''; saveBtn.disabled = !isValid; saveBtn.classList.toggle('enabled', isValid); };
     titleInput.oninput = validate;
     validate();
     
-    saveBtn.onclick = () => saveCalendarEvent(event);
+    saveBtn.onclick = () => {
+        const finalEventData = isEditing ? { ...event } : {};
+        finalEventData.notificaciones = currentNotifications;
+        saveCalendarEvent(finalEventData);
+    };
     if (isEditing) {
         document.getElementById('delete-event-btn').onclick = () => { goBack(); confirmDelete('calendar_event', event.id); };
     } else {
         document.getElementById('cancel-event-btn').onclick = goBack;
     }
+}
+function showNotificationModal() {
+    const modal = document.getElementById('notification-modal');
+    const presetsView = document.getElementById('notification-presets-view');
+    const customView = document.getElementById('notification-custom-view');
+    const presetsList = document.getElementById('notification-presets-list');
+    
+    const notificationPresets = [
+        { label: '5 minutos antes', value: 5 }, { label: '10 minutos antes', value: 10 },
+        { label: '1 hora antes', value: 60 }, { label: '2 horas antes', value: 120 },
+        { label: '1 día antes', value: 1440 }, { label: 'Personalizar...', value: 'custom' }
+    ];
+
+    presetsList.innerHTML = notificationPresets.map(p => `
+        <label class="preset-list-item" data-value="${p.value}">
+            <input type="radio" name="notification_preset" value="${p.value}">
+            <span>${p.label}</span>
+        </label>
+    `).join('');
+
+    const hideModal = () => {
+        modal.classList.remove('show');
+        setTimeout(() => { modal.style.display = 'none'; }, 300);
+    };
+
+    const addNotification = (mins) => {
+        const chipsContainer = document.getElementById('notification-chips-container');
+        if (chipsContainer) {
+            const currentNotifications = Array.from(chipsContainer.querySelectorAll('.notification-chip')).length;
+            if (currentNotifications >= 5) {
+                showToast("Puedes añadir un máximo de 5 notificaciones.", true);
+                return;
+            }
+            
+            const newNotif = { metodo: 'telegram', minutosAntes: mins, status: 'pending_creation' };
+            const chip = document.createElement('div');
+            chip.className = 'notification-chip';
+            const text = (mins % 1440 === 0) ? `${mins/1440} día(s) antes` : (mins % 60 === 0 ? `${mins/60} hora(s) antes` : `${mins} minutos antes`);
+            chip.innerHTML = `<span>${text}</span><span class="notification-chip-remove">&times;</span>`;
+            
+            const removeBtn = chip.querySelector('.notification-chip-remove');
+            removeBtn.onclick = () => chip.remove();
+            
+            chipsContainer.appendChild(chip);
+        }
+        hideModal();
+    };
+
+    presetsList.querySelectorAll('.preset-list-item').forEach(item => {
+        item.onclick = () => {
+            const value = item.dataset.value;
+            if (value === 'custom') {
+                presetsView.style.display = 'none';
+                customView.style.display = 'block';
+            } else {
+                addNotification(parseInt(value, 10));
+            }
+        };
+    });
+
+    document.getElementById('notification-modal-cancel').onclick = hideModal;
+    document.getElementById('custom-notification-back').onclick = () => {
+        customView.style.display = 'none';
+        presetsView.style.display = 'block';
+    };
+    document.getElementById('custom-notification-done').onclick = () => {
+        const value = parseInt(document.getElementById('custom-notification-value').value, 10);
+        const unit = document.querySelector('input[name="custom_unit"]:checked').value;
+        if (isNaN(value) || value < 1) {
+            showToast("Introduce un número válido.", true);
+            return;
+        }
+        let mins = value;
+        if (unit === 'hours') mins = value * 60;
+        else if (unit === 'days') mins = value * 1440;
+        
+        addNotification(mins);
+        customView.style.display = 'none';
+        presetsView.style.display = 'block';
+    };
+
+    modal.onclick = (e) => { if (e.target === modal) hideModal(); };
+    
+    modal.style.display = 'flex';
+    setTimeout(() => { modal.classList.add('show'); }, 10);
 }
 
 async function handleDeleteCalendarEvent(eventId) {
