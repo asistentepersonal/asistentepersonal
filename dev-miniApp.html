@@ -4354,8 +4354,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
 
                 <label style="margin-top:20px;">Notificaciones</label>
                 <div id="notification-chips-container"></div>
-                <button id="add-notification-btn" class="add-article-btn" style="width:100%; max-width:100%; margin:15px 0;" disabled>Añadir Notificación</button>
-                
+                  <button id="add-notification-btn" style="width:100%; max-width:100%; margin:15px 0;" disabled>Añadir Notificación</button>
                 <div class="button-group">
                     ${isEditing ? `<button id="delete-event-btn" class="cancel">Eliminar</button>` : `<button id="cancel-event-btn" class="cancel">Cancelar</button>`}
                     <button id="save-event-btn" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button>
