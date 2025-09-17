@@ -437,22 +437,25 @@
 }
 
 /* --- FIN ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
-/* --- INICIO ESTILOS VISTAS DE CRONOGRAMA Y SEMANA (ARQUITECTURA GOOGLE) - v2 CORREGIDO --- */
+/* --- INICIO: NUEVA ARQUITECTURA VISUAL CALENDARIO (ESTILO GOOGLE CALENDAR) --- */
 .calendar-grid-container {
     display: flex;
     flex-direction: column;
+    height: calc(100vh - 185px); /* Altura dinámica para ocupar el espacio disponible */
     border: 1px solid var(--muted);
     border-radius: 8px;
-    overflow: hidden;
-    height: calc(100vh - 220px); /* Altura dinámica para ocupar espacio disponible */
+    overflow: hidden; /* Clave para que el borde redondeado afecte a todo */
 }
 
-/* Contenedor de la cabecera (Lun 15, Mar 16...) */
+/* 1. Cabecera de Días (Lun 15, Mar 16...) */
 .calendar-header {
     display: grid;
+    flex-shrink: 0; /* No se encoge */
+    position: sticky;
+    top: 0;
+    z-index: 20; /* Por encima del cuerpo */
     background-color: var(--muted);
     gap: 1px;
-    flex-shrink: 0;
     border-bottom: 1px solid var(--muted);
 }
 
@@ -468,26 +471,62 @@
     justify-content: center;
 }
 
-/* Círculo para el día de HOY */
+.day-label .day-number-circle {
+    font-size: 0.9rem; /* Un poco más grande para el número */
+    font-weight: 500;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    border-radius: 50%;
+    margin-top: 2px;
+}
 .day-label.today .day-number-circle {
     background-color: var(--primary);
     color: var(--action-text);
-    border-radius: 50%;
-    width: 22px;
-    height: 22px;
-    line-height: 22px;
     font-weight: bold;
 }
 
-/* Contenedor del cuerpo (horas y eventos) */
-.calendar-scroll-body {
-    flex-grow: 1;
+/* 2. Cabecera "Todo el Día" */
+.calendar-all-day-header {
+    display: grid;
+    flex-shrink: 0;
+    position: sticky;
+    top: 40px; /* Se pega justo debajo de la cabecera de días (ajustar si cambia la altura) */
+    z-index: 20;
+    background-color: var(--muted);
+    gap: 1px;
+    border-bottom: 1px solid var(--muted);
+}
+
+.all-day-label {
+    background-color: var(--card-bg);
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: right;
+    padding: 5px;
     display: flex;
-    overflow: auto;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.all-day-slot {
+    background-color: var(--card-bg);
+    min-height: 28px;
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* 3. Cuerpo Deslizable (Contiene horas y eventos) */
+.calendar-scroll-body {
+    flex-grow: 1; /* Ocupa todo el espacio restante */
+    display: flex;
+    overflow: auto; /* PERMITE EL SCROLL */
     position: relative;
 }
 
-/* Columna de horas */
+/* 4. Columna de Horas (a la izquierda) */
 .calendar-time-col {
     width: 50px;
     flex-shrink: 0;
@@ -501,110 +540,48 @@
     height: 60px;
     position: relative;
     font-size: 0.8rem;
-    color: var(--muted); /* El color original se mantiene, pero se anula para tema oscuro abajo */
+    color: var(--muted);
     text-align: right;
     padding-right: 5px;
 }
 .calendar-time-slot span {
     position: relative;
     top: -9px;
-    /* Ajuste para Tema Oscuro: Texto de horas legible */
+    /* Mejora para modo oscuro: el texto de las horas siempre es legible */
     color: var(--text);
     opacity: 0.7;
 }
 
-/* Cuadrícula de eventos (fondo para las líneas) */
+/* 5. Cuadrícula de Eventos (el fondo donde se dibujan las líneas) */
 .calendar-events-grid {
     display: grid;
     gap: 0;
     flex-grow: 1;
-    min-width: 650px;
+    min-width: 650px; /* Ancho mínimo para la vista semanal antes de hacer scroll H */
 }
 .calendar-events-grid.three-day {
-    min-width: auto;
+    min-width: auto; /* La vista 3 días no necesita scroll H */
 }
 
-/* Columna de un día */
+/* Columna individual de un día */
 .calendar-day-col {
     position: relative;
     background-color: var(--card-bg);
-    /* Ajuste para Tema Oscuro: Líneas horizontales sutiles */
+    /* LÍNEAS HORIZONTALES (sutiles y adaptables a temas) */
     background-image: linear-gradient(to bottom, transparent 59px, rgba(128, 128, 128, 0.2) 1px);
     background-size: 100% 60px;
-    min-height: 1440px;
-    /* Ajuste para Tema Oscuro: Líneas verticales sutiles */
+    min-height: 1440px; /* 24h * 60px */
+    /* LÍNEAS VERTICALES (sutiles y adaptables a temas) */
     border-left: 1px solid rgba(128, 128, 128, 0.2);
 }
-/* --- FIN ESTILOS VISTA SEMANA --- */
 
-/* Contenedor extra para la vista semanal para permitir scroll horizontal */
-.calendar-week-overflow-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-}
-.calendar-week-overflow-wrapper .calendar-view-container {
-    min-width: 650px; /* Ancho mínimo antes de que aparezca el scroll */
-}
-
-/* --- INICIO ESTILOS CABECERA STICKY Y SECCIÓN TODO EL DÍA --- */
-.calendar-header {
-    position: sticky;
-    top: 0;
-    z-index: 20; /* Prioridad alta para estar por encima del scroll */
-}
-
-.calendar-all-day-header {
-    display: grid;
-    background-color: var(--muted);
-    gap: 1px;
-    position: sticky;
-    top: 35px; /* Altura aproximada de la cabecera de días. AJUSTAR SI ES NECESARIO */
-    z-index: 20;
-    border-bottom: 1px solid var(--muted);
-}
-
-.all-day-label {
-    background-color: var(--card-bg);
-    font-size: 0.8rem;
-    color: var(--muted);
-    text-align: right;
-    padding: 5px;
-    border-right: 1px solid var(--muted);
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-}
-
-.all-day-slot {
-    background-color: var(--card-bg);
-    min-height: 28px; /* Altura mínima para que la fila sea visible */
-    padding: 2px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-/* --- INICIO CORRECCIONES VISUALES Y MEJORAS --- */
-.calendar-time-col {
-    /* Mueve la columna de horas hacia arriba para alinearla con la cabecera de días */
-    margin-top: -35px; 
-    /* Añade relleno superior para compensar el movimiento y alinear el 00:00 */
-    padding-top: 35px; 
-}
-
-.all-day-label {
-    /* Asegura que la etiqueta "Todo el día" tenga el mismo borde que las horas */
-    border-bottom: 1px solid var(--muted);
-}
-
-/* Estilo para resaltar la vista activa en el menú desplegable */
+/* 6. Mejoras Adicionales y Correcciones */
 .dropdown-item.active {
     background-color: var(--primary) !important;
     color: var(--action-text) !important;
     font-weight: bold;
 }
 
-/* Estilo para el botón flotante de añadir evento */
 .floating-action-button {
     position: fixed;
     bottom: 80px;
@@ -613,7 +590,7 @@
     height: 56px;
     background-color: var(--primary);
     color: var(--action-text);
-    border-radius: 50%;
+    border-radius: 16px; /* Bordes redondeados como en la referencia */
     border: none;
     font-size: 28px;
     line-height: 56px;
@@ -621,14 +598,13 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     cursor: pointer;
     z-index: 1050;
-    transition: transform 0.2s ease-out;
+    transition: transform 0.2s, border-radius 0.2s ease-out;
 }
 .floating-action-button:hover {
     transform: scale(1.05);
+    border-radius: 50%; /* Efecto suave al pasar el ratón */
 }
-/* --- FIN CORRECCIONES VISUALES Y MEJORAS --- */
-/* --- FIN ESTILOS CABECERA STICKY Y SECCIÓN TODO EL DÍA --- */
-/* --- FIN ESTILOS VISTAS DE CRONOGRAMA --- */
+/* --- FIN: NUEVA ARQUITECTURA VISUAL CALENDARIO --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
