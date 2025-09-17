@@ -4284,7 +4284,10 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     navigationHistory.push(onBackCallback);
     updateBackButton();
     const isEditing = event && event.id;
-    let currentNotifications = (isEditing && event.notificaciones) ? [...event.notificaciones] : [];
+    // Corregimos la inicialización de notificaciones para manejar correctamente el formato de Firestore
+    let currentNotifications = (isEditing && event.notificaciones) ? 
+        event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
+        [];
 
     const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
         `<div class="custom-dropdown-item" data-value="${preset.value}">
@@ -4335,22 +4338,29 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     const chipsContainer = document.getElementById('notification-chips-container');
     const addNotificationBtn = document.getElementById('add-notification-btn');
 
+    // --- LÓGICA DE FECHAS MEJORADA ---
     const fpEnd = flatpickr("#event-end-date", {
-        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es", // Usamos 'Z' para formato ISO 8601
         defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
     });
 
     const fpStart = flatpickr("#event-start-date", {
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
-        onChange: function(selectedDates) {
+        // ¡Aquí está la lógica que pediste!
+        onChange: function(selectedDates, dateStr, instance) {
             const startDate = selectedDates[0];
-            if (startDate) {
-                const currentEndDate = fpEnd.selectedDates[0];
-                if (!currentEndDate || startDate >= currentEndDate) {
-                    const newEndDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-                    fpEnd.setDate(newEndDate, true);
-                }
+            if (!startDate) return;
+
+            // Solo actuamos si el cambio fue hecho por el usuario y no programáticamente
+            if (instance.isMobile) return; // Flatpickr en móvil a veces se comporta raro, lo evitamos.
+
+            const currentEndDate = fpEnd.selectedDates[0];
+            // Si no hay fecha de fin o la fecha de inicio supera a la de fin
+            if (!currentEndDate || startDate >= currentEndDate) {
+                // Se establece la fecha de fin una hora después de la de inicio
+                const newEndDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+                fpEnd.setDate(newEndDate, true);
             }
         }
     });
@@ -4360,8 +4370,11 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
         timePickersDiv.style.display = isAllDay ? 'none' : 'block';
         const newFormat = isAllDay ? "d/m/Y" : "d/m/Y H:i";
         fpStart.set('enableTime', !isAllDay);
+        fpEnd.set('enableTime', !isAllDay);
         fpStart.set('altFormat', newFormat);
+        fpEnd.set('altFormat', newFormat);
         fpStart.redraw();
+        fpEnd.redraw();
     };
     allDayCheckbox.onchange = toggleTimePickers;
     toggleTimePickers();
@@ -4391,8 +4404,8 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     const getNotificationText = (notif) => {
         const mins = notif.minutosAntes;
         let text = '';
-        if (mins % 1440 === 0) text = `${mins/1440} día(s) antes`;
-        else if (mins % 60 === 0) text = `${mins/60} hora(s) antes`;
+        if (mins >= 1440 && mins % 1440 === 0) text = `${mins/1440} día(s) antes`;
+        else if (mins >= 60 && mins % 60 === 0) text = `${mins/60} hora(s) antes`;
         else text = `${mins} minutos antes`;
         if (notif.metodo === 'email') text += ' - correo';
         return text;
@@ -4419,14 +4432,16 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     titleInput.oninput = validate;
     validate();
     
+    // --- CONEXIÓN FINAL ---
+    // El botón de guardar ahora prepara los datos y llama a la nueva función
     saveBtn.onclick = () => {
         const finalEventData = isEditing ? { ...event } : {};
-        finalEventData.notificaciones = currentNotifications;
-        finalEventData.color = colorValueInput.value;
-        saveCalendarEvent(finalEventData);
+        finalEventData.notificaciones = currentNotifications; // Pasa las notificaciones del sistema de chips
+        saveCalendarEvent(finalEventData); // Llama a la función de guardado
     };
+
     if (isEditing) {
-        document.getElementById('delete-event-btn').onclick = () => { goBack(); confirmDelete('calendar_event', event.id); };
+        document.getElementById('delete-event-btn').onclick = () => { confirmDelete('calendar_event', event.id); };
     } else {
         document.getElementById('cancel-event-btn').onclick = goBack;
     }
@@ -4519,6 +4534,80 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     
     modal.style.display = 'flex';
     setTimeout(() => { modal.classList.add('show'); }, 10);
+}
+async function saveCalendarEvent(eventData) {
+    showSpinner("Guardando evento...");
+    const title = document.getElementById('event-title').value.trim();
+    // Determinamos si estamos editando basándonos en si eventData tiene un ID.
+    const isEditing = eventData && eventData.id;
+
+    if (!title) {
+        showToast("El título es obligatorio.", true);
+        hideSpinner();
+        return;
+    }
+
+    try {
+        const isAllDay = document.getElementById('event-all-day').checked;
+        let startDate, endDate;
+        
+        // Obtenemos las fechas del formulario
+        startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
+        endDate = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
+
+        // Lógica para eventos de "Todo el día"
+        if (isAllDay) {
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(startDate); 
+            endDate.setHours(23, 59, 59, 999);
+        }
+
+        // Validación de fechas
+        if (endDate < startDate) {
+            hideSpinner();
+            showToast("La fecha de fin no puede ser anterior a la de inicio.", true);
+            return;
+        }
+
+        // Leemos las notificaciones desde la variable `eventData.notificaciones` (del sistema de chips)
+        // y la transformamos a la estructura que tu backend necesita.
+        const notificationsToSave = (eventData.notificaciones || []).map(notif => ({
+            metodo: notif.metodo,
+            minutosAntes: notif.minutosAntes,
+            trigger_id: null,
+            status: 'pending_creation'
+        }));
+
+        // Construimos el objeto final con la estructura requerida por tus activadores
+        const dataToSave = {
+            titulo: title,
+            descripcion: document.getElementById('event-description').value.trim(),
+            color: document.getElementById('event-color-value').value,
+            fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
+            fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
+            esTodoElDia: isAllDay,
+            notificaciones: notificationsToSave,
+            status: 'pending_creation'
+        };
+        
+        const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
+
+        if (isEditing) {
+            await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
+            showToast("Evento actualizado.");
+        } else {
+            await collectionRef.add(dataToSave);
+            showToast("Evento creado.");
+        }
+        
+        goBack(); // Volvemos a la vista del calendario
+
+    } catch (err) {
+        console.error("Error guardando evento en Firestore:", err);
+        showToast(`Error al guardar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
 }
 
 async function handleDeleteCalendarEvent(eventId) {
