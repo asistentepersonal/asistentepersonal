@@ -925,32 +925,48 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.18"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.20"; // IMPORTANTE: Incrementa la versión del cliente.
 
+// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
-    console.log("Iniciando app desde Firestore...");
-    
+    console.log("Iniciando app y verificando versión...");
+
     try {
         if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
             window.db = firebase.firestore();
         }
         
-        const versionPromise = db.collection('app_config').doc('version_info').get();
-        const userSettingsPromise = db.collection('users').doc(chatId).get();
-        
-        const [versionDoc, userSettingsDoc] = await Promise.all([
-            versionPromise, userSettingsPromise
-        ]);
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
 
         const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
+        
         if (serverVersion !== HTML_VERSION) {
-        const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-        showChangelogModal(serverVersion, changelogText);
-        return; // ¡Importante! Detiene el resto de la carga de la app.
+            console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
+            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+            showChangelogModal(serverVersion, changelogText);
+            // No se llama a runApp(), la ejecución se detiene aquí.
+            return; 
+        }
+
+        // Si la versión es correcta, procedemos a ejecutar la app.
+        console.log("Versión correcta. Ejecutando la aplicación...");
+        runApp();
+
+    } catch (err) {
+        console.error("Error crítico en initializeApp:", err);
+        showToast(`Error de inicialización: ${err.message}`, true);
+        mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
+        hideSplashScreen();
+    }
 }
+
+// --- NUEVA FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
+async function runApp() {
+    try {
+        const userSettingsDoc = await db.collection('users').doc(chatId).get();
 
         if (!userSettingsDoc.exists) {
             failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
@@ -960,11 +976,10 @@ async function initializeApp() {
         appData.settings = userSettingsDoc.data() || {};
         appData.isPremium = appData.settings.plan_premium === true;
         
-        // --- Listener GLOBAL de contadores ---
+        // Listener GLOBAL de contadores
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot((doc) => {
                 if (doc.exists) {
-                    console.log("Contadores sincronizados en tiempo real.");
                     const serverCounts = doc.data();
                     if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
                         appData.counts = serverCounts;
@@ -978,7 +993,7 @@ async function initializeApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // --- INICIO: Listener para el badge del calendario en tiempo real ---
+        // Listener para el badge del calendario en tiempo real
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date();
@@ -988,26 +1003,23 @@ async function initializeApp() {
           .where('fechaInicio', '>=', startOfToday)
           .where('fechaInicio', '<=', endOfToday)
           .onSnapshot(snapshot => {
-              const eventsTodayCount = snapshot.size;
-              console.log(`Eventos para hoy: ${eventsTodayCount}`);
-              appData.counts.calendarTodayCount = eventsTodayCount;
+              appData.counts.calendarTodayCount = snapshot.size;
               const calendarBadge = document.getElementById('calendar-badge');
               if (calendarBadge) {
-                  calendarBadge.textContent = eventsTodayCount;
+                  calendarBadge.textContent = snapshot.size;
               }
           }, error => {
               console.error("Error en listener de eventos de hoy:", error);
           });
-        // --- FIN: Listener para el badge del calendario ---
 
         updateChefTabStyle();
         renderDashboard();
-		isAppReady = true;
+        isAppReady = true;
         hideSplashScreen();
         
     } catch (err) {
-        console.error("Error crítico en initializeApp:", err);
-        showToast(`Error de inicialización: ${err.message}`, true);
+        console.error("Error crítico en runApp:", err);
+        showToast(`Error al cargar datos de usuario: ${err.message}`, true);
         mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
         hideSplashScreen();
     } finally {
