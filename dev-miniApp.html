@@ -1382,21 +1382,6 @@ let calendarScrollSyncHandler = null; // Para el listener de scroll sincronizado
 const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
 let currentCalendarView = 'month';
 let currentCalendarDate = new Date();
-// --- Inputs de archivo globales para la cámara y galería (NUEVOS) ---
-// Se declaran una sola vez al inicio de la aplicación y se reutilizan.
-const fileInputCamera = document.createElement('input');
-fileInputCamera.type = 'file';
-fileInputCamera.accept = 'image/*';
-fileInputCamera.capture = 'camera'; // O 'environment' si 'camera' no funciona mejor
-fileInputCamera.style.display = 'none'; // Asegurarse de que esté oculto
-document.body.appendChild(fileInputCamera);
-
-const fileInputGallery = document.createElement('input');
-fileInputGallery.type = 'file';
-fileInputGallery.accept = 'image/*';
-fileInputGallery.style.display = 'none'; // Asegurarse de que esté oculto
-document.body.appendChild(fileInputGallery);
-// --- FIN Inputs de archivo globales ---
 
 /// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
@@ -2439,77 +2424,17 @@ function renderInstructionScreen() {
                     <li>Pulsa el botón de abajo para continuar.</li>
                 </ol>
                 <div class="add-article-btn-container">
-                    <button class="add-article-btn" id="scan-ticket-button">📸 Subir o Tomar Foto del Ticket</button>
+                    <button class="add-article-btn" id="scan-ticket-button">Subir Ticket desde Galería 🖼️</button>
                 </div>
             </div>
         </div>`;
     
+    // Asignamos la acción directamente al botón
     const scanButton = document.getElementById('scan-ticket-button');
     if (scanButton) {
-        scanButton.onclick = () => {
-            // Usamos la API nativa de popups de Telegram para una mejor experiencia
-            if (tg && tg.showPopup) {
-                tg.showPopup({
-                    title: 'Subir Ticket',
-                    message: '¿Cómo quieres añadir la foto de tu ticket?',
-                    buttons: [
-                        {id: 'camera', type: 'default', text: 'Tomar Foto 📸'},
-                        {id: 'gallery', type: 'default', text: 'Elegir de la Galería 🖼️'},
-                        {type: 'cancel'},
-                    ]
-                }, (buttonId) => {
-                    // El callback nos dice qué botón se pulsó
-                    if (buttonId === 'camera') {
-                        triggerGastoImageInput('camera'); // Llamará a la función que crearemos en el paso 2
-                    } else if (buttonId === 'gallery') {
-                        triggerGastoImageInput('gallery'); // Llamará a la función que crearemos en el paso 2
-                    }
-                });
-            } else {
-                // Si la API de Telegram no está disponible (ej. en un navegador normal), 
-                // por defecto abrimos la galería.
-                triggerGastoImageInput('gallery');
-            }
-        };
+        // triggerFileInput es la función que ya tienes en tu código para abrir la galería
+        scanButton.onclick = triggerFileInput;
     }
-}
-function triggerGastoImageInput(source) {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*'; // Aceptamos cualquier tipo de imagen
-    fileInput.style.display = 'none';
-
-    // ¡Esta es la clave! El atributo 'capture' fuerza la apertura de la cámara.
-    if (source === 'camera') {
-        fileInput.capture = 'camera';
-    }
-
-    // El resto del flujo para procesar la imagen se mantiene igual
-    fileInput.onchange = (event) => {
-        const file = event.target.files[0];
-        if (!file) {
-             // Si el usuario cancela, nos aseguramos de limpiar el elemento
-             if (document.body.contains(fileInput)) {
-                document.body.removeChild(fileInput);
-            }
-            return;
-        }
-        selectedImageFile = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('image-preview-element').src = e.target.result;
-            document.getElementById('image-preview-overlay').style.display = 'flex';
-        };
-        reader.readAsDataURL(file);
-        
-        // Limpiamos el input del DOM después de su uso
-        if (document.body.contains(fileInput)) {
-            document.body.removeChild(fileInput);
-        }
-    };
-
-    document.body.appendChild(fileInput);
-    fileInput.click();
 }
 
 async function handleImageScan() {
@@ -3143,7 +3068,7 @@ function renderChefPage() {
         }
     });
 
-    // Manejador para el botón "Tomar Foto"
+// Manejador para el botón "Tomar Foto"
 document.getElementById('chef-take-photo-btn').onclick = () => {
     if (selectedFiles.length >= 2) {
         showToast("Puedes subir un máximo de 2 fotos.", true);
@@ -3164,6 +3089,30 @@ document.getElementById('chef-take-photo-btn').onclick = () => {
         }
     };
     document.body.appendChild(fileInput); // Añadir al body para poder hacer click
+    fileInput.click();
+    document.body.removeChild(fileInput); // Eliminar del body
+};
+
+// Manejador para el botón "Seleccionar de Galería"
+document.getElementById('chef-select-gallery-btn').onclick = () => {
+    if (selectedFiles.length >= 2) {
+        showToast("Puedes subir un máximo de 2 fotos.", true);
+        return;
+    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none'; // Ocultar input
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            handleChefImageSelection(file, (confirmedFile) => {
+                selectedFiles.push(confirmedFile);
+                updatePreviews();
+            });
+        }
+    };
+    document.body.appendChild(fileInput); // Añadir al body
     fileInput.click();
     document.body.removeChild(fileInput); // Eliminar del body
 };
@@ -4959,7 +4908,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge card-badge-pill red" style="left:12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${cuentasClarasCardHtml}
       ${chefCardHtml}
-      <div id="guia-tv-card" class="card clickable-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
+      <div id="guia-tv-card" class="card disabled-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
     </div>`;
   
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
@@ -4970,7 +4919,7 @@ function renderDashboard() {
   document.getElementById('list-notes-link').onclick = renderNotesList;
   document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
-  document.getElementById('guia-tv-card').onclick = renderGuiaTV;
+  document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
   document.getElementById('list-gastos-link').onclick = () => {
       navigationHistory.push(renderDashboard);
       updateBackButton();
