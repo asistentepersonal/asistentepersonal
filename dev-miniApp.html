@@ -935,7 +935,7 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.22"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.23"; // IMPORTANTE: Incrementa la versión del cliente.
 
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
@@ -2435,32 +2435,24 @@ function renderInstructionScreen() {
             <div class="scan-instruction-screen">
                 <h2>Escanear un Ticket de Gasto</h2>
                 <ol>
-                    <li>Para un resultado óptimo, saca una foto nítida de tu ticket.</li>
-                    <li>Asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
+                    <li>Para un resultado óptimo, asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
+                    <li>Pulsa el botón de abajo para continuar.</li>
                 </ol>
                 <div class="button-group" style="flex-direction: column;">
-                    <button class="add-article-btn" id="take-photo-btn">📸 Tomar Foto</button>
-                    <button class="add-article-btn" id="select-gallery-btn" style="background-color: var(--muted); margin-top: 10px;">🖼️ Seleccionar de Galería</button>
+                    <button class="add-article-btn" id="select-photo-btn">📸 Seleccionar o Tomar Foto</button>
                 </div>
             </div>
         </div>`;
     
-    // Asignamos a cada botón la llamada a la misma función, pero con un parámetro diferente
-    document.getElementById('take-photo-btn').onclick = () => renderScanTicketView(true); // true = usar cámara
-    document.getElementById('select-gallery-btn').onclick = () => renderScanTicketView(false); // false = usar galería
+    // El único botón ahora llama a una versión limpia de renderScanTicketView
+    document.getElementById('select-photo-btn').onclick = renderScanTicketView;
 }
 
-function renderScanTicketView(useCamera) { // <-- Acepta el nuevo parámetro
+function renderScanTicketView() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
-    fileInput.accept = 'image/*';
+    fileInput.accept = 'image/*'; // Acepta cualquier tipo de imagen
     fileInput.style.display = 'none';
-
-    // --- ¡AQUÍ ESTÁ LA LÓGICA CLAVE! ---
-    // Solo añadimos el atributo 'capture' si el botón "Tomar Foto" fue presionado.
-    if (useCamera) {
-        fileInput.capture = 'environment';
-    }
 
     fileInput.onchange = (event) => {
         const file = event.target.files[0];
@@ -2473,10 +2465,11 @@ function renderScanTicketView(useCamera) { // <-- Acepta el nuevo parámetro
         };
         reader.readAsDataURL(file);
     };
+
     document.body.appendChild(fileInput);
     fileInput.click();
     
-    // Usamos un listener para limpiar el input del DOM después de que se use
+    // Limpiamos el input del DOM después de su uso para evitar problemas.
     window.addEventListener('focus', () => {
         if (document.body.contains(fileInput)) {
             document.body.removeChild(fileInput);
