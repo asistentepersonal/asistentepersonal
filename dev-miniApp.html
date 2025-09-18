@@ -2438,31 +2438,55 @@ function renderInstructionScreen() {
                     <li>Para un resultado óptimo, asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
                     <li>Pulsa el botón de abajo para continuar.</li>
                 </ol>
-                <div class="add-article-btn-container" style="position: relative; overflow: hidden; display: inline-block;">
-                    <button class="add-article-btn">📸 Seleccionar o Tomar Foto</button>
-                    <input type="file" accept="image/*" id="ticket-file-input" style="position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;">
+                <div class="add-article-btn-container">
+                    <button class="add-article-btn" id="scan-ticket-button">📸 Subir o Tomar Foto del Ticket</button>
                 </div>
             </div>
         </div>`;
     
-    // El único botón ahora llama a una versión limpia de renderScanTicketView
-    document.getElementById('select-photo-btn').onclick = renderScanTicketView;
+    document.getElementById('scan-ticket-button').onclick = () => {
+        // --- ¡AQUÍ ESTÁ LA LÓGICA DE CONFIANZA! ---
+        if (tg && tg.showConfirm) {
+            tg.showConfirm("¿Deseas seleccionar una foto de tu ticket?", (ok) => {
+                if (ok) {
+                    // El usuario pulsó "OK". Ahora el clic es de confianza.
+                    triggerFileInput();
+                }
+            });
+        } else {
+            // Fallback para entornos de desarrollo sin la API de Telegram.
+            // Esto permite seguir probando en un navegador normal.
+            triggerFileInput();
+        }
+    };
 }
-// Asignamos el listener al nuevo input de archivo invisible
-    const fileInput = document.getElementById('ticket-file-input');
-    if (fileInput) {
-        fileInput.onchange = (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            selectedImageFile = file;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                document.getElementById('image-preview-element').src = e.target.result;
-                document.getElementById('image-preview-overlay').style.display = 'flex';
-            };
-            reader.readAsDataURL(file);
+function triggerFileInput() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        selectedImageFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('image-preview-element').src = e.target.result;
+            document.getElementById('image-preview-overlay').style.display = 'flex';
         };
-    }
+        reader.readAsDataURL(file);
+    };
+
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    
+    window.addEventListener('focus', () => {
+        if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
+        }
+    }, { once: true });
+}
 
 async function handleImageScan() {
     if (!selectedImageFile) {
