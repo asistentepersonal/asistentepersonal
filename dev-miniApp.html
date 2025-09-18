@@ -825,6 +825,19 @@
     margin-top: 0; /* Anulamos el margen superior del button-group */
 }
 /* --- FIN: Estilos para el Modal de Changelog --- */
+  /* --- INICIO: Estilo para ocultar inputs de archivo de forma accesible --- */
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* --- FIN: Estilo para ocultar inputs de archivo de forma accesible --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -839,6 +852,10 @@
   </script>
 </head>
 <body>
+<!-- INICIO: Inputs de archivo permanentes para cámara y galería -->
+<input type="file" accept="image/*" capture="camera" id="file-input-camera" class="visually-hidden-input">
+<input type="file" accept="image/*" id="file-input-gallery" class="visually-hidden-input">
+<!-- FIN: Inputs de archivo permanentes -->
   <!-- --- INICIO SPLASH SCREEN --- -->
 	<div id="splash-screen" class="splash-screen">
   <img src="https://lh3.googleusercontent.com/d/1zQd1rn14IFHAGYHn95GVvILTB90i3320" alt="Logo" class="splash-logo" />
@@ -1382,21 +1399,6 @@ let calendarScrollSyncHandler = null; // Para el listener de scroll sincronizado
 const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
 let currentCalendarView = 'month';
 let currentCalendarDate = new Date();
-// --- Inputs de archivo globales para la cámara y galería (NUEVOS) ---
-// Se declaran una sola vez al inicio de la aplicación y se reutilizan.
-const fileInputCamera = document.createElement('input');
-fileInputCamera.type = 'file';
-fileInputCamera.accept = 'image/*';
-fileInputCamera.capture = 'camera'; // O 'environment' si 'camera' no funciona mejor
-fileInputCamera.style.display = 'none'; // Asegurarse de que esté oculto
-document.body.appendChild(fileInputCamera);
-
-const fileInputGallery = document.createElement('input');
-fileInputGallery.type = 'file';
-fileInputGallery.accept = 'image/*';
-fileInputGallery.style.display = 'none'; // Asegurarse de que esté oculto
-document.body.appendChild(fileInputGallery);
-// --- FIN Inputs de archivo globales ---
 
 /// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
@@ -2436,80 +2438,35 @@ function renderInstructionScreen() {
                 <h2>Escanear un Ticket de Gasto</h2>
                 <ol>
                     <li>Para un resultado óptimo, asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
-                    <li>Pulsa el botón de abajo para continuar.</li>
+                    <li>Elige una opción para continuar.</li>
                 </ol>
-                <div class="add-article-btn-container">
-                    <button class="add-article-btn" id="scan-ticket-button">📸 Subir o Tomar Foto del Ticket</button>
+                <div class="add-article-btn-container" style="flex-direction: column; align-items: center; gap: 15px;">
+                    <label for="file-input-camera" class="add-article-btn enabled" style="width: 100%; max-width: 300px;">
+                        Tomar Foto 📸
+                    </label>
+                    <label for="file-input-gallery" class="add-article-btn enabled" style="width: 100%; max-width: 300px; background-color: var(--primary-alt, #5c6bc0);">
+                        Seleccionar de Galería 🖼️
+                    </label>
                 </div>
             </div>
         </div>`;
-    
-    const scanButton = document.getElementById('scan-ticket-button');
-    if (scanButton) {
-        scanButton.onclick = () => {
-            // Usamos la API nativa de popups de Telegram para una mejor experiencia
-            if (tg && tg.showPopup) {
-                tg.showPopup({
-                    title: 'Subir Ticket',
-                    message: '¿Cómo quieres añadir la foto de tu ticket?',
-                    buttons: [
-                        {id: 'camera', type: 'default', text: 'Tomar Foto 📸'},
-                        {id: 'gallery', type: 'default', text: 'Elegir de la Galería 🖼️'},
-                        {type: 'cancel'},
-                    ]
-                }, (buttonId) => {
-                    // El callback nos dice qué botón se pulsó
-                    if (buttonId === 'camera') {
-                        triggerGastoImageInput('camera'); // Llamará a la función que crearemos en el paso 2
-                    } else if (buttonId === 'gallery') {
-                        triggerGastoImageInput('gallery'); // Llamará a la función que crearemos en el paso 2
-                    }
-                });
-            } else {
-                // Si la API de Telegram no está disponible (ej. en un navegador normal), 
-                // por defecto abrimos la galería.
-                triggerGastoImageInput('gallery');
-            }
-        };
-    }
 }
-function triggerGastoImageInput(source) {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*'; // Aceptamos cualquier tipo de imagen
-    fileInput.style.display = 'none';
-
-    // ¡Esta es la clave! El atributo 'capture' fuerza la apertura de la cámara.
-    if (source === 'camera') {
-        fileInput.capture = 'camera';
+function handleGastoImageSelection(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        return; // El usuario canceló la selección
     }
-
-    // El resto del flujo para procesar la imagen se mantiene igual
-    fileInput.onchange = (event) => {
-        const file = event.target.files[0];
-        if (!file) {
-             // Si el usuario cancela, nos aseguramos de limpiar el elemento
-             if (document.body.contains(fileInput)) {
-                document.body.removeChild(fileInput);
-            }
-            return;
-        }
-        selectedImageFile = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('image-preview-element').src = e.target.result;
-            document.getElementById('image-preview-overlay').style.display = 'flex';
-        };
-        reader.readAsDataURL(file);
-        
-        // Limpiamos el input del DOM después de su uso
-        if (document.body.contains(fileInput)) {
-            document.body.removeChild(fileInput);
-        }
+    selectedImageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        document.getElementById('image-preview-element').src = e.target.result;
+        document.getElementById('image-preview-overlay').style.display = 'flex';
     };
+    reader.readAsDataURL(file);
 
-    document.body.appendChild(fileInput);
-    fileInput.click();
+    // Importante: Reseteamos el valor del input para que el evento 'change'
+    // se dispare incluso si el usuario selecciona la misma foto otra vez.
+    event.target.value = '';
 }
 
 async function handleImageScan() {
@@ -5034,6 +4991,13 @@ document.getElementById('tab-chef').onclick = () => {
     }
 };
 loadEmojiDictionary(); // Carga el diccionario de emojis
+// --- Conectar los inputs permanentes al manejador de imagen ---
+const cameraInput = document.getElementById('file-input-camera');
+const galleryInput = document.getElementById('file-input-gallery');
+if (cameraInput && galleryInput) {
+    cameraInput.addEventListener('change', handleGastoImageSelection);
+    galleryInput.addEventListener('change', handleGastoImageSelection);
+}
 initializeApp();
 });
 </script>
