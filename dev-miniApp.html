@@ -2418,11 +2418,11 @@ function renderInstructionScreen() {
         <div class="list-container">
             <div class="list-header"></div>
             <div class="scan-instruction-screen">
-                <h2>Escanear un Ticket de Gasto</h2>
-                <ol>
-                    <li>Para un resultado óptimo, asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
-                    <li>Pulsa el botón de abajo para continuar.</li>
-                </ol>
+                <h2>Registrar Gasto con Foto</h2>
+                <ol style="text-align: left; margin: 0 auto 30px auto; max-width: 300px;">
+				<li style="margin-bottom: 10px;">Primero, sal de la app y saca una foto nítida de tu ticket con la cámara de tu teléfono.</li>
+				<li>Luego, vuelve aquí y pulsa el botón de abajo para subir esa foto desde tu galería.</li>
+				</ol>
                 <div class="add-article-btn-container">
                     <button class="add-article-btn" id="scan-ticket-button">Subir Ticket desde Galería 🖼️</button>
                 </div>
@@ -3048,7 +3048,7 @@ function renderChefPage() {
 				</ol>
 				</div>
 				<div class="add-article-btn-container" style="margin-top: 15px;">
-				<button class="add-article-btn" id="chef-upload-button">Subir Foto desde Galería 🖼️</button>
+				<button class="add-article-btn enabled" id="chef-upload-button">Subir Foto desde Galería 🖼️</button>
 				</div>
 
                 <div class="button-group">
@@ -4921,7 +4921,7 @@ function renderDashboard() {
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       ${calendarCardHtml}
-      <div class="card clickable-card"><div class="card-badge card-badge-pill red" style="left:12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Escanear Ticket</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+      <div class="card clickable-card"><div class="card-badge card-badge-pill red" style="left:12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${cuentasClarasCardHtml}
       ${chefCardHtml}
       <div id="guia-tv-card" class="card disabled-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
