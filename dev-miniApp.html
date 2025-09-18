@@ -3580,72 +3580,106 @@ function validateSettings() {
 }
 
 // --- FUNCIÓN DE GUARDADO MODIFICADA (NO OPTIMISTA) ---
+// --- VERSIÓN DEFINITIVA DE saveSettings (CON SPINNER Y LLAMADA A CLOUD FUNCTION) ---
 async function saveSettings() {
-    showSpinner("Guardando...");
+    const saveBtn = document.getElementById('settings-save-btn');
+    const originalBtnText = saveBtn.textContent;
     
-    const currentSettings = {
-        nombre: document.getElementById('settings-nombre').value,
-        ciudad: document.getElementById('settings-ciudad').value,
-        pais: document.getElementById('settings-pais').value,
-        tema: document.getElementById('settings-theme').value,
-        informeMananaActivo: document.getElementById('settings-informe-manana-activo').checked,
-        franjaManana: document.getElementById('settings-franja-manana').value,
-        informeTardeActivo: document.getElementById('settings-informe-tarde-activo').checked,
-        franjaTarde: document.getElementById('settings-franja-tarde').value,
-        alertaInventario: document.getElementById('settings-alerta-inventario').checked,
-        informeMensualActivo: document.getElementById('settings-informe-mensual-activo').checked,
-        diaInformeMensual: document.getElementById('settings-dia-informe-mensual').value,
-        horaInformeMensual: document.getElementById('settings-hora-informe-mensual').value
-    };
+    // Mostramos el spinner interno y desactivamos el botón
+    saveBtn.innerHTML = `<span class="spinner" style="display:inline-block; border-width:2px; width:18px; height:18px; vertical-align:middle; margin-right:8px;"></span> Guardando...`;
+    saveBtn.disabled = true;
 
-    const hasChanged = JSON.stringify(currentSettings) !== JSON.stringify(initialUserSettings);
-
-    if (!hasChanged) {
-        hideSpinner();
-        showToast("No hay cambios para guardar.");
-        return;
-    }
-    
     try {
-        const payload = { 
-            Type: 'save_user_settings', 
-            chat_ID: chatId, 
-            settings: currentSettings 
+        // 1. Recoger todos los valores actuales del formulario
+        const currentValues = {
+            nombre: document.getElementById('settings-nombre').value,
+            ciudad: document.getElementById('settings-ciudad').value,
+            pais: document.getElementById('settings-pais').value,
+            tema: document.getElementById('settings-theme').value,
+            informeMananaActivo: document.getElementById('settings-informe-manana-activo').checked,
+            franjaManana: document.getElementById('settings-franja-manana').value,
+            informeTardeActivo: document.getElementById('settings-informe-tarde-activo').checked,
+            franjaTarde: document.getElementById('settings-franja-tarde').value,
+            alertaInventario: document.getElementById('settings-alerta-inventario').checked,
+            informeMensualActivo: document.getElementById('settings-informe-mensual-activo').checked,
+            diaInformeMensual: document.getElementById('settings-dia-informe-mensual').value,
+            horaInformeMensual: document.getElementById('settings-hora-informe-mensual').value
         };
-        
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        
-        if (data.error) throw new Error(data.error);
 
-        if (data.success) {
-            // --- LÓGICA DE ACTUALIZACIÓN EN EL LUGAR ---
-            // 1. Actualizamos el estado global de la app con los datos del servidor
-            appData.settings = data.updatedSettings; 
-            appData.isPremium = appData.settings.plan_premium === true; // Re-evaluar por si acaso
-            
-            // 2. Actualizamos el estado 'inicial' para que la validación se resetee
-            initialUserSettings = currentSettings; 
-            
-            // 3. Actualizamos visualmente los campos que pudieron cambiar en el backend
-            document.getElementById('settings-zona-horaria').value = appData.settings.ubicacion?.timeZone || 'No disponible';
-            document.getElementById('settings-moneda').value = appData.settings.moneda || 'No disponible';
-            
-            // 4. Desactivamos el botón de guardar
-            const saveBtn = document.getElementById('settings-save-btn');
-            saveBtn.disabled = true;
-            saveBtn.classList.remove('enabled');
-            
-            showToast("Ajustes guardados con éxito.");
-            // NO nos movemos de la página. El usuario decide qué hacer a continuación.
-        } else {
-            throw new Error(data.message || "La respuesta del servidor no fue la esperada.");
+        // 2. Separar cambios simples de complejos
+        const simpleChanges = {};
+        const complexChanges = {};
+
+        for (const key in currentValues) {
+            if (currentValues[key] !== initialUserSettings[key]) {
+                if (key === 'ciudad' || key === 'pais') {
+                    complexChanges[key] = currentValues[key];
+                } else {
+                    simpleChanges[key] = currentValues[key];
+                }
+            }
+        }
+        
+        let updatePromise = Promise.resolve(); // Promesa vacía por defecto
+        let cloudFunctionPromise = Promise.resolve(); // Promesa vacía por defecto
+
+        // 3. Ejecutar las operaciones necesarias
+        if (Object.keys(simpleChanges).length > 0) {
+            console.log("Guardando cambios simples en Firestore:", simpleChanges);
+            const userDocRef = db.collection('users').doc(chatId);
+            // Creamos un objeto para la actualización anidada
+            const firestoreUpdateData = {};
+            for (const key in simpleChanges) {
+                if (key.includes('Manana') || key.includes('Tarde') || key.includes('Mensual')) {
+                    // Lógica para campos anidados en `configuracion`
+                    const informe = key.includes('Manana') ? 'informeManana' : (key.includes('Tarde') ? 'informeTarde' : 'informeMensual');
+                    const subKey = key.includes('Activo') ? 'activo' : (key.includes('franja') ? 'franjaHoraria' : (key.includes('dia') ? 'dia' : 'hora'));
+                    firestoreUpdateData[`configuracion.${informe}.${subKey}`] = simpleChanges[key];
+                } else if (key === 'alertaInventario' || key === 'tema') {
+                    firestoreUpdateData[`configuracion.${key}`] = simpleChanges[key];
+                } else {
+                    firestoreUpdateData[key] = simpleChanges[key]; // para 'nombre', etc.
+                }
+            }
+            updatePromise = userDocRef.update(firestoreUpdateData);
         }
 
-    } catch (err) {
-        showToast(`Error al guardar: ${err.message}`, true);
+        if (Object.keys(complexChanges).length > 0) {
+            console.log("Llamando a Cloud Function para cambios complejos:", complexChanges);
+            const updateUserSettings = firebase.functions().httpsCallable('updateUserSettings');
+            const payload = {
+                chatId: chatId,
+                nombre: currentValues.nombre, // Siempre enviamos el nombre actual
+                ciudad: currentValues.ciudad, // Siempre enviamos la ciudad actual
+                pais: currentValues.pais     // Siempre enviamos el país actual
+            };
+            cloudFunctionPromise = updateUserSettings(payload);
+        }
+        
+        // 4. Esperar a que todo termine
+        const results = await Promise.all([updatePromise, cloudFunctionPromise]);
+        
+        const cloudFunctionResult = results[1]; // El resultado de la Cloud Function
+        if (cloudFunctionResult && cloudFunctionResult.data.status === 'success') {
+            // Si el backend devolvió datos, esa es nuestra fuente de verdad
+            appData.settings = cloudFunctionResult.data.updatedSettings;
+        } else {
+            // Si no, actualizamos localmente solo con los cambios simples
+            Object.assign(appData.settings, currentValues);
+        }
+
+        // 5. Finalizar y resetear la UI
+        initialUserSettings = { ...currentValues }; // Actualizamos el estado inicial
+        showToast("Ajustes guardados con éxito.");
+
+    } catch (error) {
+        console.error("Error al guardar ajustes:", error);
+        showToast(`Error: ${error.message || 'Ocurrió un error desconocido.'}`, true);
     } finally {
-        hideSpinner();
+        // Restauramos el botón a su estado original
+        saveBtn.innerHTML = originalBtnText;
+        saveBtn.disabled = true; // Se desactiva porque ya no hay cambios pendientes
+        saveBtn.classList.remove('enabled');
     }
 }
 
