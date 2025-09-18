@@ -931,6 +931,15 @@ const HTML_VERSION = "1.2.22"; // IMPORTANTE: Incrementa la versión del cliente
 async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
+	    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+    // Comprueba si venimos de una recarga forzada por el changelog.
+    if (sessionStorage.getItem('force_app_load') === 'true') {
+        sessionStorage.removeItem('force_app_load'); // Limpiamos la bandera
+        console.log("Recarga forzada detectada. Saltando verificación de versión.");
+        runApp(); // Ejecutamos la app directamente
+        return;
+    }
+    // --- FIN DE LA CORRECCIÓN ---
     console.log("Iniciando app y verificando versión...");
 
     try {
@@ -1067,11 +1076,13 @@ function showChangelogModal(version, changelogText) {
         .join('');
 
     // Definimos la acción del botón
-    continueBtn.onclick = () => {
+        continueBtn.onclick = () => {
         overlay.classList.remove('show');
-        // Damos tiempo a la animación de cierre antes de recargar
         setTimeout(() => {
             showToast("Aplicando actualización...", false);
+            // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+            // Le decimos al navegador que en la próxima carga, ignore la verificación.
+            sessionStorage.setItem('force_app_load', 'true'); 
             window.location.reload(true);
         }, 300);
     };
