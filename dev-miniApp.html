@@ -749,6 +749,72 @@
 }
 /* --- FIN: Estilos para botones de modal modernos --- */
 /* --- FIN: ESTILOS PARA MODAL Y CONTROLES PERSONALIZADOS --- */
+/* --- INICIO: Estilos para el Modal de Changelog --- */
+.changelog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 9998; /* Justo debajo del splash screen */
+    display: none; /* Oculto por defecto */
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.changelog-overlay.show {
+    display: flex;
+    opacity: 1;
+}
+.changelog-modal {
+    background-color: var(--card-bg);
+    color: var(--text);
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    width: 90%;
+    max-width: 400px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+.changelog-overlay.show .changelog-modal {
+    transform: scale(1);
+}
+.changelog-modal h2 {
+    font-size: 1.4rem;
+    margin: 0 0 15px 0;
+    text-align: center;
+}
+.changelog-modal-content {
+    overflow-y: auto; /* Scroll si el contenido es muy largo */
+    flex-grow: 1;
+    margin-bottom: 20px;
+}
+.changelog-modal-content ul {
+    list-style: none;
+    padding-left: 5px;
+}
+.changelog-modal-content li {
+    margin-bottom: 10px;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+}
+.changelog-modal-content li::before {
+    content: '✅';
+    color: var(--primary);
+    margin-right: 10px;
+    font-size: 1rem;
+}
+.changelog-modal .button-group {
+    margin-top: 0; /* Anulamos el margen superior del button-group */
+}
+/* --- FIN: Estilos para el Modal de Changelog --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -769,6 +835,21 @@
   <div class="splash-text">Cargando tu asistente...</div>
 	</div>
 <!-- --- FIN SPLASH SCREEN --- -->
+<!-- --- INICIO MODAL DE CHANGELOG --- -->
+<div class="changelog-overlay" id="changelog-overlay">
+    <div class="changelog-modal">
+        <h2 id="changelog-title">¡Novedades en la Versión <span id="changelog-version"></span>!</h2>
+        <div class="changelog-modal-content">
+            <ul id="changelog-content">
+                <!-- El contenido se insertará aquí con JS -->
+            </ul>
+        </div>
+        <div class="button-group">
+            <button id="changelog-continue-btn" class="enabled" style="width:100%;">Continuar</button>
+        </div>
+    </div>
+</div>
+<!-- --- FIN MODAL DE CHANGELOG --- -->
   <div id="spinner" class="spinner"></div>
   <div id="main-content-area">
   </div>
@@ -844,7 +925,7 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.17"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.18"; // IMPORTANTE: Incrementa la versión del cliente.
 
 async function initializeApp() {
     if (isInitializing) return;
@@ -866,10 +947,10 @@ async function initializeApp() {
 
         const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
         if (serverVersion !== HTML_VERSION) {
-            showToast("Actualizando aplicación...", false);
-            setTimeout(() => window.location.reload(true), 1500);
-            return;
-        }
+        const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+        showChangelogModal(serverVersion, changelogText);
+        return; // ¡Importante! Detiene el resto de la carga de la app.
+}
 
         if (!userSettingsDoc.exists) {
             failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
@@ -945,6 +1026,41 @@ function hideSplashScreen() {
             }
         }, 600); // Debe coincidir con la duración de la transición en el CSS.
     }
+}
+function showChangelogModal(version, changelogText) {
+    const overlay = document.getElementById('changelog-overlay');
+    const versionSpan = document.getElementById('changelog-version');
+    const contentUl = document.getElementById('changelog-content');
+    const continueBtn = document.getElementById('changelog-continue-btn');
+
+    if (!overlay || !versionSpan || !contentUl || !continueBtn) {
+        // Si algo falla, forzamos la recarga para no bloquear al usuario
+        console.error("No se encontraron los elementos del modal de changelog. Forzando actualización.");
+        window.location.reload(true);
+        return;
+    }
+
+    // Llenamos el modal con los datos de Firestore
+    versionSpan.textContent = version;
+    contentUl.innerHTML = changelogText
+        .split('*') // Separamos por el asterisco
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map(line => `<li>${line}</li>`)
+        .join('');
+
+    // Definimos la acción del botón
+    continueBtn.onclick = () => {
+        overlay.classList.remove('show');
+        // Damos tiempo a la animación de cierre antes de recargar
+        setTimeout(() => {
+            showToast("Aplicando actualización...", false);
+            window.location.reload(true);
+        }, 300);
+    };
+
+    // Mostramos el modal
+    overlay.classList.add('show');
 }
 
 // --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
