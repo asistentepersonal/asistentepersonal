@@ -2444,21 +2444,26 @@ function renderInstructionScreen() {
             </div>
         </div>`;
     
-    document.getElementById('scan-ticket-button').onclick = () => {
-        // --- ¡AQUÍ ESTÁ LA LÓGICA DE CONFIANZA! ---
-        if (tg && tg.showConfirm) {
-            tg.showConfirm("¿Deseas seleccionar una foto de tu ticket?", (ok) => {
-                if (ok) {
-                    // El usuario pulsó "OK". Ahora el clic es de confianza.
-                    triggerFileInput();
-                }
-            });
-        } else {
-            // Fallback para entornos de desarrollo sin la API de Telegram.
-            // Esto permite seguir probando en un navegador normal.
-            triggerFileInput();
-        }
-    };
+    const scanButton = document.getElementById('scan-ticket-button');
+    if (scanButton) {
+        scanButton.onclick = () => {
+            // --- Primer paso: La confirmación nativa ---
+            if (tg && tg.showConfirm) {
+                tg.showConfirm("¿Deseas seleccionar una foto de tu ticket?", (ok) => {
+                    if (ok) {
+                        // --- Segundo paso: Preparamos el botón para el clic final ---
+                        scanButton.textContent = "✅ ¡Listo! Pulsa aquí para abrir";
+                        // Reasignamos el evento 'onclick' para que el siguiente clic
+                        // llame directamente a la función que abre el selector.
+                        scanButton.onclick = () => triggerFileInput();
+                    }
+                });
+            } else {
+                // Fallback para desarrollo: si no hay Telegram, abrimos directamente.
+                triggerFileInput();
+            }
+        };
+    }
 }
 function triggerFileInput() {
     const fileInput = document.createElement('input');
@@ -2481,6 +2486,7 @@ function triggerFileInput() {
     document.body.appendChild(fileInput);
     fileInput.click();
     
+    // Limpiamos el input del DOM para evitar problemas en futuras aperturas.
     window.addEventListener('focus', () => {
         if (document.body.contains(fileInput)) {
             document.body.removeChild(fileInput);
