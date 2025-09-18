@@ -2435,22 +2435,33 @@ function renderInstructionScreen() {
             <div class="scan-instruction-screen">
                 <h2>Escanear un Ticket de Gasto</h2>
                 <ol>
-                    <li>Primero, <strong>saca una foto nítida</strong> de tu ticket con la cámara de tu móvil.</li>
+                    <li>Para un resultado óptimo, saca una foto nítida de tu ticket.</li>
                     <li>Asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
-                    <li>Luego, <strong>pulsa el botón de abajo</strong> para seleccionarla de tu galería.</li>
                 </ol>
-                <button class="add-article-btn" id="select-photo-btn">Seleccionar Foto de la Galería</button>
+                <div class="button-group" style="flex-direction: column;">
+                    <button class="add-article-btn" id="take-photo-btn">📸 Tomar Foto</button>
+                    <button class="add-article-btn" id="select-gallery-btn" style="background-color: var(--muted); margin-top: 10px;">🖼️ Seleccionar de Galería</button>
+                </div>
             </div>
         </div>`;
-    document.getElementById('select-photo-btn').onclick = renderScanTicketView;
+    
+    // Asignamos a cada botón la llamada a la misma función, pero con un parámetro diferente
+    document.getElementById('take-photo-btn').onclick = () => renderScanTicketView(true); // true = usar cámara
+    document.getElementById('select-gallery-btn').onclick = () => renderScanTicketView(false); // false = usar galería
 }
 
-function renderScanTicketView() {
+function renderScanTicketView(useCamera) { // <-- Acepta el nuevo parámetro
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
-	fileInput.capture = 'environment';
     fileInput.style.display = 'none';
+
+    // --- ¡AQUÍ ESTÁ LA LÓGICA CLAVE! ---
+    // Solo añadimos el atributo 'capture' si el botón "Tomar Foto" fue presionado.
+    if (useCamera) {
+        fileInput.capture = 'environment';
+    }
+
     fileInput.onchange = (event) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -2464,7 +2475,13 @@ function renderScanTicketView() {
     };
     document.body.appendChild(fileInput);
     fileInput.click();
-    document.body.removeChild(fileInput);
+    
+    // Usamos un listener para limpiar el input del DOM después de que se use
+    window.addEventListener('focus', () => {
+        if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
+        }
+    }, { once: true });
 }
 
 async function handleImageScan() {
