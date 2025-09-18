@@ -42,7 +42,7 @@
     .card-badge.red{background-color:#e74c3c;}
     .card-badge-group .card-badge{position:static;}
     .card-menu-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: none; font-size: 1.5rem; color: var(--muted); cursor: pointer; padding: 5px; line-height: 1; z-index: 10; }
-    .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; overflow: hidden; min-width: 150px; }
+        .dropdown-menu { display: none; position: absolute; top: 40px; right: 10px; background-color: var(--menu-bg); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1100; /* Prioridad muy alta para estar siempre por encima */ overflow: hidden; min-width: 150px; }
     .dropdown-menu.show { display: block; }
     .dropdown-menu.up { top: auto; bottom: 100%; margin-bottom: 5px; }
     .dropdown-item { padding: 12px 20px; color: var(--text) !important; background-color: var(--card-bg, #fff) !important; cursor: pointer; display: block; text-align: left; transition: background-color 0.2s, color 0.2s; }
@@ -293,14 +293,36 @@
 .guia-now-line { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #e74c3c; z-index: 3; pointer-events: none; }
 /* --- FIN ESTILOS GUÍA TV --- */  
 /* --- INICIO ESTILOS CALENDARIO PROFESIONAL (V2) --- */
-.calendar-header-sticky { position: sticky; top: 0; background-color: var(--bg); z-index: 20; padding-top: 10px; margin-bottom: 10px;}
+.calendar-header-sticky { position: sticky; top: 0; background-color: var(--bg); z-index: 30; padding-top: 10px; margin-bottom: 10px; overflow: visible; }
 .calendar-timeline { position: relative; padding-left: 50px; }
 .time-slot { height: 60px; border-top: 1px solid var(--muted); position: relative; }
 .time-slot::before { content: attr(data-time); position: absolute; left: -50px; top: -10px; color: var(--muted); font-size: 0.8rem; }
 .now-line { position: absolute; left: 50px; right: 0; height: 2px; background-color: #e74c3c; z-index: 15; }
 .now-line::before { content: ''; position: absolute; left: -5px; top: -4px; width: 12px; height: 12px; background-color: #e74c3c; border-radius: 50%; }
-.event-block { position: absolute; left: 60px; right: 10px; background-color: var(--primary); color: var(--action-text); border-radius: 8px; padding: 8px; overflow: hidden; z-index: 10; cursor: pointer; border-left: 5px solid rgba(0,0,0,0.2); }
-.event-block-title { font-weight: bold; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-block { position: absolute; background-color: var(--primary); color: var(--action-text); border-radius: 8px; padding: 8px; overflow: hidden; z-index: 10; cursor: pointer; border-left: 5px solid rgba(0,0,0,0.2); box-sizing: border-box !important; }
+.event-block-title {
+    font-weight: bold;
+    font-size: 0.9rem;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* --- CORRECCIÓN DEFINITIVA DE MENÚ Y LÍNEAS --- */
+/* Le da al menú la máxima prioridad para que siempre esté visible */
+#calendar-view-menu {
+    z-index: 100 !important;
+}
+
+/* Asegura que la columna de horas tenga la altura mínima correcta */
+.calendar-time-col {
+    min-height: 1440px; /* 24h * 60px */
+}
+
+/* --- NUEVO: Corrección de posicionamiento del Menú --- */
+.list-header .dropdown-menu {
+    z-index: 110; /* Asegura que el menú esté por encima de las cabeceras fijas */
+}
 .event-block-time { font-size: 0.8rem; opacity: 0.8; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; } /* Ajuste de gap para bordes */
 .calendar-day-header { text-align: center; font-weight: bold; padding: 8px 0; font-size: 0.9rem; }
@@ -311,148 +333,488 @@
 .week-view-col { display: flex; flex-direction: column; }
 .week-view-timeline { flex-grow: 1; position: relative; border-left: 1px solid var(--bg); min-height: 500px; }
 /* --- FIN ESTILOS CALENDARIO PROFESIONAL (V2) --- */
-/* --- INICIO ESTILOS VISTA SEMANAL HORARIA (V3 - ESTILO MES) --- */
-.calendar-week-container {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
+/* --- INICIO ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
+
+/* Contenedor principal para la vista mensual */
+.calendar-month-container {
+    /* Este contenedor ahora solo agrupa */
 }
-.calendar-week-header {
-    display: grid;
-    grid-template-columns: 50px 1fr; /* Columna horas y área de días */
-    width: 100%;
-    position: sticky; /* Cabecera de semana pegajosa */
-    top: 135px; /* Altura ajustada para quedar debajo de los controles */
-    z-index: 15;
-    background-color: var(--bg);
-}
-.calendar-week-header .header-days-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    background-color: var(--muted); /* Fondo para los bordes */
-    gap: 1px; /* Espaciado para los bordes */
-    border: 1px solid var(--muted);
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-    overflow: hidden;
-}
-.calendar-week-header .calendar-day-header {
-    text-align: center;
-    padding: 8px 4px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    background-color: var(--card-bg);
-}
-.calendar-week-header .calendar-day-header.today span {
-    color: var(--primary);
-    font-weight: bold;
-}
-.calendar-week-scroll-area {
-    overflow-y: visible; /* Evita el doble scroll */
-    overflow-x: hidden;
-    position: relative;
-    display: grid;
-    grid-template-columns: 50px 1fr;
-}
-.calendar-week-time-col {
-    background-color: var(--card-bg);
-    border-left: 1px solid var(--muted);
-    border-bottom: 1px solid var(--muted);
-}
-.calendar-week-time-slot {
-    height: 60px; /* 1 hora */
-    position: relative;
-    border-top: 1px dashed #ddd;
-    font-size: 0.8rem;
-    color: var(--muted);
-    text-align: right;
-    padding-right: 5px;
-}
-.calendar-week-time-slot span {
-    position: relative;
-    top: -9px;
-}
-.calendar-week-events-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 1px; /* Bordes finos */
-    position: relative;
-    width: 100%;
-    background-color: var(--muted); /* Fondo para los bordes */
-    border-right: 1px solid var(--muted);
-    border-bottom: 1px solid var(--muted);
-}
-.calendar-week-day-col {
-    position: relative;
-    background-color: var(--card-bg);
-    background-image: linear-gradient(to bottom, transparent 59px, #eee 1px);
-    background-size: 100% 60px;
-    cursor: pointer;
-    min-height: 1440px; /* 24 * 60px */
-}
-/* --- FIN ESTILOS VISTA SEMANAL HORARIA (V3 - ESTILO MES) --- */
-/* --- INICIO ESTILOS FINALES CALENDARIO (V2) --- */
-.calendar-month-scroll-wrapper {
-    /* Este contenedor ahora solo agrupa, ya no hace scroll */
-}
-/* CORRECCIÓN: Estructura para cabeceras fijas */
+
+/* Cabecera de los días de la semana (Lun, Mar...) */
 .calendar-month-header {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(7, 1fr);
     position: sticky;
-    /* La cabecera se pega debajo de los controles principales */
-    top: 135px;
+    top: 135px; /* Se pega debajo de los controles de navegación */
     z-index: 10;
     
-    /* Estilos para bordes y contraste */
-    background-color: var(--muted); /* Fondo que se verá en los gaps (bordes) */
-    gap: 1px; /* Espaciado que crea el efecto de borde */
+    /* Efecto de borde sutil usando el fondo y el gap */
+    background-color: var(--muted); 
+    gap: 1px;
     border: 1px solid var(--muted);
     border-bottom: none;
     border-radius: 8px 8px 0 0;
-    overflow: hidden; /* Para que el radius afecte a las celdas interiores */
+    overflow: hidden; /* Asegura que el borde redondeado se aplique a las celdas */
 }
+
+/* Celda individual de la cabecera */
 .calendar-month-header .calendar-day-header {
-    padding: 12px 0;
-    background-color: var(--card-bg); /* Fondo real de cada celda de cabecera */
+    padding: 10px 0;
+    font-size: 0.8rem;
+    font-weight: 500;
+    background-color: var(--card-bg);
+    text-align: center;
 }
-/* CORRECCIÓN: Cuadrícula de celdas que no se deforma y tiene más contraste */
+
+/* Cuadrícula principal de los días del mes */
 .calendar-month-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    grid-auto-rows: 110px; /* TAMAÑO FIJO: Todas las filas tendrán esta altura */
-    gap: 1px; /* Espaciado para crear el borde */
-    background-color: var(--muted); /* Color del "borde" */
+    /* ¡CLAVE! Todas las filas tendrán la misma altura mínima pero pueden crecer */
+    grid-auto-rows: minmax(100px, auto); 
+    gap: 1px;
+    background-color: var(--muted);
     border: 1px solid var(--muted);
     border-top: none;
 }
-/* Sobre-escribimos el estilo original de .calendar-day-cell para adaptarlo al nuevo grid */
+
+/* Celda de un día individual */
 .calendar-day-cell {
     background: var(--card-bg);
     padding: 4px;
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* Oculta el contenido que se desborde de la celda */
+    overflow: hidden;
     cursor: pointer;
-    border: none; /* Ya no necesitamos bordes individuales */
-    border-radius: 0; /* Celdas perfectamente cuadradas */
-    min-height: auto; /* El grid padre controla la altura */
-}
-.calendar-day-cell.today {
-    box-shadow: none; /* La sombra ya no es necesaria */
     border: none;
-    /* En su lugar, damos un fondo sutil para destacarlo */
-    background-color: #fcf8e3; /* Un amarillo muy pálido, compatible con temas claros/oscuros */
+    border-radius: 0;
+    min-height: auto;
+    transition: background-color 0.2s; /* Efecto suave al pasar el ratón */
 }
-.calendar-week-overflow-wrapper {
+.calendar-day-cell:not(.empty):hover {
+    background-color: #f0f0f0; /* Un color sutil para el hover, solo en celdas con día */
+}
+
+/* Número del día dentro de la celda */
+.calendar-day-number {
+    font-weight: 500;
+    text-align: center; /* Centrado como en la imagen */
+    font-size: 0.9rem;
+    padding: 4px;
+    width: 26px; /* Ancho y alto para formar un círculo */
+    height: 26px;
+    line-height: 18px; /* Ajuste para centrar el número verticalmente */
+    border-radius: 50%; /* Lo hace circular */
+    margin: 0 auto 4px auto; /* Centra el círculo horizontalmente */
+    transition: background-color 0.2s, color 0.2s;
+}
+
+/* Estilo para el día de HOY */
+.calendar-day-cell.today .calendar-day-number {
+    background-color: var(--primary); /* Fondo azul */
+    color: var(--action-text); /* Texto blanco */
+    font-weight: bold;
+}
+
+/* "Pastilla" para un evento */
+.month-event-pill {
+    font-size: 0.75rem;
+    padding: 3px 6px;
+    border-radius: 4px; /* Bordes menos redondeados, más profesional */
+    margin: 1px 2px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--action-text);
+    font-weight: 500;
+}
+
+/* Contenedor para las pastillas dentro de una celda */
+.month-events-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2px; /* Pequeño espacio entre pastillas */
+}
+
+/* --- FIN ESTILOS CALENDARIO (V3 - ESTILO GOOGLE CALENDAR) --- */
+/* --- INICIO: NUEVA ARQUITECTURA VISUAL CALENDARIO (ESTILO GOOGLE CALENDAR) --- */
+.calendar-grid-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 185px); /* Altura dinámica para ocupar el espacio disponible */
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    overflow: hidden; /* Clave para que el borde redondeado afecte a todo */
+}
+
+/* 1. Cabecera de Días (Lun 15, Mar 16...) */
+.calendar-header {
+    display: grid;
+    flex-shrink: 0; /* No se encoge */
+    position: sticky;
+    top: 0;
+    z-index: 20; /* Por encima del cuerpo */
+    background-color: var(--muted);
+    gap: 1px;
+    border-bottom: 1px solid var(--muted);
+}
+
+.calendar-header .day-label {
+    background-color: var(--card-bg);
+    text-align: center;
+    padding: 6px 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.day-label .day-number-circle {
+    font-size: 0.9rem; /* Un poco más grande para el número */
+    font-weight: 500;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    border-radius: 50%;
+    margin-top: 2px;
+}
+.day-label.today .day-number-circle {
+    background-color: var(--primary);
+    color: var(--action-text);
+    font-weight: bold;
+}
+
+/* 2. Cabecera "Todo el Día" */
+.calendar-all-day-header {
+    display: grid;
+    flex-shrink: 0;
+    position: sticky;
+    top: 40px; /* Se pega justo debajo de la cabecera de días (ajustar si cambia la altura) */
+    z-index: 20;
+    background-color: var(--muted);
+    gap: 1px;
+    border-bottom: 1px solid var(--muted);
+}
+
+.all-day-label {
+    background-color: var(--card-bg);
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: right;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.all-day-slot {
+    background-color: var(--card-bg);
+    min-height: 28px;
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* 3. Cuerpo Deslizable (Contiene horas y eventos) */
+.calendar-scroll-body {
+    flex-grow: 1; /* Ocupa todo el espacio restante */
+    display: flex;
+    overflow: auto; /* PERMITE EL SCROLL */
+    position: relative;
+}
+
+/* 4. Columna de Horas (a la izquierda) */
+.calendar-time-col {
+    width: 50px;
+    flex-shrink: 0;
+    background-color: var(--card-bg);
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
+.calendar-time-slot {
+    height: 60px;
+    position: relative;
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: right;
+    padding-right: 5px;
+}
+.calendar-time-slot span {
+    position: relative;
+    top: -9px;
+    /* Mejora para modo oscuro: el texto de las horas siempre es legible */
+    color: var(--text);
+    opacity: 0.7;
+}
+
+/* 5. Cuadrícula de Eventos (el fondo donde se dibujan las líneas) */
+.calendar-events-grid {
+    display: grid;
+    gap: 0;
+    flex-grow: 1;
+    /* La línea min-width: 650px; se ha eliminado para corregir el cálculo del ancho del evento */
+}
+.calendar-events-grid.three-day {
+    min-width: auto; /* La vista 3 días no necesita scroll H */
+}
+
+/* Columna individual de un día */
+.calendar-day-col {
+    position: relative;
+    background-color: var(--card-bg);
+    /* LÍNEAS HORIZONTALES (sutiles y adaptables a temas) */
+    background-image: linear-gradient(to bottom, transparent 59px, rgba(128, 128, 128, 0.2) 1px);
+    background-size: 100% 60px;
+    min-height: 1440px; /* 24h * 60px */
+    /* LÍNEAS VERTICALES (sutiles y adaptables a temas) */
+    border-left: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+/* 6. Mejoras Adicionales y Correcciones */
+.dropdown-item.active {
+    background-color: var(--primary) !important;
+    color: var(--action-text) !important;
+    font-weight: bold;
+}
+
+.floating-action-button {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background-color: var(--primary);
+    color: var(--action-text);
+    border-radius: 16px; /* Bordes redondeados como en la referencia */
+    border: none;
+    font-size: 28px;
+    line-height: 56px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    cursor: pointer;
+    z-index: 1050;
+    transition: transform 0.2s, border-radius 0.2s ease-out;
+}
+.floating-action-button:hover {
+    transform: scale(1.05);
+    border-radius: 50%; /* Efecto suave al pasar el ratón */
+}
+/* --- FIN: NUEVA ARQUITECTURA VISUAL CALENDARIO --- */
+/* --- INICIO: ESTILOS PARA MODAL Y CONTROLES PERSONALIZADOS --- */
+.custom-dropdown {
+    position: relative;
     width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
 }
-.calendar-week-overflow-wrapper .calendar-week-container {
-    min-width: 650px;
+.custom-dropdown-selected {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg);
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
 }
-/* --- FIN ESTILOS FINALES CALENDARIO (V2) --- */
+.color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+.custom-dropdown-options {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background-color: var(--card-bg);
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    margin-top: 4px;
+    z-index: 1200;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.custom-dropdown-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.custom-dropdown-item:hover {
+    background-color: var(--bg);
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    z-index: 1500;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none; /* No interactuable por defecto */
+}
+.modal-overlay.show {
+    opacity: 1;
+    pointer-events: auto; /* Interactuable cuando es visible */
+}
+.modal-content {
+    background-color: var(--card-bg);
+    width: 100%;
+    max-width: 480px;
+    padding: 20px;
+    border-radius: 16px 16px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.3s ease-out;
+}
+.modal-overlay.show .modal-content {
+    transform: translateY(0);
+}
+.modal-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: left;
+}
+.preset-list-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 5px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+.preset-list-item input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 15px;
+}
+.notification-chip {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bg);
+    border: 1px solid var(--muted);
+    border-radius: 16px;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+    margin: 4px;
+}
+.notification-chip-remove {
+    margin-left: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1rem;
+    line-height: 1;
+}
+#notification-chips-container {
+    margin-top: 10px;
+    padding: 5px;
+    border: 1px dashed var(--muted);
+    border-radius: 8px;
+    min-height: 40px;
+}
+/* --- INICIO: Estilos para botones de modal modernos --- */
+.modal-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.modal-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+.modal-btn-primary {
+    background-color: #2980b9; /* Azul brillante */
+    color: white;
+}
+.modal-btn-secondary {
+    background-color: #f1f3f4; /* Gris claro sutil */
+    color: #3c4043;
+}
+/* --- FIN: Estilos para botones de modal modernos --- */
+/* --- FIN: ESTILOS PARA MODAL Y CONTROLES PERSONALIZADOS --- */
+/* --- INICIO: Estilos para el Modal de Changelog --- */
+.changelog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 9998; /* Justo debajo del splash screen */
+    display: none; /* Oculto por defecto */
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.changelog-overlay.show {
+    display: flex;
+    opacity: 1;
+}
+.changelog-modal {
+    background-color: var(--card-bg);
+    color: var(--text);
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    width: 90%;
+    max-width: 400px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+.changelog-overlay.show .changelog-modal {
+    transform: scale(1);
+}
+.changelog-modal h2 {
+    font-size: 1.4rem;
+    margin: 0 0 15px 0;
+    text-align: center;
+}
+.changelog-modal-content {
+    overflow-y: auto; /* Scroll si el contenido es muy largo */
+    flex-grow: 1;
+    margin-bottom: 20px;
+}
+.changelog-modal-content ul {
+    list-style: none;
+    padding-left: 5px;
+}
+.changelog-modal-content li {
+    margin-bottom: 10px;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+}
+.changelog-modal-content li::before {
+    content: '✅';
+    color: var(--primary);
+    margin-right: 10px;
+    font-size: 1rem;
+}
+.changelog-modal .button-group {
+    margin-top: 0; /* Anulamos el margen superior del button-group */
+}
+/* --- FIN: Estilos para el Modal de Changelog --- */
   </style>
   <script>
     // Configuración de Firebase para el cliente (conexión directa y segura)
@@ -473,6 +835,21 @@
   <div class="splash-text">Cargando tu asistente...</div>
 	</div>
 <!-- --- FIN SPLASH SCREEN --- -->
+<!-- --- INICIO MODAL DE CHANGELOG --- -->
+<div class="changelog-overlay" id="changelog-overlay">
+    <div class="changelog-modal">
+        <h2 id="changelog-title">¡Novedades en la Versión <span id="changelog-version"></span>!</h2>
+        <div class="changelog-modal-content">
+            <ul id="changelog-content">
+                <!-- El contenido se insertará aquí con JS -->
+            </ul>
+        </div>
+        <div class="button-group">
+            <button id="changelog-continue-btn" class="enabled" style="width:100%;">Continuar</button>
+        </div>
+    </div>
+</div>
+<!-- --- FIN MODAL DE CHANGELOG --- -->
   <div id="spinner" class="spinner"></div>
   <div id="main-content-area">
   </div>
@@ -490,6 +867,57 @@
         <button id="preview-send-btn">Enviar</button>
     </div>
   </div>
+<!-- INICIO MODAL DE NOTIFICACIONES -->
+<div class="modal-overlay" id="notification-modal" style="display: none;">
+    <div class="modal-content">
+        <!-- Vista de Presets (inicial) -->
+        <div id="notification-presets-view">
+            <h3 class="modal-title">Añadir notificación</h3>
+            <div id="notification-presets-list">
+                <!-- Los presets se generarán con JS -->
+            </div>
+            <div class="button-group" style="margin-top: 20px;">
+                <button id="notification-modal-cancel" class="cancel">Cancelar</button>
+            </div>
+        </div>
+        <!-- Vista Personalizada (oculta por defecto) -->
+        <div id="notification-custom-view" style="display: none;">
+            <h3 class="modal-title">Notificación personalizada</h3>
+            
+            <input type="number" id="custom-notification-value" placeholder="10" value="10" min="1" style="margin-bottom: 15px; text-align: center; font-size: 1.2rem;">
+            
+            <label class="preset-list-item">
+                <input type="radio" name="custom_unit" value="minutes" checked>
+                <span>Minutos antes</span>
+            </label>
+            <label class="preset-list-item">
+                <input type="radio" name="custom_unit" value="hours">
+                <span>Horas antes</span>
+            </label>
+            <label class="preset-list-item">
+                <input type="radio" name="custom_unit" value="days">
+                <span>Días antes</span>
+            </label>
+            
+            <hr style="margin: 15px 0; border-top: 1px solid var(--muted);">
+
+            <label class="preset-list-item">
+                <input type="radio" name="custom_method" value="telegram" checked>
+                <span>En una notificación</span>
+            </label>
+            <label class="preset-list-item">
+                <input type="radio" name="custom_method" value="email">
+                <span>En un correo</span>
+            </label>
+            
+            <div class="button-group" style="margin-top: 20px;">
+                <button id="custom-notification-back" class="cancel">Cancelar</button>
+                <button id="custom-notification-done" class="enabled">Hecho</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- FIN MODAL DE NOTIFICACIONES -->
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -497,32 +925,57 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.15"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.22"; // IMPORTANTE: Incrementa la versión del cliente.
 
+// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
+// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
+// Esta sección ahora se ejecuta siempre, garantizando que 'db' exista.
+if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+    window.db = firebase.firestore();
+}
+
+// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
-    console.log("Iniciando app desde Firestore...");
-    
-    try {
-        if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-            window.db = firebase.firestore();
-        }
-        
-        const versionPromise = db.collection('app_config').doc('version_info').get();
-        const userSettingsPromise = db.collection('users').doc(chatId).get();
-        
-        const [versionDoc, userSettingsDoc] = await Promise.all([
-            versionPromise, userSettingsPromise
-        ]);
+    console.log("Iniciando app y verificando versión...");
 
+    // Comprueba si venimos de una recarga forzada por el changelog.
+    if (sessionStorage.getItem('force_app_load') === 'true') {
+        sessionStorage.removeItem('force_app_load'); // Limpiamos la bandera
+        console.log("Recarga forzada detectada. Saltando verificación de versión.");
+        runApp(); // Ejecutamos la app directamente
+        return;
+    }
+
+    try {
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
         const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
-        if (serverVersion !== HTML_VERSION) {
-            showToast("Actualizando aplicación...", false);
-            setTimeout(() => window.location.reload(true), 1500);
-            return;
+        
+        if (String(serverVersion) !== String(HTML_VERSION)) {
+            console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
+            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+            hideSplashScreen(); 
+            showChangelogModal(serverVersion, changelogText);
+            return; 
         }
+
+        console.log("Versión correcta. Ejecutando la aplicación...");
+        runApp();
+
+    } catch (err) {
+        console.error("Error crítico en initializeApp:", err);
+        showToast(`Error de inicialización: ${err.message}`, true);
+        mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
+        hideSplashScreen();
+    }
+}
+
+// --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
+async function runApp() {
+    try {
+        const userSettingsDoc = await db.collection('users').doc(chatId).get();
 
         if (!userSettingsDoc.exists) {
             failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
@@ -532,11 +985,10 @@ async function initializeApp() {
         appData.settings = userSettingsDoc.data() || {};
         appData.isPremium = appData.settings.plan_premium === true;
         
-        // --- Listener GLOBAL de contadores ---
+        // Listener GLOBAL de contadores
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot((doc) => {
                 if (doc.exists) {
-                    console.log("Contadores sincronizados en tiempo real.");
                     const serverCounts = doc.data();
                     if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
                         appData.counts = serverCounts;
@@ -550,7 +1002,7 @@ async function initializeApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // --- INICIO: Listener para el badge del calendario en tiempo real ---
+        // Listener para el badge del calendario en tiempo real
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date();
@@ -560,26 +1012,23 @@ async function initializeApp() {
           .where('fechaInicio', '>=', startOfToday)
           .where('fechaInicio', '<=', endOfToday)
           .onSnapshot(snapshot => {
-              const eventsTodayCount = snapshot.size;
-              console.log(`Eventos para hoy: ${eventsTodayCount}`);
-              appData.counts.calendarTodayCount = eventsTodayCount;
+              appData.counts.calendarTodayCount = snapshot.size;
               const calendarBadge = document.getElementById('calendar-badge');
               if (calendarBadge) {
-                  calendarBadge.textContent = eventsTodayCount;
+                  calendarBadge.textContent = snapshot.size;
               }
           }, error => {
               console.error("Error en listener de eventos de hoy:", error);
           });
-        // --- FIN: Listener para el badge del calendario ---
 
         updateChefTabStyle();
         renderDashboard();
-		isAppReady = true;
+        isAppReady = true;
         hideSplashScreen();
         
     } catch (err) {
-        console.error("Error crítico en initializeApp:", err);
-        showToast(`Error de inicialización: ${err.message}`, true);
+        console.error("Error crítico en runApp:", err);
+        showToast(`Error al cargar datos de usuario: ${err.message}`, true);
         mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
         hideSplashScreen();
     } finally {
@@ -598,6 +1047,43 @@ function hideSplashScreen() {
             }
         }, 600); // Debe coincidir con la duración de la transición en el CSS.
     }
+}
+function showChangelogModal(version, changelogText) {
+    const overlay = document.getElementById('changelog-overlay');
+    const versionSpan = document.getElementById('changelog-version');
+    const contentUl = document.getElementById('changelog-content');
+    const continueBtn = document.getElementById('changelog-continue-btn');
+
+    if (!overlay || !versionSpan || !contentUl || !continueBtn) {
+        // Si algo falla, forzamos la recarga para no bloquear al usuario
+        console.error("No se encontraron los elementos del modal de changelog. Forzando actualización.");
+        window.location.reload(true);
+        return;
+    }
+
+    // Llenamos el modal con los datos de Firestore
+    versionSpan.textContent = version;
+    contentUl.innerHTML = changelogText
+        .split('*') // Separamos por el asterisco
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map(line => `<li>${line}</li>`)
+        .join('');
+
+    // Definimos la acción del botón
+        continueBtn.onclick = () => {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            showToast("Aplicando actualización...", false);
+            // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+            // Le decimos al navegador que en la próxima carga, ignore la verificación.
+            sessionStorage.setItem('force_app_load', 'true'); 
+            window.location.reload(true);
+        }, 300);
+    };
+
+    // Mostramos el modal
+    overlay.classList.add('show');
 }
 
 // --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
@@ -882,6 +1368,10 @@ let isInitializing = false;
 let isAppReady = false;
 let unsubscribeShoppingList = null;
 let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
+let calendarScrollSyncHandler = null; // Para el listener de scroll sincronizado
+const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
+let currentCalendarView = 'month';
+let currentCalendarDate = new Date();
 // --- Inputs de archivo globales para la cámara y galería (NUEVOS) ---
 // Se declaran una sola vez al inicio de la aplicación y se reutilizan.
 const fileInputCamera = document.createElement('input');
@@ -2495,7 +2985,8 @@ async function saveEditedGasto(idUnico) {
 // --- MÓDULO: CHEF ASISTENTE (VERSIÓN FINAL) ---
 // ==================================================
 function renderChefPage() {
-    setActiveTab('tab-chef');
+    removeCalendarFAB();
+	setActiveTab('tab-chef');
     navigationHistory.push(renderDashboard);
     updateBackButton();
 
@@ -2947,6 +3438,7 @@ async function addIngredientsToShoppingList(buttonElement) {
 // --- MÓDULO: AJUSTES (CON GUARDADO SEGURO) ---
 // ==================================================
 function renderSettings() {
+    removeCalendarFAB();
     setActiveTab('tab-settings');
     navigationHistory.push(renderDashboard);
     updateBackButton();
@@ -3008,7 +3500,8 @@ function renderSettings() {
             <div class="form-card" style="margin-top: 20px;"><div class="button-group">
                 <button id="settings-cancel-btn" class="cancel">Cancelar</button>
                 <button id="settings-save-btn" disabled>Guardar Cambios</button>
-            </div></div>
+            </div>
+			</div>
             <div class="form-card" style="margin-top: 20px;">
                  <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; background-color: var(--muted);">Sincronizar Contadores</button>
             </div>
@@ -3217,7 +3710,8 @@ async function syncCounts() {
 }
 
 function renderExportPage() {
-    setActiveTab('tab-export');
+    removeCalendarFAB();
+	setActiveTab('tab-export');
     navigationHistory.push(renderDashboard);
     updateBackButton();
     mainContentArea.innerHTML = `
@@ -3432,15 +3926,16 @@ function renderTimelineGrid(canales, programas) {
          wrapper.scrollLeft = nowPosition - (wrapper.offsetWidth / 2);
     }
 }
-// ==================================================
-// --- MÓDULO: CALENDARIO INTELIGENTE (VERSIÓN FINAL Y COMPLETA) ---
-// ==================================================
-const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
-let currentCalendarView = 'day';
-let currentCalendarDate = new Date();
-
+// ====================================================================================
+// --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO SIMPLIFICADO + MENÚ + BOTÓN FLOTANTE) ---
+// ====================================================================================
+// --- NUEVA FUNCIÓN DE AYUDA ---
+function removeCalendarFAB() {
+    const fab = document.getElementById('calendar-fab');
+    if (fab) fab.remove();
+}
 function renderCalendarView() {
-    currentCalendarView = 'month'; 
+    currentCalendarView = 'month';
     currentCalendarDate = new Date();
     
     navigationHistory.push(() => {
@@ -3448,6 +3943,9 @@ function renderCalendarView() {
             unsubscribeCalendarEvents();
             unsubscribeCalendarEvents = null;
         }
+        // Asegurarse de que el botón + se elimina al salir de la vista de calendario
+        const fab = document.getElementById('calendar-fab');
+        if (fab) fab.remove();
         renderDashboard();
     });
     updateBackButton();
@@ -3455,50 +3953,119 @@ function renderCalendarView() {
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="calendar-header-sticky">
-                <div class="list-header" style="padding-bottom:0;"><h2>🗓️ Mi Calendario</h2></div>
-                <div class="guia-nav" id="calendar-view-tabs" style="justify-content: center; margin-bottom: 15px;">
-                    <button class="guia-nav-btn" data-view="day">Día</button>
-                    <button class="guia-nav-btn" data-view="week">Semana</button>
-                    <button class="guia-nav-btn active" data-view="month">Mes</button>
+                 <div class="list-header" style="padding-bottom:0; justify-content: space-between; align-items: center;">
+                    <div style="position: relative; z-index: 100;">
+                        <button class="generic-menu-btn" id="calendar-view-menu-btn" style="font-size: 1.8rem; padding: 5px;">☰</button>
+                        <div class="dropdown-menu" id="calendar-view-menu" style="top: 100%; left: 0; min-width: 120px;">
+                            <a class="dropdown-item" data-view="day">Hoy</a>
+                            <a class="dropdown-item" data-view="three_day">3 Días</a>
+                            <a class="dropdown-item" data-view="week">Semana</a>
+                            <a class="dropdown-item" data-view="month">Mes</a>
+                        </div>
+                    </div>
+                    <h2 style="margin:0; flex-grow: 1; text-align: left; padding-left: 15px;">🗓️ Mi Calendario</h2>
                 </div>
-                <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
+                <div id="calendar-controls" style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0; padding: 0 10px;">
                     <button id="calendar-prev-btn" class="back-btn" style="font-size:1.5rem; margin-right:0;">◀️</button>
                     <h3 id="calendar-current-period" style="font-size:1.1rem; flex-grow:1; text-align:center; margin:0;">Cargando...</h3>
                     <button id="calendar-next-btn" class="back-btn" style="font-size:1.5rem; margin-left:0;">▶️</button>
                 </div>
             </div>
             <div id="calendar-content" style="min-height:300px;"></div>
-            <div class="add-article-btn-container" style="margin-top:20px;">
-                <button class="add-article-btn" id="calendar-quick-add-btn">➕ Añadir Evento</button>
-            </div>
         </div>`;
 
-    document.querySelectorAll('#calendar-view-tabs .guia-nav-btn').forEach(btn => btn.onclick = () => {
-        document.querySelector('#calendar-view-tabs .guia-nav-btn.active').classList.remove('active');
-        btn.classList.add('active');
-        currentCalendarView = btn.dataset.view;
-        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
+    // --- BOTÓN FLOTANTE (+) RESTAURADO ---
+    const fab = document.createElement('button');
+    fab.id = 'calendar-fab';
+    fab.className = 'floating-action-button';
+    fab.innerHTML = '+';
+    fab.onclick = () => renderCalendarEventForm(null, renderCalendarView);
+    document.body.appendChild(fab);
+
+    const viewMenuBtn = document.getElementById('calendar-view-menu-btn');
+    const viewMenu = document.getElementById('calendar-view-menu');
+    
+    viewMenuBtn.onclick = (e) => { e.stopPropagation(); viewMenu.classList.toggle('show'); };
+
+    viewMenu.addEventListener('click', (e) => {
+        const target = e.target.closest('.dropdown-item');
+        if (target) {
+            currentCalendarView = target.dataset.view;
+            viewMenu.classList.remove('show');
+            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
+        }
     });
-    document.getElementById('calendar-prev-btn').onclick = () => { currentCalendarDate = getPreviousPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
-    document.getElementById('calendar-next-btn').onclick = () => { currentCalendarDate = getNextPeriodDate(currentCalendarView, currentCalendarDate); loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate); };
-    document.getElementById('calendar-quick-add-btn').onclick = () => renderCalendarEventForm(null, renderCalendarView);
+
+    document.getElementById('calendar-prev-btn').onclick = () => {
+        currentCalendarDate = getPreviousPeriodDate(currentCalendarView, currentCalendarDate);
+        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
+    };
+    document.getElementById('calendar-next-btn').onclick = () => {
+        currentCalendarDate = getNextPeriodDate(currentCalendarView, currentCalendarDate);
+        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
+    };
     
     loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
 }
 
-function getPreviousPeriodDate(view, date) { const d = new Date(date); if (view === 'day') d.setDate(d.getDate() - 1); else if (view === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1); return d; }
-function getNextPeriodDate(view, date) { const d = new Date(date); if (view === 'day') d.setDate(d.getDate() + 1); else if (view === 'week') d.setDate(d.getDate() + 7); else d.setMonth(d.getMonth() + 1); return d; }
+// Funciones auxiliares para la navegación de fechas (actualizadas para "3 Días")
+function getPreviousPeriodDate(view, date) {
+    const d = new Date(date);
+    if (view === 'day') d.setDate(d.getDate() - 1);
+    else if (view === 'three_day') d.setDate(d.getDate() - 3); // Retrocede 3 días
+    else if (view === 'week') d.setDate(d.getDate() - 7);
+    else d.setMonth(d.getMonth() - 1); // vista 'month'
+    return d;
+}
 
-async function loadAndDisplayCalendarEvents(view, date) {
+function getNextPeriodDate(view, date) {
+    const d = new Date(date);
+    if (view === 'day') d.setDate(d.getDate() + 1);
+    else if (view === 'three_day') d.setDate(d.getDate() + 3); // Avanza 3 días
+    else if (view === 'week') d.setDate(d.getDate() + 7);
+    else d.setMonth(d.getMonth() + 1); // vista 'month'
+    return d;
+}
+
+// Función principal que carga los datos de Firestore y decide qué vista renderizar
+function loadAndDisplayCalendarEvents(view, date) {
     showSpinner("Cargando calendario...");
     if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents();
 
-    let start = new Date(date), end = new Date(date);
+    const menuItems = document.querySelectorAll('#calendar-view-menu .dropdown-item');
+    menuItems.forEach(item => item.classList.remove('active'));
+    const activeItem = document.querySelector(`#calendar-view-menu .dropdown-item[data-view="${view}"]`);
+    if (activeItem) activeItem.classList.add('active');
+
+    let start = new Date(date); // Siempre creamos una nueva instancia para evitar mutaciones
+    let end = new Date(date);
     const periodEl = document.getElementById('calendar-current-period');
     
-    if (view === 'day') { start.setHours(0,0,0,0); end.setHours(23,59,59,999); if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }); }
-    else if (view === 'week') { const day = date.getDay(); const diff = date.getDate() - day + (day === 0 ? -6 : 1); start = new Date(date.getFullYear(), date.getMonth(), diff); start.setHours(0,0,0,0); end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999); if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`; }
-    else { start = new Date(date.getFullYear(), date.getMonth(), 1); end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999); if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }); }
+    start.setHours(0,0,0,0);
+
+    if (view === 'day') {
+        // CORRECCIÓN CLAVE: Creamos un nuevo objeto para 'end' para no modificar 'start'
+        end = new Date(start); 
+        end.setHours(23,59,59,999);
+        currentCalendarDate = new Date(start);
+        if (periodEl) periodEl.textContent = start.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    } else if (view === 'three_day') {
+        end.setDate(end.getDate() + 2);
+        end.setHours(23,59,59,999);
+        if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    } else if (view === 'week') {
+        const dayOfWeek = date.getDay();
+        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        start = new Date(date.getFullYear(), date.getMonth(), diff, 0, 0, 0, 0);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23,59,59,999);
+        if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    } else { // 'month'
+        start = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+        end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+        if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    }
 
     const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).where('fechaInicio', '<=', end).orderBy('fechaInicio', 'asc');
     
@@ -3507,467 +4074,769 @@ async function loadAndDisplayCalendarEvents(view, date) {
         const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
         const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
         
-        if (view === 'day') renderDayView(eventsInRange, date);
+        if (view === 'day') renderDayView(eventsInRange, currentCalendarDate);
+        else if (view === 'three_day') renderThreeDayView(eventsInRange, date);
         else if (view === 'week') renderWeekView(eventsInRange, start);
         else if (view === 'month') renderMonthView(eventsInRange, date);
+        
         hideSpinner();
-    }, error => { console.error("Error en listener:", error); hideSpinner(); });
+    }, error => { console.error("Error en listener de calendario:", error); hideSpinner(); });
 }
 
-function renderDayView(events, currentDate) {
-    const contentEl = document.getElementById('calendar-content');
-    let timelineHtml = '<div class="calendar-timeline">';
-    for(let hour = 0; hour < 24; hour++) {
-        timelineHtml += `<div class="time-slot" id="hour-${hour}" data-time="${hour.toString().padStart(2, '0')}:00"></div>`;
-    }
-    const now = new Date();
-    if (now.toDateString() === currentDate.toDateString()) {
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        timelineHtml += `<div class="now-line" style="top: ${nowMinutes}px;"></div>`;
-    }
+// ====================================================================================
+// --- FIN DEL BLOQUE DE REEMPLAZO ---
+// ====================================================================================
 
-    events.forEach(event => {
+// =========================================================================
+// --- INICIO: NUEVA FUNCIÓN DE CÁLCULO DE DISEÑO DE EVENTOS ---
+// =========================================================================
+function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
+    if (!eventsForDay || eventsForDay.length === 0) return [];
+
+    // 1. Ordenar eventos por hora de inicio
+    const sortedEvents = [...eventsForDay].sort((a, b) => a.fechaInicio - b.fechaInicio);
+
+    // 2. Calcular 'top' y 'height' inicial para cada evento
+    sortedEvents.forEach(event => {
         const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
         const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
-        const duration = Math.max(30, endMinutes - startMinutes);
-        timelineHtml += `
-            <div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" style="top:${startMinutes}px; height:${duration}px; background-color:${event.color || '#36A2EB'};">
-                <div class="event-block-title">${event.titulo}</div>
-                <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})} - ${event.fechaFin.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
-            </div>`;
-    });
-    timelineHtml += '</div>';
-    contentEl.innerHTML = timelineHtml;
-    contentEl.addEventListener('click', handleCalendarEventClick);
-
-    setTimeout(() => {
-        const scrollTarget = contentEl.querySelector('.now-line') || document.getElementById(`hour-${Math.max(0, new Date().getHours() - 1)}`);
-        if (scrollTarget) {
-            scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }, 100);
-}
-
-function renderWeekView(events, startOfWeek) {
-    const contentEl = document.getElementById('calendar-content');
-    const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-    const HOUR_HEIGHT = 60;
-
-    let finalHtml = `<div class="calendar-week-container">`;
-
-    // --- Cabecera Fija ---
-    let headerHtml = `<div class="calendar-week-header">
-                        <div></div> 
-                        <div class="header-days-grid">`;
-    for (let i = 0; i < 7; i++) {
-        const day = new Date(startOfWeek);
-        day.setDate(startOfWeek.getDate() + i);
-        const isToday = day.toDateString() === new Date().toDateString();
-        headerHtml += `<div class="calendar-day-header ${isToday ? 'today' : ''}">
-                        <span>${weekdays[i]} ${day.getDate()}</span>
-                       </div>`;
-    }
-    headerHtml += `</div></div>`;
-    finalHtml += headerHtml;
-
-    // --- Área de Scroll ---
-    let scrollAreaHtml = `<div class="calendar-week-scroll-area">`;
-    
-    // 1. Columna de Horas (CORRECCIÓN: El bucle ahora empieza en 0)
-    let timeColHtml = `<div class="calendar-week-time-col">`;
-    for (let hour = 0; hour < 24; hour++) {
-        timeColHtml += `<div class="calendar-week-time-slot"><span>${hour.toString().padStart(2, '0')}:00</span></div>`;
-    }
-    timeColHtml += `</div>`;
-    scrollAreaHtml += timeColHtml;
-
-    // 2. Cuadrícula de Eventos y Días
-    let eventsGridHtml = `<div class="calendar-week-events-grid">`;
-    for (let i = 0; i < 7; i++) {
-        const day = new Date(startOfWeek);
-        day.setDate(startOfWeek.getDate() + i);
-        const isToday = day.toDateString() === new Date().toDateString();
-        const dateString = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
-        eventsGridHtml += `<div class="calendar-week-day-col ${isToday ? 'today' : ''}" data-date="${dateString}"></div>`;
-    }
-    
-    events.forEach(event => {
-        const eventStart = event.fechaInicio;
-        const dayOfWeek = eventStart.getDay() === 0 ? 6 : eventStart.getDay() - 1;
-        if (eventStart >= startOfWeek && eventStart < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) {
-            const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
-            const durationMinutes = (event.fechaFin.getTime() - eventStart.getTime()) / 60000;
-            const top = (startMinutes / 60) * HOUR_HEIGHT;
-            const height = (durationMinutes / 60) * HOUR_HEIGHT;
-            const left = (dayOfWeek / 7) * 100;
-            eventsGridHtml += `<div class="event-block" data-event-id="${event.id}" data-action="edit-calendar-event" 
-                                 style="position: absolute; top:${top}px; height:${Math.max(20, height)}px; left: calc(${left}% + 4px); width: calc(${(1/7)*100}% - 8px); z-index:12; background-color:${event.color || '#36A2EB'};">
-                                <div class="event-block-title">${event.titulo}</div>
-                                <div class="event-block-time">${eventStart.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}</div>
-                             </div>`;
-        }
-    });
-    eventsGridHtml += `</div>`;
-    scrollAreaHtml += eventsGridHtml;
-    
-    scrollAreaHtml += `</div>`;
-    finalHtml += scrollAreaHtml;
-    
-    finalHtml += `</div>`;
-    contentEl.innerHTML = finalHtml;
-
-    // Lógica de Interacción
-    contentEl.removeEventListener('click', handleCalendarEventClick);
-    contentEl.addEventListener('click', handleCalendarEventClick);
-
-    contentEl.querySelectorAll('.calendar-week-day-col').forEach(col => {
-        col.onclick = function(e) {
-            if (e.target.closest('.event-block')) return;
-            
-            // --- CORRECCIÓN FINAL Y DEFINITIVA DEL CÁLCULO DE HORA ---
-            const scrollArea = col.closest('.calendar-week-scroll-area');
-            const scrollAreaRect = scrollArea.getBoundingClientRect();
-            // Este cálculo es robusto y tiene en cuenta el scroll de la página.
-            const y = e.clientY - scrollAreaRect.top + scrollArea.scrollTop;
-            
-            const totalMinutes = (y / (24 * HOUR_HEIGHT)) * 1440;
-            const hour = Math.floor(totalMinutes / 60);
-            const minute = Math.round((totalMinutes % 60) / 15) * 15;
-            
-            const dateParts = col.dataset.date.split('-').map(Number);
-            const selectedDate = new Date(dateParts[0], dateParts[1], dateParts[2], hour, minute);
-            
-            const draftEvent = { fechaInicio: selectedDate, fechaFin: new Date(selectedDate.getTime() + 60 * 60000) };
-            renderCalendarEventForm(draftEvent, renderCalendarView);
+        const durationMinutes = Math.max(30, (endMinutes - startMinutes)); // Duración mínima visual de 30 min
+        
+        event.layout = {
+            top: (startMinutes / 60) * HOUR_HEIGHT,
+            height: (durationMinutes / 60) * HOUR_HEIGHT,
+            collisions: 1,
+            colIndex: 0
         };
     });
 
-    // Scroll Automático
-    setTimeout(() => {
-        const scrollArea = contentEl.querySelector('.calendar-week-scroll-area');
-        if (scrollArea) {
-            const now = new Date();
-            const currentMinutes = now.getHours() * 60 + now.getMinutes();
-            const scrollTop = (currentMinutes / 60) * HOUR_HEIGHT - (scrollArea.clientHeight / 4);
-            scrollArea.scrollTo({ top: scrollTop, behavior: 'smooth' });
-        }
-    }, 100);
-}
+    // 3. Detectar colisiones y determinar el ancho y la posición
+    for (let i = 0; i < sortedEvents.length; i++) {
+        const eventA = sortedEvents[i];
+        let collisionGroup = [eventA];
 
+        for (let j = i + 1; j < sortedEvents.length; j++) {
+            const eventB = sortedEvents[j];
+            // Si el evento B empieza antes de que el A termine, hay colisión
+            if (eventB.fechaInicio < eventA.fechaFin) {
+                collisionGroup.push(eventB);
+            }
+        }
+        
+        // Solo si hay más de un evento colisionando, ajustamos el layout
+        if (collisionGroup.length > 1) {
+            // Re-evaluar el grupo para encontrar el número máximo de solapamientos simultáneos
+            const maxCollisions = collisionGroup.reduce((max, currentEvent) => {
+                const simultaneous = collisionGroup.filter(e => e.fechaInicio < currentEvent.fechaFin && e.fechaFin > currentEvent.fechaInicio).length;
+                return Math.max(max, simultaneous);
+            }, 1);
+
+            collisionGroup.forEach(eventInGroup => {
+                // Asignamos el número máximo de colisiones detectado a todos los miembros del grupo
+                eventInGroup.layout.collisions = Math.max(eventInGroup.layout.collisions, maxCollisions);
+            });
+        }
+    }
+
+    // 4. Asignar el índice de columna (posición horizontal)
+    sortedEvents.forEach(event => {
+        const collidingEvents = sortedEvents.filter(e => e !== event && e.fechaInicio < event.fechaFin && e.fechaFin > event.fechaInicio);
+        const colIndicesTaken = collidingEvents.map(e => e.layout.colIndex);
+        
+        let assignedColIndex = 0;
+        while (colIndicesTaken.includes(assignedColIndex)) {
+            assignedColIndex++;
+        }
+        event.layout.colIndex = assignedColIndex;
+    });
+
+
+    return sortedEvents;
+}
+const EVENT_COLORS_PRESETS = [
+    { value: '#039be5', label: 'Predeterminado (Trabajo)' },
+    { value: '#e67c73', label: 'Salud / Citas' },
+    { value: '#f6bf26', label: 'Personal / Ocio' },
+    { value: '#33b679', label: 'Cumpleaños / Eventos' },
+    { value: '#8e24aa', label: 'Importante / Urgente' }
+];
+// =========================================================================
+// --- FIN: NUEVA FUNCIÓN DE CÁLCULO ---
+// =========================================================================
+async function handleTimelineClick(event) {
+    const eventBlock = event.target.closest('.event-block, .month-event-pill');
+    const emptySlot = event.target.closest('.calendar-day-col');
+
+    // CASO 1: Se ha hecho clic en un evento existente
+    if (eventBlock) {
+        const eventId = eventBlock.dataset.eventId;
+        if (!eventId) return;
+        
+        showSpinner();
+        try {
+            const eventDoc = await db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get();
+            if (eventDoc.exists) {
+                const eventData = eventDoc.data();
+                renderCalendarEventForm({ id: eventDoc.id, ...eventData, fechaInicio: eventData.fechaInicio.toDate(), fechaFin: eventData.fechaFin.toDate() }, renderCalendarView);
+            } else {
+                showToast("El evento ya no existe.", true);
+            }
+        } catch (err) {
+            showToast(`Error al cargar evento: ${err.message}`, true);
+        } finally {
+            hideSpinner();
+        }
+        return;
+    }
+
+    // CASO 2: Se ha hecho clic en un hueco vacío
+    if (emptySlot) {
+        const HOUR_HEIGHT = 60;
+        const dateISO = emptySlot.dataset.dateIso;
+        if (!dateISO) return;
+
+        const baseDate = new Date(dateISO);
+        const clickY = event.offsetY;
+        
+        const totalMinutes = (clickY / HOUR_HEIGHT) * 60;
+        const roundedMinutes = Math.floor(totalMinutes / 15) * 15; // Redondear hacia abajo al cuarto de hora más cercano
+        
+        const startHour = Math.floor(roundedMinutes / 60);
+        const startMinute = roundedMinutes % 60;
+
+        const prefilledStartDate = new Date(baseDate);
+        prefilledStartDate.setHours(startHour, startMinute, 0, 0);
+
+        const prefilledEndDate = new Date(prefilledStartDate.getTime() + 60 * 60 * 1000); // 1 hora después
+
+        renderCalendarEventForm(null, renderCalendarView, prefilledStartDate, prefilledEndDate);
+    }
+}
+function renderDayView(events, currentDate) {
+    const contentEl = document.getElementById('calendar-content');
+    const HOUR_HEIGHT = 60;
+    const isToday = currentDate.toDateString() === new Date().toDateString();
+
+    const allDayEvents = events.filter(e => e.esTodoElDia);
+    const timedEvents = events.filter(e => !e.esTodoElDia);
+
+    let allDayPillsHtml = '';
+    allDayEvents.forEach(event => {
+        allDayPillsHtml += `<div class="month-event-pill" data-event-id="${event.id}" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`;
+    });
+
+    const structureHtml = `
+    <div class="calendar-grid-container" style="height: calc(100vh - 220px);">
+        <div class="calendar-all-day-header" style="grid-template-columns: 50px 1fr; top: 0;">
+            <div class="all-day-label">Todo el día</div>
+            <div class="all-day-slot">${allDayPillsHtml}</div>
+        </div>
+        <div class="calendar-scroll-body">
+            <div class="calendar-time-col">
+                 ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
+            </div>
+            <div class="calendar-events-grid" style="grid-template-columns: 1fr;">
+                <div id="day-col-today" class="calendar-day-col" data-date-iso="${currentDate.toISOString()}"></div>
+            </div>
+        </div>
+    </div>`;
+    contentEl.innerHTML = structureHtml;
+
+    const dayCol = document.getElementById('day-col-today');
+    const layoutReadyEvents = calculateEventLayout(timedEvents, HOUR_HEIGHT);
+    let dayEventsHtml = '';
+
+    if (isToday) {
+        const now = new Date();
+        const nowPosition = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
+        dayEventsHtml += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
+    }
+
+    layoutReadyEvents.forEach(event => {
+        const width = 100 / event.layout.collisions;
+        const left = event.layout.colIndex * width;
+        dayEventsHtml += `<div class="event-block" data-event-id="${event.id}" 
+                             style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
+                             <div class="event-block-title">${event.titulo}</div>
+                             <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                          </div>`;
+    });
+    dayCol.innerHTML = dayEventsHtml;
+    
+    contentEl.removeEventListener('click', handleTimelineClick);
+    contentEl.addEventListener('click', handleTimelineClick);
+
+    if (isToday) {
+        setTimeout(() => {
+            const scrollBody = contentEl.querySelector('.calendar-scroll-body');
+            const nowLine = contentEl.querySelector('.now-line');
+            if (scrollBody && nowLine) {
+                scrollBody.scrollTo({ top: nowLine.offsetTop - 50, behavior: 'smooth' });
+            }
+        }, 100);
+    }
+}
+function renderWeekView(events, startOfWeek) {
+    const contentEl = document.getElementById('calendar-content');
+    const HOUR_HEIGHT = 60;
+    const allDayEvents = events.filter(e => e.esTodoElDia);
+    const timedEvents = events.filter(e => !e.esTodoElDia);
+    
+    let headerDaysHtml = '', allDaySlotsHtml = '', eventGridColsHtml = '';
+    const eventsByDay = {}; 
+
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(startOfWeek);
+        day.setDate(startOfWeek.getDate() + i);
+        const isToday = day.toDateString() === new Date().toDateString();
+        const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
+        
+        headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span class="day-name">${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
+        
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        const allDayEventsForThisDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
+        
+        let pillsHtml = allDayEventsForThisDay.map(event => 
+            `<div class="month-event-pill" data-event-id="${event.id}" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`
+        ).join('');
+
+        allDaySlotsHtml += `<div class="all-day-slot">${pillsHtml}</div>`;
+        eventGridColsHtml += `<div id="day-col-week-${i}" class="calendar-day-col" data-date-iso="${day.toISOString()}"></div>`;
+        eventsByDay[i] = [];
+    }
+
+    const structureHtml = `
+    <div class="calendar-grid-container">
+        <div class="calendar-header" style="grid-template-columns: 50px repeat(7, 1fr);">
+            <div style="background-color: var(--card-bg);"></div>${headerDaysHtml}
+        </div>
+        <div class="calendar-all-day-header" style="grid-template-columns: 50px repeat(7, 1fr);">
+            <div class="all-day-label">Todo el día</div>${allDaySlotsHtml}
+        </div>
+        <div class="calendar-scroll-body">
+            <div class="calendar-time-col">
+                ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
+            </div>
+            <div class="calendar-events-grid" style="grid-template-columns: repeat(7, 1fr);">${eventGridColsHtml}</div>
+        </div>
+    </div>`;
+    contentEl.innerHTML = structureHtml;
+
+    const viewEndDate = new Date(startOfWeek); viewEndDate.setDate(startOfWeek.getDate() + 7);
+    timedEvents.filter(e => e.fechaInicio >= startOfWeek && e.fechaInicio < viewEndDate).forEach(event => {
+        const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startOfWeek).setHours(0,0,0,0)) / (1000*3600*24));
+        if (diffDays >= 0 && diffDays < 7) { eventsByDay[diffDays].push(event); }
+    });
+    
+    for (let i = 0; i < 7; i++) {
+        const dayCol = document.getElementById(`day-col-week-${i}`);
+        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
+        dayCol.innerHTML = layoutReadyEvents.map(event => {
+            const width = 100 / event.layout.collisions;
+            const left = event.layout.colIndex * width;
+            return `<div class="event-block" data-event-id="${event.id}" 
+                         style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
+                         <div class="event-block-title">${event.titulo}</div>
+                         <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                      </div>`;
+        }).join('');
+    }
+
+    contentEl.removeEventListener('click', handleTimelineClick);
+    contentEl.addEventListener('click', handleTimelineClick);
+}
+function renderThreeDayView(events, startDate) {
+    const contentEl = document.getElementById('calendar-content');
+    const HOUR_HEIGHT = 60;
+    const allDayEvents = events.filter(e => e.esTodoElDia);
+    const timedEvents = events.filter(e => !e.esTodoElDia);
+
+    let headerDaysHtml = '', allDaySlotsHtml = '', eventGridColsHtml = '';
+    const eventsByDay = {}; 
+
+    for (let i = 0; i < 3; i++) {
+        const day = new Date(startDate); day.setDate(startDate.getDate() + i);
+        const isToday = day.toDateString() === new Date().toDateString();
+        const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
+        
+        headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span class="day-name">${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
+        
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
+        const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
+        const allDayEventsForThisDay = allDayEvents.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
+        
+        let pillsHtml = allDayEventsForThisDay.map(event => 
+            `<div class="month-event-pill" data-event-id="${event.id}" style="background-color:${event.color || '#36A2EB'}; cursor:pointer;">${event.titulo}</div>`
+        ).join('');
+
+        allDaySlotsHtml += `<div class="all-day-slot">${pillsHtml}</div>`;
+        eventGridColsHtml += `<div id="day-col-3day-${i}" class="calendar-day-col" data-date-iso="${day.toISOString()}"></div>`;
+        eventsByDay[i] = [];
+    }
+    
+    const structureHtml = `
+    <div class="calendar-grid-container">
+        <div class="calendar-header" style="grid-template-columns: 50px repeat(3, 1fr);">
+            <div style="background-color: var(--card-bg);"></div>${headerDaysHtml}
+        </div>
+        <div class="calendar-all-day-header" style="grid-template-columns: 50px repeat(3, 1fr);">
+            <div class="all-day-label">Todo el día</div>${allDaySlotsHtml}
+        </div>
+        <div class="calendar-scroll-body">
+            <div class="calendar-time-col">
+                ${Array.from({length:24}, (_,h) => `<div class="calendar-time-slot"><span>${h.toString().padStart(2, '0')}:00</span></div>`).join('')}
+            </div>
+            <div class="calendar-events-grid three-day" style="grid-template-columns: repeat(3, 1fr);">${eventGridColsHtml}</div>
+        </div>
+    </div>`;
+    contentEl.innerHTML = structureHtml;
+    
+    const viewEndDate = new Date(startDate); viewEndDate.setDate(startDate.getDate() + 3);
+    timedEvents.filter(e => e.fechaInicio >= startDate && e.fechaInicio < viewEndDate).forEach(event => {
+        const diffDays = Math.floor((new Date(event.fechaInicio).setHours(0,0,0,0) - new Date(startDate).setHours(0,0,0,0)) / (1000*3600*24));
+        if (diffDays >= 0 && diffDays < 3) { eventsByDay[diffDays].push(event); }
+    });
+    
+    for (let i = 0; i < 3; i++) {
+        const dayCol = document.getElementById(`day-col-3day-${i}`);
+        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
+        dayCol.innerHTML = layoutReadyEvents.map(event => {
+            const width = 100 / event.layout.collisions;
+            const left = event.layout.colIndex * width;
+            return `<div class="event-block" data-event-id="${event.id}" 
+                         style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
+                         <div class="event-block-title">${event.titulo}</div>
+                         <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                      </div>`;
+        }).join('');
+    }
+
+    contentEl.removeEventListener('click', handleTimelineClick);
+    contentEl.addEventListener('click', handleTimelineClick);
+}
 function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
-    const weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    let monthHtml = `<div class="calendar-grid">`;
+    const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+    // Contenedor principal que envuelve la cabecera y la cuadrícula
+    let finalHtml = `<div class="calendar-month-container">`;
+    
+    // Cabecera con los días de la semana
+    let headerHtml = `<div class="calendar-month-header">`;
     weekdays.forEach(day => {
-        monthHtml += `<div class="calendar-day-header">${day}</div>`;
+        headerHtml += `<div class="calendar-day-header">${day}</div>`;
     });
+    headerHtml += `</div>`;
+    finalHtml += headerHtml;
+
+    // Cuadrícula principal del mes
+    let gridHtml = `<div class="calendar-month-grid">`;
 
     const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    // Ajuste para que la semana empiece en Lunes (getDay() 0=Dom, 1=Lun...)
+    const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; 
 
-    for (let i = 0; i < startDayOfWeek; i++) monthHtml += `<div></div>`; // Celdas vacías al inicio
+    // Añadir celdas vacías para los días del mes anterior
+    for (let i = 0; i < startDayOfWeek; i++) {
+        gridHtml += `<div class="calendar-day-cell empty" style="background-color: var(--bg);"></div>`; 
+    }
     
+    // Generar las celdas para cada día del mes
     for (let dayNum = 1; dayNum <= lastDay.getDate(); dayNum++) {
         const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
         const isToday = day.toDateString() === new Date().toDateString();
-        const dayStart = new Date(day.setHours(0,0,0,0));
+        const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
-        const eventsForDay = events.filter(e => e.fechaInicio <= dayEnd && e.fechaFin >= dayStart);
         
-        monthHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}"><div class="calendar-day-number">${dayNum}</div>`;
-        eventsForDay.slice(0, 2).forEach(event => { monthHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`; });
-        if (eventsForDay.length > 2) monthHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 2} más...</div>`;
-        monthHtml += `</div>`;
+        // --- LÓGICA CORREGIDA ---
+        // Ahora solo filtramos los eventos que INICIAN en este día.
+        const eventsForDay = events.filter(e => e.fechaInicio >= dayStart && e.fechaInicio <= dayEnd);
+        
+        // Empieza la celda del día
+        gridHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}">
+                        <div class="calendar-day-number">${dayNum}</div>
+                        <div class="month-events-container">`; // Contenedor para las pastillas
+
+        // Genera las "pastillas" para los eventos del día
+        eventsForDay.slice(0, 3).forEach(event => { // Muestra un máximo de 3 eventos
+            gridHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`;
+        });
+
+        // Si hay más de 3 eventos, muestra un indicador
+        if (eventsForDay.length > 3) {
+            gridHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 3} más...</div>`;
+        }
+        
+        // Cierra los contenedores
+        gridHtml += `   </div>
+                      </div>`;
     }
-    monthHtml += `</div>`;
-    contentEl.innerHTML = monthHtml;
-    contentEl.querySelectorAll('.calendar-day-cell').forEach(dayCard => {
-        dayCard.onclick = (e) => {
+    
+    gridHtml += `</div>`; // Cierre de calendar-month-grid
+    finalHtml += gridHtml;
+    finalHtml += `</div>`; // Cierre de calendar-month-container
+    
+    contentEl.innerHTML = finalHtml;
+
+    // Añade el listener para hacer clic en un día y cambiar a la vista de "Hoy" (vista de día)
+    contentEl.querySelectorAll('.calendar-day-cell:not(.empty)').forEach(dayCell => {
+        dayCell.onclick = (e) => {
             currentCalendarDate = new Date(e.currentTarget.dataset.date);
-            document.querySelector('#calendar-view-tabs .guia-nav-btn.active').classList.remove('active');
-            document.querySelector('#calendar-view-tabs button[data-view="day"]').classList.add('active');
+            // Cambiamos la vista activa a 'day' y recargamos
             currentCalendarView = 'day';
             loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
         };
     });
 }
 
-function handleCalendarEventClick(e) {
-    const target = e.target.closest('[data-action]');
-    if (!target) return;
-    const eventId = target.dataset.eventId;
-    const action = target.dataset.action;
-
-    if (action === 'edit-calendar-event') {
-        db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get().then(doc => {
-            if (doc.exists) renderCalendarEventForm({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }, renderCalendarView);
-        });
-    } else if (action === 'delete-calendar-event') {
-        confirmDelete('calendar_event', eventId);
-    }
-}
-
-function renderCalendarEventForm(event = null, returnPath = renderCalendarView) {
-    navigationHistory.push(returnPath);
+function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDate = null, prefilledEndDate = null) {
+    navigationHistory.push(onBackCallback);
     updateBackButton();
-    mainContentArea.scrollTop = 0;
-
     const isEditing = event && event.id;
-    const hasEmail = appData.settings.email && appData.settings.email.trim() !== '';
+    let currentNotifications = (isEditing && event.notificaciones) ? 
+        event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
+        [];
 
-    const initialTitle = event ? (event.titulo || '') : '';
-    const initialDesc = event ? (event.descripcion || '') : '';
-    const initialColor = event ? (event.color || '#36A2EB') : '#36A2EB';
-    const initialAllDay = event ? (event.esTodoElDia || false) : false;
-    const initialStartDate = event ? event.fechaInicio : new Date();
-    const initialEndDate = event ? event.fechaFin : new Date(Date.now() + 3600000);
-    const initialNotifications = isEditing ? (event.notificaciones || []).filter(n => n !== null) : []; // Filtra nulls por seguridad
+    const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
+        `<div class="custom-dropdown-item" data-value="${preset.value}">
+            <span class="color-swatch" style="background-color:${preset.value};"></span>
+            <span>${preset.label}</span>
+        </div>`
+    ).join('');
+    
+    const selectedColor = (isEditing && event.color) ? EVENT_COLORS_PRESETS.find(p => p.value === event.color) || EVENT_COLORS_PRESETS[0] : EVENT_COLORS_PRESETS[0];
 
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
             <div class="form-card">
-                <label>Título</label><input type="text" id="event-title" value="${initialTitle}" required />
-                <label>Descripción</label><textarea id="event-description" rows="3">${initialDesc}</textarea>
-                <label>Color</label>
-                <select id="event-color">
-                    <option value="#36A2EB" ${initialColor==='#36A2EB'?'selected':''}>Azul (General)</option>
-                    <option value="#4BC0C0" ${initialColor==='#4BC0C0'?'selected':''}>Verde (Personal)</option>
-                    <option value="#FFCE56" ${initialColor==='#FFCE56'?'selected':''}>Amarillo (Trabajo)</option>
-                    <option value="#E74C3C" ${initialColor==='#E74C3C'?'selected':''}>Rojo (Urgente)</option>
-                    <option value="#9966FF" ${initialColor==='#9966FF'?'selected':''}>Morado (Salud)</option>
-                </select>
-                <div style="display:flex; align-items:center; margin-top:15px;"><input type="checkbox" id="event-all-day" style="width:auto;margin-right:8px;" ${initialAllDay ? 'checked' : ''}><label for="event-all-day" style="margin-top:0;">Todo el día</label></div>
-                <div id="date-pickers-wrapper">
-                    <label>Inicio</label><input type="text" id="event-start-date" required>
-                    <label id="event-end-label">Fin</label><input type="text" id="event-end-date" required>
+                <label>Título</label><input type="text" id="event-title" value="${isEditing ? event.titulo : ''}" required />
+                <label>Descripción</label><textarea id="event-description" rows="5">${isEditing ? event.descripcion : ''}</textarea>
+                <div class="settings-item"><span class="settings-item-label">Todo el día</span><label class="switch"><input type="checkbox" id="event-all-day" ${isEditing && event.esTodoElDia ? 'checked' : ''}><span class="slider"></span></label></div>
+                <div id="time-pickers">
+                    <label>Inicio</label><input type="text" id="event-start-date" required/>
+                    <label>Fin</label><input type="text" id="event-end-date" required/>
                 </div>
-                <h3 class="settings-section-title" style="margin-top:20px;">Notificaciones</h3>
-                <div id="notifications-container"></div>
-                <button id="add-notification-btn" class="add-article-btn" style="width:100%;max-width:100%;margin-top:10px; opacity:1; cursor:pointer;">➕ Añadir Notificación</button>
+                
+                <label>Color</label>
+                <div class="custom-dropdown">
+                    <div class="custom-dropdown-selected" id="color-selector">
+                        <span class="color-swatch" style="background-color:${selectedColor.value};"></span>
+                        <span>${selectedColor.label}</span>
+                    </div>
+                    <div class="custom-dropdown-options" id="color-options">${colorOptionsHtml}</div>
+                </div>
+                <input type="hidden" id="event-color-value" value="${selectedColor.value}">
+
+                <label style="margin-top:20px;">Notificaciones</label>
+                <div id="notification-chips-container"></div>
+                  <button id="add-notification-btn" style="width:100%; max-width:100%; margin:15px 0;" disabled>Añadir Notificación</button>
                 <div class="button-group">
-                    <button id="event-cancel-btn" class="cancel">Cancelar</button>
-                    <button id="event-save-btn" disabled>${isEditing ? 'Guardar' : 'Crear'}</button>
+                    ${isEditing ? `<button id="delete-event-btn" class="cancel">Eliminar</button>` : `<button id="cancel-event-btn" class="cancel">Cancelar</button>`}
+                    <button id="save-event-btn" disabled>${isEditing ? 'Guardar Cambios' : 'Crear Evento'}</button>
                 </div>
             </div>
         </div>`;
-
+    
     const titleInput = document.getElementById('event-title');
-    const saveBtn = document.getElementById('event-save-btn');
+    const saveBtn = document.getElementById('save-event-btn');
     const allDayCheckbox = document.getElementById('event-all-day');
-    const datePickersWrapper = document.getElementById('date-pickers-wrapper');
-    let startPicker, endPicker;
+    const timePickersDiv = document.getElementById('time-pickers');
+    const chipsContainer = document.getElementById('notification-chips-container');
+    const addNotificationBtn = document.getElementById('add-notification-btn');
 
-    const setupPickers = (isAllDay) => {
-        if (startPicker) startPicker.destroy();
-        if (endPicker) endPicker.destroy();
-        const config = {
-            locale: "es",
-            altInput: true,
-            altFormat: isAllDay ? "d/m/Y" : "d/m/Y H:i",
-            dateFormat: "Y-m-d H:i:S", // Usar formato completo para evitar problemas de zona horaria
-            enableTime: !isAllDay,
-            disable: [true] // ¡LÓGICA RESTAURADA! Empiezan deshabilitados por defecto.
-        };
-        startPicker = flatpickr("#event-start-date", { ...config,
-            defaultDate: initialStartDate,
-            onChange: (selectedDates) => {
-                if (selectedDates[0]) {
-                    const newEndDate = new Date(selectedDates[0].getTime() + 60 * 60000);
-                    if (endPicker.selectedDates[0] < selectedDates[0]) {
-                        endPicker.setDate(newEndDate, true);
-                    }
-                }
+    let initialStartDate; // Variable para almacenar la fecha de inicio original al cargar
+
+    const fpEnd = flatpickr("#event-end-date", {
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+        defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
+    });
+
+    const fpStart = flatpickr("#event-start-date", {
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+        defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
+        onReady: function(selectedDates) {
+            // Se ejecuta solo una vez al cargar. Guardamos la fecha inicial.
+            if (selectedDates.length > 0) {
+                initialStartDate = new Date(selectedDates[0].getTime());
             }
-        });
-        endPicker = flatpickr("#event-end-date", { ...config,
-            defaultDate: initialEndDate
-        });
-        document.getElementById('event-end-label').style.display = isAllDay ? 'none' : 'block';
-        document.getElementById('event-end-date').style.display = isAllDay ? 'none' : 'block';
-    };
+        },
+        onChange: function(selectedDates) {
+            const newStartDate = selectedDates[0];
+            // Si no hay fecha o la fecha no ha cambiado desde la carga inicial, no hacemos nada.
+            if (!newStartDate || !initialStartDate || newStartDate.getTime() === initialStartDate.getTime()) {
+                return;
+            }
+            
+            // Actualizamos la fecha de referencia para futuros cambios manuales.
+            initialStartDate = new Date(newStartDate.getTime());
 
-    allDayCheckbox.onchange = () => setupPickers(allDayCheckbox.checked);
-    setupPickers(initialAllDay);
-
-    // --- ¡LÓGICA DE VALIDACIÓN Y CONTROL RESTAURADA! ---
-    titleInput.oninput = () => {
-        const hasTitle = titleInput.value.trim() !== '';
-        // Habilita/deshabilita los selectores de fecha
-        startPicker.set('disable', [!hasTitle]);
-        endPicker.set('disable', [!hasTitle]);
-        
-        if (hasTitle) {
-            titleInput.classList.remove('input-error');
+            const currentEndDate = fpEnd.selectedDates[0];
+            if (!currentEndDate || newStartDate >= currentEndDate) {
+                const newEndDate = new Date(newStartDate.getTime() + 60 * 60 * 1000);
+                fpEnd.setDate(newEndDate, true);
+            }
         }
-        // Habilita/deshabilita el botón de guardar
-        saveBtn.disabled = !hasTitle;
-        saveBtn.classList.toggle('enabled', hasTitle);
+    });
+
+    const toggleTimePickers = () => {
+        const isAllDay = allDayCheckbox.checked;
+        timePickersDiv.style.display = isAllDay ? 'none' : 'block';
+        const newFormat = isAllDay ? "d/m/Y" : "d/m/Y H:i";
+        fpStart.set('enableTime', !isAllDay);
+        fpEnd.set('enableTime', !isAllDay);
+        fpStart.set('altFormat', newFormat);
+        fpEnd.set('altFormat', newFormat);
+        fpStart.redraw();
+        fpEnd.redraw();
     };
+    allDayCheckbox.onchange = toggleTimePickers;
+    toggleTimePickers();
 
-    datePickersWrapper.onclick = () => {
-        const isDisabled = startPicker.config.disable.length > 0 && startPicker.config.disable[0] === true;
-        if (isDisabled) {
-            titleInput.classList.add('input-error');
-            titleInput.focus();
-            showToast("Primero debes añadir un título.", true);
-        }
-    };
-
-    // Ejecuta la validación inicial para poner el formulario en el estado correcto.
-    if (initialTitle) {
-        titleInput.dispatchEvent(new Event('input'));
-    }
-    // --- FIN DE LA LÓGICA RESTAURADA ---
-
-    const notificationsContainer = document.getElementById('notifications-container');
-    const createNotificationRow = (notif = { metodo: 'telegram', minutosAntes: 15 }) => {
-        const row = document.createElement('div');
-        row.className = 'notification-row';
-        let qty = notif.minutosAntes, unit = 'minutes';
-        if (notif.minutosAntes >= 1440 && notif.minutosAntes % 1440 === 0) { qty = notif.minutosAntes / 1440; unit = 'days'; } 
-        else if (notif.minutosAntes >= 60 && notif.minutosAntes % 60 === 0) { qty = notif.minutosAntes / 60; unit = 'hours'; }
-        
-        row.innerHTML = `
-            <div class="notification-controls-wrapper">
-                <select class="event-reminder-method"><option value="telegram" ${notif.metodo === 'telegram' ? 'selected' : ''}>Telegram</option><option value="email" ${notif.metodo === 'email' ? 'selected' : ''} ${!hasEmail ? 'disabled' : ''}>Email</option></select>
-                <input type="number" class="event-reminder-quantity" value="${qty}" min="1"/>
-                <select class="event-reminder-unit"><option value="minutes" ${unit === 'minutes' ? 'selected' : ''}>min</option><option value="hours" ${unit === 'hours' ? 'selected' : ''}>horas</option><option value="days" ${unit === 'days' ? 'selected' : ''}>días</option></select>
-            </div>
-            <button class="remove-notification-btn">🗑️</button>`;
-        row.querySelector('.remove-notification-btn').onclick = () => row.remove();
-        notificationsContainer.appendChild(row);
-    };
-
-    initialNotifications.forEach(createNotificationRow);
-    document.getElementById('add-notification-btn').onclick = () => createNotificationRow();
+    const colorSelector = document.getElementById('color-selector');
+    const colorOptions = document.getElementById('color-options');
+    const colorValueInput = document.getElementById('event-color-value');
+    colorSelector.onclick = () => colorOptions.style.display = colorOptions.style.display === 'block' ? 'none' : 'block';
     
-    document.getElementById('event-cancel-btn').onclick = goBack;
-    saveBtn.onclick = () => saveCalendarEvent(isEditing ? event : null);
+    colorOptions.querySelectorAll('.custom-dropdown-item').forEach(item => {
+        item.onclick = () => {
+            const value = item.dataset.value;
+            const label = item.querySelector('span:last-child').textContent;
+            colorValueInput.value = value;
+            colorSelector.querySelector('.color-swatch').style.backgroundColor = value;
+            colorSelector.querySelector('span:last-child').textContent = label;
+            colorOptions.style.display = 'none';
+        };
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.custom-dropdown')) {
+            colorOptions.style.display = 'none';
+        }
+    }, true);
+    
+    const getNotificationText = (notif) => {
+        const mins = notif.minutosAntes;
+        let text = '';
+        if (mins >= 1440 && mins % 1440 === 0) text = `${mins/1440} día(s) antes`;
+        else if (mins >= 60 && mins % 60 === 0) text = `${mins/60} hora(s) antes`;
+        else text = `${mins} minutos antes`;
+        if (notif.metodo === 'email') text += ' - correo';
+        return text;
+    };
+
+    const renderChips = () => {
+        chipsContainer.innerHTML = '';
+        currentNotifications.forEach((notif, index) => {
+            const chip = document.createElement('div');
+            chip.className = 'notification-chip';
+            chip.innerHTML = `<span>${getNotificationText(notif)}</span><span class="notification-chip-remove" data-index="${index}">&times;</span>`;
+            chip.querySelector('.notification-chip-remove').onclick = (e) => {
+                currentNotifications.splice(parseInt(e.target.dataset.index, 10), 1);
+                renderChips();
+            };
+            chipsContainer.appendChild(chip);
+        });
+    };
+
+    addNotificationBtn.onclick = () => showNotificationModal(currentNotifications, renderChips);
+    renderChips();
+
+    // --- LÓGICA DE ACTIVACIÓN INTELIGENTE ---
+        const validate = () => { 
+        const isValid = titleInput.value.trim() !== '';
+        saveBtn.disabled = !isValid;
+        addNotificationBtn.disabled = !isValid; // Controla la funcionalidad
+        saveBtn.classList.toggle('enabled', isValid); // Controla el estilo visual de "Guardar"
+        addNotificationBtn.classList.toggle('enabled', isValid); // <-- ESTA LÍNEA FALTABA Y SOLUCIONA TODO
+    };
+    titleInput.oninput = validate;
+    validate(); // Llamada inicial para establecer el estado correcto al cargar
+    
+    saveBtn.onclick = () => {
+        const finalEventData = isEditing ? { ...event } : {};
+        finalEventData.notificaciones = currentNotifications;
+        saveCalendarEvent(finalEventData);
+    };
+
+    if (isEditing) {
+        document.getElementById('delete-event-btn').onclick = () => { confirmDelete('calendar_event', event.id); };
+    } else {
+        document.getElementById('cancel-event-btn').onclick = goBack;
+    }
 }
-
-async function saveCalendarEvent(eventToEdit = null) {
-    showSpinner("Guardando...");
-    const title = document.getElementById('event-title').value.trim();
-    if (!title) {
-        hideSpinner();
-        showToast("El título es obligatorio.", true);
-        return;
-    }
-
-    const isAllDay = document.getElementById('event-all-day').checked;
-    let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-    let endDate = isAllDay ? new Date(startDate) : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
-
-    if (!startDate || !endDate) {
-        hideSpinner();
-        showToast("Las fechas de inicio y fin son obligatorias.", true);
-        return;
-    }
-    if (isAllDay) {
-        startDate.setHours(0, 0, 0, 0);
-        endDate.setHours(23, 59, 59, 999);
-    }
-    if (endDate < startDate) {
-        hideSpinner();
-        showToast("La fecha de fin no puede ser anterior a la de inicio.", true);
-        return;
-    }
+function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
+    const modal = document.getElementById('notification-modal');
+    const presetsView = document.getElementById('notification-presets-view');
+    const customView = document.getElementById('notification-custom-view');
+    const presetsList = document.getElementById('notification-presets-list');
     
-    // Este bloque ahora es más robusto y está 100% alineado con la función anterior.
-    const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
-        const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
-        const unit = row.querySelector('.event-reminder-unit').value;
-        const metodo = row.querySelector('.event-reminder-method').value;
-        const mins = unit === 'days' ? qty * 1440 : (unit === 'hours' ? qty * 60 : qty);
+    const notificationPresets = [
+        { label: '5 minutos antes', value: 5, method: 'telegram' },
+        { label: '10 minutos antes', value: 10, method: 'telegram' },
+        { label: '1 hora antes', value: 60, method: 'telegram' },
+        { label: '2 horas antes - correo', value: 120, method: 'email' },
+        { label: '2 horas antes', value: 120, method: 'telegram' },
+        { label: '1 día antes - correo', value: 1440, method: 'email' },
+        { label: 'Personalizar...', value: 'custom' }
+    ];
+
+    presetsList.innerHTML = notificationPresets.map(p => {
+        const icon = p.method === 'email' ? '✉️' : '🔔';
+        return `
+        <div class="preset-list-item" data-value='${JSON.stringify(p)}'>
+             <span style="font-size:1.5rem; width: 35px; text-align:center;">${icon}</span>
+             <span>${p.label}</span>
+        </div>`;
+    }).join('');
+
+    const hideModal = () => {
+        modal.classList.remove('show');
+        setTimeout(() => { modal.style.display = 'none'; }, 300);
+
+        // --- INICIO: Restaurar el comportamiento original del botón "Atrás" ---
+        // Al cerrar el modal, devolvemos al botón "Atrás" su función de navegación normal.
+        tg.BackButton.onClick(goBack);
+        updateBackButton(); // Esto lo ocultará si no hay más historial de navegación.
+        // --- FIN: Restaurar el comportamiento ---
+    };
+
+    const addNotification = (notifData) => {
+        if (currentNotificationsRef.length >= 5) {
+            showToast("Puedes añadir un máximo de 5 notificaciones.", true);
+            return;
+        }
+        currentNotificationsRef.push({ 
+            metodo: notifData.method, 
+            minutosAntes: notifData.value, 
+            status: 'pending_creation' 
+        });
+        renderChipsCallback();
+        hideModal();
+    };
+
+    presetsList.querySelectorAll('.preset-list-item').forEach(item => {
+        item.onclick = () => {
+            const data = JSON.parse(item.dataset.value);
+            if (data.value === 'custom') {
+                presetsView.style.display = 'none';
+                customView.style.display = 'block';
+            } else {
+                addNotification(data);
+            }
+        };
+    });
+
+    document.getElementById('notification-modal-cancel').onclick = hideModal;
+    document.getElementById('custom-notification-back').onclick = () => {
+        customView.style.display = 'none';
+        presetsView.style.display = 'block';
+    };
+    document.getElementById('custom-notification-done').onclick = () => {
+        const value = parseInt(document.getElementById('custom-notification-value').value, 10);
+        const unit = document.querySelector('input[name="custom_unit"]:checked').value;
+        const method = document.querySelector('input[name="custom_method"]:checked').value;
+        if (isNaN(value) || value < 1) {
+            showToast("Introduce un número válido.", true);
+            return;
+        }
+        let mins = value;
+        if (unit === 'hours') mins = value * 60;
+        else if (unit === 'days') mins = value * 1440;
         
-        return {
-            metodo: metodo,
-            minutosAntes: mins,
+        addNotification({ value: mins, method: method });
+        
+        setTimeout(() => {
+            customView.style.display = 'none';
+            presetsView.style.display = 'block';
+        }, 300);
+    };
+
+    modal.onclick = (e) => { if (e.target === modal) hideModal(); };
+    
+    // --- INICIO: Lógica para controlar el botón "Atrás" del móvil ---
+    // Justo antes de mostrar el modal, le decimos al botón "Atrás" que su nueva
+    // función es, simplemente, cerrar el modal.
+    if (tg && tg.BackButton) {
+        tg.BackButton.onClick(hideModal);
+        tg.BackButton.show();
+    }
+    // --- FIN: Lógica para controlar el botón "Atrás" ---
+
+    modal.style.display = 'flex';
+    setTimeout(() => { modal.classList.add('show'); }, 10);
+}
+async function saveCalendarEvent(eventData) {
+    showSpinner("Guardando evento...");
+    const title = document.getElementById('event-title').value.trim();
+    // Determinamos si estamos editando basándonos en si eventData tiene un ID.
+    const isEditing = eventData && eventData.id;
+
+    if (!title) {
+        showToast("El título es obligatorio.", true);
+        hideSpinner();
+        return;
+    }
+
+    try {
+        const isAllDay = document.getElementById('event-all-day').checked;
+        let startDate, endDate;
+        
+        // Obtenemos las fechas del formulario
+        startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
+        endDate = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
+
+        // Lógica para eventos de "Todo el día"
+        if (isAllDay) {
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(startDate); 
+            endDate.setHours(23, 59, 59, 999);
+        }
+
+        // Validación de fechas
+        if (endDate < startDate) {
+            hideSpinner();
+            showToast("La fecha de fin no puede ser anterior a la de inicio.", true);
+            return;
+        }
+
+        // Leemos las notificaciones desde la variable `eventData.notificaciones` (del sistema de chips)
+        // y la transformamos a la estructura que tu backend necesita.
+        const notificationsToSave = (eventData.notificaciones || []).map(notif => ({
+            metodo: notif.metodo,
+            minutosAntes: notif.minutosAntes,
             trigger_id: null,
             status: 'pending_creation'
+        }));
+
+        // Construimos el objeto final con la estructura requerida por tus activadores
+        const dataToSave = {
+            titulo: title,
+            descripcion: document.getElementById('event-description').value.trim(),
+            color: document.getElementById('event-color-value').value,
+            fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
+            fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
+            esTodoElDia: isAllDay,
+            notificaciones: notificationsToSave,
+            status: 'pending_creation'
         };
-    });
+        
+        const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
 
-    const eventData = {
-        titulo: title,
-        descripcion: document.getElementById('event-description').value.trim(),
-        color: document.getElementById('event-color').value,
-        fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
-        fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
-        esTodoElDia: isAllDay,
-        notificaciones: notifications,
-        status: 'pending_creation'
-    };
-
-    const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
-    try {
-        if (eventToEdit && eventToEdit.id) {
-            await collectionRef.doc(eventToEdit.id).set(eventData, { merge: true }); // Usamos set con merge para más seguridad
+        if (isEditing) {
+            await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
             showToast("Evento actualizado.");
         } else {
-            await collectionRef.add(eventData);
+            await collectionRef.add(dataToSave);
             showToast("Evento creado.");
         }
-        goBack();
+        
+        goBack(); // Volvemos a la vista del calendario
+
     } catch (err) {
-        console.error("Error al guardar evento:", err);
-        showToast(`Error al guardar: ${err.message}`, true);
-    } finally {
-        hideSpinner();
-    }
-}
-
-async function saveCalendarEvent(eventToEdit = null) {
-    showSpinner("Guardando...");
-    const isAllDay = document.getElementById('event-all-day').checked;
-    let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-    let endDate = isAllDay ? startDate : document.getElementById('event-end-date')._flatpickr.selectedDates[0];
-
-    if (!startDate) { hideSpinner(); showToast("La fecha de inicio es obligatoria.", true); return; }
-    if (isAllDay) {
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date(startDate);
-        endDate.setHours(23, 59, 59, 999);
-    }
-    if (!endDate) { hideSpinner(); showToast("La fecha de fin es obligatoria.", true); return; }
-    if (endDate < startDate) { hideSpinner(); showToast("La fecha de fin no puede ser anterior a la de inicio.", true); return; }
-    
-    const notifications = Array.from(document.querySelectorAll('#notifications-container .notification-row')).map(row => {
-        const qty = parseInt(row.querySelector('.event-reminder-quantity').value, 10) || 1;
-        const unit = row.querySelector('.event-reminder-unit').value;
-        const mins = unit === 'days' ? qty * 1440 : (unit === 'hours' ? qty * 60 : qty);
-        return {
-            metodo: row.querySelector('.event-reminder-method').value,
-            minutosAntes: mins,
-            trigger_id: null,
-            status: 'pending_creation' // Estandarizamos al valor correcto
-        };
-    });
-
-    const eventData = {
-        titulo: document.getElementById('event-title').value.trim(),
-        descripcion: document.getElementById('event-description').value.trim(),
-        color: document.getElementById('event-color').value,
-        fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
-        fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
-        esTodoElDia: isAllDay,
-        notificaciones: notifications,
-        status: 'pending_creation'
-    };
-
-    const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
-    try {
-        if (eventToEdit) {
-            await collectionRef.doc(eventToEdit.id).update(eventData);
-            showToast("Evento actualizado.");
-        } else {
-            await collectionRef.add(eventData);
-            showToast("Evento creado.");
-        }
-        goBack();
-    } catch (err) {
+        console.error("Error guardando evento en Firestore:", err);
         showToast(`Error al guardar: ${err.message}`, true);
     } finally {
         hideSpinner();
@@ -4001,6 +4870,7 @@ async function handleDeleteCalendarEvent(eventId) {
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
 function renderDashboard() {
+  removeCalendarFAB();
   setActiveTab('tab-home');
   navigationHistory = [];
   updateBackButton();
@@ -4022,7 +4892,7 @@ function renderDashboard() {
 
   mainContentArea.innerHTML = `
     <div class="grid">
-      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">🗓️</div><div class="card-title">Recordatorios</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">✍️️</div><div class="card-title">Avisarme</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       ${calendarCardHtml}
