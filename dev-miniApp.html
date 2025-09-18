@@ -2436,6 +2436,34 @@ function renderInstructionScreen() {
         scanButton.onclick = triggerFileInput;
     }
 }
+function triggerFileInput() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        selectedImageFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('image-preview-element').src = e.target.result;
+            document.getElementById('image-preview-overlay').style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+    };
+
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    
+    // Limpiamos el input del DOM para evitar problemas en futuras aperturas.
+    window.addEventListener('focus', () => {
+        if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
+        }
+    }, { once: true });
+}
 
 async function handleImageScan() {
     if (!selectedImageFile) {
@@ -3013,9 +3041,15 @@ function renderChefPage() {
                 
                 <div id="chef-image-previews"></div>
                 <div class="button-group" style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
-                <button id="chef-take-photo-btn" class="add-article-btn enabled" style="flex: 1; min-width: 150px; background-color: #28a745;">📸 Tomar Foto</button>
-                <button id="chef-select-gallery-btn" class="add-article-btn enabled" style="flex: 1; min-width: 150px;">🖼️ Seleccionar de Galería</button>
-            </div>
+				<div style="margin-top: 20px; text-align: left; font-size: 0.9rem; color: var(--muted);">
+				<ol style="padding-left: 20px;">
+				<li>Primero, saca una foto de tus ingredientes/nevera con buena luz.</li>
+				<li>Luego, pulsa el botón de abajo para subirla desde tu galería.</li>
+				</ol>
+				</div>
+				<div class="add-article-btn-container" style="margin-top: 15px;">
+				<button class="add-article-btn" id="chef-upload-button">Subir Foto desde Galería 🖼️</button>
+				</div>
 
                 <div class="button-group">
                     <button id="chef-cancel-btn" class="cancel">Cancelar/Salir</button>
@@ -3068,33 +3102,8 @@ function renderChefPage() {
         }
     });
 
-// Manejador para el botón "Tomar Foto"
-document.getElementById('chef-take-photo-btn').onclick = () => {
-    if (selectedFiles.length >= 2) {
-        showToast("Puedes subir un máximo de 2 fotos.", true);
-        return;
-    }
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*';
-    fileInput.capture = 'camera'; // Intentamos 'camera' genérico o 'environment'
-    fileInput.style.display = 'none'; // Ocultar input
-    fileInput.onchange = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            handleChefImageSelection(file, (confirmedFile) => {
-                selectedFiles.push(confirmedFile);
-                updatePreviews();
-            });
-        }
-    };
-    document.body.appendChild(fileInput); // Añadir al body para poder hacer click
-    fileInput.click();
-    document.body.removeChild(fileInput); // Eliminar del body
-};
-
-// Manejador para el botón "Seleccionar de Galería"
-document.getElementById('chef-select-gallery-btn').onclick = () => {
+// Asignamos la acción al nuevo botón de subida del Chef
+document.getElementById('chef-upload-button').onclick = () => {
     if (selectedFiles.length >= 2) {
         showToast("Puedes subir un máximo de 2 fotos.", true);
         return;
@@ -3106,15 +3115,22 @@ document.getElementById('chef-select-gallery-btn').onclick = () => {
     fileInput.onchange = (event) => {
         const file = event.target.files[0];
         if (file) {
+            // Usamos la función que ya existe en el Chef para manejar la previsualización
             handleChefImageSelection(file, (confirmedFile) => {
                 selectedFiles.push(confirmedFile);
                 updatePreviews();
             });
         }
     };
-    document.body.appendChild(fileInput); // Añadir al body
+    document.body.appendChild(fileInput);
     fileInput.click();
-    document.body.removeChild(fileInput); // Eliminar del body
+    
+    // Limpieza para evitar problemas en futuras selecciones
+    setTimeout(() => {
+         if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
+        }
+    }, 1000);
 };
 
 // Manejador para el botón "Seleccionar de Galería"
