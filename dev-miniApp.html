@@ -928,10 +928,19 @@
 const HTML_VERSION = "1.2.22"; // IMPORTANTE: Incrementa la versión del cliente.
 
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
+// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
+// Esta sección ahora se ejecuta siempre, garantizando que 'db' exista.
+if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+    window.db = firebase.firestore();
+}
+
+// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
-	    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+    console.log("Iniciando app y verificando versión...");
+
     // Comprueba si venimos de una recarga forzada por el changelog.
     if (sessionStorage.getItem('force_app_load') === 'true') {
         sessionStorage.removeItem('force_app_load'); // Limpiamos la bandera
@@ -939,33 +948,19 @@ async function initializeApp() {
         runApp(); // Ejecutamos la app directamente
         return;
     }
-    // --- FIN DE LA CORRECCIÓN ---
-    console.log("Iniciando app y verificando versión...");
 
     try {
-        if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-            window.db = firebase.firestore();
-        }
-        
         const versionDoc = await db.collection('app_config').doc('version_info').get();
-
         const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
         
-                if (String(serverVersion) !== String(HTML_VERSION)) {
+        if (String(serverVersion) !== String(HTML_VERSION)) {
             console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            
-            // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-            // Primero ocultamos la pantalla de carga...
             hideSplashScreen(); 
-            // ...y luego mostramos el modal.
             showChangelogModal(serverVersion, changelogText);
-            
             return; 
         }
 
-        // Si la versión es correcta, procedemos a ejecutar la app.
         console.log("Versión correcta. Ejecutando la aplicación...");
         runApp();
 
@@ -977,7 +972,7 @@ async function initializeApp() {
     }
 }
 
-// --- NUEVA FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
+// --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
 async function runApp() {
     try {
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
