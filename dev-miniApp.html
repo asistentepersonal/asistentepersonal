@@ -935,7 +935,7 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.23"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.24"; // IMPORTANTE: Incrementa la versión del cliente.
 
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
@@ -2438,8 +2438,9 @@ function renderInstructionScreen() {
                     <li>Para un resultado óptimo, asegúrate de que el texto sea legible, con buena luz y sin sombras.</li>
                     <li>Pulsa el botón de abajo para continuar.</li>
                 </ol>
-                <div class="button-group" style="flex-direction: column;">
-                    <button class="add-article-btn" id="select-photo-btn">📸 Seleccionar o Tomar Foto</button>
+                <div class="add-article-btn-container" style="position: relative; overflow: hidden; display: inline-block;">
+                    <button class="add-article-btn">📸 Seleccionar o Tomar Foto</button>
+                    <input type="file" accept="image/*" id="ticket-file-input" style="position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;">
                 </div>
             </div>
         </div>`;
@@ -2447,35 +2448,21 @@ function renderInstructionScreen() {
     // El único botón ahora llama a una versión limpia de renderScanTicketView
     document.getElementById('select-photo-btn').onclick = renderScanTicketView;
 }
-
-function renderScanTicketView() {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*'; // Acepta cualquier tipo de imagen
-    fileInput.style.display = 'none';
-
-    fileInput.onchange = (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        selectedImageFile = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('image-preview-element').src = e.target.result;
-            document.getElementById('image-preview-overlay').style.display = 'flex';
+// Asignamos el listener al nuevo input de archivo invisible
+    const fileInput = document.getElementById('ticket-file-input');
+    if (fileInput) {
+        fileInput.onchange = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            selectedImageFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('image-preview-element').src = e.target.result;
+                document.getElementById('image-preview-overlay').style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
         };
-        reader.readAsDataURL(file);
-    };
-
-    document.body.appendChild(fileInput);
-    fileInput.click();
-    
-    // Limpiamos el input del DOM después de su uso para evitar problemas.
-    window.addEventListener('focus', () => {
-        if (document.body.contains(fileInput)) {
-            document.body.removeChild(fileInput);
-        }
-    }, { once: true });
-}
+    }
 
 async function handleImageScan() {
     if (!selectedImageFile) {
