@@ -3579,21 +3579,27 @@ function validateSettings() {
     saveBtn.classList.toggle('enabled', hasChanged);
 }
 
-// --- VERSIÓN DEFINITIVA Y CORREGIDA CON SPINNER EN BOTÓN ---
+// --- VERSIÓN FINAL-FINAL DE saveSettings (CON SPINNER Y CAPITALIZACIÓN) ---
 async function saveSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     const originalBtnText = saveBtn.textContent;
     
-    // --- ¡AQUÍ ESTÁ LA LÓGICA DEL SPINNER EN EL BOTÓN! ---
-    // Mostramos el spinner interno y desactivamos el botón
+    // Función de ayuda para capitalizar nombres
+    const capitalize = (str) => {
+        if (!str) return '';
+        return str.toLowerCase().replace(/(?:^|\s)\S/g, char => char.toUpperCase());
+    };
+
+    // 1. Mostramos el spinner interno y desactivamos el botón
     saveBtn.innerHTML = `<span class="spinner" style="display:inline-block; border-color: white; border-top-color: transparent; border-width:2px; width:18px; height:18px; vertical-align:middle; margin-right:8px;"></span> Guardando...`;
     saveBtn.disabled = true;
 
     try {
+        // 2. Recogemos y capitalizamos los valores de ciudad y país
         const currentValues = {
             nombre: document.getElementById('settings-nombre').value,
-            ciudad: document.getElementById('settings-ciudad').value,
-            pais: document.getElementById('settings-pais').value,
+            ciudad: capitalize(document.getElementById('settings-ciudad').value.trim()),
+            pais: capitalize(document.getElementById('settings-pais').value.trim()),
             tema: document.getElementById('settings-theme').value,
             informeMananaActivo: document.getElementById('settings-informe-manana-activo').checked,
             franjaManana: document.getElementById('settings-franja-manana').value,
@@ -3609,7 +3615,7 @@ async function saveSettings() {
         let hasComplexChanges = false;
 
         for (const key in currentValues) {
-            if (currentValues[key] !== initialUserSettings[key]) {
+            if (String(currentValues[key]) !== String(initialUserSettings[key])) { // Comparación robusta
                 if (key === 'ciudad' || key === 'pais') {
                     hasComplexChanges = true;
                 } else {
@@ -3644,8 +3650,8 @@ async function saveSettings() {
                 data: {
                     chatId: chatId,
                     nombre: currentValues.nombre,
-                    ciudad: currentValues.ciudad,
-                    pais: currentValues.pais
+                    ciudad: currentValues.ciudad, // Enviamos el valor ya capitalizado
+                    pais: currentValues.pais       // Enviamos el valor ya capitalizado
                 }
             };
             cloudFunctionPromise = fetch(functionUrl, {
@@ -3666,25 +3672,26 @@ async function saveSettings() {
         if (cloudFunctionResult && cloudFunctionResult.result && cloudFunctionResult.result.status === 'success') {
             appData.settings = cloudFunctionResult.result.updatedSettings;
         } else {
-            // Si no hubo llamada al backend o falló, actualizamos al menos con los datos locales
             const userDoc = await db.collection('users').doc(chatId).get();
             if (userDoc.exists) appData.settings = userDoc.data();
         }
         
-        // Actualizamos los campos no editables en la UI
+        // 3. Actualizamos la UI con los datos capitalizados y los nuevos datos del backend
+        document.getElementById('settings-ciudad').value = appData.settings.ubicacion?.ciudad || '';
+        document.getElementById('settings-pais').value = appData.settings.ubicacion?.pais || '';
         document.getElementById('settings-zona-horaria').value = appData.settings.ubicacion?.timeZone || 'No disponible';
         document.getElementById('settings-moneda').value = appData.settings.moneda || 'No disponible';
 
-        initialUserSettings = { ...currentValues };
+        initialUserSettings = { ...currentValues }; // Actualizamos el estado de referencia
         showToast("Ajustes guardados con éxito.");
 
     } catch (error) {
         console.error("Error al guardar ajustes:", error);
         showToast(`Error: ${error.message || 'Ocurrió un error desconocido.'}`, true);
     } finally {
-        // Restauramos el botón a su estado original
+        // 4. Restauramos el botón a su estado original
         saveBtn.innerHTML = originalBtnText;
-        saveBtn.disabled = true; // Se desactiva porque ya no hay cambios pendientes
+        saveBtn.disabled = true;
         saveBtn.classList.remove('enabled');
     }
 }
