@@ -2447,33 +2447,53 @@ function renderInstructionScreen() {
     const scanButton = document.getElementById('scan-ticket-button');
     if (scanButton) {
         scanButton.onclick = () => {
-            // --- Primer paso: La confirmación nativa ---
-            if (tg && tg.showConfirm) {
-                tg.showConfirm("¿Deseas seleccionar una foto de tu ticket?", (ok) => {
-                    if (ok) {
-                        // --- Segundo paso: Preparamos el botón para el clic final ---
-                        scanButton.textContent = "✅ ¡Listo! Pulsa aquí para abrir";
-                        // Reasignamos el evento 'onclick' para que el siguiente clic
-                        // llame directamente a la función que abre el selector.
-                        scanButton.onclick = () => triggerFileInput();
+            // Usamos la API nativa de popups de Telegram para una mejor experiencia
+            if (tg && tg.showPopup) {
+                tg.showPopup({
+                    title: 'Subir Ticket',
+                    message: '¿Cómo quieres añadir la foto de tu ticket?',
+                    buttons: [
+                        {id: 'camera', type: 'default', text: 'Tomar Foto 📸'},
+                        {id: 'gallery', type: 'default', text: 'Elegir de la Galería 🖼️'},
+                        {type: 'cancel'},
+                    ]
+                }, (buttonId) => {
+                    // El callback nos dice qué botón se pulsó
+                    if (buttonId === 'camera') {
+                        triggerGastoImageInput('camera'); // Llamará a la función que crearemos en el paso 2
+                    } else if (buttonId === 'gallery') {
+                        triggerGastoImageInput('gallery'); // Llamará a la función que crearemos en el paso 2
                     }
                 });
             } else {
-                // Fallback para desarrollo: si no hay Telegram, abrimos directamente.
-                triggerFileInput();
+                // Si la API de Telegram no está disponible (ej. en un navegador normal), 
+                // por defecto abrimos la galería.
+                triggerGastoImageInput('gallery');
             }
         };
     }
 }
-function triggerFileInput() {
+function triggerGastoImageInput(source) {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
-    fileInput.accept = 'image/*';
+    fileInput.accept = 'image/*'; // Aceptamos cualquier tipo de imagen
     fileInput.style.display = 'none';
 
+    // ¡Esta es la clave! El atributo 'capture' fuerza la apertura de la cámara.
+    if (source === 'camera') {
+        fileInput.capture = 'camera';
+    }
+
+    // El resto del flujo para procesar la imagen se mantiene igual
     fileInput.onchange = (event) => {
         const file = event.target.files[0];
-        if (!file) return;
+        if (!file) {
+             // Si el usuario cancela, nos aseguramos de limpiar el elemento
+             if (document.body.contains(fileInput)) {
+                document.body.removeChild(fileInput);
+            }
+            return;
+        }
         selectedImageFile = file;
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -2481,17 +2501,15 @@ function triggerFileInput() {
             document.getElementById('image-preview-overlay').style.display = 'flex';
         };
         reader.readAsDataURL(file);
+        
+        // Limpiamos el input del DOM después de su uso
+        if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
+        }
     };
 
     document.body.appendChild(fileInput);
     fileInput.click();
-    
-    // Limpiamos el input del DOM para evitar problemas en futuras aperturas.
-    window.addEventListener('focus', () => {
-        if (document.body.contains(fileInput)) {
-            document.body.removeChild(fileInput);
-        }
-    }, { once: true });
 }
 
 async function handleImageScan() {
