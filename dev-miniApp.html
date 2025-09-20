@@ -1287,20 +1287,30 @@ function generateCustomId(prefix) {
 function findEmojiForText(text) {
     if (!text || emojiDictionary.length === 0) return null;
 
-    // Normalización (se mantiene igual, es correcta)
-    const normalizedText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const singularText = normalizedText.endsWith('es') ? normalizedText.slice(0, -2) : (normalizedText.endsWith('s') ? normalizedText.slice(0, -1) : normalizedText);
+    // 1. Normalizar y dividir el texto en palabras individuales
+    const words = text.toLowerCase()
+                      .normalize("NFD")
+                      .replace(/[\u0300-\u036f]/g, "")
+                      .split(' ');
 
-    // Búsqueda del emoji
-    for (const item of emojiDictionary) {
-        // --- CAMBIO CLAVE: Búsqueda exacta en lugar de 'includes' ---
-        // 1. Comprueba si la etiqueta principal es una coincidencia exacta.
-        // 2. Comprueba si alguna de las etiquetas secundarias ('tags') es una coincidencia exacta.
-        if (item.label === singularText || (item.tags && item.tags.includes(singularText))) {
-            return item.emoji;
+    // 2. Singularizar cada palabra
+    const singularWords = words.map(word => {
+        if (word.endsWith('es')) return word.slice(0, -2);
+        if (word.endsWith('s')) return word.slice(0, -1);
+        return word;
+    });
+
+    // 3. Buscar una coincidencia EXACTA para cada palabra singularizada
+    for (const word of singularWords) {
+        for (const item of emojiDictionary) {
+            // Comprobamos si la palabra es EXACTAMENTE igual a la etiqueta principal o a una de las secundarias
+            if (item.label === word || (item.tags && item.tags.includes(word))) {
+                return item.emoji; // Devolvemos el primer emoji que coincida
+            }
         }
     }
-    return null; // Si no se encuentra ninguna coincidencia exacta
+
+    return null; // Si ninguna palabra encontró coincidencia
 }
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { 
@@ -2168,21 +2178,20 @@ async function addArticle() {
 
     const emoji = findEmojiForText(description);
     
-    // --- NUEVO: Lógica de notificación a Make.com si no hay emoji ---
     if (!emoji) {
         try {
-            const userName = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.first_name : 'Usuario Desconocido';
+            // --- LÍNEA CORREGIDA: Obtiene el nombre de forma segura ---
+            const userName = (tg?.initDataUnsafe?.user?.first_name) || 'Usuario Desconocido';
             const payload = {
                 chatId: chatId,
                 userName: userName,
                 article: description
             };
-            // Llamada "fire-and-forget" para no retrasar al usuario.
             fetch(makeEmojiWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            }).catch(err => console.error("Error al notificar emoji faltante:", err)); // Capturamos error para que no rompa la app.
+            }).catch(err => console.error("Error al notificar emoji faltante:", err));
         } catch (e) {
             console.error("Error construyendo la notificación de emoji faltante:", e);
         }
