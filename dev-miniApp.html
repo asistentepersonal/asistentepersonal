@@ -1284,6 +1284,7 @@ function generateCustomId(prefix) {
     const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
     return `${prefix}${randomPart}`;
 }
+
 function findEmojiForText(text) {
     if (!text || !text.trim() || emojiDictionary.length === 0) return null;
 
