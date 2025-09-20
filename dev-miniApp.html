@@ -1284,30 +1284,21 @@ function generateCustomId(prefix) {
     const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
     return `${prefix}${randomPart}`;
 }
-const words = text.toLowerCase()
-                  .normalize("NFD")
-                  .replace(/[\u0300-\u036f]/g, "")
-                  .split(' ');
+function findEmojiForText(text) {
+    if (!text || !text.trim() || emojiDictionary.length === 0) return null;
 
-// --- LÓGICA DE SINGULARIZACIÓN CORREGIDA Y SIMPLIFICADA ---
-// Solo eliminamos la 's' final, que es el caso más común y seguro.
-// Esto convierte "aguacates" en "aguacate" correctamente.
-const singularWords = words.map(word => {
-    if (word.length > 2 && word.endsWith('s')) {
-        return word.slice(0, -1);
-    }
-    return word;
-});
+    const searchTerm = text.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-for (const word of singularWords) {
     for (const item of emojiDictionary) {
-        if (item.label === word || (item.tags && item.tags.includes(word))) {
+        if (item.label === searchTerm) {
+            return item.emoji;
+        }
+        if (item.tags && item.tags.includes(searchTerm)) {
             return item.emoji;
         }
     }
-}
-
-return null;
+    
+    return null;
 }
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { 
