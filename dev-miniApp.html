@@ -1284,33 +1284,30 @@ function generateCustomId(prefix) {
     const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
     return `${prefix}${randomPart}`;
 }
-function findEmojiForText(text) {
-    if (!text || emojiDictionary.length === 0) return null;
+const words = text.toLowerCase()
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .split(' ');
 
-    // 1. Normalizar y dividir el texto en palabras individuales
-    const words = text.toLowerCase()
-                      .normalize("NFD")
-                      .replace(/[\u0300-\u036f]/g, "")
-                      .split(' ');
+// --- LÓGICA DE SINGULARIZACIÓN CORREGIDA Y SIMPLIFICADA ---
+// Solo eliminamos la 's' final, que es el caso más común y seguro.
+// Esto convierte "aguacates" en "aguacate" correctamente.
+const singularWords = words.map(word => {
+    if (word.length > 2 && word.endsWith('s')) {
+        return word.slice(0, -1);
+    }
+    return word;
+});
 
-    // 2. Singularizar cada palabra
-    const singularWords = words.map(word => {
-        if (word.endsWith('es')) return word.slice(0, -2);
-        if (word.endsWith('s')) return word.slice(0, -1);
-        return word;
-    });
-
-    // 3. Buscar una coincidencia EXACTA para cada palabra singularizada
-    for (const word of singularWords) {
-        for (const item of emojiDictionary) {
-            // Comprobamos si la palabra es EXACTAMENTE igual a la etiqueta principal o a una de las secundarias
-            if (item.label === word || (item.tags && item.tags.includes(word))) {
-                return item.emoji; // Devolvemos el primer emoji que coincida
-            }
+for (const word of singularWords) {
+    for (const item of emojiDictionary) {
+        if (item.label === word || (item.tags && item.tags.includes(word))) {
+            return item.emoji;
         }
     }
+}
 
-    return null; // Si ninguna palabra encontró coincidencia
+return null;
 }
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { 
@@ -2171,22 +2168,46 @@ function renderAddArticleForm() {
     sendBtn.onclick = addArticle;
 }
 
+function findEmojiForText(text) {
+    if (!text || !text.trim() || emojiDictionary.length === 0) return null;
+
+    const searchTerm = text.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    for (const item of emojiDictionary) {
+        if (item.label === searchTerm) {
+            return item.emoji;
+        }
+        if (item.tags && item.tags.includes(searchTerm)) {
+            return item.emoji;
+        }
+    }
+    
+    return null;
+}
+
 async function addArticle() {
     const description = document.getElementById('article-description').value.trim();
     const cycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
-    if (!description) return;
+
+    // Guardián principal: si no hay descripción, no se hace absolutamente nada.
+    if (!description) {
+        return;
+    }
 
     const emoji = findEmojiForText(description);
-    
+
+    // La notificación solo se envía si NO hay emoji Y SÍ hay una descripción.
     if (!emoji) {
         try {
-            // --- LÍNEA CORREGIDA: Obtiene el nombre de forma segura ---
-            const userName = (tg?.initDataUnsafe?.user?.first_name) || 'Usuario Desconocido';
+            const user = tg?.initDataUnsafe?.user;
+            const userName = (user?.first_name || user?.username) || 'Usuario Desconocido';
+
             const payload = {
                 chatId: chatId,
                 userName: userName,
                 article: description
             };
+
             fetch(makeEmojiWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2196,7 +2217,7 @@ async function addArticle() {
             console.error("Error construyendo la notificación de emoji faltante:", e);
         }
     }
-    
+
     const finalDescription = emoji ? `${emoji} ${description}` : description;
 
     goBack();
@@ -2210,7 +2231,7 @@ async function addArticle() {
             estado: 'Pendiente',
             fecha: firebase.firestore.FieldValue.serverTimestamp()
         });
-    } catch (err) { 
+    } catch (err) {
         console.error("Error al añadir artículo:", err);
         showToast(`Error: ${err.message}.`, true);
     }
