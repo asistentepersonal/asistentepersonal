@@ -935,7 +935,7 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.27"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.28"; // IMPORTANTE: Incrementa la versión del cliente.
 
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
@@ -1187,6 +1187,7 @@ tg.onEvent('viewportChanged', async (event) => {
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
 const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
+const makeEmojiWebhookUrl = 'https://hook.eu2.make.com/rpfzqlvyd4subtzmxoa3uritfk8tvbcl';
 let selectedImageFile = null;
     let chatId; // Solo declaramos la variable aquí.
     
@@ -1284,20 +1285,22 @@ function generateCustomId(prefix) {
     return `${prefix}${randomPart}`;
 }
 function findEmojiForText(text) {
-    if (!text || emojiDictionary.length === 0) return null;
+    if (!text || !text.trim() || emojiDictionary.length === 0) return null;
 
-    // Normalizar texto: minúsculas, sin tildes, y singularizar (aproximación simple)
-    const normalizedText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const singularText = normalizedText.endsWith('es') ? normalizedText.slice(0, -2) : (normalizedText.endsWith('s') ? normalizedText.slice(0, -1) : normalizedText);
+    const searchTerm = text.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     for (const item of emojiDictionary) {
-        // Comprobar si el texto singularizado está incluido en la etiqueta o en alguna de las palabras clave
-        if (item.label.includes(singularText) || (item.tags && item.tags.some(tag => tag.includes(singularText)))) {
+        if (item.label === searchTerm) {
+            return item.emoji;
+        }
+        if (item.tags && item.tags.includes(searchTerm)) {
             return item.emoji;
         }
     }
+    
     return null;
 }
+
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { 
     let toastTimer; 
@@ -2160,23 +2163,48 @@ function renderAddArticleForm() {
 async function addArticle() {
     const description = document.getElementById('article-description').value.trim();
     const cycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
-    if (!description) return;
+
+    if (!description) {
+        return;
+    }
 
     const emoji = findEmojiForText(description);
+
+    if (!emoji) {
+        try {
+            const user = tg?.initDataUnsafe?.user;
+            const userName = (user?.first_name || user?.username) || 'Usuario Desconocido';
+
+            const payload = {
+                chatId: chatId,
+                userName: userName,
+                article: description
+            };
+
+            fetch(makeEmojiWebhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(err => console.error("Error al notificar emoji faltante:", err));
+        } catch (e) {
+            console.error("Error construyendo la notificación de emoji faltante:", e);
+        }
+    }
+
     const finalDescription = emoji ? `${emoji} ${description}` : description;
 
     goBack();
     showToast('Añadiendo artículo...');
 
     try {
-        const customId = generateCustomId('G-'); // Generar ID personalizado
+        const customId = generateCustomId('G-');
         await db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(customId).set({
             articulo: finalDescription,
             cycle: cycle,
             estado: 'Pendiente',
             fecha: firebase.firestore.FieldValue.serverTimestamp()
         });
-    } catch (err) { 
+    } catch (err) {
         console.error("Error al añadir artículo:", err);
         showToast(`Error: ${err.message}.`, true);
     }
