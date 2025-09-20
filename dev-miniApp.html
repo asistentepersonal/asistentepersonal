@@ -1191,8 +1191,9 @@ let selectedImageFile = null;
     let chatId; // Solo declaramos la variable aquí.
     
     // --- LISTA BLANCA DE USUARIOS AUTORIZADOS (SOLO PARA DESARROLLO) ---
-    const authorizedUsers = ["6840956330"]; // <<<--- AÑADE AQUÍ MÁS IDs DE PRUEBA SI ES NECESARIO
-	const authorizedUsers = ["7200016"];
+    
+	const authorizedUsers = ["6840956330", "7200016"]; // <<<--- AÑADE AQUÍ MÁS IDs DE PRUEBA SI ES NECESARIO
+
     // Función auxiliar para gestionar el error de forma centralizada
     function failApp(message, canClose = false) {
         document.body.innerHTML = `<div class="no-data-msg">❌<br>${message}</div>`;
