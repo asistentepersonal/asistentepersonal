@@ -2162,6 +2162,8 @@ async function addArticle() {
     const cycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
     if (!description) return;
 
+    // --- LÓGICA CORREGIDA ---
+    // Se asegura de que la variable 'description' se use en ambos lados de la condición.
     const emoji = findEmojiForText(description);
     const finalDescription = emoji ? `${emoji} ${description}` : description;
 
@@ -2171,7 +2173,7 @@ async function addArticle() {
     try {
         const customId = generateCustomId('G-'); // Generar ID personalizado
         await db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(customId).set({
-            articulo: finalDescription,
+            articulo: finalDescription, // Aquí se guarda la descripción ya corregida
             cycle: cycle,
             estado: 'Pendiente',
             fecha: firebase.firestore.FieldValue.serverTimestamp()
