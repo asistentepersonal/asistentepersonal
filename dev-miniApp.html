@@ -2189,14 +2189,12 @@ async function addArticle() {
     const description = document.getElementById('article-description').value.trim();
     const cycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
 
-    // Guardián principal: si no hay descripción, no se hace absolutamente nada.
     if (!description) {
         return;
     }
 
     const emoji = findEmojiForText(description);
 
-    // La notificación solo se envía si NO hay emoji Y SÍ hay una descripción.
     if (!emoji) {
         try {
             const user = tg?.initDataUnsafe?.user;
