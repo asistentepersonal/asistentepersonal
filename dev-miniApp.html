@@ -935,7 +935,7 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.28"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.27"; // IMPORTANTE: Incrementa la versión del cliente.
 
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
@@ -1300,7 +1300,6 @@ function findEmojiForText(text) {
     
     return null;
 }
-
 function hideSpinner() { spinner.style.display = 'none'; }
 function showToast(msg, isError = false) { 
     let toastTimer; 
@@ -2163,48 +2162,44 @@ function renderAddArticleForm() {
 async function addArticle() {
     const description = document.getElementById('article-description').value.trim();
     const cycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
-
-    if (!description) {
-        return;
-    }
+    if (!description) return;
 
     const emoji = findEmojiForText(description);
 
-    if (!emoji) {
-        try {
-            const user = tg?.initDataUnsafe?.user;
-            const userName = (user?.first_name || user?.username) || 'Usuario Desconocido';
+if (!emoji) {
+    try {
+        const user = tg?.initDataUnsafe?.user;
+        const userName = (user?.first_name || user?.username) || 'Usuario Desconocido';
 
-            const payload = {
-                chatId: chatId,
-                userName: userName,
-                article: description
-            };
+        const payload = {
+            chatId: chatId,
+            userName: userName,
+            article: description
+        };
 
-            fetch(makeEmojiWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }).catch(err => console.error("Error al notificar emoji faltante:", err));
-        } catch (e) {
-            console.error("Error construyendo la notificación de emoji faltante:", e);
-        }
+        fetch(makeEmojiWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).catch(err => console.error("Error al notificar emoji faltante:", err));
+    } catch (e) {
+        console.error("Error construyendo la notificación de emoji faltante:", e);
     }
-
+}
     const finalDescription = emoji ? `${emoji} ${description}` : description;
 
     goBack();
     showToast('Añadiendo artículo...');
 
     try {
-        const customId = generateCustomId('G-');
+        const customId = generateCustomId('G-'); // Generar ID personalizado
         await db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(customId).set({
             articulo: finalDescription,
             cycle: cycle,
             estado: 'Pendiente',
             fecha: firebase.firestore.FieldValue.serverTimestamp()
         });
-    } catch (err) {
+    } catch (err) { 
         console.error("Error al añadir artículo:", err);
         showToast(`Error: ${err.message}.`, true);
     }
