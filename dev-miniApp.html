@@ -921,7 +921,7 @@
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-    
+	
     // =========================================================================
     // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
     // =========================================================================
@@ -932,8 +932,7 @@
     if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
         window.db = firebase.firestore();
-    }
-
+    }	
     // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
     async function initializeApp() {
         if (isInitializing) return;
