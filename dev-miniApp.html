@@ -2824,8 +2824,7 @@ function renderEditGastoForm(gasto) {
  * VERSIÓN CORREGIDA Y COMPLETA.
  */
 async function saveEditedGasto(idUnico) {
-    showSpinner("Guardando cambios...");
-    try {
+        try {
         const gastoOriginal = gastosEncontrados.find(g => g.ID_Unico === idUnico);
         if (!gastoOriginal) {
             throw new Error("No se encontró el gasto original para calcular la diferencia.");
@@ -2872,8 +2871,6 @@ async function saveEditedGasto(idUnico) {
     } catch (err) {
         showToast(`Error al guardar: ${err.message}.`, true);
         initializeApp(); // Recarga completa en caso de error grave.
-    } finally {
-        hideSpinner();
     }
 }
 
@@ -3057,7 +3054,16 @@ function handleChefImageSelection(file, callback) {
 }
 
 async function executeChefRequest(files) {
-    showSpinner("Un momento, el Chef está trabajando...");
+    // --- INICIO DE LA MEJORA DE UX ---
+    const submitBtn = document.getElementById('chef-submit-btn');
+    const originalBtnText = submitBtn.innerHTML; // Guardamos el texto original del botón
+    
+    // Deshabilitamos el botón y mostramos el spinner interno
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<span class="spinner btn-spinner"></span> Chef trabajando...`;
+    // Ya NO llamamos a showSpinner()
+    // --- FIN DE LA MEJORA DE UX ---
+
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
     try {
@@ -3123,8 +3129,114 @@ async function executeChefRequest(files) {
     } catch (err) {
         console.error("Error definitivo en executeChefRequest:", err);
         showToast(err.message || "Error al contactar al Chef.", true);
-    } finally {
-        hideSpinner();
+        
+        // --- INICIO MEJORA DE UX EN CASO DE ERROR ---
+        // Si hay un error, también restauramos el botón a su estado original
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+        // --- FIN MEJORA DE UX EN CASO DE ERROR ---
+    } 
+    // NOTA: El bloque 'finally' se ha eliminado porque necesitamos un manejo diferente
+    // si la operación tiene éxito (se va a otra pantalla) o si falla (se queda y restaura el botón).
+}
+
+function renderChefResults(sugerencias) {
+    updateBackButton();
+    let html = '<div class="chef-container">';
+    if (!sugerencias || sugerencias.length === 0) {
+        html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
+    } else {
+        sugerencias.forEach((sug, index) => {
+            html += `
+            <div class="recipe-card" id="recipe-${index}">
+                <div class="recipe-header"><h3 class="recipe-title">${sug.titulo_receta}</h3></div>
+                <div class="recipe-body">
+                    <p class="recipe-description">${sug.descripcion}</p>
+                    <h4 class="recipe-subtitle">Ingredientes que ya tienes:</h4>
+                    <ul class="recipe-ingredient-list">
+                        ${(sug.ingredientes_detectados || []).map(ing => `<li>✅ ${ing}</li>`).join('')}
+                    </ul>
+                    ${sug.ingredientes_a_comprar && sug.ingredientes_a_comprar.length > 0 ? `
+                        <h4 class="recipe-subtitle" style="margin-top:15px;">Necesitarás comprar:</h4>
+                        <ul class="recipe-ingredient-list buy">
+                           ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} (${ing.cantidad})"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
+                        </ul>
+                        <button class="add-article-btn" data-action="add-ingredients" style="width:100%; max-width:100%; margin-top:15px;">Añadir seleccionados a la compra</button>
+                    ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
+                    
+                    ${sug.instrucciones_preparacion && sug.instrucciones_preparacion.length > 0 ? `
+                        <div class="list-item clickable" style="margin-top:20px; text-align:left;" data-action="toggle-instructions" data-target="instructions-${index}">
+                            <div class="list-item-content">
+                                <span class="list-item-title">🧑‍🍳 Cómo Preparar</span>
+                            </div>
+                            <div class="list-item-actions"><span class="expand-arrow">▼</span></div>
+                        </div>
+                        <div id="instructions-${index}" class="event-description" style="margin-top:0; padding:15px; background:var(--bg); border-radius:0 0 10px 10px; box-shadow:inset 0 2px 5px rgba(0,0,0,0.02); display:none; max-height:0; overflow:hidden; transition:max-height 0.3s ease-out, padding 0.3s ease-out;">
+                        <ol style="padding-left:20px; margin-top:0;">
+                                ${sug.instrucciones_preparacion
+                                    .filter(step => typeof step === 'string' && step.trim().length > 0)
+                                    .map(step => `<li>${step.trim()}</li>`)
+                                    .join('')}
+                            </ol>
+                        </div>
+                    ` : ''}
+
+                    <button class="add-article-btn" data-action="copy-recipe" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;">Copiar Receta</button>
+                </div>
+            </div>`;
+        });
+    }
+    html += `<div class="form-card" style="margin-top: 20px;"><button data-action="go-home" class="cancel" style="width:100%; max-width:100%; opacity:1; cursor:pointer;">Volver a Inicio</button></div>`;
+    html += '</div>';
+    
+    mainContentArea.innerHTML = html;
+    mainContentArea.removeEventListener('click', handleChefResultsClicks);
+    mainContentArea.addEventListener('click', handleChefResultsClicks);
+    
+    setTimeout(() => {
+        const firstRecipeCard = document.getElementById('recipe-0');
+        if (firstRecipeCard) {
+            firstRecipeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            mainContentArea.scrollTop = 0;
+        }
+    }, 100);
+}
+
+function handleChefResultsClicks(event) {
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+    const action = button.dataset.action;
+    switch(action) {
+        case 'add-ingredients': addIngredientsToShoppingList(button); break;
+        case 'copy-recipe': copyToClipboard(button); break;
+        case 'go-home': renderDashboard(); break;
+        case 'toggle-instructions':
+            event.stopPropagation();
+            const targetId = button.dataset.target;
+            const targetElement = document.getElementById(targetId);
+            const parentListItem = button.closest('.list-item');
+
+            if (targetElement && parentListItem) {
+                const isOpen = targetElement.style.display === 'block';
+                if (isOpen) {
+                    targetElement.style.maxHeight = '0';
+                    targetElement.style.padding = '0 15px';
+                    setTimeout(() => { targetElement.style.display = 'none'; }, 300);
+                    parentListItem.classList.remove('open');
+                } else {
+                    targetElement.style.display = 'block';
+                    targetElement.offsetHeight; 
+                    targetElement.style.maxHeight = '500px';
+                    targetElement.style.padding = '15px';
+                    parentListItem.classList.add('open');
+                }
+                const arrow = button.querySelector('.expand-arrow');
+                if (arrow) {
+                    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+                }
+            }
+            break;
     }
 }
 
