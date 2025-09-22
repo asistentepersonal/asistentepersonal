@@ -2899,11 +2899,11 @@ function renderChefPage() {
                         <option value="Cena">🍝 Cena</option>
                     </select>
                 </div>
-                <div class="chef-item">
-                    <label>Hora Aproximada</label>
-                    <input type="text" id="chef-hora" style="width: 100px; text-align: center;"/>
-                </div>
-                <div class="chef-item">
+
+                <label style="margin-top: 20px; display: block;">¿Para cuándo es la comida?</label>
+                <input type="text" id="chef-fecha-hora" style="text-align: center;"/>
+
+                <div class="chef-item" style="margin-top: 20px;">
                     <label>Nº de Comensales</label>
                     <input type="number" id="chef-comensales" value="1" min="1" style="width: 80px; text-align: center;"/>
                 </div>
@@ -2928,31 +2928,44 @@ function renderChefPage() {
                 <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
                 
                 <div id="chef-image-previews"></div>
-                <div class="button-group" style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
-				<div style="margin-top: 20px; text-align: left; font-size: 0.9rem; color: var(--muted);">
-				<ol style="padding-left: 20px;">
-				<li>Primero, saca una foto de tus ingredientes/nevera con buena luz.</li>
-				<li>Luego, pulsa el botón de abajo para subirla desde tu galería.</li>
-				</ol>
-				</div>
-				<div class="add-article-btn-container" style="margin-top: 15px;">
-				<button class="add-article-btn enabled" id="chef-upload-button">Subir Foto desde Galería 🖼️</button>
-				</div>
+                
+                <div style="margin-top: 20px; text-align: left; font-size: 0.9rem; color: var(--muted);">
+                    <ol style="padding-left: 20px;">
+                        <li>Primero, saca una foto de tus ingredientes/nevera con buena luz.</li>
+                        <li>Luego, pulsa el botón de abajo para subirla desde tu galería.</li>
+                    </ol>
+                </div>
+                <div class="add-article-btn-container" style="margin-top: 15px;">
+                    <button class="add-article-btn enabled" id="chef-upload-button">Subir Foto desde Galería 🖼️</button>
+                </div>
 
-                <div class="button-group">
+                <div class="button-group" style="margin-top: 20px;">
                     <button id="chef-cancel-btn" class="cancel">Cancelar/Salir</button>
                     <button id="chef-submit-btn" class="enabled">Obtener Sugerencias</button>
                 </div>
             </div>
         </div>`;
 
-    flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
+    const ahora = new Date();
+    const maxDate = new Date();
+    maxDate.setDate(ahora.getDate() + 4);
+
+    flatpickr("#chef-fecha-hora", {
+        enableTime: true,
+        altInput: true,
+        altFormat: "F j, Y - H:i",
+        dateFormat: "Z",
+        minDate: "today",
+        maxDate: maxDate,
+        defaultDate: ahora,
+        locale: "es",
+        minuteIncrement: 15
+    });
+    
     document.getElementById('chef-cancel-btn').onclick = goBack;
     
     let selectedFiles = [];
-
     const previewsContainer = document.getElementById('chef-image-previews');
-    const addPhotoButton = document.getElementById('chef-add-photo-btn');
 
     const updatePreviews = () => {
         previewsContainer.innerHTML = '';
@@ -2961,25 +2974,11 @@ function renderChefPage() {
             reader.onload = (e) => {
                 const previewItem = document.createElement('div');
                 previewItem.className = 'preview-item';
-                previewItem.innerHTML = `
-                    <img src="${e.target.result}" class="preview-image" alt="preview">
-                    <button class="delete-preview-btn" data-index="${index}">&times;</button>
-                `;
+                previewItem.innerHTML = `<img src="${e.target.result}" class="preview-image" alt="preview"><button class="delete-preview-btn" data-index="${index}">&times;</button>`;
                 previewsContainer.appendChild(previewItem);
             };
             reader.readAsDataURL(file);
         });
-        const takePhotoBtn = document.getElementById('chef-take-photo-btn');
-    const selectGalleryBtn = document.getElementById('chef-select-gallery-btn');
-    if (takePhotoBtn && selectGalleryBtn) {
-        if (selectedFiles.length < 2) {
-            takePhotoBtn.style.display = 'block';
-            selectGalleryBtn.style.display = 'block';
-        } else {
-            takePhotoBtn.style.display = 'none';
-            selectGalleryBtn.style.display = 'none';
-        }
-    }
     };
 
     previewsContainer.addEventListener('click', (event) => {
@@ -2990,115 +2989,46 @@ function renderChefPage() {
         }
     });
 
-// Asignamos la acción al nuevo botón de subida del Chef
-document.getElementById('chef-upload-button').onclick = () => {
-    if (selectedFiles.length >= 2) {
-        showToast("Puedes subir un máximo de 2 fotos.", true);
-        return;
-    }
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*';
-    fileInput.style.display = 'none'; // Ocultar input
-    fileInput.onchange = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            // Usamos la función que ya existe en el Chef para manejar la previsualización
-            handleChefImageSelection(file, (confirmedFile) => {
-                selectedFiles.push(confirmedFile);
-                updatePreviews();
-            });
+    document.getElementById('chef-upload-button').onclick = () => {
+        if (selectedFiles.length >= 2) {
+            showToast("Puedes subir un máximo de 2 fotos.", true);
+            return;
         }
-    };
-    document.body.appendChild(fileInput);
-    fileInput.click();
-    
-    // Limpieza para evitar problemas en futuras selecciones
-    setTimeout(() => {
-         if (document.body.contains(fileInput)) {
-            document.body.removeChild(fileInput);
-        }
-    }, 1000);
-};
-
-// Manejador para el botón "Seleccionar de Galería"
-document.getElementById('chef-select-gallery-btn').onclick = () => {
-    if (selectedFiles.length >= 2) {
-        showToast("Puedes subir un máximo de 2 fotos.", true);
-        return;
-    }
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*';
-    fileInput.style.display = 'none'; // Ocultar input
-    fileInput.onchange = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            handleChefImageSelection(file, (confirmedFile) => {
-                selectedFiles.push(confirmedFile);
-                updatePreviews();
-            });
-        }
-    };
-    document.body.appendChild(fileInput); // Añadir al body
-    fileInput.click();
-    document.body.removeChild(fileInput); // Eliminar del body
-};
-    
-                document.getElementById('chef-submit-btn').onclick = () => {
-                if(selectedFiles.length === 0) {
-                    showToast("Por favor, sube una foto de tus ingredientes.", true);
-                    return;
-                }
-                executeChefRequest(selectedFiles);
-            };
-        } // Esta es la llave de cierre de renderChefPage
-
-function handleChefImageSelection(file, callback) {
-    const overlay = document.getElementById('image-preview-overlay');
-    const imgElement = document.getElementById('image-preview-element');
-    const sendBtn = document.getElementById('preview-send-btn');
-    const cancelBtn = document.getElementById('preview-cancel-btn');
-
-    sendBtn.textContent = "Usar esta Foto";
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        imgElement.src = e.target.result;
-        overlay.style.display = 'flex';
-    };
-    reader.readAsDataURL(file);
-
-    const cleanup = () => {
-        overlay.style.display = 'none';
-        sendBtn.onclick = handleImageScan; 
-        cancelBtn.onclick = () => {
-            document.getElementById('image-preview-overlay').style.display = 'none';
-            selectedImageFile = null;
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+        fileInput.onchange = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                handleChefImageSelection(file, (confirmedFile) => {
+                    selectedFiles.push(confirmedFile);
+                    updatePreviews();
+                });
+            }
         };
-        sendBtn.textContent = "Enviar";
-    };
-
-    sendBtn.onclick = () => {
-        callback(file);
-        cleanup();
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        setTimeout(() => { if (document.body.contains(fileInput)) document.body.removeChild(fileInput); }, 1000);
     };
     
-    cancelBtn.onclick = () => {
-        cleanup();
+    document.getElementById('chef-submit-btn').onclick = () => {
+        if(selectedFiles.length === 0) {
+            showToast("Por favor, sube una foto de tus ingredientes.", true);
+            return;
+        }
+        executeChefRequest(selectedFiles);
     };
 }
 
-// [VERSIÓN FINAL CON CLOUD FUNCTIONS - CORREGIDA]
-// Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
 async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
-    // URL directa a tu Cloud Function
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
     try {
         const userPreferences = {
             tipoComida: document.getElementById('chef-tipo-comida').value,
-            hora: document.getElementById('chef-hora').value,
+            fechaComida: document.getElementById('chef-fecha-hora')._flatpickr.selectedDates[0].toISOString(),
             comensales: document.getElementById('chef-comensales').value,
             estilo: document.getElementById('chef-estilo').value,
             conPostre: document.getElementById('chef-postre').checked,
@@ -3136,20 +3066,17 @@ async function executeChefRequest(files) {
         }
 
         const result = await response.json();
-                const data = result.result; // Para funciones onCall, el resultado está en 'result'
+        const data = result.result;
         
-        // --- CAMBIO CLAVE: Limpieza profunda de instrucciones aquí ---
-               if (data && data.sugerencias) {
+        if (data && data.sugerencias) {
             data.sugerencias.forEach(sug => {
                 if (sug.instrucciones_preparacion && Array.isArray(sug.instrucciones_preparacion)) {
                     sug.instrucciones_preparacion = sug.instrucciones_preparacion
-                        // Filtra nulos, no-strings, vacíos y líneas que solo contienen espacios o caracteres invisibles
                         .filter(step => typeof step === 'string' && step.replace(/\s+/g, '').length > 0)
-                        .map(step => step.trim()); // Limpia cada paso restante
+                        .map(step => step.trim());
                 }
             });
         }
-        // --- FIN CAMBIO CLAVE ---
 
         if (data && data.sugerencias) {
             showToast("¡Aquí tienes tus sugerencias!");
@@ -3163,115 +3090,6 @@ async function executeChefRequest(files) {
         showToast(err.message || "Error al contactar al Chef.", true);
     } finally {
         hideSpinner();
-    }
-}
-
-function renderChefResults(sugerencias) {
-    updateBackButton();
-    let html = '<div class="chef-container">';
-    if (!sugerencias || sugerencias.length === 0) {
-        html += '<div class="no-data-msg">🧑‍🍳<br>El Chef no ha encontrado sugerencias. Inténtalo de nuevo con otra foto o petición.</div>';
-    } else {
-        sugerencias.forEach((sug, index) => {
-            html += `
-            <div class="recipe-card" id="recipe-${index}">
-                <div class="recipe-header"><h3 class="recipe-title">${sug.titulo_receta}</h3></div>
-                <div class="recipe-body">
-                    <p class="recipe-description">${sug.descripcion}</p>
-                    <h4 class="recipe-subtitle">Ingredientes que ya tienes:</h4>
-                    <ul class="recipe-ingredient-list">
-                        ${(sug.ingredientes_detectados || []).map(ing => `<li>✅ ${ing}</li>`).join('')}
-                    </ul>
-                    ${sug.ingredientes_a_comprar && sug.ingredientes_a_comprar.length > 0 ? `
-                        <h4 class="recipe-subtitle" style="margin-top:15px;">Necesitarás comprar:</h4>
-                        <ul class="recipe-ingredient-list buy">
-                           ${sug.ingredientes_a_comprar.map(ing => `<li><input type="checkbox" class="buy-checkbox" checked data-item-name="${ing.nombre} (${ing.cantidad})"> ${ing.nombre} (${ing.cantidad})</li>`).join('')}
-                        </ul>
-                        <button class="add-article-btn" data-action="add-ingredients" style="width:100%; max-width:100%; margin-top:15px;">Añadir seleccionados a la compra</button>
-                    ` : '<p style="color:var(--muted); margin-top:15px;">¡No necesitas comprar nada para esta receta!</p>'}
-                    
-                    ${sug.instrucciones_preparacion && sug.instrucciones_preparacion.length > 0 ? `
-                        <div class="list-item clickable" style="margin-top:20px; text-align:left;" data-action="toggle-instructions" data-target="instructions-${index}">
-                            <div class="list-item-content">
-                                <span class="list-item-title">🧑‍🍳 Cómo Preparar</span>
-                            </div>
-                            <div class="list-item-actions"><span class="expand-arrow">▼</span></div>
-                        </div>
-                        <div id="instructions-${index}" class="event-description" style="margin-top:0; padding:15px; background:var(--bg); border-radius:0 0 10px 10px; box-shadow:inset 0 2px 5px rgba(0,0,0,0.02); display:none; max-height:0; overflow:hidden; transition:max-height 0.3s ease-out, padding 0.3s ease-out;">
-                        <ol style="padding-left:20px; margin-top:0;">
-                                ${sug.instrucciones_preparacion
-                                    .filter(step => typeof step === 'string' && step.trim().length > 0) // Filtra nulos, no-strings y vacíos
-                                    .map(step => `<li>${step.trim()}</li>`)
-                                    .join('')}
-                            </ol>
-                        </div>
-                    ` : ''}
-
-                    <button class="add-article-btn" data-action="copy-recipe" style="background-color: var(--muted); width:100%; max-width:100%; margin-top:10px;">Copiar Receta</button>
-                </div>
-            </div>`;
-        });
-    }
-    html += `<div class="form-card" style="margin-top: 20px;"><button data-action="go-home" class="cancel" style="width:100%; max-width:100%; opacity:1; cursor:pointer;">Volver a Inicio</button></div>`;
-    html += '</div>';
-    
-    mainContentArea.innerHTML = html;
-    mainContentArea.removeEventListener('click', handleChefResultsClicks);
-	            // --- CAMBIO CLAVE: Scroll automático al inicio de las recetas con retraso ---
-    // Esperamos un pequeño momento para asegurarnos de que el DOM esté completamente renderizado
-    setTimeout(() => {
-        const firstRecipeCard = document.getElementById('recipe-0'); // Obtener la primera tarjeta de receta
-        if (firstRecipeCard) {
-            firstRecipeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-            // Como fallback, o si no hay recetas, ir al top del contenedor general del chef
-            const chefContainer = document.querySelector('.chef-container');
-            if (chefContainer) {
-                chefContainer.scrollTop = 0;
-            } else {
-                mainContentArea.scrollTop = 0;
-            }
-        }
-    }, 100); // Pequeño retraso de 100ms
-    // --- FIN CAMBIO CLAVE ---
-    mainContentArea.addEventListener('click', handleChefResultsClicks);
-}
-
-function handleChefResultsClicks(event) {
-    const button = event.target.closest('[data-action]');
-    if (!button) return;
-    const action = button.dataset.action;
-    switch(action) {
-        case 'add-ingredients': addIngredientsToShoppingList(button); break;
-        case 'copy-recipe': copyToClipboard(button); break;
-        case 'go-home': renderDashboard(); break;
-        case 'toggle-instructions': // <--- Nueva acción para el desplegable
-            event.stopPropagation(); // Evitar que el clic se propague más allá del botón
-            const targetId = button.dataset.target;
-            const targetElement = document.getElementById(targetId);
-            const parentCard = button.closest('.recipe-card');
-
-            if (targetElement && parentCard) {
-                const isOpen = targetElement.style.display === 'block';
-                if (isOpen) {
-                    targetElement.style.maxHeight = '0';
-                    targetElement.style.padding = '0 15px'; // Restablecer padding al cerrar
-                    setTimeout(() => { targetElement.style.display = 'none'; }, 300); // Ocultar después de la transición
-                    parentCard.classList.remove('open'); // Quitar clase 'open' del padre
-                } else {
-                    targetElement.style.display = 'block';
-                    // Forzar el redibujado para que la transición funcione
-                    targetElement.offsetHeight; 
-                    targetElement.style.maxHeight = '500px'; // Un valor suficientemente grande
-                    targetElement.style.padding = '15px'; // Restaurar padding al abrir
-                    parentCard.classList.add('open'); // Añadir clase 'open' al padre
-                }
-                const arrow = button.querySelector('.expand-arrow');
-                if (arrow) {
-                    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-                }
-            }
-            break;
     }
 }
 
