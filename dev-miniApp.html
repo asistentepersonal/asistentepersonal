@@ -922,62 +922,54 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
     
-// =========================================================================
-// --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
-// =========================================================================
-const HTML_VERSION = "1.2.30"; // IMPORTANTE: Incrementa la versión del cliente.
+    // =========================================================================
+    // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
+    // =========================================================================
+    const HTML_VERSION = "1.2.29"; // IMPORTANTE: Incrementa la versión del cliente.
 
-// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
-// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
-// Esta sección ahora se ejecuta siempre, garantizando que 'db' exista.
-if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-    window.db = firebase.firestore();
-}
-
-// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
-// Esta sección ahora se ejecuta siempre, garantizando que 'db' exista.
-if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-    window.db = firebase.firestore();
-}
-
-// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
-async function initializeApp() {
-    if (isInitializing) return;
-    isInitializing = true;
-    console.log("Iniciando app y verificando versión...");
-
-    // Comprueba si venimos de una recarga forzada por el changelog.
-    if (sessionStorage.getItem('force_app_load') === 'true') {
-        sessionStorage.removeItem('force_app_load'); // Limpiamos la bandera
-        console.log("Recarga forzada detectada. Saltando verificación de versión.");
-        runApp(); // Ejecutamos la app directamente
-        return;
+    // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
+    // Esta sección ahora se ejecuta siempre, garantizando que 'db' exista.
+    if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+        window.db = firebase.firestore();
     }
 
-    try {
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
-        
-        if (String(serverVersion) !== String(HTML_VERSION)) {
-            console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
-            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            hideSplashScreen(); 
-            showChangelogModal(serverVersion, changelogText);
-            return; 
+    // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
+    async function initializeApp() {
+        if (isInitializing) return;
+        isInitializing = true;
+        console.log("Iniciando app y verificando versión...");
+
+        // Comprueba si venimos de una recarga forzada por el changelog.
+        if (sessionStorage.getItem('force_app_load') === 'true') {
+            sessionStorage.removeItem('force_app_load'); // Limpiamos la bandera
+            console.log("Recarga forzada detectada. Saltando verificación de versión.");
+            runApp(); // Ejecutamos la app directamente
+            return;
         }
 
-        console.log("Versión correcta. Ejecutando la aplicación...");
-        runApp();
+        try {
+            const versionDoc = await db.collection('app_config').doc('version_info').get();
+            const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
+            
+            if (String(serverVersion) !== String(HTML_VERSION)) {
+                console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
+                const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+                hideSplashScreen(); 
+                showChangelogModal(serverVersion, changelogText);
+                return; 
+            }
 
-    } catch (err) {
-        console.error("Error crítico en initializeApp:", err);
-        showToast(`Error de inicialización: ${err.message}`, true);
-        mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
-        hideSplashScreen();
+            console.log("Versión correcta. Ejecutando la aplicación...");
+            runApp();
+
+        } catch (err) {
+            console.error("Error crítico en initializeApp:", err);
+            showToast(`Error de inicialización: ${err.message}`, true);
+            mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
+            hideSplashScreen();
+        }
     }
-}
 
 // --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP (VERSIÓN CON FIRESTORE-FIRST) ---
 async function runApp() {
