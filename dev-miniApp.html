@@ -935,6 +935,13 @@ if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
     window.db = firebase.firestore();
 }
 
+// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
+// Esta sección ahora se ejecuta siempre, garantizando que 'db' exista.
+if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+    window.db = firebase.firestore();
+}
+
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 async function initializeApp() {
     if (isInitializing) return;
