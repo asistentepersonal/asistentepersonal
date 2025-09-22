@@ -7,6 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard - Mini App Telegram</title>
+  <meta name="theme-color" content="#4a76f3">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -935,7 +936,7 @@
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.27"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.29"; // IMPORTANTE: Incrementa la versión del cliente.
 
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
@@ -982,7 +983,7 @@ async function initializeApp() {
     }
 }
 
-// --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
+// --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP (VERSIÓN CON FIRESTORE-FIRST) ---
 async function runApp() {
     try {
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
@@ -995,7 +996,19 @@ async function runApp() {
         appData.settings = userSettingsDoc.data() || {};
         appData.isPremium = appData.settings.plan_premium === true;
         
-        // Listener GLOBAL de contadores
+        // --- INICIO DE LA CORRECCIÓN CLAVE ---
+        // Hacemos una lectura DIRECTA y RÁPIDA de los contadores ANTES de dibujar el dashboard.
+        const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
+        if (countsDoc.exists) {
+            // Fusionamos los contadores del servidor con los valores por defecto para seguridad.
+            appData.counts = { ...appData.counts, ...countsDoc.data() };
+            console.log("Contadores iniciales cargados directamente desde Firestore.", appData.counts);
+        } else {
+            console.warn("No se encontró el documento de contadores. Se usarán los valores por defecto.");
+        }
+        // --- FIN DE LA CORRECCIÓN CLAVE ---
+
+        // Listener GLOBAL de contadores (se mantiene para actualizaciones EN TIEMPO REAL después de la carga inicial)
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot((doc) => {
                 if (doc.exists) {
@@ -1004,7 +1017,7 @@ async function runApp() {
                         appData.counts = serverCounts;
                         if (document.querySelector('.grid')) {
                             renderDashboard();
-                            showToast("Datos sincronizados.", false);
+                            // showToast("Datos sincronizados.", false); // Opcional: podemos quitarlo para que no sea molesto
                         }
                     }
                 }
@@ -1012,7 +1025,7 @@ async function runApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario en tiempo real
+        // Listener para el badge del calendario (se mantiene, es eficiente)
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date();
@@ -1032,7 +1045,7 @@ async function runApp() {
           });
 
         updateChefTabStyle();
-        renderDashboard();
+        renderDashboard(); // Ahora se renderiza con los datos correctos desde el principio.
         isAppReady = true;
         hideSplashScreen();
         
@@ -1136,56 +1149,56 @@ if (tg) {
         document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); 
         document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); 
     } 
-    
     // =========================================================================
-    // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
+    // --- LÓGICA DE SINCRONIZACIÓN ATÓMICA AL MAXIMIZAR (VERSIÓN FIRESTORE) ---
     // =========================================================================
-tg.onEvent('viewportChanged', async (event) => {
-    // --- LÓGICA DE SINCRONIZACIÓN MEJORADA ---
-    // 'isStateStable' es true cuando la ventana se maximiza, pero a menudo
-    // es false cuando el teclado aparece, lo que nos sirve como filtro.
-    const isAppMaximized = event.isStateStable && tg.isExpanded;
-
-    // Solo actuamos si la app está lista Y si el evento es una maximización real.
-    if (!isAppReady || !isAppMaximized) {
-        return;
-    }
-    // --- FIN DE LA LÓGICA MEJORADA ---
-
-    console.log("App maximizada y lista. Comprobando cambios...");
-    
-    try {
-        const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
-        if (!countsDoc.exists) {
-            console.warn("No se encontró el documento de contadores durante la sincronización.");
+    // Este evento es CRUCIAL para cuando un agente externo (como Make.com)
+    // modifica los datos mientras la Mini App está minimizada.
+    tg.onEvent('viewportChanged', async (event) => {
+        // Solo actuamos si la app está lista, completamente visible y estable.
+        if (!isAppReady || !event.isStateStable || !tg.isExpanded) {
             return;
         }
 
-        const serverCounts = countsDoc.data();
+        console.log("App maximizada. Forzando resincronización de contadores desde Firestore...");
         
-        // Usar JSON.stringify para una comparación robusta de los objetos
-        if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
-            console.log("Cambios en contadores detectados. Actualizando UI...");
-            
-            appData.counts = serverCounts;
-            // Importante: Solo refrescamos el dashboard SI estamos en la pantalla de Home
-            if (document.querySelector('.grid')) {
-                renderDashboard();
+        try {
+            // Hacemos una lectura fresca y directa de los contadores desde Firestore.
+            const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
+            if (!countsDoc.exists) {
+                console.warn("No se encontró el documento de contadores durante la resincronización.");
+                return;
             }
-            showToast("Datos sincronizados.", false);
-            // Marcamos las listas como potencialmente desactualizadas
-            appData.isSecondaryDataLoaded = false;
-        } else {
-            console.log("Sin cambios detectados en los contadores.");
-        }
 
-    } catch (err) {
-        console.error("Error en la sincronización al maximizar:", err);
-    }
-});
+            const serverCounts = countsDoc.data();
+            
+            // Comparamos los contadores del servidor con los que la app tiene en memoria.
+            // Usamos JSON.stringify para una comparación robusta y fiable de los objetos.
+            if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
+                console.log("¡Cambios detectados! El agente externo actualizó los datos. Refrescando UI...");
+                
+                appData.counts = serverCounts; // Actualizamos los datos locales.
+                
+                // Solo refrescamos el dashboard si el usuario está actualmente en la pantalla de Home.
+                if (document.querySelector('.grid')) {
+                    renderDashboard();
+                }
+                
+                showToast("Datos actualizados.", false);
+
+            } else {
+                console.log("Sin cambios externos detectados. Los datos están sincronizados.");
+            }
+
+        } catch (err) {
+            console.error("Error en la resincronización al maximizar:", err);
+            // Opcional: mostrar un toast de error si la sincronización falla.
+            // showToast("Error al sincronizar con la nube.", true);
+        }
+    }); 
+
 }
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
-const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
 const makeEmojiWebhookUrl = 'https://hook.eu2.make.com/rpfzqlvyd4subtzmxoa3uritfk8tvbcl';
 let selectedImageFile = null;
@@ -1386,40 +1399,6 @@ const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
 let currentCalendarView = 'month';
 let currentCalendarDate = new Date();
 
-/// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
-async function loadSecondaryData() {
-    if (appData.isSecondaryDataLoaded) return;
-	// --- PUNTO DE DEPURACIÓN 2: VERIFICAR SI HAY INTERFERENCIA ---
-	console.log("2. ENTRANDO A loadSecondaryData. Estado actual de los contadores:", JSON.parse(JSON.stringify(appData.counts)));
-	// --- FIN DEPURACIÓN ---
-    
-    console.log("Cargando datos secundarios por primera vez...");
-    showSpinner("Cargando listas...");
-    try {
-        const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
-        if (secondaryData.error) throw new Error(secondaryData.error);
-
-        appData.remindersList = secondaryData.remindersList;
-        appData.shoppingList = secondaryData.shoppingList;
-        appData.calendarEvents = secondaryData.calendarEvents;
-        
-        // La siguiente línea es la causa del error NaN. Se comenta para que Firestore sea la única fuente.
-        // appData.counts.gastosMesActual = secondaryData.gastosMesActual; 
-        
-        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
-        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
-
-        appData.isSecondaryDataLoaded = true;
-        console.log("Datos secundarios cargados con éxito.");
-        
-    } catch (err) {
-        console.error("Error cargando datos secundarios:", err);
-        showToast(`Error al cargar datos: ${err.message}`, true);
-    } finally {
-        hideSpinner();
-    }
-}
-
 function setActiveTab(activeTabId) { 
   document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); 
   const activeTab = document.getElementById(activeTabId); 
@@ -1522,121 +1501,6 @@ window.confirmDelete = function(type, id) {
     
     actionsContainer.appendChild(confirmBtnNo);
     actionsContainer.appendChild(confirmBtnYes);
-}
-
-async function executeDelete(type, id) {
-    let payload = { chat_ID: chatId };
-    let successMessage = '';
-
-    try {
-        switch(type) {
-            case 'reminder':
-                // --- Lógica optimista para la UI ---
-                const reminderElem = document.getElementById(`item-${id}`);
-                if (reminderElem) reminderElem.remove();
-                const remIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
-                if (remIndex > -1) appData.remindersList.splice(remIndex, 1);
-                appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
-                renderDashboard();
-                showToast('Cancelando recordatorio...');
-            
-                // --- Llamada al backend para la lógica de cancelación ---
-                try {
-                    const payload = { 
-                        Type: 'cancel_reminder', 
-                        chat_ID: chatId, 
-                        tracking_code: id 
-                    };
-                    const res = await fetchWithTimeout(gasWebhookURL, payload);
-                    const data = await res.json();
-                    if (data.error) throw new Error(data.error);
-                    showToast('Recordatorio cancelado con éxito.');
-                } catch(err) {
-                    showToast(`Error de cancelación: ${err.message}. Restaurando...`, true);
-                    initializeApp();
-                }
-                return; // Salir para no ejecutar código antiguo.
-
-            case 'note':
-                // --- LÓGICA OPTIMISTA (se mantiene) ---
-                const noteItemElement = document.getElementById(`item-${id}`);
-                if (noteItemElement) noteItemElement.remove();
-                
-                const noteIndexToDelete = appData.notesList.findIndex(n => n.Nota_ID === id);
-                if (noteIndexToDelete > -1) {
-                    appData.notesList.splice(noteIndexToDelete, 1);
-                    appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
-                }
-                
-                const notesListBadge = document.getElementById('notes-badge');
-                if(notesListBadge) notesListBadge.textContent = appData.counts.notesCount;
-
-                if (appData.notesList.length === 0) {
-                    const notesListUlContainer = document.getElementById('notes-list');
-                    if (notesListUlContainer) notesListUlContainer.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-                }
-
-                showToast('Nota eliminada');
-                
-                // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
-                try {
-                    const noteDocRef = db.collection('users').doc(chatId).collection('notas').doc(id);
-                    const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-
-                    // Ejecutamos ambas operaciones en un batch para asegurar consistencia
-                    const batch = db.batch();
-                    batch.delete(noteDocRef);
-                    batch.update(countsDocRef, {
-                        notesCount: firebase.firestore.FieldValue.increment(-1)
-                    });
-                    await batch.commit();
-                    console.log("Nota eliminada y contador actualizado en Firestore.");
-
-                } catch(err) {
-                    console.error("Error al eliminar nota en Firestore:", err);
-                    showToast('Error de sincronización al eliminar. Recargando...', true);
-                    setTimeout(() => initializeApp(), 1500);
-                }
-                return; // Salimos para no ejecutar el fetch antiguo
-            
-            case 'calendar_event':
-                // --- CÓDIGO ACTUALIZADO ---
-                // Ahora llama a la nueva función de borrado de Firestore.
-                handleDeleteCalendarEvent(id);
-                return; // Importante salir para no ejecutar el fetch de abajo.
-
-            case 'gasto':
-                payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
-                // La actualización de gastos y contadores se gestionará por el backend
-                break;
-            
-            case 'shopping_item': // <--- CASO AÑADIDO Y CORREGIDO
-                handleDeleteShoppingItem(id); // Llamar a la función dedicada para eliminar el artículo
-                return; // Salir, ya que handleDeleteShoppingItem gestiona todo el proceso
-        }
-
-    } catch(e) { showToast('Error local al procesar.', true); return; }
-
-    // Este bloque 'try...catch' de abajo ahora solo se ejecutará para el caso 'gasto',
-    // ya que todos los demás casos tienen un 'return'.
-    try {
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast(successMessage);
-
-        // Forzar una resincronización de contadores del dashboard
-        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
-        if (syncCheck.success) {
-            appData.counts = syncCheck.counts; // Actualizar contadores localmente
-        } else {
-            initializeApp(); // Si falla la resincronización, recarga completa
-        }
-
-    } catch (err) {
-        showToast(`Error: ${err.message}. Restaurando...`, true);
-        initializeApp();
-    }
 }
 
 // ==================================================
@@ -1793,7 +1657,7 @@ async function renderRemindersList() {
             document.getElementById('reminders-badge').textContent = reminders.length;
         }
 
-        const listHtml = reminders.map(item => `
+                const listHtml = reminders.map(item => `
             <li class="list-item" id="item-${item.tracking_code}">
                 <div class="list-item-content">
                     <span class="list-item-title">
@@ -1804,7 +1668,7 @@ async function renderRemindersList() {
                 <div class="list-item-actions">
                     <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
                     <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Cancelar</a>
+                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
                     </div>
                 </div>
             </li>`).join('');
@@ -2607,7 +2471,7 @@ async function saveGasto() {
 
         const gastoData = {
             importe, establecimiento, categoria, subCategoria,
-            fecha: fechaGastoObj,
+            fecha: firebase.firestore.Timestamp.fromDate(fechaGastoObj),
             mesAnio: mesAnio
         };
 
@@ -2982,7 +2846,7 @@ async function saveEditedGasto(idUnico) {
             establecimiento: nuevoEstablecimiento, 
             categoria: nuevaCategoria, 
             subCategoria: nuevaSubcategoria, 
-            fecha: fechaGastoObj,
+            fecha: firebase.firestore.Timestamp.fromDate(fechaGastoObj),
             mesAnio: mesAnio
         };
 
@@ -3739,18 +3603,28 @@ async function saveSettings() {
 }
 
 async function syncCounts() {
-    showSpinner("Sincronizando contadores...");
+    showSpinner("Sincronizando...");
     try {
-        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        if (data.success && data.counts) {
-            Object.assign(appData.counts, data.counts);
-            showToast("Contadores resincronizados con éxito.");
-            renderDashboard(); // Re-renderizar el dashboard para mostrar los nuevos contadores
+        // --- INICIO DE LA NUEVA LÓGICA DIRECTA CON FIRESTORE ---
+        const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        
+        // Hacemos una lectura directa y fresca del documento de contadores.
+        const countsDoc = await countsDocRef.get();
+
+        if (countsDoc.exists) {
+            const serverCounts = countsDoc.data();
+            // Actualizamos los contadores locales en memoria con los datos frescos del servidor.
+            appData.counts = { ...appData.counts, ...serverCounts };
+            
+            showToast("Contadores sincronizados con éxito.");
+            
+            // Re-renderizamos el dashboard para que el usuario vea los números actualizados.
+            renderDashboard(); 
         } else {
-            throw new Error("Respuesta inesperada del servidor.");
+            // Esto es poco probable, pero es un buen manejo de errores.
+            throw new Error("No se encontró el documento de contadores para sincronizar.");
         }
+        // --- FIN DE LA NUEVA LÓGICA ---
     } catch (err) {
         showToast(`Error al sincronizar: ${err.message}`, true);
     } finally {
@@ -4893,28 +4767,30 @@ async function saveCalendarEvent(eventData) {
 }
 
 async function handleDeleteCalendarEvent(eventId) {
-    showSpinner("Eliminando...");
+    showSpinner("Eliminando evento...");
     try {
-        // Ahora llamamos al backend para que él se encargue de todo
-        const payload = { 
-            Type: 'delete_calendar_event', 
-            chat_ID: chatId, 
-            eventId: eventId 
-        };
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
+        // --- INICIO DE LA NUEVA LÓGICA DIRECTA CON FIRESTORE ---
+        const eventRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId);
+        
+        // Ya no se usa fetch, ahora es una operación directa de Firestore.
+        await eventRef.delete();
+        
+        showToast("Evento eliminado con éxito.");
+        
+        // No necesitamos hacer nada más. Los listeners en tiempo real ('onSnapshot')
+        // de la vista del calendario y de los contadores del dashboard se encargarán
+        // de actualizar la interfaz de usuario automáticamente al detectar el borrado.
+        
+        // Volvemos a la vista del calendario.
+        goBack();
 
-        if (data.error) throw new Error(data.error);
-        
-        showToast("Evento eliminado.");
-        // El listener de Firestore en la vista del calendario se encargará de actualizar la UI
-        
     } catch (err) { 
         showToast(`Error al eliminar: ${err.message}`, true); 
     } finally { 
         hideSpinner(); 
     }
 }
+
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
