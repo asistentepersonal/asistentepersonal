@@ -7,7 +7,6 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard - Mini App Telegram</title>
-  <meta name="theme-color" content="#4a76f3">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -827,6 +826,17 @@
 }
 /* --- FIN: Estilos para el Modal de Changelog --- */
   </style>
+  <script>
+    // Configuración de Firebase para el cliente (conexión directa y segura)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBXEOTkiOxyZfqX8QDZJraofPR9jMeIN6I",
+      authDomain: "asistentepersonal-4ad2b.firebaseapp.com",
+      projectId: "asistentepersonal-4ad2b",
+      storageBucket: "asistentepersonal-4ad2b.firebasestorage.app",
+      messagingSenderId: "1068752893536",
+      appId: "1:1068752893536:web:ad23509d45dc7d448bf505"
+    };
+  </script>
 </head>
 <body>
   <!-- --- INICIO SPLASH SCREEN --- -->
@@ -921,56 +931,58 @@
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-	
-    // =========================================================================
-    // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
-    // =========================================================================
-    const HTML_VERSION = "1.2.29"; // IMPORTANTE: Incrementa la versión del cliente.
+    
+// =========================================================================
+// --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
+// =========================================================================
+const HTML_VERSION = "1.2.27"; // IMPORTANTE: Incrementa la versión del cliente.
 
-    // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
-    // Esta sección ahora se ejecuta siempre, garantizando que 'db' exista.
-    if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-        window.db = firebase.firestore();
-    }	
-    // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
-    async function initializeApp() {
-        if (isInitializing) return;
-        isInitializing = true;
-        console.log("Iniciando app y verificando versión...");
+// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
+// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
+// Esta sección ahora se ejecuta siempre, garantizando que 'db' exista.
+if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+    window.db = firebase.firestore();
+}
 
-        // Comprueba si venimos de una recarga forzada por el changelog.
-        if (sessionStorage.getItem('force_app_load') === 'true') {
-            sessionStorage.removeItem('force_app_load'); // Limpiamos la bandera
-            console.log("Recarga forzada detectada. Saltando verificación de versión.");
-            runApp(); // Ejecutamos la app directamente
-            return;
-        }
+// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
+async function initializeApp() {
+    if (isInitializing) return;
+    isInitializing = true;
+    console.log("Iniciando app y verificando versión...");
 
-        try {
-            const versionDoc = await db.collection('app_config').doc('version_info').get();
-            const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
-            
-            if (String(serverVersion) !== String(HTML_VERSION)) {
-                console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
-                const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-                hideSplashScreen(); 
-                showChangelogModal(serverVersion, changelogText);
-                return; 
-            }
-
-            console.log("Versión correcta. Ejecutando la aplicación...");
-            runApp();
-
-        } catch (err) {
-            console.error("Error crítico en initializeApp:", err);
-            showToast(`Error de inicialización: ${err.message}`, true);
-            mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
-            hideSplashScreen();
-        }
+    // Comprueba si venimos de una recarga forzada por el changelog.
+    if (sessionStorage.getItem('force_app_load') === 'true') {
+        sessionStorage.removeItem('force_app_load'); // Limpiamos la bandera
+        console.log("Recarga forzada detectada. Saltando verificación de versión.");
+        runApp(); // Ejecutamos la app directamente
+        return;
     }
 
-// --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP (VERSIÓN CON FIRESTORE-FIRST) ---
+    try {
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
+        
+        if (String(serverVersion) !== String(HTML_VERSION)) {
+            console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
+            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+            hideSplashScreen(); 
+            showChangelogModal(serverVersion, changelogText);
+            return; 
+        }
+
+        console.log("Versión correcta. Ejecutando la aplicación...");
+        runApp();
+
+    } catch (err) {
+        console.error("Error crítico en initializeApp:", err);
+        showToast(`Error de inicialización: ${err.message}`, true);
+        mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
+        hideSplashScreen();
+    }
+}
+
+// --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
 async function runApp() {
     try {
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
@@ -983,19 +995,7 @@ async function runApp() {
         appData.settings = userSettingsDoc.data() || {};
         appData.isPremium = appData.settings.plan_premium === true;
         
-        // --- INICIO DE LA CORRECCIÓN CLAVE ---
-        // Hacemos una lectura DIRECTA y RÁPIDA de los contadores ANTES de dibujar el dashboard.
-        const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
-        if (countsDoc.exists) {
-            // Fusionamos los contadores del servidor con los valores por defecto para seguridad.
-            appData.counts = { ...appData.counts, ...countsDoc.data() };
-            console.log("Contadores iniciales cargados directamente desde Firestore.", appData.counts);
-        } else {
-            console.warn("No se encontró el documento de contadores. Se usarán los valores por defecto.");
-        }
-        // --- FIN DE LA CORRECCIÓN CLAVE ---
-
-        // Listener GLOBAL de contadores (se mantiene para actualizaciones EN TIEMPO REAL después de la carga inicial)
+        // Listener GLOBAL de contadores
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot((doc) => {
                 if (doc.exists) {
@@ -1004,7 +1004,7 @@ async function runApp() {
                         appData.counts = serverCounts;
                         if (document.querySelector('.grid')) {
                             renderDashboard();
-                            // showToast("Datos sincronizados.", false); // Opcional: podemos quitarlo para que no sea molesto
+                            showToast("Datos sincronizados.", false);
                         }
                     }
                 }
@@ -1012,7 +1012,7 @@ async function runApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario (se mantiene, es eficiente)
+        // Listener para el badge del calendario en tiempo real
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date();
@@ -1032,7 +1032,7 @@ async function runApp() {
           });
 
         updateChefTabStyle();
-        renderDashboard(); // Ahora se renderiza con los datos correctos desde el principio.
+        renderDashboard();
         isAppReady = true;
         hideSplashScreen();
         
@@ -1136,56 +1136,56 @@ if (tg) {
         document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); 
         document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); 
     } 
+    
     // =========================================================================
-    // --- LÓGICA DE SINCRONIZACIÓN ATÓMICA AL MAXIMIZAR (VERSIÓN FIRESTORE) ---
+    // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
     // =========================================================================
-    // Este evento es CRUCIAL para cuando un agente externo (como Make.com)
-    // modifica los datos mientras la Mini App está minimizada.
-    tg.onEvent('viewportChanged', async (event) => {
-        // Solo actuamos si la app está lista, completamente visible y estable.
-        if (!isAppReady || !event.isStateStable || !tg.isExpanded) {
+tg.onEvent('viewportChanged', async (event) => {
+    // --- LÓGICA DE SINCRONIZACIÓN MEJORADA ---
+    // 'isStateStable' es true cuando la ventana se maximiza, pero a menudo
+    // es false cuando el teclado aparece, lo que nos sirve como filtro.
+    const isAppMaximized = event.isStateStable && tg.isExpanded;
+
+    // Solo actuamos si la app está lista Y si el evento es una maximización real.
+    if (!isAppReady || !isAppMaximized) {
+        return;
+    }
+    // --- FIN DE LA LÓGICA MEJORADA ---
+
+    console.log("App maximizada y lista. Comprobando cambios...");
+    
+    try {
+        const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
+        if (!countsDoc.exists) {
+            console.warn("No se encontró el documento de contadores durante la sincronización.");
             return;
         }
 
-        console.log("App maximizada. Forzando resincronización de contadores desde Firestore...");
+        const serverCounts = countsDoc.data();
         
-        try {
-            // Hacemos una lectura fresca y directa de los contadores desde Firestore.
-            const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
-            if (!countsDoc.exists) {
-                console.warn("No se encontró el documento de contadores durante la resincronización.");
-                return;
-            }
-
-            const serverCounts = countsDoc.data();
+        // Usar JSON.stringify para una comparación robusta de los objetos
+        if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
+            console.log("Cambios en contadores detectados. Actualizando UI...");
             
-            // Comparamos los contadores del servidor con los que la app tiene en memoria.
-            // Usamos JSON.stringify para una comparación robusta y fiable de los objetos.
-            if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
-                console.log("¡Cambios detectados! El agente externo actualizó los datos. Refrescando UI...");
-                
-                appData.counts = serverCounts; // Actualizamos los datos locales.
-                
-                // Solo refrescamos el dashboard si el usuario está actualmente en la pantalla de Home.
-                if (document.querySelector('.grid')) {
-                    renderDashboard();
-                }
-                
-                showToast("Datos actualizados.", false);
-
-            } else {
-                console.log("Sin cambios externos detectados. Los datos están sincronizados.");
+            appData.counts = serverCounts;
+            // Importante: Solo refrescamos el dashboard SI estamos en la pantalla de Home
+            if (document.querySelector('.grid')) {
+                renderDashboard();
             }
-
-        } catch (err) {
-            console.error("Error en la resincronización al maximizar:", err);
-            // Opcional: mostrar un toast de error si la sincronización falla.
-            // showToast("Error al sincronizar con la nube.", true);
+            showToast("Datos sincronizados.", false);
+            // Marcamos las listas como potencialmente desactualizadas
+            appData.isSecondaryDataLoaded = false;
+        } else {
+            console.log("Sin cambios detectados en los contadores.");
         }
-    }); 
 
+    } catch (err) {
+        console.error("Error en la sincronización al maximizar:", err);
+    }
+});
 }
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
+const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
 const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
 const makeEmojiWebhookUrl = 'https://hook.eu2.make.com/rpfzqlvyd4subtzmxoa3uritfk8tvbcl';
 let selectedImageFile = null;
@@ -1386,6 +1386,40 @@ const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
 let currentCalendarView = 'month';
 let currentCalendarDate = new Date();
 
+/// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
+async function loadSecondaryData() {
+    if (appData.isSecondaryDataLoaded) return;
+	// --- PUNTO DE DEPURACIÓN 2: VERIFICAR SI HAY INTERFERENCIA ---
+	console.log("2. ENTRANDO A loadSecondaryData. Estado actual de los contadores:", JSON.parse(JSON.stringify(appData.counts)));
+	// --- FIN DEPURACIÓN ---
+    
+    console.log("Cargando datos secundarios por primera vez...");
+    showSpinner("Cargando listas...");
+    try {
+        const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
+        if (secondaryData.error) throw new Error(secondaryData.error);
+
+        appData.remindersList = secondaryData.remindersList;
+        appData.shoppingList = secondaryData.shoppingList;
+        appData.calendarEvents = secondaryData.calendarEvents;
+        
+        // La siguiente línea es la causa del error NaN. Se comenta para que Firestore sea la única fuente.
+        // appData.counts.gastosMesActual = secondaryData.gastosMesActual; 
+        
+        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
+        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+
+        appData.isSecondaryDataLoaded = true;
+        console.log("Datos secundarios cargados con éxito.");
+        
+    } catch (err) {
+        console.error("Error cargando datos secundarios:", err);
+        showToast(`Error al cargar datos: ${err.message}`, true);
+    } finally {
+        hideSpinner();
+    }
+}
+
 function setActiveTab(activeTabId) { 
   document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); 
   const activeTab = document.getElementById(activeTabId); 
@@ -1488,6 +1522,121 @@ window.confirmDelete = function(type, id) {
     
     actionsContainer.appendChild(confirmBtnNo);
     actionsContainer.appendChild(confirmBtnYes);
+}
+
+async function executeDelete(type, id) {
+    let payload = { chat_ID: chatId };
+    let successMessage = '';
+
+    try {
+        switch(type) {
+            case 'reminder':
+                // --- Lógica optimista para la UI ---
+                const reminderElem = document.getElementById(`item-${id}`);
+                if (reminderElem) reminderElem.remove();
+                const remIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
+                if (remIndex > -1) appData.remindersList.splice(remIndex, 1);
+                appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
+                renderDashboard();
+                showToast('Cancelando recordatorio...');
+            
+                // --- Llamada al backend para la lógica de cancelación ---
+                try {
+                    const payload = { 
+                        Type: 'cancel_reminder', 
+                        chat_ID: chatId, 
+                        tracking_code: id 
+                    };
+                    const res = await fetchWithTimeout(gasWebhookURL, payload);
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+                    showToast('Recordatorio cancelado con éxito.');
+                } catch(err) {
+                    showToast(`Error de cancelación: ${err.message}. Restaurando...`, true);
+                    initializeApp();
+                }
+                return; // Salir para no ejecutar código antiguo.
+
+            case 'note':
+                // --- LÓGICA OPTIMISTA (se mantiene) ---
+                const noteItemElement = document.getElementById(`item-${id}`);
+                if (noteItemElement) noteItemElement.remove();
+                
+                const noteIndexToDelete = appData.notesList.findIndex(n => n.Nota_ID === id);
+                if (noteIndexToDelete > -1) {
+                    appData.notesList.splice(noteIndexToDelete, 1);
+                    appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
+                }
+                
+                const notesListBadge = document.getElementById('notes-badge');
+                if(notesListBadge) notesListBadge.textContent = appData.counts.notesCount;
+
+                if (appData.notesList.length === 0) {
+                    const notesListUlContainer = document.getElementById('notes-list');
+                    if (notesListUlContainer) notesListUlContainer.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+                }
+
+                showToast('Nota eliminada');
+                
+                // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
+                try {
+                    const noteDocRef = db.collection('users').doc(chatId).collection('notas').doc(id);
+                    const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+                    // Ejecutamos ambas operaciones en un batch para asegurar consistencia
+                    const batch = db.batch();
+                    batch.delete(noteDocRef);
+                    batch.update(countsDocRef, {
+                        notesCount: firebase.firestore.FieldValue.increment(-1)
+                    });
+                    await batch.commit();
+                    console.log("Nota eliminada y contador actualizado en Firestore.");
+
+                } catch(err) {
+                    console.error("Error al eliminar nota en Firestore:", err);
+                    showToast('Error de sincronización al eliminar. Recargando...', true);
+                    setTimeout(() => initializeApp(), 1500);
+                }
+                return; // Salimos para no ejecutar el fetch antiguo
+            
+            case 'calendar_event':
+                // --- CÓDIGO ACTUALIZADO ---
+                // Ahora llama a la nueva función de borrado de Firestore.
+                handleDeleteCalendarEvent(id);
+                return; // Importante salir para no ejecutar el fetch de abajo.
+
+            case 'gasto':
+                payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
+                // La actualización de gastos y contadores se gestionará por el backend
+                break;
+            
+            case 'shopping_item': // <--- CASO AÑADIDO Y CORREGIDO
+                handleDeleteShoppingItem(id); // Llamar a la función dedicada para eliminar el artículo
+                return; // Salir, ya que handleDeleteShoppingItem gestiona todo el proceso
+        }
+
+    } catch(e) { showToast('Error local al procesar.', true); return; }
+
+    // Este bloque 'try...catch' de abajo ahora solo se ejecutará para el caso 'gasto',
+    // ya que todos los demás casos tienen un 'return'.
+    try {
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showToast(successMessage);
+
+        // Forzar una resincronización de contadores del dashboard
+        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
+        if (syncCheck.success) {
+            appData.counts = syncCheck.counts; // Actualizar contadores localmente
+        } else {
+            initializeApp(); // Si falla la resincronización, recarga completa
+        }
+
+    } catch (err) {
+        showToast(`Error: ${err.message}. Restaurando...`, true);
+        initializeApp();
+    }
 }
 
 // ==================================================
@@ -1644,7 +1793,7 @@ async function renderRemindersList() {
             document.getElementById('reminders-badge').textContent = reminders.length;
         }
 
-                const listHtml = reminders.map(item => `
+        const listHtml = reminders.map(item => `
             <li class="list-item" id="item-${item.tracking_code}">
                 <div class="list-item-content">
                     <span class="list-item-title">
@@ -1655,7 +1804,7 @@ async function renderRemindersList() {
                 <div class="list-item-actions">
                     <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
                     <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
+                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Cancelar</a>
                     </div>
                 </div>
             </li>`).join('');
@@ -2458,7 +2607,7 @@ async function saveGasto() {
 
         const gastoData = {
             importe, establecimiento, categoria, subCategoria,
-            fecha: firebase.firestore.Timestamp.fromDate(fechaGastoObj),
+            fecha: fechaGastoObj,
             mesAnio: mesAnio
         };
 
@@ -2811,7 +2960,8 @@ function renderEditGastoForm(gasto) {
  * VERSIÓN CORREGIDA Y COMPLETA.
  */
 async function saveEditedGasto(idUnico) {
-        try {
+    showSpinner("Guardando cambios...");
+    try {
         const gastoOriginal = gastosEncontrados.find(g => g.ID_Unico === idUnico);
         if (!gastoOriginal) {
             throw new Error("No se encontró el gasto original para calcular la diferencia.");
@@ -2832,7 +2982,7 @@ async function saveEditedGasto(idUnico) {
             establecimiento: nuevoEstablecimiento, 
             categoria: nuevaCategoria, 
             subCategoria: nuevaSubcategoria, 
-            fecha: firebase.firestore.Timestamp.fromDate(fechaGastoObj),
+            fecha: fechaGastoObj,
             mesAnio: mesAnio
         };
 
@@ -2858,6 +3008,8 @@ async function saveEditedGasto(idUnico) {
     } catch (err) {
         showToast(`Error al guardar: ${err.message}.`, true);
         initializeApp(); // Recarga completa en caso de error grave.
+    } finally {
+        hideSpinner();
     }
 }
 
@@ -2883,11 +3035,11 @@ function renderChefPage() {
                         <option value="Cena">🍝 Cena</option>
                     </select>
                 </div>
-
-                <label style="margin-top: 20px; display: block;">¿Para cuándo es la comida?</label>
-                <input type="text" id="chef-fecha-hora" style="text-align: center;"/>
-
-                <div class="chef-item" style="margin-top: 20px;">
+                <div class="chef-item">
+                    <label>Hora Aproximada</label>
+                    <input type="text" id="chef-hora" style="width: 100px; text-align: center;"/>
+                </div>
+                <div class="chef-item">
                     <label>Nº de Comensales</label>
                     <input type="number" id="chef-comensales" value="1" min="1" style="width: 80px; text-align: center;"/>
                 </div>
@@ -2912,44 +3064,31 @@ function renderChefPage() {
                 <textarea id="chef-peticion" rows="3" placeholder="Ej: soy vegano, alergia al marisco, usa el pollo antes de que caduque..."></textarea>
                 
                 <div id="chef-image-previews"></div>
-                
-                <div style="margin-top: 20px; text-align: left; font-size: 0.9rem; color: var(--muted);">
-                    <ol style="padding-left: 20px;">
-                        <li>Primero, saca una foto de tus ingredientes/nevera con buena luz.</li>
-                        <li>Luego, pulsa el botón de abajo para subirla desde tu galería.</li>
-                    </ol>
-                </div>
-                <div class="add-article-btn-container" style="margin-top: 15px;">
-                    <button class="add-article-btn enabled" id="chef-upload-button">Subir Foto desde Galería 🖼️</button>
-                </div>
+                <div class="button-group" style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
+				<div style="margin-top: 20px; text-align: left; font-size: 0.9rem; color: var(--muted);">
+				<ol style="padding-left: 20px;">
+				<li>Primero, saca una foto de tus ingredientes/nevera con buena luz.</li>
+				<li>Luego, pulsa el botón de abajo para subirla desde tu galería.</li>
+				</ol>
+				</div>
+				<div class="add-article-btn-container" style="margin-top: 15px;">
+				<button class="add-article-btn enabled" id="chef-upload-button">Subir Foto desde Galería 🖼️</button>
+				</div>
 
-                <div class="button-group" style="margin-top: 20px;">
+                <div class="button-group">
                     <button id="chef-cancel-btn" class="cancel">Cancelar/Salir</button>
                     <button id="chef-submit-btn" class="enabled">Obtener Sugerencias</button>
                 </div>
             </div>
         </div>`;
 
-    const ahora = new Date();
-    const maxDate = new Date();
-    maxDate.setDate(ahora.getDate() + 4);
-
-    flatpickr("#chef-fecha-hora", {
-        enableTime: true,
-        altInput: true,
-        altFormat: "F j, Y - H:i",
-        dateFormat: "Z",
-        minDate: "today",
-        maxDate: maxDate,
-        defaultDate: ahora,
-        locale: "es",
-        minuteIncrement: 15
-    });
-    
+    flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
     document.getElementById('chef-cancel-btn').onclick = goBack;
     
     let selectedFiles = [];
+
     const previewsContainer = document.getElementById('chef-image-previews');
+    const addPhotoButton = document.getElementById('chef-add-photo-btn');
 
     const updatePreviews = () => {
         previewsContainer.innerHTML = '';
@@ -2958,11 +3097,25 @@ function renderChefPage() {
             reader.onload = (e) => {
                 const previewItem = document.createElement('div');
                 previewItem.className = 'preview-item';
-                previewItem.innerHTML = `<img src="${e.target.result}" class="preview-image" alt="preview"><button class="delete-preview-btn" data-index="${index}">&times;</button>`;
+                previewItem.innerHTML = `
+                    <img src="${e.target.result}" class="preview-image" alt="preview">
+                    <button class="delete-preview-btn" data-index="${index}">&times;</button>
+                `;
                 previewsContainer.appendChild(previewItem);
             };
             reader.readAsDataURL(file);
         });
+        const takePhotoBtn = document.getElementById('chef-take-photo-btn');
+    const selectGalleryBtn = document.getElementById('chef-select-gallery-btn');
+    if (takePhotoBtn && selectGalleryBtn) {
+        if (selectedFiles.length < 2) {
+            takePhotoBtn.style.display = 'block';
+            selectGalleryBtn.style.display = 'block';
+        } else {
+            takePhotoBtn.style.display = 'none';
+            selectGalleryBtn.style.display = 'none';
+        }
+    }
     };
 
     previewsContainer.addEventListener('click', (event) => {
@@ -2973,37 +3126,69 @@ function renderChefPage() {
         }
     });
 
-    document.getElementById('chef-upload-button').onclick = () => {
-        if (selectedFiles.length >= 2) {
-            showToast("Puedes subir un máximo de 2 fotos.", true);
-            return;
+// Asignamos la acción al nuevo botón de subida del Chef
+document.getElementById('chef-upload-button').onclick = () => {
+    if (selectedFiles.length >= 2) {
+        showToast("Puedes subir un máximo de 2 fotos.", true);
+        return;
+    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none'; // Ocultar input
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            // Usamos la función que ya existe en el Chef para manejar la previsualización
+            handleChefImageSelection(file, (confirmedFile) => {
+                selectedFiles.push(confirmedFile);
+                updatePreviews();
+            });
         }
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.style.display = 'none';
-        fileInput.onchange = (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                handleChefImageSelection(file, (confirmedFile) => {
-                    selectedFiles.push(confirmedFile);
-                    updatePreviews();
-                });
-            }
-        };
-        document.body.appendChild(fileInput);
-        fileInput.click();
-        setTimeout(() => { if (document.body.contains(fileInput)) document.body.removeChild(fileInput); }, 1000);
     };
+    document.body.appendChild(fileInput);
+    fileInput.click();
     
-    document.getElementById('chef-submit-btn').onclick = () => {
-        if(selectedFiles.length === 0) {
-            showToast("Por favor, sube una foto de tus ingredientes.", true);
-            return;
+    // Limpieza para evitar problemas en futuras selecciones
+    setTimeout(() => {
+         if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
         }
-        executeChefRequest(selectedFiles);
+    }, 1000);
+};
+
+// Manejador para el botón "Seleccionar de Galería"
+document.getElementById('chef-select-gallery-btn').onclick = () => {
+    if (selectedFiles.length >= 2) {
+        showToast("Puedes subir un máximo de 2 fotos.", true);
+        return;
+    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none'; // Ocultar input
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            handleChefImageSelection(file, (confirmedFile) => {
+                selectedFiles.push(confirmedFile);
+                updatePreviews();
+            });
+        }
     };
-}
+    document.body.appendChild(fileInput); // Añadir al body
+    fileInput.click();
+    document.body.removeChild(fileInput); // Eliminar del body
+};
+    
+                document.getElementById('chef-submit-btn').onclick = () => {
+                if(selectedFiles.length === 0) {
+                    showToast("Por favor, sube una foto de tus ingredientes.", true);
+                    return;
+                }
+                executeChefRequest(selectedFiles);
+            };
+        } // Esta es la llave de cierre de renderChefPage
 
 function handleChefImageSelection(file, callback) {
     const overlay = document.getElementById('image-preview-overlay');
@@ -3021,7 +3206,6 @@ function handleChefImageSelection(file, callback) {
 
     const cleanup = () => {
         overlay.style.display = 'none';
-        // Restaurar los handlers originales para el escaneo de tickets
         sendBtn.onclick = handleImageScan; 
         cancelBtn.onclick = () => {
             document.getElementById('image-preview-overlay').style.display = 'none';
@@ -3040,23 +3224,17 @@ function handleChefImageSelection(file, callback) {
     };
 }
 
+// [VERSIÓN FINAL CON CLOUD FUNCTIONS - CORREGIDA]
+// Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
 async function executeChefRequest(files) {
-    // --- INICIO DE LA MEJORA DE UX ---
-    const submitBtn = document.getElementById('chef-submit-btn');
-    const originalBtnText = submitBtn.innerHTML; // Guardamos el texto original del botón
-    
-    // Deshabilitamos el botón y mostramos el spinner interno
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = `<span class="spinner btn-spinner"></span> Chef trabajando...`;
-    // Ya NO llamamos a showSpinner()
-    // --- FIN DE LA MEJORA DE UX ---
-
+    showSpinner("Un momento, el Chef está trabajando...");
+    // URL directa a tu Cloud Function
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
     try {
         const userPreferences = {
             tipoComida: document.getElementById('chef-tipo-comida').value,
-            fechaComida: document.getElementById('chef-fecha-hora')._flatpickr.selectedDates[0].toISOString(),
+            hora: document.getElementById('chef-hora').value,
             comensales: document.getElementById('chef-comensales').value,
             estilo: document.getElementById('chef-estilo').value,
             conPostre: document.getElementById('chef-postre').checked,
@@ -3094,17 +3272,20 @@ async function executeChefRequest(files) {
         }
 
         const result = await response.json();
-        const data = result.result;
+                const data = result.result; // Para funciones onCall, el resultado está en 'result'
         
-        if (data && data.sugerencias) {
+        // --- CAMBIO CLAVE: Limpieza profunda de instrucciones aquí ---
+               if (data && data.sugerencias) {
             data.sugerencias.forEach(sug => {
                 if (sug.instrucciones_preparacion && Array.isArray(sug.instrucciones_preparacion)) {
                     sug.instrucciones_preparacion = sug.instrucciones_preparacion
+                        // Filtra nulos, no-strings, vacíos y líneas que solo contienen espacios o caracteres invisibles
                         .filter(step => typeof step === 'string' && step.replace(/\s+/g, '').length > 0)
-                        .map(step => step.trim());
+                        .map(step => step.trim()); // Limpia cada paso restante
                 }
             });
         }
+        // --- FIN CAMBIO CLAVE ---
 
         if (data && data.sugerencias) {
             showToast("¡Aquí tienes tus sugerencias!");
@@ -3116,15 +3297,9 @@ async function executeChefRequest(files) {
     } catch (err) {
         console.error("Error definitivo en executeChefRequest:", err);
         showToast(err.message || "Error al contactar al Chef.", true);
-        
-        // --- INICIO MEJORA DE UX EN CASO DE ERROR ---
-        // Si hay un error, también restauramos el botón a su estado original
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalBtnText;
-        // --- FIN MEJORA DE UX EN CASO DE ERROR ---
-    } 
-    // NOTA: El bloque 'finally' se ha eliminado porque necesitamos un manejo diferente
-    // si la operación tiene éxito (se va a otra pantalla) o si falla (se queda y restaura el botón).
+    } finally {
+        hideSpinner();
+    }
 }
 
 function renderChefResults(sugerencias) {
@@ -3161,7 +3336,7 @@ function renderChefResults(sugerencias) {
                         <div id="instructions-${index}" class="event-description" style="margin-top:0; padding:15px; background:var(--bg); border-radius:0 0 10px 10px; box-shadow:inset 0 2px 5px rgba(0,0,0,0.02); display:none; max-height:0; overflow:hidden; transition:max-height 0.3s ease-out, padding 0.3s ease-out;">
                         <ol style="padding-left:20px; margin-top:0;">
                                 ${sug.instrucciones_preparacion
-                                    .filter(step => typeof step === 'string' && step.trim().length > 0)
+                                    .filter(step => typeof step === 'string' && step.trim().length > 0) // Filtra nulos, no-strings y vacíos
                                     .map(step => `<li>${step.trim()}</li>`)
                                     .join('')}
                             </ol>
@@ -3178,16 +3353,24 @@ function renderChefResults(sugerencias) {
     
     mainContentArea.innerHTML = html;
     mainContentArea.removeEventListener('click', handleChefResultsClicks);
-    mainContentArea.addEventListener('click', handleChefResultsClicks);
-    
+	            // --- CAMBIO CLAVE: Scroll automático al inicio de las recetas con retraso ---
+    // Esperamos un pequeño momento para asegurarnos de que el DOM esté completamente renderizado
     setTimeout(() => {
-        const firstRecipeCard = document.getElementById('recipe-0');
+        const firstRecipeCard = document.getElementById('recipe-0'); // Obtener la primera tarjeta de receta
         if (firstRecipeCard) {
             firstRecipeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
-            mainContentArea.scrollTop = 0;
+            // Como fallback, o si no hay recetas, ir al top del contenedor general del chef
+            const chefContainer = document.querySelector('.chef-container');
+            if (chefContainer) {
+                chefContainer.scrollTop = 0;
+            } else {
+                mainContentArea.scrollTop = 0;
+            }
         }
-    }, 100);
+    }, 100); // Pequeño retraso de 100ms
+    // --- FIN CAMBIO CLAVE ---
+    mainContentArea.addEventListener('click', handleChefResultsClicks);
 }
 
 function handleChefResultsClicks(event) {
@@ -3198,25 +3381,26 @@ function handleChefResultsClicks(event) {
         case 'add-ingredients': addIngredientsToShoppingList(button); break;
         case 'copy-recipe': copyToClipboard(button); break;
         case 'go-home': renderDashboard(); break;
-        case 'toggle-instructions':
-            event.stopPropagation();
+        case 'toggle-instructions': // <--- Nueva acción para el desplegable
+            event.stopPropagation(); // Evitar que el clic se propague más allá del botón
             const targetId = button.dataset.target;
             const targetElement = document.getElementById(targetId);
-            const parentListItem = button.closest('.list-item');
+            const parentCard = button.closest('.recipe-card');
 
-            if (targetElement && parentListItem) {
+            if (targetElement && parentCard) {
                 const isOpen = targetElement.style.display === 'block';
                 if (isOpen) {
                     targetElement.style.maxHeight = '0';
-                    targetElement.style.padding = '0 15px';
-                    setTimeout(() => { targetElement.style.display = 'none'; }, 300);
-                    parentListItem.classList.remove('open');
+                    targetElement.style.padding = '0 15px'; // Restablecer padding al cerrar
+                    setTimeout(() => { targetElement.style.display = 'none'; }, 300); // Ocultar después de la transición
+                    parentCard.classList.remove('open'); // Quitar clase 'open' del padre
                 } else {
                     targetElement.style.display = 'block';
+                    // Forzar el redibujado para que la transición funcione
                     targetElement.offsetHeight; 
-                    targetElement.style.maxHeight = '500px';
-                    targetElement.style.padding = '15px';
-                    parentListItem.classList.add('open');
+                    targetElement.style.maxHeight = '500px'; // Un valor suficientemente grande
+                    targetElement.style.padding = '15px'; // Restaurar padding al abrir
+                    parentCard.classList.add('open'); // Añadir clase 'open' al padre
                 }
                 const arrow = button.querySelector('.expand-arrow');
                 if (arrow) {
@@ -3299,7 +3483,7 @@ async function addIngredientsToShoppingList(buttonElement) {
 // ==================================================
 function renderSettings() {
     removeCalendarFAB();
-	setActiveTab('tab-settings');
+    setActiveTab('tab-settings');
     navigationHistory.push(renderDashboard);
     updateBackButton();
 
@@ -3311,15 +3495,14 @@ function renderSettings() {
     const informeMensual = config.informeMensual || {};
     const isPremium = appData.isPremium === true;
     
-    // --- LÓGICA DE AJUSTES ACTUALIZADA ---
+    // Capturamos el estado inicial para la validación de cambios
     initialUserSettings = {
         nombre: settings.nombre || '',
         ciudad: ubicacion.ciudad || '',
         pais: ubicacion.pais || '',
         tema: config.tema || 'auto',
         informeMananaActivo: informeManana.activo === true,
-        // Usamos la hora real (6, 7, 8, 9) o 7 por defecto
-        franjaManana: String(informeManana.franjaHoraria || '7'), 
+        franjaManana: String(informeManana.franjaHoraria || '2'),
         informeTardeActivo: informeTarde.activo === true,
         franjaTarde: String(informeTarde.franjaHoraria || '20'),
         alertaInventario: config.alertaInventario === true,
@@ -3347,17 +3530,7 @@ function renderSettings() {
             <h2 class="settings-section-title">🔔 Informes y Alertas</h2>
             <div class="form-card">
                 <div class="settings-item"><span class="settings-item-label">Informe Matutino</span><label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label></div>
-                <!-- INICIO DEL CAMBIO EN EL DESPLEGABLE -->
-                <div class="settings-item">
-                    <span class="settings-item-label">Hora del Informe</span>
-                    <select id="settings-franja-manana">
-                        <option value="6">Franja de 6 a 7 hs</option>
-                        <option value="7">Franja de 7 a 8 hs</option>
-                        <option value="8">Franja de 8 a 9 hs</option>
-                        <option value="9">Franja de 9 a 10 hs</option>
-                    </select>
-                </div>
-                <!-- FIN DEL CAMBIO EN EL DESPLEGABLE -->
+                <div class="settings-item"><span class="settings-item-label">Hora del Informe</span><select id="settings-franja-manana"><option value="1">A primera hora (6:00)</option><option value="2">Habitual (7:00)</option><option value="3">Media mañana (8:00)</option><option value="4">Tarde (9:00)</option></select></div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
                 <div class="settings-item"><span class="settings-item-label">Informe del Tiempo (Tarde)</span><label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label></div>
                 <div class="settings-item"><span class="settings-item-label">Hora del Informe</span><select id="settings-franja-tarde"><option value="19">19:00</option><option value="20">20:00</option><option value="21">21:00</option></select></div>
@@ -3379,11 +3552,13 @@ function renderSettings() {
         </div>
     `;
 
+    // --- Rellenar los campos del formulario con los datos correctos ---
     document.getElementById('settings-nombre').value = initialUserSettings.nombre;
     document.getElementById('settings-ciudad').value = initialUserSettings.ciudad;
     document.getElementById('settings-pais').value = initialUserSettings.pais;
     document.getElementById('settings-theme').value = initialUserSettings.tema;
     
+    // Lectura correcta de datos no editables
     document.getElementById('settings-email').value = settings.email || 'No disponible';
     document.getElementById('settings-fecha-activacion').value = settings.fechaActivacion || 'No disponible';
     document.getElementById('settings-zona-horaria').value = ubicacion.timeZone || 'No disponible';
@@ -3406,6 +3581,7 @@ function renderSettings() {
     document.getElementById('settings-dia-informe-mensual').value = initialUserSettings.diaInformeMensual;
     document.getElementById('settings-hora-informe-mensual').value = initialUserSettings.horaInformeMensual;
 
+    // Asignar listeners
     const controls = document.querySelectorAll('#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, #settings-alerta-inventario');
     controls.forEach(control => {
         control.addEventListener('input', validateSettings);
@@ -3563,28 +3739,18 @@ async function saveSettings() {
 }
 
 async function syncCounts() {
-    showSpinner("Sincronizando...");
+    showSpinner("Sincronizando contadores...");
     try {
-        // --- INICIO DE LA NUEVA LÓGICA DIRECTA CON FIRESTORE ---
-        const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-        
-        // Hacemos una lectura directa y fresca del documento de contadores.
-        const countsDoc = await countsDocRef.get();
-
-        if (countsDoc.exists) {
-            const serverCounts = countsDoc.data();
-            // Actualizamos los contadores locales en memoria con los datos frescos del servidor.
-            appData.counts = { ...appData.counts, ...serverCounts };
-            
-            showToast("Contadores sincronizados con éxito.");
-            
-            // Re-renderizamos el dashboard para que el usuario vea los números actualizados.
-            renderDashboard(); 
+        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (data.success && data.counts) {
+            Object.assign(appData.counts, data.counts);
+            showToast("Contadores resincronizados con éxito.");
+            renderDashboard(); // Re-renderizar el dashboard para mostrar los nuevos contadores
         } else {
-            // Esto es poco probable, pero es un buen manejo de errores.
-            throw new Error("No se encontró el documento de contadores para sincronizar.");
+            throw new Error("Respuesta inesperada del servidor.");
         }
-        // --- FIN DE LA NUEVA LÓGICA ---
     } catch (err) {
         showToast(`Error al sincronizar: ${err.message}`, true);
     } finally {
@@ -4727,30 +4893,28 @@ async function saveCalendarEvent(eventData) {
 }
 
 async function handleDeleteCalendarEvent(eventId) {
-    showSpinner("Eliminando evento...");
+    showSpinner("Eliminando...");
     try {
-        // --- INICIO DE LA NUEVA LÓGICA DIRECTA CON FIRESTORE ---
-        const eventRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId);
-        
-        // Ya no se usa fetch, ahora es una operación directa de Firestore.
-        await eventRef.delete();
-        
-        showToast("Evento eliminado con éxito.");
-        
-        // No necesitamos hacer nada más. Los listeners en tiempo real ('onSnapshot')
-        // de la vista del calendario y de los contadores del dashboard se encargarán
-        // de actualizar la interfaz de usuario automáticamente al detectar el borrado.
-        
-        // Volvemos a la vista del calendario.
-        goBack();
+        // Ahora llamamos al backend para que él se encargue de todo
+        const payload = { 
+            Type: 'delete_calendar_event', 
+            chat_ID: chatId, 
+            eventId: eventId 
+        };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
 
+        if (data.error) throw new Error(data.error);
+        
+        showToast("Evento eliminado.");
+        // El listener de Firestore en la vista del calendario se encargará de actualizar la UI
+        
     } catch (err) { 
         showToast(`Error al eliminar: ${err.message}`, true); 
     } finally { 
         hideSpinner(); 
     }
 }
-
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
