@@ -3021,6 +3021,41 @@ function renderChefPage() {
     };
 }
 
+function handleChefImageSelection(file, callback) {
+    const overlay = document.getElementById('image-preview-overlay');
+    const imgElement = document.getElementById('image-preview-element');
+    const sendBtn = document.getElementById('preview-send-btn');
+    const cancelBtn = document.getElementById('preview-cancel-btn');
+
+    sendBtn.textContent = "Usar esta Foto";
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imgElement.src = e.target.result;
+        overlay.style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+
+    const cleanup = () => {
+        overlay.style.display = 'none';
+        // Restaurar los handlers originales para el escaneo de tickets
+        sendBtn.onclick = handleImageScan; 
+        cancelBtn.onclick = () => {
+            document.getElementById('image-preview-overlay').style.display = 'none';
+            selectedImageFile = null;
+        };
+        sendBtn.textContent = "Enviar";
+    };
+
+    sendBtn.onclick = () => {
+        callback(file);
+        cleanup();
+    };
+    
+    cancelBtn.onclick = () => {
+        cleanup();
+    };
+}
+
 async function executeChefRequest(files) {
     showSpinner("Un momento, el Chef está trabajando...");
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
