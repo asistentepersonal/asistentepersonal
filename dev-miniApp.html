@@ -3988,6 +3988,179 @@ function renderTimelineGrid(canales, programas) {
          wrapper.scrollLeft = nowPosition - (wrapper.offsetWidth / 2);
     }
 }
+
+// ==================================================
+// --- MÓDULO: CUENTAS CLARAS ---
+// ==================================================
+
+function renderCuentasClarasLobby() {
+    // Preparamos la navegación para poder volver al dashboard
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    
+    // Usamos el esqueleto HTML para la vista principal
+    mainContentArea.innerHTML = `
+        <!-- PANTALLA 1: LISTADO DE LISTAS DEL ORGANIZADOR -->
+        <div class="list-container" id="cuentas-claras-lobby">
+            
+            <!-- Cabecera y Botón de Acción Principal -->
+            <div class="list-header">
+                <h2>⚖️ Cuentas Claras</h2>
+            </div>
+            <div class="add-article-btn-container">
+                <button class="add-article-btn" id="crear-nueva-lista-btn">➕ Crear Nueva Lista</button>
+            </div>
+
+            <!-- Sección para las listas que están actualmente en curso -->
+            <h3 class="shopping-list-section-title">Listas Activas</h3>
+            <ul class="list-style-none" id="listas-activas-list">
+                
+                <!-- EJEMPLO DE UNA LISTA ACTIVA (Esto se generaría dinámicamente) -->
+                <li class="list-item clickable" data-lista-id="AbCd12EfGh34">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Fin de semana en la sierra</span>
+                        <span class="list-item-subtitle">Total: 250,00 € | 4 Participantes</span>
+                    </div>
+                    <div class="list-item-actions">
+                        <button class="generic-menu-btn" style="cursor: pointer;">Gestionar</button>
+                    </div>
+                </li>
+                
+                <li class="list-item clickable" data-lista-id="IjKl56MnOp78">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Viaje a París</span>
+                        <span class="list-item-subtitle">Total: 1,230,00 € | 3 Participantes</span>
+                    </div>
+                    <div class="list-item-actions">
+                         <button class="generic-menu-btn" style="cursor: pointer;">Gestionar</button>
+                    </div>
+                </li>
+
+            </ul>
+
+            <!-- Sección para las listas ya finalizadas -->
+            <h3 class="shopping-list-section-title">Historial (Listas Archivadas)</h3>
+            <ul class="list-style-none" id="listas-archivadas-list">
+
+                <!-- EJEMPLO DE UNA LISTA ARCHIVADA -->
+                <li class="list-item" style="opacity: 0.6;">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Cena de Navidad</span>
+                        <span class="list-item-subtitle">Cerrada el 26/12/2025</span>
+                    </div>
+                </li>
+
+            </ul>
+        </div>
+    `;
+
+        // Conectamos el botón para crear una nueva lista
+    document.getElementById('crear-nueva-lista-btn').onclick = renderCrearListaForm;
+
+    // Conectamos los botones "Gestionar" de cada lista activa
+    document.querySelectorAll('#listas-activas-list .list-item.clickable').forEach(item => {
+        const gestionarBtn = item.querySelector('.generic-menu-btn');
+        if (gestionarBtn) {
+            gestionarBtn.onclick = (e) => {
+                e.stopPropagation(); // Evita que se dispare el clic del 'item' completo
+                // const listaId = item.dataset.listaId; // En el futuro, usaríamos esto
+                renderPanelGestion(/* podríamos pasar el listaId aquí */);
+            };
+        }
+    });
+}
+
+function renderCrearListaForm() {
+    // Preparamos la navegación para poder volver al lobby
+    navigationHistory.push(renderCuentasClarasLobby);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <!-- PANTALLA 2: FORMULARIO DE CREACIÓN DE UNA NUEVA LISTA -->
+        <div class="list-container">
+            <div class="list-header">
+                <h2>➕ Crear Nueva Lista de Gastos</h2>
+            </div>
+            <div class="form-card">
+                <label>Nombre de la Lista</label>
+                <input type="text" id="nueva-lista-nombre" placeholder="Ej: Fin de semana en la sierra" />
+
+                <label>Moneda</label>
+                <input type="text" id="nueva-lista-moneda" value="€" />
+
+                <label>Participantes (inclúyete y escribe uno por línea)</label>
+                <textarea id="nueva-lista-participantes" rows="5" placeholder="TuNombre&#10;Ana&#10;Carlos&#10;Sofía"></textarea>
+                
+                <div class="button-group">
+                    <button id="cancelar-creacion-lista-btn" class="cancel">Cancelar</button>
+                    <button id="confirmar-creacion-lista-btn" class="enabled">Crear Lista</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Conectamos el botón de cancelar para que vuelva a la pantalla anterior
+    document.getElementById('cancelar-creacion-lista-btn').onclick = goBack;
+    // (Aquí, en el futuro, el botón 'confirmar-creacion-lista-btn' llamaría a la lógica de guardado)
+}
+
+function renderPanelGestion() {
+    // Preparamos la navegación para poder volver al lobby
+    navigationHistory.push(renderCuentasClarasLobby);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <!-- PANTALLA 3: PANEL DE GESTIÓN DE UNA LISTA ESPECÍFICA -->
+        <div class="list-container" id="panel-gestion-lista">
+
+            <!-- Cabecera con el nombre de la lista que se está gestionando -->
+            <div class="list-header">
+                <h2>Gestionando: <span id="gestion-nombre-lista">Viaje a París</span></h2>
+            </div>
+
+            <!-- Bloque para Compartir el Enlace (con emojis mejorados) -->
+            <div class="form-card" style="margin-bottom: 20px;">
+                <label>Enlace Mágico para Compartir</label>
+                <input type="text" id="lista-enlace-input" value="https://tu-app/lista/AbCd12EfGh34" readonly style="text-align: center; font-size: 0.9rem;">
+                <div class="button-group" style="margin-top: 15px;">
+                    <button id="compartir-whatsapp-btn" class="enabled" style="background-color: #25D366;">🟢 WhatsApp</button>
+                    <button id="compartir-telegram-btn" class="enabled" style="background-color: #0088cc;">🔵 Telegram</button>
+                </div>
+                <div class="button-group" style="margin-top: 10px;">
+                    <button id="compartir-email-btn" class="enabled" style="background-color: #7f8c8d;">✉️ Email</button>
+                    <button id="copiar-enlace-btn" class="enabled" style="background-color: #95a5a6;">📋 Copiar</button>
+                </div>
+            </div>
+
+            <!-- Bloque de Resumen en Tiempo Real -->
+            <h3 class="shopping-list-section-title">Resumen en Tiempo Real</h3>
+            <ul class="list-style-none" id="gestion-resumen-list">
+                <li class="list-item">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Total Gastado en la Lista</span>
+                    </div>
+                    <span style="font-size: 1.2rem; font-weight: bold;">1,230.00 €</span>
+                </li>
+                <li class="list-item">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Tu Aportación</span>
+                        <span class="list-item-subtitle">Has pagado 800€ de 410€ que te corresponden</span>
+                    </div>
+                    <span style="color: green; font-weight: bold; font-size: 1.1rem;">+390€</span>
+                </li>
+            </ul>
+
+            <!-- Bloque de Acciones del Organizador -->
+            <h3 class="shopping-list-section-title">Acciones de Administrador</h3>
+            <div class="form-card">
+                <button id="cerrar-lista-btn" class="cancel" style="width:100%;">⚖️ Cerrar Lista y Liquidar Cuentas</button>
+            </div>
+        </div>
+    `;
+
+    // (Aquí, en el futuro, iría la lógica para los botones de compartir y cerrar)
+}
+
 // ====================================================================================
 // --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO SIMPLIFICADO + MENÚ + BOTÓN FLOTANTE) ---
 // ====================================================================================
@@ -4981,7 +5154,7 @@ function renderDashboard() {
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
 
   document.getElementById('calendar-card').onclick = renderCalendarView; // Ahora llama a nuestra nueva función
-  document.getElementById('cuentas-claras-card').onclick = () => showToast('Función en desarrollo.');
+  document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
   
   if (isPremium) {
     const chefCard = document.getElementById('chef-card');
