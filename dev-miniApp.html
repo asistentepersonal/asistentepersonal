@@ -3036,8 +3036,8 @@ function renderChefPage() {
                     </select>
                 </div>
                 <div class="chef-item">
-                    <label>Fecha y Hora</label>
-                    <input type="text" id="chef-hora" style="width: 150px; text-align: center;"/>
+                    <label>Hora Aproximada</label>
+                    <input type="text" id="chef-hora" style="width: 100px; text-align: center;"/>
                 </div>
                 <div class="chef-item">
                     <label>Nº de Comensales</label>
@@ -3082,31 +3082,13 @@ function renderChefPage() {
             </div>
         </div>`;
 
-    const now = new Date();
-    // --- INICIO DE LA CORRECCIÓN CLAVE ---
-    // Renombramos la variable para evitar el conflicto de nombres.
-    const chefMaxDate = new Date();
-    chefMaxDate.setDate(now.getDate() + 3);
-    // --- FIN DE LA CORRECCIÓN CLAVE ---
-
-    flatpickr("#chef-hora", {
-        enableTime: true,
-        locale: "es",
-        altInput: true, 
-        altFormat: "D, j M H:i",
-        dateFormat: "Z",
-        time_24hr: true,
-        defaultDate: now,
-        minDate: now,
-        // --- CORRECCIÓN CLAVE: Usamos la nueva variable renombrada ---
-        maxDate: chefMaxDate
-    });
-
+    flatpickr("#chef-hora", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, defaultDate: "13:00" });
     document.getElementById('chef-cancel-btn').onclick = goBack;
     
     let selectedFiles = [];
 
     const previewsContainer = document.getElementById('chef-image-previews');
+    const addPhotoButton = document.getElementById('chef-add-photo-btn');
 
     const updatePreviews = () => {
         previewsContainer.innerHTML = '';
@@ -3123,6 +3105,17 @@ function renderChefPage() {
             };
             reader.readAsDataURL(file);
         });
+        const takePhotoBtn = document.getElementById('chef-take-photo-btn');
+    const selectGalleryBtn = document.getElementById('chef-select-gallery-btn');
+    if (takePhotoBtn && selectGalleryBtn) {
+        if (selectedFiles.length < 2) {
+            takePhotoBtn.style.display = 'block';
+            selectGalleryBtn.style.display = 'block';
+        } else {
+            takePhotoBtn.style.display = 'none';
+            selectGalleryBtn.style.display = 'none';
+        }
+    }
     };
 
     previewsContainer.addEventListener('click', (event) => {
@@ -3133,42 +3126,69 @@ function renderChefPage() {
         }
     });
 
-    document.getElementById('chef-upload-button').onclick = () => {
-        if (selectedFiles.length >= 2) {
-            showToast("Puedes subir un máximo de 2 fotos.", true);
-            return;
+// Asignamos la acción al nuevo botón de subida del Chef
+document.getElementById('chef-upload-button').onclick = () => {
+    if (selectedFiles.length >= 2) {
+        showToast("Puedes subir un máximo de 2 fotos.", true);
+        return;
+    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none'; // Ocultar input
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            // Usamos la función que ya existe en el Chef para manejar la previsualización
+            handleChefImageSelection(file, (confirmedFile) => {
+                selectedFiles.push(confirmedFile);
+                updatePreviews();
+            });
         }
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.style.display = 'none';
-        fileInput.onchange = (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                handleChefImageSelection(file, (confirmedFile) => {
-                    selectedFiles.push(confirmedFile);
-                    updatePreviews();
-                });
-            }
-        };
-        document.body.appendChild(fileInput);
-        fileInput.click();
-        
-        setTimeout(() => {
-             if (document.body.contains(fileInput)) {
-                document.body.removeChild(fileInput);
-            }
-        }, 1000);
     };
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    
+    // Limpieza para evitar problemas en futuras selecciones
+    setTimeout(() => {
+         if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
+        }
+    }, 1000);
+};
 
-    document.getElementById('chef-submit-btn').onclick = () => {
-        if(selectedFiles.length === 0) {
-            showToast("Por favor, sube una foto de tus ingredientes.", true);
-            return;
+// Manejador para el botón "Seleccionar de Galería"
+document.getElementById('chef-select-gallery-btn').onclick = () => {
+    if (selectedFiles.length >= 2) {
+        showToast("Puedes subir un máximo de 2 fotos.", true);
+        return;
+    }
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none'; // Ocultar input
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            handleChefImageSelection(file, (confirmedFile) => {
+                selectedFiles.push(confirmedFile);
+                updatePreviews();
+            });
         }
-        executeChefRequest(selectedFiles);
     };
-}
+    document.body.appendChild(fileInput); // Añadir al body
+    fileInput.click();
+    document.body.removeChild(fileInput); // Eliminar del body
+};
+    
+                document.getElementById('chef-submit-btn').onclick = () => {
+                if(selectedFiles.length === 0) {
+                    showToast("Por favor, sube una foto de tus ingredientes.", true);
+                    return;
+                }
+                executeChefRequest(selectedFiles);
+            };
+        } // Esta es la llave de cierre de renderChefPage
 
 function handleChefImageSelection(file, callback) {
     const overlay = document.getElementById('image-preview-overlay');
@@ -3212,20 +3232,9 @@ async function executeChefRequest(files) {
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
     try {
-        // --- INICIO DE LA CORRECCIÓN CLAVE ---
-        // Obtenemos la fecha directamente de la instancia de flatpickr, que es el método más fiable.
-        const fechaHoraSeleccionada = document.getElementById('chef-hora')._flatpickr.selectedDates[0];
-        
-        // Verificamos que se haya seleccionado una fecha válida antes de continuar.
-        if (!fechaHoraSeleccionada) {
-            throw new Error("Por favor, selecciona una fecha y hora válidas.");
-        }
-        // --- FIN DE LA CORRECCIÓN CLAVE ---
-
         const userPreferences = {
             tipoComida: document.getElementById('chef-tipo-comida').value,
-            // --- CORRECCIÓN CLAVE: Usamos la fecha obtenida y la convertimos al formato ISO ("Z") esperado. ---
-            hora: fechaHoraSeleccionada.toISOString(),
+            hora: document.getElementById('chef-hora').value,
             comensales: document.getElementById('chef-comensales').value,
             estilo: document.getElementById('chef-estilo').value,
             conPostre: document.getElementById('chef-postre').checked,
