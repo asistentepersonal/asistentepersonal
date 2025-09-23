@@ -3213,9 +3213,20 @@ async function executeChefRequest(files) {
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
     try {
+        // --- INICIO DE LA CORRECCIÓN CLAVE ---
+        // Obtenemos la fecha directamente de la instancia de flatpickr, que es el método más fiable.
+        const fechaHoraSeleccionada = document.getElementById('chef-hora')._flatpickr.selectedDates[0];
+        
+        // Verificamos que se haya seleccionado una fecha válida antes de continuar.
+        if (!fechaHoraSeleccionada) {
+            throw new Error("Por favor, selecciona una fecha y hora válidas.");
+        }
+        // --- FIN DE LA CORRECCIÓN CLAVE ---
+
         const userPreferences = {
             tipoComida: document.getElementById('chef-tipo-comida').value,
-            hora: document.getElementById('chef-hora').value,
+            // --- CORRECCIÓN CLAVE: Usamos la fecha obtenida y la convertimos al formato ISO ("Z") esperado. ---
+            hora: fechaHoraSeleccionada.toISOString(),
             comensales: document.getElementById('chef-comensales').value,
             estilo: document.getElementById('chef-estilo').value,
             conPostre: document.getElementById('chef-postre').checked,
