@@ -3490,7 +3490,8 @@ function renderSettings() {
     const settings = appData.settings || {};
     const config = settings.configuracion || {};
     const ubicacion = settings.ubicacion || {};
-    const informeManana = config.informeManana || {};
+    // --- CORRECCIÓN CLAVE: Apuntamos a "InformeDiario" para que coincida con tu base de datos ---
+    const informeManana = config.InformeDiario || {}; 
     const informeTarde = config.informeTarde || {};
     const informeMensual = config.informeMensual || {};
     const isPremium = appData.isPremium === true;
@@ -3502,7 +3503,8 @@ function renderSettings() {
         pais: ubicacion.pais || '',
         tema: config.tema || 'auto',
         informeMananaActivo: informeManana.activo === true,
-        franjaManana: String(informeManana.franjaHoraria || '2'),
+        // --- CORRECCIÓN CLAVE: Usamos '7' como un default seguro y leemos el número de la BBDD ---
+        franjaManana: String(informeManana.franjaHoraria || '7'), 
         informeTardeActivo: informeTarde.activo === true,
         franjaTarde: String(informeTarde.franjaHoraria || '20'),
         alertaInventario: config.alertaInventario === true,
@@ -3530,7 +3532,17 @@ function renderSettings() {
             <h2 class="settings-section-title">🔔 Informes y Alertas</h2>
             <div class="form-card">
                 <div class="settings-item"><span class="settings-item-label">Informe Matutino</span><label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label></div>
-                <div class="settings-item"><span class="settings-item-label">Hora del Informe</span><select id="settings-franja-manana"><option value="1">A primera hora (6:00)</option><option value="2">Habitual (7:00)</option><option value="3">Media mañana (8:00)</option><option value="4">Tarde (9:00)</option></select></div>
+                <div class="settings-item">
+                    <span class="settings-item-label">Hora del Informe</span>
+                    <!-- --- INICIO DEL CAMBIO SOLICITADO --- -->
+                    <select id="settings-franja-manana">
+                        <option value="6">Franja de 6 a 7 hs</option>
+                        <option value="7">Franja de 7 a 8 hs</option>
+                        <option value="8">Franja de 8 a 9 hs</option>
+                        <option value="9">Franja de 9 a 10 hs</option>
+                    </select>
+                    <!-- --- FIN DEL CAMBIO SOLICITADO --- -->
+                </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
                 <div class="settings-item"><span class="settings-item-label">Informe del Tiempo (Tarde)</span><label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label></div>
                 <div class="settings-item"><span class="settings-item-label">Hora del Informe</span><select id="settings-franja-tarde"><option value="19">19:00</option><option value="20">20:00</option><option value="21">21:00</option></select></div>
@@ -3674,9 +3686,18 @@ async function saveSettings() {
             const firestoreUpdateData = {};
             for (const key in simpleChanges) {
                  if (key.includes('Manana') || key.includes('Tarde') || key.includes('Mensual')) {
-                    const informe = key.includes('Manana') ? 'informeManana' : (key.includes('Tarde') ? 'informeTarde' : 'informeMensual');
+                    // --- CORRECCIÓN CLAVE: Usamos "InformeDiario" para el informe matutino ---
+                    const informe = key.includes('Manana') ? 'InformeDiario' : (key.includes('Tarde') ? 'informeTarde' : 'informeMensual');
                     const subKey = key.includes('Activo') ? 'activo' : (key.includes('franja') ? 'franjaHoraria' : (key.includes('dia') ? 'dia' : 'hora'));
-                    firestoreUpdateData[`configuracion.${informe}.${subKey}`] = simpleChanges[key];
+                    
+                    let valueToSave = simpleChanges[key];
+                    // --- CORRECCIÓN CLAVE: Nos aseguramos de guardar la franja como NÚMERO ---
+                    if (key === 'franjaManana') {
+                        valueToSave = parseInt(valueToSave, 10);
+                    }
+
+                    firestoreUpdateData[`configuracion.${informe}.${subKey}`] = valueToSave;
+
                 } else if (key === 'alertaInventario' || key === 'tema') {
                     firestoreUpdateData[`configuracion.${key}`] = simpleChanges[key];
                 } else {
