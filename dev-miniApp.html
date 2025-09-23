@@ -3082,45 +3082,27 @@ function renderChefPage() {
             </div>
         </div>`;
 
-    // --- INICIO DE LA MODIFICACIÓN CLAVE ---
-    // 1. Calculamos las fechas mínima (ahora) y máxima (ahora + 3 días)
     const now = new Date();
-    const maxDate = new Date();
-    maxDate.setDate(now.getDate() + 3);
+    // --- INICIO DE LA CORRECCIÓN CLAVE ---
+    // Renombramos la variable para evitar el conflicto de nombres.
+    const chefMaxDate = new Date();
+    chefMaxDate.setDate(now.getDate() + 3);
+    // --- FIN DE LA CORRECCIÓN CLAVE ---
 
-    // 2. Configuramos Flatpickr con las nuevas reglas
     flatpickr("#chef-hora", {
         enableTime: true,
         locale: "es",
-        altInput: true, // Muestra un formato legible para el usuario
-        altFormat: "D, j M H:i", // Formato visual: "Lun, 15 Sep 14:30"
-        dateFormat: "Z", // Formato para el backend: Fecha ISO 8601 completa (ej: "2025-09-15T12:30:00.000Z")
+        altInput: true, 
+        altFormat: "D, j M H:i",
+        dateFormat: "Z",
         time_24hr: true,
-        defaultDate: now, // El valor por defecto es la fecha y hora actuales
-        minDate: now,     // No se puede seleccionar una fecha/hora anterior a la actual
-        maxDate: maxDate  // No se puede seleccionar más allá de 3 días en el futuro
+        defaultDate: now,
+        minDate: now,
+        // --- CORRECCIÓN CLAVE: Usamos la nueva variable renombrada ---
+        maxDate: chefMaxDate
     });
-    // --- FIN DE LA MODIFICACIÓN CLAVE ---
 
-        // --- INICIO DE LA CONFIGURACIÓN CLAVE DE FLATPCIKR ---
-    const ahora = new Date();
-    // Calculamos la fecha máxima permitida (hoy + 4 días para un total de 5 días de pronóstico)
-    const maxDate = new Date();
-    maxDate.setDate(ahora.getDate() + 4);
-
-    flatpickr("#chef-fecha-hora", {
-        enableTime: true,
-        altInput: true,
-        altFormat: "F j, Y - H:i", // Formato amigable: "Septiembre 22, 2025 - 14:30"
-        dateFormat: "Z",           // Formato técnico ISO 8601 para enviar al backend
-        minDate: "today",          // No permite seleccionar fechas/horas pasadas
-        maxDate: maxDate,          // Límite de 5 días en el futuro
-        defaultDate: ahora,
-        locale: "es",
-        minuteIncrement: 15        // Incrementos de 15 minutos para facilidad de uso
-    });
-    // --- FIN DE LA CONFIGURACIÓN ---
-	document.getElementById('chef-cancel-btn').onclick = goBack;
+    document.getElementById('chef-cancel-btn').onclick = goBack;
     
     let selectedFiles = [];
 
@@ -3141,7 +3123,6 @@ function renderChefPage() {
             };
             reader.readAsDataURL(file);
         });
-        // Este bloque se mantiene igual, ya no contiene la lógica de los botones de foto.
     };
 
     previewsContainer.addEventListener('click', (event) => {
