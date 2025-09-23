@@ -3102,7 +3102,25 @@ function renderChefPage() {
     });
     // --- FIN DE LA MODIFICACIÓN CLAVE ---
 
-    document.getElementById('chef-cancel-btn').onclick = goBack;
+        // --- INICIO DE LA CONFIGURACIÓN CLAVE DE FLATPCIKR ---
+    const ahora = new Date();
+    // Calculamos la fecha máxima permitida (hoy + 4 días para un total de 5 días de pronóstico)
+    const maxDate = new Date();
+    maxDate.setDate(ahora.getDate() + 4);
+
+    flatpickr("#chef-fecha-hora", {
+        enableTime: true,
+        altInput: true,
+        altFormat: "F j, Y - H:i", // Formato amigable: "Septiembre 22, 2025 - 14:30"
+        dateFormat: "Z",           // Formato técnico ISO 8601 para enviar al backend
+        minDate: "today",          // No permite seleccionar fechas/horas pasadas
+        maxDate: maxDate,          // Límite de 5 días en el futuro
+        defaultDate: ahora,
+        locale: "es",
+        minuteIncrement: 15        // Incrementos de 15 minutos para facilidad de uso
+    });
+    // --- FIN DE LA CONFIGURACIÓN ---
+	document.getElementById('chef-cancel-btn').onclick = goBack;
     
     let selectedFiles = [];
 
