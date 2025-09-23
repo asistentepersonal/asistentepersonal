@@ -3203,7 +3203,17 @@ function handleChefImageSelection(file, callback) {
 // [VERSIÓN FINAL CON CLOUD FUNCTIONS - CORREGIDA]
 // Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
 async function executeChefRequest(files) {
-    showSpinner("Un momento, el Chef está trabajando...");
+    // --- INICIO DE LA MODIFICACIÓN CLAVE ---
+    const submitBtn = document.getElementById('chef-submit-btn');
+    if (!submitBtn) return; // Salida de seguridad si el botón no existe
+    
+    const originalBtnHTML = submitBtn.innerHTML; // Guardamos el texto original
+    
+    // Cambiamos el estado del botón a "cargando"
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<span class="spinner btn-spinner"></span> Chef trabajando...`;
+    // --- FIN DE LA MODIFICACIÓN CLAVE ---
+
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
     try {
@@ -3276,7 +3286,11 @@ async function executeChefRequest(files) {
         console.error("Error definitivo en executeChefRequest:", err);
         showToast(err.message || "Error al contactar al Chef.", true);
     } finally {
-        hideSpinner();
+        // --- INICIO DE LA MODIFICACIÓN CLAVE ---
+        // Restauramos el botón a su estado original, independientemente del resultado.
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnHTML;
+        // --- FIN DE LA MODIFICACIÓN CLAVE ---
     }
 }
 
