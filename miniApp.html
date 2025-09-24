@@ -3482,28 +3482,28 @@ function renderSettings() {
     const settings = appData.settings || {};
     const config = settings.configuracion || {};
     const ubicacion = settings.ubicacion || {};
-    // --- CORRECCIÓN CLAVE: Apuntamos a "InformeDiario" para que coincida con tu base de datos ---
     const informeManana = config.InformeDiario || {}; 
     const informeTarde = config.informeTarde || {};
     const informeMensual = config.informeMensual || {};
     const isPremium = appData.isPremium === true;
     
-    // Capturamos el estado inicial para la validación de cambios
-    initialUserSettings = {
+    // Lectura inteligente: Prioriza la nueva estructura aplanada y usa la anidada como respaldo.
+    const settingsData = {
         nombre: settings.nombre || '',
         ciudad: ubicacion.ciudad || '',
         pais: ubicacion.pais || '',
-        tema: config.tema || 'auto',
-        informeMananaActivo: informeManana.activo === true,
-        // --- CORRECCIÓN CLAVE: Usamos '7' como un default seguro y leemos el número de la BBDD ---
-        franjaManana: String(informeManana.franjaHoraria || '7'), 
-        informeTardeActivo: informeTarde.activo === true,
-        franjaTarde: String(informeTarde.franjaHoraria || '20'),
-        alertaInventario: config.alertaInventario === true,
-        informeMensualActivo: informeMensual.activo === true,
-        diaInformeMensual: String(informeMensual.dia || '1'),
-        horaInformeMensual: String(informeMensual.hora || '12')
+        tema: settings.tema ?? config.tema ?? 'auto',
+        alertaInventario: settings.alertaInventario ?? config.alertaInventario ?? false,
+        informeDiario_activo: settings.informeDiario_activo ?? informeManana.activo ?? false,
+        informeDiario_franjaHoraria: String(settings.informeDiario_franjaHoraria ?? informeManana.franjaHoraria ?? '8'),
+        informeTarde_activo: settings.informeTarde_activo ?? informeTarde.activo ?? false,
+        informeTarde_franjaHoraria: String(settings.informeTarde_franjaHoraria ?? informeTarde.franjaHoraria ?? '20'),
+        informeMensual_activo: settings.informeMensual_activo ?? informeMensual.activo ?? false,
+        informeMensual_dia: String(settings.informeMensual_dia ?? informeMensual.dia ?? '1'),
+        informeMensual_hora: String(settings.informeMensual_hora ?? informeMensual.hora ?? '14'),
     };
+    
+    initialUserSettings = { ...settingsData };
     
     mainContentArea.innerHTML = `
         <div class="settings-container">
@@ -3526,14 +3526,12 @@ function renderSettings() {
                 <div class="settings-item"><span class="settings-item-label">Informe Matutino</span><label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label></div>
                 <div class="settings-item">
                     <span class="settings-item-label">Hora del Informe</span>
-                    <!-- --- INICIO DEL CAMBIO SOLICITADO --- -->
                     <select id="settings-franja-manana">
                         <option value="6">Franja de 6 a 7 hs</option>
                         <option value="7">Franja de 7 a 8 hs</option>
                         <option value="8">Franja de 8 a 9 hs</option>
                         <option value="9">Franja de 9 a 10 hs</option>
                     </select>
-                    <!-- --- FIN DEL CAMBIO SOLICITADO --- -->
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
                 <div class="settings-item"><span class="settings-item-label">Informe del Tiempo (Tarde)</span><label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label></div>
@@ -3555,37 +3553,35 @@ function renderSettings() {
             </div>
         </div>
     `;
-
-    // --- Rellenar los campos del formulario con los datos correctos ---
-    document.getElementById('settings-nombre').value = initialUserSettings.nombre;
-    document.getElementById('settings-ciudad').value = initialUserSettings.ciudad;
-    document.getElementById('settings-pais').value = initialUserSettings.pais;
-    document.getElementById('settings-theme').value = initialUserSettings.tema;
     
-    // Lectura correcta de datos no editables
+    document.getElementById('settings-nombre').value = settingsData.nombre;
+    document.getElementById('settings-ciudad').value = settingsData.ciudad;
+    document.getElementById('settings-pais').value = settingsData.pais;
+    document.getElementById('settings-theme').value = settingsData.tema;
+    
     document.getElementById('settings-email').value = settings.email || 'No disponible';
     document.getElementById('settings-fecha-activacion').value = settings.fechaActivacion || 'No disponible';
     document.getElementById('settings-zona-horaria').value = ubicacion.timeZone || 'No disponible';
     document.getElementById('settings-moneda').value = settings.moneda || 'No disponible';
     
-    document.getElementById('settings-informe-manana-activo').checked = initialUserSettings.informeMananaActivo;
-    document.getElementById('settings-franja-manana').value = initialUserSettings.franjaManana;
-    document.getElementById('settings-informe-tarde-activo').checked = initialUserSettings.informeTardeActivo;
-    document.getElementById('settings-franja-tarde').value = initialUserSettings.franjaTarde;
+    document.getElementById('settings-informe-manana-activo').checked = settingsData.informeDiario_activo;
+    document.getElementById('settings-franja-manana').value = settingsData.informeDiario_franjaHoraria;
+    
+    document.getElementById('settings-informe-tarde-activo').checked = settingsData.informeTarde_activo;
+    document.getElementById('settings-franja-tarde').value = settingsData.informeTarde_franjaHoraria;
     
     const alertaInventarioSwitch = document.getElementById('settings-alerta-inventario');
-    alertaInventarioSwitch.checked = initialUserSettings.alertaInventario;
+    alertaInventarioSwitch.checked = settingsData.alertaInventario;
     if (!isPremium) {
         alertaInventarioSwitch.disabled = true;
         document.getElementById('alerta-inventario-wrapper').style.opacity = '0.6';
         document.getElementById('alerta-inventario-wrapper').onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
     }
 
-    document.getElementById('settings-informe-mensual-activo').checked = initialUserSettings.informeMensualActivo;
-    document.getElementById('settings-dia-informe-mensual').value = initialUserSettings.diaInformeMensual;
-    document.getElementById('settings-hora-informe-mensual').value = initialUserSettings.horaInformeMensual;
+    document.getElementById('settings-informe-mensual-activo').checked = settingsData.informeMensual_activo;
+    document.getElementById('settings-dia-informe-mensual').value = settingsData.informeMensual_dia;
+    document.getElementById('settings-hora-informe-mensual').value = settingsData.informeMensual_hora;
 
-    // Asignar listeners
     const controls = document.querySelectorAll('#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, #settings-alerta-inventario');
     controls.forEach(control => {
         control.addEventListener('input', validateSettings);
@@ -3604,23 +3600,29 @@ function renderSettings() {
 function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
 
-    // Recoger valores actuales del formulario
+    // --- INICIO DE LA MODIFICACIÓN QUIRÚRGICA ---
+    // Recogemos los valores actuales del formulario usando los nuevos nombres aplanados.
     const currentValues = {
         nombre: document.getElementById('settings-nombre').value,
         ciudad: document.getElementById('settings-ciudad').value,
         pais: document.getElementById('settings-pais').value,
         tema: document.getElementById('settings-theme').value,
-        informeMananaActivo: document.getElementById('settings-informe-manana-activo').checked,
-        franjaManana: document.getElementById('settings-franja-manana').value,
-        informeTardeActivo: document.getElementById('settings-informe-tarde-activo').checked,
-        franjaTarde: document.getElementById('settings-franja-tarde').value,
-        alertaInventario: document.getElementById('settings-alerta-inventario').checked,
-        informeMensualActivo: document.getElementById('settings-informe-mensual-activo').checked,
-        diaInformeMensual: document.getElementById('settings-dia-informe-mensual').value,
-        horaInformeMensual: document.getElementById('settings-hora-informe-mensual').value
-    };
 
-    // Comparamos los objetos completos. JSON.stringify es una forma simple y efectiva para esto.
+        informeDiario_activo: document.getElementById('settings-informe-manana-activo').checked,
+        informeDiario_franjaHoraria: document.getElementById('settings-franja-manana').value,
+
+        informeTarde_activo: document.getElementById('settings-informe-tarde-activo').checked,
+        informeTarde_franjaHoraria: document.getElementById('settings-franja-tarde').value,
+
+        informeMensual_activo: document.getElementById('settings-informe-mensual-activo').checked,
+        informeMensual_dia: document.getElementById('settings-dia-informe-mensual').value,
+        informeMensual_hora: document.getElementById('settings-hora-informe-mensual').value,
+
+        alertaInventario: document.getElementById('settings-alerta-inventario').checked
+    };
+    // --- FIN DE LA MODIFICACIÓN QUIRÚRGICA ---
+
+    // La comparación ahora funciona perfectamente porque ambos objetos tienen la misma estructura aplanada.
     const hasChanged = JSON.stringify(currentValues) !== JSON.stringify(initialUserSettings);
     
     saveBtn.disabled = !hasChanged;
@@ -3632,83 +3634,65 @@ async function saveSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     const originalBtnText = saveBtn.textContent;
     
-    // Función de ayuda para capitalizar nombres
     const capitalize = (str) => {
         if (!str) return '';
         return str.toLowerCase().replace(/(?:^|\s)\S/g, char => char.toUpperCase());
     };
 
-    // 1. Mostramos el spinner interno y desactivamos el botón
-         saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;
+    saveBtn.disabled = true;
+
     try {
-        // 2. Recogemos y capitalizamos los valores de ciudad y país
         const currentValues = {
             nombre: document.getElementById('settings-nombre').value,
             ciudad: capitalize(document.getElementById('settings-ciudad').value.trim()),
             pais: capitalize(document.getElementById('settings-pais').value.trim()),
             tema: document.getElementById('settings-theme').value,
-            informeMananaActivo: document.getElementById('settings-informe-manana-activo').checked,
-            franjaManana: document.getElementById('settings-franja-manana').value,
-            informeTardeActivo: document.getElementById('settings-informe-tarde-activo').checked,
-            franjaTarde: document.getElementById('settings-franja-tarde').value,
-            alertaInventario: document.getElementById('settings-alerta-inventario').checked,
-            informeMensualActivo: document.getElementById('settings-informe-mensual-activo').checked,
-            diaInformeMensual: document.getElementById('settings-dia-informe-mensual').value,
-            horaInformeMensual: document.getElementById('settings-hora-informe-mensual').value
+            informeDiario_activo: document.getElementById('settings-informe-manana-activo').checked,
+            informeDiario_franjaHoraria: parseInt(document.getElementById('settings-franja-manana').value, 10),
+            informeTarde_activo: document.getElementById('settings-informe-tarde-activo').checked,
+            informeTarde_franjaHoraria: parseInt(document.getElementById('settings-franja-tarde').value, 10),
+            informeMensual_activo: document.getElementById('settings-informe-mensual-activo').checked,
+            informeMensual_dia: parseInt(document.getElementById('settings-dia-informe-mensual').value, 10),
+            informeMensual_hora: parseInt(document.getElementById('settings-hora-informe-mensual').value, 10),
+            alertaInventario: document.getElementById('settings-alerta-inventario').checked
         };
-
-        const simpleChanges = {};
-        let hasComplexChanges = false;
-
-        for (const key in currentValues) {
-            if (String(currentValues[key]) !== String(initialUserSettings[key])) { // Comparación robusta
-                if (key === 'ciudad' || key === 'pais') {
-                    hasComplexChanges = true;
-                } else {
-                    simpleChanges[key] = currentValues[key];
-                }
-            }
-        }
         
-        let updatePromise = Promise.resolve();
+        const hasLocationChanged = currentValues.ciudad !== initialUserSettings.ciudad || currentValues.pais !== initialUserSettings.pais;
+        const userDocRef = db.collection('users').doc(chatId);
+        
+        // --- INICIO DE LA CORRECCIÓN CLAVE ---
+        // 1. Creamos un objeto para la actualización que contendrá TODOS los campos aplanados.
+        const firestoreUpdateData = {
+            'informeDiario_activo': currentValues.informeDiario_activo,
+            'informeDiario_franjaHoraria': currentValues.informeDiario_franjaHoraria,
+            'informeTarde_activo': currentValues.informeTarde_activo,
+            'informeTarde_franjaHoraria': currentValues.informeTarde_franjaHoraria,
+            'informeMensual_activo': currentValues.informeMensual_activo,
+            'informeMensual_dia': currentValues.informeMensual_dia,
+            'informeMensual_hora': currentValues.informeMensual_hora,
+            
+            // Añadimos también los otros campos que podrían haber cambiado.
+            'nombre': currentValues.nombre,
+            'configuracion.tema': currentValues.tema,
+            'configuracion.alertaInventario': currentValues.alertaInventario,
+            
+            // Y el comando para eliminar los mapas antiguos del objeto 'configuracion'
+            'configuracion.InformeDiario': firebase.firestore.FieldValue.delete(),
+            'configuracion.informeTarde': firebase.firestore.FieldValue.delete(),
+            'configuracion.informeMensual': firebase.firestore.FieldValue.delete()
+        };
+        // --- FIN DE LA CORRECCIÓN CLAVE ---
+        
         let cloudFunctionPromise = Promise.resolve();
 
-        if (Object.keys(simpleChanges).length > 0) {
-            const userDocRef = db.collection('users').doc(chatId);
-            const firestoreUpdateData = {};
-            for (const key in simpleChanges) {
-                 if (key.includes('Manana') || key.includes('Tarde') || key.includes('Mensual')) {
-                    // --- CORRECCIÓN CLAVE: Usamos "InformeDiario" para el informe matutino ---
-                    const informe = key.includes('Manana') ? 'InformeDiario' : (key.includes('Tarde') ? 'informeTarde' : 'informeMensual');
-                    const subKey = key.includes('Activo') ? 'activo' : (key.includes('franja') ? 'franjaHoraria' : (key.includes('dia') ? 'dia' : 'hora'));
-                    
-                    let valueToSave = simpleChanges[key];
-                    // --- CORRECCIÓN CLAVE: Nos aseguramos de guardar la franja como NÚMERO ---
-                    if (key === 'franjaManana') {
-                        valueToSave = parseInt(valueToSave, 10);
-                    }
-
-                    firestoreUpdateData[`configuracion.${informe}.${subKey}`] = valueToSave;
-
-                } else if (key === 'alertaInventario' || key === 'tema') {
-                    firestoreUpdateData[`configuracion.${key}`] = simpleChanges[key];
-                } else {
-                    firestoreUpdateData[key] = simpleChanges[key];
-                }
-            }
-            updatePromise = userDocRef.update(firestoreUpdateData);
-        }
-
-        if (hasComplexChanges) {
+        // 2. Ejecutamos la actualización con la estructura completa.
+        await userDocRef.update(firestoreUpdateData);
+        
+        // Si la ubicación cambió, llamamos a la Cloud Function como antes.
+        if (hasLocationChanged) {
             const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/updateUserSettings';
-            const payload = {
-                data: {
-                    chatId: chatId,
-                    nombre: currentValues.nombre,
-                    ciudad: currentValues.ciudad, // Enviamos el valor ya capitalizado
-                    pais: currentValues.pais       // Enviamos el valor ya capitalizado
-                }
-            };
+            const payload = { data: { chatId: chatId, nombre: currentValues.nombre, ciudad: currentValues.ciudad, pais: currentValues.pais }};
             cloudFunctionPromise = fetch(functionUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3721,9 +3705,7 @@ async function saveSettings() {
             });
         }
         
-        const results = await Promise.all([updatePromise, cloudFunctionPromise]);
-        
-        const cloudFunctionResult = results[1];
+        const cloudFunctionResult = await cloudFunctionPromise;
         if (cloudFunctionResult && cloudFunctionResult.result && cloudFunctionResult.result.status === 'success') {
             appData.settings = cloudFunctionResult.result.updatedSettings;
         } else {
@@ -3731,20 +3713,13 @@ async function saveSettings() {
             if (userDoc.exists) appData.settings = userDoc.data();
         }
         
-        // 3. Actualizamos la UI con los datos capitalizados y los nuevos datos del backend
-        document.getElementById('settings-ciudad').value = appData.settings.ubicacion?.ciudad || '';
-        document.getElementById('settings-pais').value = appData.settings.ubicacion?.pais || '';
-        document.getElementById('settings-zona-horaria').value = appData.settings.ubicacion?.timeZone || 'No disponible';
-        document.getElementById('settings-moneda').value = appData.settings.moneda || 'No disponible';
-
-        initialUserSettings = { ...currentValues }; // Actualizamos el estado de referencia
-        showToast("Ajustes guardados con éxito.");
+        showToast("Ajustes guardados y migrados con éxito.");
+        renderDashboard();
 
     } catch (error) {
         console.error("Error al guardar ajustes:", error);
         showToast(`Error: ${error.message || 'Ocurrió un error desconocido.'}`, true);
     } finally {
-        // 4. Restauramos el botón a su estado original
         saveBtn.innerHTML = originalBtnText;
         saveBtn.disabled = true;
         saveBtn.classList.remove('enabled');
@@ -3988,6 +3963,179 @@ function renderTimelineGrid(canales, programas) {
          wrapper.scrollLeft = nowPosition - (wrapper.offsetWidth / 2);
     }
 }
+
+// ==================================================
+// --- MÓDULO: CUENTAS CLARAS ---
+// ==================================================
+
+function renderCuentasClarasLobby() {
+    // Preparamos la navegación para poder volver al dashboard
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+    
+    // Usamos el esqueleto HTML para la vista principal
+    mainContentArea.innerHTML = `
+        <!-- PANTALLA 1: LISTADO DE LISTAS DEL ORGANIZADOR -->
+        <div class="list-container" id="cuentas-claras-lobby">
+            
+            <!-- Cabecera y Botón de Acción Principal -->
+            <div class="list-header">
+                <h2>⚖️ Cuentas Claras</h2>
+            </div>
+            <div class="add-article-btn-container">
+                <button class="add-article-btn" id="crear-nueva-lista-btn">➕ Crear Nueva Lista</button>
+            </div>
+
+            <!-- Sección para las listas que están actualmente en curso -->
+            <h3 class="shopping-list-section-title">Listas Activas</h3>
+            <ul class="list-style-none" id="listas-activas-list">
+                
+                <!-- EJEMPLO DE UNA LISTA ACTIVA (Esto se generaría dinámicamente) -->
+                <li class="list-item clickable" data-lista-id="AbCd12EfGh34">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Fin de semana en la sierra</span>
+                        <span class="list-item-subtitle">Total: 250,00 € | 4 Participantes</span>
+                    </div>
+                    <div class="list-item-actions">
+                        <button class="generic-menu-btn" style="cursor: pointer;">Gestionar</button>
+                    </div>
+                </li>
+                
+                <li class="list-item clickable" data-lista-id="IjKl56MnOp78">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Viaje a París</span>
+                        <span class="list-item-subtitle">Total: 1,230,00 € | 3 Participantes</span>
+                    </div>
+                    <div class="list-item-actions">
+                         <button class="generic-menu-btn" style="cursor: pointer;">Gestionar</button>
+                    </div>
+                </li>
+
+            </ul>
+
+            <!-- Sección para las listas ya finalizadas -->
+            <h3 class="shopping-list-section-title">Historial (Listas Archivadas)</h3>
+            <ul class="list-style-none" id="listas-archivadas-list">
+
+                <!-- EJEMPLO DE UNA LISTA ARCHIVADA -->
+                <li class="list-item" style="opacity: 0.6;">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Cena de Navidad</span>
+                        <span class="list-item-subtitle">Cerrada el 26/12/2025</span>
+                    </div>
+                </li>
+
+            </ul>
+        </div>
+    `;
+
+        // Conectamos el botón para crear una nueva lista
+    document.getElementById('crear-nueva-lista-btn').onclick = renderCrearListaForm;
+
+    // Conectamos los botones "Gestionar" de cada lista activa
+    document.querySelectorAll('#listas-activas-list .list-item.clickable').forEach(item => {
+        const gestionarBtn = item.querySelector('.generic-menu-btn');
+        if (gestionarBtn) {
+            gestionarBtn.onclick = (e) => {
+                e.stopPropagation(); // Evita que se dispare el clic del 'item' completo
+                // const listaId = item.dataset.listaId; // En el futuro, usaríamos esto
+                renderPanelGestion(/* podríamos pasar el listaId aquí */);
+            };
+        }
+    });
+}
+
+function renderCrearListaForm() {
+    // Preparamos la navegación para poder volver al lobby
+    navigationHistory.push(renderCuentasClarasLobby);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <!-- PANTALLA 2: FORMULARIO DE CREACIÓN DE UNA NUEVA LISTA -->
+        <div class="list-container">
+            <div class="list-header">
+                <h2>➕ Crear Nueva Lista de Gastos</h2>
+            </div>
+            <div class="form-card">
+                <label>Nombre de la Lista</label>
+                <input type="text" id="nueva-lista-nombre" placeholder="Ej: Fin de semana en la sierra" />
+
+                <label>Moneda</label>
+                <input type="text" id="nueva-lista-moneda" value="€" />
+
+                <label>Participantes (inclúyete y escribe uno por línea)</label>
+                <textarea id="nueva-lista-participantes" rows="5" placeholder="TuNombre&#10;Ana&#10;Carlos&#10;Sofía"></textarea>
+                
+                <div class="button-group">
+                    <button id="cancelar-creacion-lista-btn" class="cancel">Cancelar</button>
+                    <button id="confirmar-creacion-lista-btn" class="enabled">Crear Lista</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Conectamos el botón de cancelar para que vuelva a la pantalla anterior
+    document.getElementById('cancelar-creacion-lista-btn').onclick = goBack;
+    // (Aquí, en el futuro, el botón 'confirmar-creacion-lista-btn' llamaría a la lógica de guardado)
+}
+
+function renderPanelGestion() {
+    // Preparamos la navegación para poder volver al lobby
+    navigationHistory.push(renderCuentasClarasLobby);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <!-- PANTALLA 3: PANEL DE GESTIÓN DE UNA LISTA ESPECÍFICA -->
+        <div class="list-container" id="panel-gestion-lista">
+
+            <!-- Cabecera con el nombre de la lista que se está gestionando -->
+            <div class="list-header">
+                <h2>Gestionando: <span id="gestion-nombre-lista">Viaje a París</span></h2>
+            </div>
+
+            <!-- Bloque para Compartir el Enlace (con emojis mejorados) -->
+            <div class="form-card" style="margin-bottom: 20px;">
+                <label>Enlace Mágico para Compartir</label>
+                <input type="text" id="lista-enlace-input" value="https://tu-app/lista/AbCd12EfGh34" readonly style="text-align: center; font-size: 0.9rem;">
+                <div class="button-group" style="margin-top: 15px;">
+                    <button id="compartir-whatsapp-btn" class="enabled" style="background-color: #25D366;">🟢 WhatsApp</button>
+                    <button id="compartir-telegram-btn" class="enabled" style="background-color: #0088cc;">🔵 Telegram</button>
+                </div>
+                <div class="button-group" style="margin-top: 10px;">
+                    <button id="compartir-email-btn" class="enabled" style="background-color: #7f8c8d;">✉️ Email</button>
+                    <button id="copiar-enlace-btn" class="enabled" style="background-color: #95a5a6;">📋 Copiar</button>
+                </div>
+            </div>
+
+            <!-- Bloque de Resumen en Tiempo Real -->
+            <h3 class="shopping-list-section-title">Resumen en Tiempo Real</h3>
+            <ul class="list-style-none" id="gestion-resumen-list">
+                <li class="list-item">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Total Gastado en la Lista</span>
+                    </div>
+                    <span style="font-size: 1.2rem; font-weight: bold;">1,230.00 €</span>
+                </li>
+                <li class="list-item">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Tu Aportación</span>
+                        <span class="list-item-subtitle">Has pagado 800€ de 410€ que te corresponden</span>
+                    </div>
+                    <span style="color: green; font-weight: bold; font-size: 1.1rem;">+390€</span>
+                </li>
+            </ul>
+
+            <!-- Bloque de Acciones del Organizador -->
+            <h3 class="shopping-list-section-title">Acciones de Administrador</h3>
+            <div class="form-card">
+                <button id="cerrar-lista-btn" class="cancel" style="width:100%;">⚖️ Cerrar Lista y Liquidar Cuentas</button>
+            </div>
+        </div>
+    `;
+
+    // (Aquí, en el futuro, iría la lógica para los botones de compartir y cerrar)
+}
+
 // ====================================================================================
 // --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO SIMPLIFICADO + MENÚ + BOTÓN FLOTANTE) ---
 // ====================================================================================
@@ -4981,7 +5129,7 @@ function renderDashboard() {
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
 
   document.getElementById('calendar-card').onclick = renderCalendarView; // Ahora llama a nuestra nueva función
-  document.getElementById('cuentas-claras-card').onclick = () => showToast('Función en desarrollo.');
+  document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
   
   if (isPremium) {
     const chefCard = document.getElementById('chef-card');
