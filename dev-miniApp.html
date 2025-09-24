@@ -17,10 +17,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
-  <!-- Librerías para el manejo de fechas y zonas horarias (VERSIÓN CORREGIDA) -->
-  <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/cdn.min.js" onload="window.dateFns = dateFns"></script>
-  <script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/zonedTimeToUtc.js" onload="window.dateFnsTz = { ...window.dateFnsTz, zonedTimeToUtc: dateFnsTz.zonedTimeToUtc }"></script>
-  <script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/utcToZonedTime.js" onload="window.dateFnsTz = { ...window.dateFnsTz, utcToZonedTime: dateFnsTz.utcToZonedTime }"></script>
+  <!-- Librerías para el manejo de fechas y zonas horarias -->
+<script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/zonedTimeToUtc.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/utcToZonedTime.js"></script>
   <!-- SDKs de Firebase para la Mini App -->
 
   <style>
@@ -934,23 +934,31 @@
 </div>
 <!-- FIN MODAL DE NOTIFICACIONES -->
   
-<script>
+       <script>
     document.addEventListener('DOMContentLoaded', () => {
+	// --- INICIO: Corrección Carga de Librerías ---
+// Esperamos a que el objeto `dateFns` esté disponible antes de iniciar la app.
+// Esto asegura que las librerías se hayan cargado.
+    const waitForLibs = setInterval(() => {
+    if (typeof window.dateFns !== 'undefined' && typeof window.dateFnsTz !== 'undefined') {
+        clearInterval(waitForLibs);
+        // Ahora que sabemos que las librerías están listas, iniciamos la app.
+        initializeApp();
+    }
+   }, 100); // Comprobamos cada 100 milisegundos
+// --- FIN: Corrección Carga de Librerías ---
+	
 	
 // =========================================================================
-// --- FUNCIÓN AUXILIAR PARA CALCULAR PRÓXIMOS ENVÍOS (CLIENTE) ---
+// --- FUNCIÓN AUXILIAR PARA CALCULAR PRÓXIMOS ENVÍOS (CLIENTE) - v3 ---
 // =========================================================================
 function calcularProximoTimestampCliente(tipo, config, timeZone) {
-    // Asegurarnos de que las librerías están cargadas
-    if (typeof dateFns === 'undefined' || typeof dateFnsTz === 'undefined') {
-        console.error("Las librerías de fecha (date-fns) no están cargadas.");
-        return null;
-    }
-
-    const { addDays, addMonths, set } = dateFns;
-    const { utcToZonedTime, zonedTimeToUtc } = dateFnsTz;
-
+    // Esta función ahora depende de que las librerías se carguen y se definan globalmente.
+    // Asumimos que `window.dateFns` y `window.dateFnsTz` existen.
     try {
+        const { addDays, addMonths, set } = window.dateFns;
+        const { utcToZonedTime, zonedTimeToUtc } = window.dateFnsTz;
+
         const ahoraEnZonaUsuario = utcToZonedTime(new Date(), timeZone);
         let proximaFecha;
 
@@ -967,7 +975,6 @@ function calcularProximoTimestampCliente(tipo, config, timeZone) {
                     proximaFecha = addDays(proximaFecha, 1);
                 }
                 break;
-
             case 'mensual':
                 proximaFecha = set(ahoraEnZonaUsuario, {
                     date: config.dia,
@@ -980,19 +987,13 @@ function calcularProximoTimestampCliente(tipo, config, timeZone) {
                     proximaFecha = addMonths(proximaFecha, 1);
                 }
                 break;
-
             default:
                 return null;
         }
-        
-        // Devolvemos el objeto Date en formato UTC. 
-        // El SDK de Firestore lo convertirá automáticamente a un Timestamp.
         return zonedTimeToUtc(proximaFecha, timeZone);
-
     } catch (error) {
-        console.error(`Error calculando timestamp para '${tipo}':`, error);
-        // Mostramos el error al usuario para que sepa que algo falló
-        showToast(`Error con la zona horaria: ${error.message}`, true);
+        console.error("Error crítico: las librerías de fecha no están disponibles en `window`:", error);
+        showToast("Error de inicialización de fechas. Por favor, recarga.", true);
         return null;
     }
 }
@@ -5281,7 +5282,6 @@ document.getElementById('tab-chef').onclick = () => {
     }
 };
 loadEmojiDictionary(); // Carga el diccionario de emojis
-initializeApp();
 });
 </script>
 </body>
