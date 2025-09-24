@@ -17,10 +17,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
-  <!-- Librerías para el manejo de fechas y zonas horarias -->
-  <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/cdn.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/zonedTimeToUtc.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/utcToZonedTime.js"></script>
+  <!-- Librerías para el manejo de fechas y zonas horarias (VERSIÓN CORREGIDA) -->
+  <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/cdn.min.js" onload="window.dateFns = dateFns"></script>
+  <script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/zonedTimeToUtc.js" onload="window.dateFnsTz = { ...window.dateFnsTz, zonedTimeToUtc: dateFnsTz.zonedTimeToUtc }"></script>
+  <script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/utcToZonedTime.js" onload="window.dateFnsTz = { ...window.dateFnsTz, utcToZonedTime: dateFnsTz.utcToZonedTime }"></script>
   <!-- SDKs de Firebase para la Mini App -->
 
   <style>
