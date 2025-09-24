@@ -17,10 +17,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
-  <!-- Librerías para el manejo de fechas y zonas horarias -->
-<script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/cdn.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/zonedTimeToUtc.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/date-fns-tz@2.0.0/utcToZonedTime.js"></script>
   <!-- SDKs de Firebase para la Mini App -->
 
   <style>
@@ -72,16 +68,15 @@
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
     .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 2s linear infinite;z-index:1001; text-align: center;}    @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
 	.btn-spinner {
-    display: inline-block !important;
-    position: relative !important;
-    top: 0 !important; left: 0 !important; transform: none !important;
-    width: 18px !important; height: 18px !important;
-    border: 2px solid rgba(255, 255, 255, 0.3) !important; /* Borde semi-transparente */
-    border-top-color: #ffffff !important; /* Color sólido para el trozo que gira */
-    border-radius: 50% !important;
+    display: inline-block !important; /* Asegura que se muestre */
+    position: relative !important; /* Anula el 'fixed' */
+    top: 0 !important; left: 0 !important; transform: none !important; /* Anula el centrado */
+    border-color: white !important; /* Color para que se vea bien en botones oscuros */
+    border-top-color: transparent !important; /* Efecto de giro */
+    border-width: 2px !important; /* Más fino para el botón */
+    width: 18px !important; height: 18px !important; /* Más pequeño */
     vertical-align: middle;
     margin-right: 8px;
-    animation: spin 1s linear infinite !important; /* ¡La animación! */
 }
     @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
@@ -934,69 +929,8 @@
 </div>
 <!-- FIN MODAL DE NOTIFICACIONES -->
   
-       <script>
+<script>
     document.addEventListener('DOMContentLoaded', () => {
-	// --- INICIO: Corrección Carga de Librerías ---
-// Esperamos a que el objeto `dateFns` esté disponible antes de iniciar la app.
-// Esto asegura que las librerías se hayan cargado.
-    const waitForLibs = setInterval(() => {
-    if (typeof window.dateFns !== 'undefined' && typeof window.dateFnsTz !== 'undefined') {
-        clearInterval(waitForLibs);
-        // Ahora que sabemos que las librerías están listas, iniciamos la app.
-        initializeApp();
-    }
-   }, 100); // Comprobamos cada 100 milisegundos
-// --- FIN: Corrección Carga de Librerías ---
-	
-	
-// =========================================================================
-// --- FUNCIÓN AUXILIAR PARA CALCULAR PRÓXIMOS ENVÍOS (CLIENTE) - v3 ---
-// =========================================================================
-function calcularProximoTimestampCliente(tipo, config, timeZone) {
-    // Esta función ahora depende de que las librerías se carguen y se definan globalmente.
-    // Asumimos que `window.dateFns` y `window.dateFnsTz` existen.
-    try {
-        const { addDays, addMonths, set } = window.dateFns;
-        const { utcToZonedTime, zonedTimeToUtc } = window.dateFnsTz;
-
-        const ahoraEnZonaUsuario = utcToZonedTime(new Date(), timeZone);
-        let proximaFecha;
-
-        switch (tipo) {
-            case 'diario':
-            case 'tarde':
-                proximaFecha = set(ahoraEnZonaUsuario, {
-                    hours: config.hora,
-                    minutes: 0,
-                    seconds: 0,
-                    milliseconds: 0
-                });
-                if (proximaFecha < ahoraEnZonaUsuario) {
-                    proximaFecha = addDays(proximaFecha, 1);
-                }
-                break;
-            case 'mensual':
-                proximaFecha = set(ahoraEnZonaUsuario, {
-                    date: config.dia,
-                    hours: config.hora,
-                    minutes: 0,
-                    seconds: 0,
-                    milliseconds: 0
-                });
-                if (proximaFecha < ahoraEnZonaUsuario) {
-                    proximaFecha = addMonths(proximaFecha, 1);
-                }
-                break;
-            default:
-                return null;
-        }
-        return zonedTimeToUtc(proximaFecha, timeZone);
-    } catch (error) {
-        console.error("Error crítico: las librerías de fecha no están disponibles en `window`:", error);
-        showToast("Error de inicialización de fechas. Por favor, recarga.", true);
-        return null;
-    }
-}
     
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
@@ -3695,8 +3629,64 @@ function validateSettings() {
     saveBtn.classList.toggle('enabled', hasChanged);
 }
 
+/**
+ * Calcula la próxima fecha de envío de un informe en formato Timestamp UTC.
+ * @param {boolean} activo - Si el informe está activado o no.
+ * @param {string} timeZone - La zona horaria del usuario (ej. "Europe/Madrid").
+ * @param {object} opciones - Contiene la configuración de hora/día.
+ * @param {number} [opciones.hora] - La hora de envío (0-23).
+ * @param {number} [opciones.dia] - El día del mes de envío (1-31).
+ * @returns {firebase.firestore.Timestamp|null} - El Timestamp UTC o null.
+ */
+function calcularProximoEnvioUTC(activo, timeZone, opciones) {
+  // Si el informe no está activo o no tenemos zona horaria, devolvemos null.
+  if (!activo || !timeZone) {
+    return null;
+  }
+
+  try {
+    const ahora = new Date();
+    
+    // Creamos una fecha "ahora" pero en la zona horaria del usuario.
+    // Esto es un truco para que al ajustar la hora, se haga sobre la hora local correcta.
+    const ahoraEnTimeZone = new Date(ahora.toLocaleString('en-US', { timeZone: timeZone }));
+
+    let proximaFecha = new Date(ahoraEnTimeZone);
+
+    // Caso para informes diarios (matutino y tarde)
+    if (opciones.hora !== undefined && opciones.dia === undefined) {
+      proximaFecha.setHours(opciones.hora, 0, 0, 0); // Pone la hora en punto.
+
+      // Si la hora calculada para hoy ya pasó, programamos para el día siguiente.
+      if (proximaFecha <= ahoraEnTimeZone) {
+        proximaFecha.setDate(proximaFecha.getDate() + 1);
+      }
+    }
+    // Caso para el informe mensual
+    else if (opciones.hora !== undefined && opciones.dia !== undefined) {
+      proximaFecha.setDate(opciones.dia);
+      proximaFecha.setHours(opciones.hora, 0, 0, 0);
+
+      // Si la fecha/hora calculada para este mes ya pasó, programamos para el mes que viene.
+      if (proximaFecha <= ahoraEnTimeZone) {
+        proximaFecha.setMonth(proximaFecha.getMonth() + 1);
+      }
+    } else {
+        // Si las opciones no son válidas, devolvemos null.
+        return null;
+    }
+    
+    // ¡Magia! Convertimos la fecha (que está en hora local del usuario) a un Timestamp de Firestore.
+    // Firestore SIEMPRE lo guardará internamente como UTC, que es exactamente lo que queremos.
+    return firebase.firestore.Timestamp.fromDate(proximaFecha);
+
+  } catch (error) {
+    console.error("Error calculando la próxima fecha de envío:", error);
+    return null; // En caso de error, devolvemos null para no romper nada.
+  }
+}
+
 // --- VERSIÓN FINAL-FINAL DE saveSettings (CON SPINNER Y CAPITALIZACIÓN) ---
-// --- VERSIÓN FINAL-FINAL-FINAL DE saveSettings (CON CÁLCULO DE TIMESTAMPS) ---
 async function saveSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     const originalBtnText = saveBtn.textContent;
@@ -3725,24 +3715,32 @@ async function saveSettings() {
             alertaInventario: document.getElementById('settings-alerta-inventario').checked
         };
         
+        // --- INICIO DE LA NUEVA LÓGICA DE CÁLCULO DE FECHAS ---
+        const userTimeZone = appData.settings.ubicacion?.timeZone || 'UTC'; // Obtenemos la timeZone
+        
+        const proximoEnvioDiario = calcularProximoEnvioUTC(
+            currentValues.informeDiario_activo,
+            userTimeZone,
+            { hora: currentValues.informeDiario_franjaHoraria }
+        );
+
+        const proximoEnvioTarde = calcularProximoEnvioUTC(
+            currentValues.informeTarde_activo,
+            userTimeZone,
+            { hora: currentValues.informeTarde_franjaHoraria }
+        );
+
+        const proximoEnvioMensual = calcularProximoEnvioUTC(
+            currentValues.informeMensual_activo,
+            userTimeZone,
+            { dia: currentValues.informeMensual_dia, hora: currentValues.informeMensual_hora }
+        );
+        // --- FIN DE LA NUEVA LÓGICA ---
+
         const hasLocationChanged = currentValues.ciudad !== initialUserSettings.ciudad || currentValues.pais !== initialUserSettings.pais;
         const userDocRef = db.collection('users').doc(chatId);
         
-        // --- INICIO DE LA LÓGICA DE CÁLCULO DE TIMESTAMPS ---
-        const timeZone = appData.settings.ubicacion?.timeZone;
-        if (!timeZone) {
-            // Si la ubicación no ha cambiado y no tenemos timezone, no podemos calcular.
-            // Si la ubicación SÍ cambió, el backend la calculará.
-            if (!hasLocationChanged) {
-                throw new Error("No se encontró la zona horaria para programar los informes.");
-            }
-        }
-        
         const firestoreUpdateData = {
-            'nombre': currentValues.nombre,
-            'configuracion.tema': currentValues.tema,
-            'configuracion.alertaInventario': currentValues.alertaInventario,
-
             'informeDiario_activo': currentValues.informeDiario_activo,
             'informeDiario_franjaHoraria': currentValues.informeDiario_franjaHoraria,
             'informeTarde_activo': currentValues.informeTarde_activo,
@@ -3750,68 +3748,49 @@ async function saveSettings() {
             'informeMensual_activo': currentValues.informeMensual_activo,
             'informeMensual_dia': currentValues.informeMensual_dia,
             'informeMensual_hora': currentValues.informeMensual_hora,
-            
-            };
 
-        if (timeZone) {
-            firestoreUpdateData.informeDiario_proximoEnvioUTC = currentValues.informeDiario_activo
-                ? calcularProximoTimestampCliente('diario', { hora: currentValues.informeDiario_franjaHoraria }, timeZone)
-                : null;
+            // --- AÑADIMOS LOS NUEVOS CAMPOS A LA ACTUALIZACIÓN ---
+            'informeDiario_proximoEnvioUTC': proximoEnvioDiario,
+            'informeTarde_proximoEnvioUTC': proximoEnvioTarde,
+            'informeMensual_proximoEnvioUTC': proximoEnvioMensual,
             
-            firestoreUpdateData.informeTarde_proximoEnvioUTC = currentValues.informeTarde_activo
-                ? calcularProximoTimestampCliente('tarde', { hora: currentValues.informeTarde_franjaHoraria }, timeZone)
-                : null;
-
-            firestoreUpdateData.informeMensual_proximoEnvioUTC = currentValues.informeMensual_activo
-                ? calcularProximoTimestampCliente('mensual', { dia: currentValues.informeMensual_dia, hora: currentValues.informeMensual_hora }, timeZone)
-                : null;
-        }
-        // --- FIN DE LA LÓGICA DE CÁLCULO DE TIMESTAMPS ---
+            'nombre': currentValues.nombre,
+            'configuracion.tema': currentValues.tema,
+            'configuracion.alertaInventario': currentValues.alertaInventario,
+            
+            'configuracion.InformeDiario': firebase.firestore.FieldValue.delete(),
+            'configuracion.informeTarde': firebase.firestore.FieldValue.delete(),
+            'configuracion.informeMensual': firebase.firestore.FieldValue.delete()
+        };
         
-        // Si la ubicación cambió, la función de backend se encargará de recalcular la ubicación Y los timestamps.
+        let cloudFunctionPromise = Promise.resolve();
+
+        await userDocRef.update(firestoreUpdateData);
+        
         if (hasLocationChanged) {
-            // Borramos los timestamps del objeto a guardar porque el backend los recalculará.
-            delete firestoreUpdateData.informeDiario_proximoEnvioUTC;
-            delete firestoreUpdateData.informeTarde_proximoEnvioUTC;
-            delete firestoreUpdateData.informeMensual_proximoEnvioUTC;
-
             const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/updateUserSettings';
-            
-            // ¡IMPORTANTE! Enviamos la configuración completa de informes a la función.
-            const payload = {
-                data: {
-                    chatId: chatId,
-                    nombre: currentValues.nombre,
-                    ciudad: currentValues.ciudad,
-                    pais: currentValues.pais,
-                    informesConfig: {
-                        diario: { activo: currentValues.informeDiario_activo, hora: currentValues.informeDiario_franjaHoraria },
-                        tarde: { activo: currentValues.informeTarde_activo, hora: currentValues.informeTarde_franjaHoraria },
-                        mensual: { activo: currentValues.informeMensual_activo, dia: currentValues.informeMensual_dia, hora: currentValues.informeMensual_hora }
-                    }
-                }
-            };
-
-            const response = await fetch(functionUrl, {
+            const payload = { data: { chatId: chatId, nombre: currentValues.nombre, ciudad: currentValues.ciudad, pais: currentValues.pais }};
+            cloudFunctionPromise = fetch(functionUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
+            }).then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error.message || `Error del servidor: ${response.status}`); });
+                }
+                return response.json();
             });
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error.message || `Error del servidor: ${response.status}`);
-            }
-            const result = await response.json();
-            appData.settings = result.result.updatedSettings;
-
+        }
+        
+        const cloudFunctionResult = await cloudFunctionPromise;
+        if (cloudFunctionResult && cloudFunctionResult.result && cloudFunctionResult.result.status === 'success') {
+            appData.settings = cloudFunctionResult.result.updatedSettings;
         } else {
-            // Si la ubicación NO cambió, hacemos la escritura directamente desde el cliente.
-            await userDocRef.update(firestoreUpdateData);
-            const userDoc = await userDocRef.get(); // Releemos los datos para actualizar el estado local
+            const userDoc = await db.collection('users').doc(chatId).get();
             if (userDoc.exists) appData.settings = userDoc.data();
         }
         
-        showToast("Ajustes guardados con éxito.");
+        showToast("Ajustes guardados y programados con éxito.");
         renderDashboard();
 
     } catch (error) {
@@ -5282,6 +5261,7 @@ document.getElementById('tab-chef').onclick = () => {
     }
 };
 loadEmojiDictionary(); // Carga el diccionario de emojis
+initializeApp();
 });
 </script>
 </body>
