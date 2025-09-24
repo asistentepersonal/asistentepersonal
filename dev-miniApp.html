@@ -3482,28 +3482,33 @@ function renderSettings() {
     const settings = appData.settings || {};
     const config = settings.configuracion || {};
     const ubicacion = settings.ubicacion || {};
-    // --- CORRECCIÓN CLAVE: Apuntamos a "InformeDiario" para que coincida con tu base de datos ---
     const informeManana = config.InformeDiario || {}; 
     const informeTarde = config.informeTarde || {};
     const informeMensual = config.informeMensual || {};
     const isPremium = appData.isPremium === true;
     
-    // Capturamos el estado inicial para la validación de cambios
+    // --- INICIO DE LA MODIFICACIÓN QUIRÚRGICA ---
+    // Leemos de la estructura anidada, pero guardamos en una estructura aplanada
+    // para que el resto del script (validate, save) trabaje con el nuevo formato.
     initialUserSettings = {
         nombre: settings.nombre || '',
         ciudad: ubicacion.ciudad || '',
         pais: ubicacion.pais || '',
         tema: config.tema || 'auto',
-        informeMananaActivo: informeManana.activo === true,
-        // --- CORRECCIÓN CLAVE: Usamos '7' como un default seguro y leemos el número de la BBDD ---
-        franjaManana: String(informeManana.franjaHoraria || '7'), 
-        informeTardeActivo: informeTarde.activo === true,
-        franjaTarde: String(informeTarde.franjaHoraria || '20'),
-        alertaInventario: config.alertaInventario === true,
-        informeMensualActivo: informeMensual.activo === true,
-        diaInformeMensual: String(informeMensual.dia || '1'),
-        horaInformeMensual: String(informeMensual.hora || '12')
+        
+        informeDiario_activo: informeManana.activo === true,
+        informeDiario_franjaHoraria: String(informeManana.franjaHoraria || '8'),
+        
+        informeTarde_activo: informeTarde.activo === true,
+        informeTarde_franjaHoraria: String(informeTarde.franjaHoraria || '20'),
+
+        informeMensual_activo: informeMensual.activo === true,
+        informeMensual_dia: String(informeMensual.dia || '1'),
+        informeMensual_hora: String(informeMensual.hora || '14'),
+
+        alertaInventario: config.alertaInventario === true // Este campo se mantiene igual
     };
+    // --- FIN DE LA MODIFICACIÓN QUIRÚRGICA ---
     
     mainContentArea.innerHTML = `
         <div class="settings-container">
@@ -3526,14 +3531,12 @@ function renderSettings() {
                 <div class="settings-item"><span class="settings-item-label">Informe Matutino</span><label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label></div>
                 <div class="settings-item">
                     <span class="settings-item-label">Hora del Informe</span>
-                    <!-- --- INICIO DEL CAMBIO SOLICITADO --- -->
                     <select id="settings-franja-manana">
                         <option value="6">Franja de 6 a 7 hs</option>
                         <option value="7">Franja de 7 a 8 hs</option>
                         <option value="8">Franja de 8 a 9 hs</option>
                         <option value="9">Franja de 9 a 10 hs</option>
                     </select>
-                    <!-- --- FIN DEL CAMBIO SOLICITADO --- -->
                 </div>
                 <hr style="margin: 15px 0; border-top: 1px solid #eee;">
                 <div class="settings-item"><span class="settings-item-label">Informe del Tiempo (Tarde)</span><label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label></div>
@@ -3556,22 +3559,21 @@ function renderSettings() {
         </div>
     `;
 
-    // --- Rellenar los campos del formulario con los datos correctos ---
     document.getElementById('settings-nombre').value = initialUserSettings.nombre;
     document.getElementById('settings-ciudad').value = initialUserSettings.ciudad;
     document.getElementById('settings-pais').value = initialUserSettings.pais;
     document.getElementById('settings-theme').value = initialUserSettings.tema;
     
-    // Lectura correcta de datos no editables
     document.getElementById('settings-email').value = settings.email || 'No disponible';
     document.getElementById('settings-fecha-activacion').value = settings.fechaActivacion || 'No disponible';
     document.getElementById('settings-zona-horaria').value = ubicacion.timeZone || 'No disponible';
     document.getElementById('settings-moneda').value = settings.moneda || 'No disponible';
     
-    document.getElementById('settings-informe-manana-activo').checked = initialUserSettings.informeMananaActivo;
-    document.getElementById('settings-franja-manana').value = initialUserSettings.franjaManana;
-    document.getElementById('settings-informe-tarde-activo').checked = initialUserSettings.informeTardeActivo;
-    document.getElementById('settings-franja-tarde').value = initialUserSettings.franjaTarde;
+    document.getElementById('settings-informe-manana-activo').checked = initialUserSettings.informeDiario_activo;
+    document.getElementById('settings-franja-manana').value = initialUserSettings.informeDiario_franjaHoraria;
+    
+    document.getElementById('settings-informe-tarde-activo').checked = initialUserSettings.informeTarde_activo;
+    document.getElementById('settings-franja-tarde').value = initialUserSettings.informeTarde_franjaHoraria;
     
     const alertaInventarioSwitch = document.getElementById('settings-alerta-inventario');
     alertaInventarioSwitch.checked = initialUserSettings.alertaInventario;
@@ -3581,11 +3583,10 @@ function renderSettings() {
         document.getElementById('alerta-inventario-wrapper').onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
     }
 
-    document.getElementById('settings-informe-mensual-activo').checked = initialUserSettings.informeMensualActivo;
-    document.getElementById('settings-dia-informe-mensual').value = initialUserSettings.diaInformeMensual;
-    document.getElementById('settings-hora-informe-mensual').value = initialUserSettings.horaInformeMensual;
+    document.getElementById('settings-informe-mensual-activo').checked = initialUserSettings.informeMensual_activo;
+    document.getElementById('settings-dia-informe-mensual').value = initialUserSettings.informeMensual_dia;
+    document.getElementById('settings-hora-informe-mensual').value = initialUserSettings.informeMensual_hora;
 
-    // Asignar listeners
     const controls = document.querySelectorAll('#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, #settings-alerta-inventario');
     controls.forEach(control => {
         control.addEventListener('input', validateSettings);
@@ -3604,23 +3605,29 @@ function renderSettings() {
 function validateSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
 
-    // Recoger valores actuales del formulario
+    // --- INICIO DE LA MODIFICACIÓN QUIRÚRGICA ---
+    // Recogemos los valores actuales del formulario usando los nuevos nombres aplanados.
     const currentValues = {
         nombre: document.getElementById('settings-nombre').value,
         ciudad: document.getElementById('settings-ciudad').value,
         pais: document.getElementById('settings-pais').value,
         tema: document.getElementById('settings-theme').value,
-        informeMananaActivo: document.getElementById('settings-informe-manana-activo').checked,
-        franjaManana: document.getElementById('settings-franja-manana').value,
-        informeTardeActivo: document.getElementById('settings-informe-tarde-activo').checked,
-        franjaTarde: document.getElementById('settings-franja-tarde').value,
-        alertaInventario: document.getElementById('settings-alerta-inventario').checked,
-        informeMensualActivo: document.getElementById('settings-informe-mensual-activo').checked,
-        diaInformeMensual: document.getElementById('settings-dia-informe-mensual').value,
-        horaInformeMensual: document.getElementById('settings-hora-informe-mensual').value
-    };
 
-    // Comparamos los objetos completos. JSON.stringify es una forma simple y efectiva para esto.
+        informeDiario_activo: document.getElementById('settings-informe-manana-activo').checked,
+        informeDiario_franjaHoraria: document.getElementById('settings-franja-manana').value,
+
+        informeTarde_activo: document.getElementById('settings-informe-tarde-activo').checked,
+        informeTarde_franjaHoraria: document.getElementById('settings-franja-tarde').value,
+
+        informeMensual_activo: document.getElementById('settings-informe-mensual-activo').checked,
+        informeMensual_dia: document.getElementById('settings-dia-informe-mensual').value,
+        informeMensual_hora: document.getElementById('settings-hora-informe-mensual').value,
+
+        alertaInventario: document.getElementById('settings-alerta-inventario').checked
+    };
+    // --- FIN DE LA MODIFICACIÓN QUIRÚRGICA ---
+
+    // La comparación ahora funciona perfectamente porque ambos objetos tienen la misma estructura aplanada.
     const hasChanged = JSON.stringify(currentValues) !== JSON.stringify(initialUserSettings);
     
     saveBtn.disabled = !hasChanged;
@@ -3632,83 +3639,75 @@ async function saveSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     const originalBtnText = saveBtn.textContent;
     
-    // Función de ayuda para capitalizar nombres
     const capitalize = (str) => {
         if (!str) return '';
         return str.toLowerCase().replace(/(?:^|\s)\S/g, char => char.toUpperCase());
     };
 
-    // 1. Mostramos el spinner interno y desactivamos el botón
-         saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;
+    saveBtn.disabled = true;
+
     try {
-        // 2. Recogemos y capitalizamos los valores de ciudad y país
+        // --- INICIO DE LA MODIFICACIÓN QUIRÚRGICA ---
+        // 1. Recolectamos los datos del formulario directamente en formato aplanado.
         const currentValues = {
             nombre: document.getElementById('settings-nombre').value,
             ciudad: capitalize(document.getElementById('settings-ciudad').value.trim()),
             pais: capitalize(document.getElementById('settings-pais').value.trim()),
             tema: document.getElementById('settings-theme').value,
-            informeMananaActivo: document.getElementById('settings-informe-manana-activo').checked,
-            franjaManana: document.getElementById('settings-franja-manana').value,
-            informeTardeActivo: document.getElementById('settings-informe-tarde-activo').checked,
-            franjaTarde: document.getElementById('settings-franja-tarde').value,
-            alertaInventario: document.getElementById('settings-alerta-inventario').checked,
-            informeMensualActivo: document.getElementById('settings-informe-mensual-activo').checked,
-            diaInformeMensual: document.getElementById('settings-dia-informe-mensual').value,
-            horaInformeMensual: document.getElementById('settings-hora-informe-mensual').value
+            
+            informeDiario_activo: document.getElementById('settings-informe-manana-activo').checked,
+            informeDiario_franjaHoraria: parseInt(document.getElementById('settings-franja-manana').value, 10),
+
+            informeTarde_activo: document.getElementById('settings-informe-tarde-activo').checked,
+            informeTarde_franjaHoraria: parseInt(document.getElementById('settings-franja-tarde').value, 10),
+
+            informeMensual_activo: document.getElementById('settings-informe-mensual-activo').checked,
+            informeMensual_dia: parseInt(document.getElementById('settings-dia-informe-mensual').value, 10),
+            informeMensual_hora: parseInt(document.getElementById('settings-hora-informe-mensual').value, 10),
+            
+            alertaInventario: document.getElementById('settings-alerta-inventario').checked
         };
 
-        const simpleChanges = {};
-        let hasComplexChanges = false;
-
-        for (const key in currentValues) {
-            if (String(currentValues[key]) !== String(initialUserSettings[key])) { // Comparación robusta
-                if (key === 'ciudad' || key === 'pais') {
-                    hasComplexChanges = true;
+        const hasLocationChanged = currentValues.ciudad !== initialUserSettings.ciudad || currentValues.pais !== initialUserSettings.pais;
+        const userDocRef = db.collection('users').doc(chatId);
+        
+        // 2. Preparamos el objeto de actualización para Firestore.
+        const firestoreUpdateData = {};
+        
+        // Añadimos todos los campos que no son de ubicación.
+        Object.keys(currentValues).forEach(key => {
+            if (key !== 'ciudad' && key !== 'pais' && String(currentValues[key]) !== String(initialUserSettings[key])) {
+                // Caso especial para el tema, que sigue estando dentro de 'configuracion'
+                if (key === 'tema' || key === 'alertaInventario') {
+                    firestoreUpdateData[`configuracion.${key}`] = currentValues[key];
                 } else {
-                    simpleChanges[key] = currentValues[key];
+                    firestoreUpdateData[key] = currentValues[key];
                 }
             }
+        });
+
+        // 3. Añadimos el comando para eliminar el mapa 'configuracion' antiguo si existe.
+        // Solo lo hacemos si estamos guardando cambios en los informes para no borrar 'tema' innecesariamente.
+        const hasReportConfigChanged = Object.keys(firestoreUpdateData).some(k => k.startsWith('informe'));
+        if (hasReportConfigChanged) {
+            firestoreUpdateData['configuracion.InformeDiario'] = firebase.firestore.FieldValue.delete();
+            firestoreUpdateData['configuracion.informeTarde'] = firebase.firestore.FieldValue.delete();
+            firestoreUpdateData['configuracion.informeMensual'] = firebase.firestore.FieldValue.delete();
         }
-        
-        let updatePromise = Promise.resolve();
+
+        // 4. Ejecutamos las actualizaciones.
         let cloudFunctionPromise = Promise.resolve();
 
-        if (Object.keys(simpleChanges).length > 0) {
-            const userDocRef = db.collection('users').doc(chatId);
-            const firestoreUpdateData = {};
-            for (const key in simpleChanges) {
-                 if (key.includes('Manana') || key.includes('Tarde') || key.includes('Mensual')) {
-                    // --- CORRECCIÓN CLAVE: Usamos "InformeDiario" para el informe matutino ---
-                    const informe = key.includes('Manana') ? 'InformeDiario' : (key.includes('Tarde') ? 'informeTarde' : 'informeMensual');
-                    const subKey = key.includes('Activo') ? 'activo' : (key.includes('franja') ? 'franjaHoraria' : (key.includes('dia') ? 'dia' : 'hora'));
-                    
-                    let valueToSave = simpleChanges[key];
-                    // --- CORRECCIÓN CLAVE: Nos aseguramos de guardar la franja como NÚMERO ---
-                    if (key === 'franjaManana') {
-                        valueToSave = parseInt(valueToSave, 10);
-                    }
-
-                    firestoreUpdateData[`configuracion.${informe}.${subKey}`] = valueToSave;
-
-                } else if (key === 'alertaInventario' || key === 'tema') {
-                    firestoreUpdateData[`configuracion.${key}`] = simpleChanges[key];
-                } else {
-                    firestoreUpdateData[key] = simpleChanges[key];
-                }
-            }
-            updatePromise = userDocRef.update(firestoreUpdateData);
+        // Actualizamos los campos aplanados.
+        if (Object.keys(firestoreUpdateData).length > 0) {
+            await userDocRef.update(firestoreUpdateData);
         }
-
-        if (hasComplexChanges) {
+        
+        // Si la ubicación cambió, llamamos a la Cloud Function como antes.
+        if (hasLocationChanged) {
             const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/updateUserSettings';
-            const payload = {
-                data: {
-                    chatId: chatId,
-                    nombre: currentValues.nombre,
-                    ciudad: currentValues.ciudad, // Enviamos el valor ya capitalizado
-                    pais: currentValues.pais       // Enviamos el valor ya capitalizado
-                }
-            };
+            const payload = { data: { chatId: chatId, nombre: currentValues.nombre, ciudad: currentValues.ciudad, pais: currentValues.pais }};
             cloudFunctionPromise = fetch(functionUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3721,9 +3720,8 @@ async function saveSettings() {
             });
         }
         
-        const results = await Promise.all([updatePromise, cloudFunctionPromise]);
-        
-        const cloudFunctionResult = results[1];
+        // 5. Esperamos y actualizamos la app.
+        const cloudFunctionResult = await cloudFunctionPromise;
         if (cloudFunctionResult && cloudFunctionResult.result && cloudFunctionResult.result.status === 'success') {
             appData.settings = cloudFunctionResult.result.updatedSettings;
         } else {
@@ -3731,20 +3729,16 @@ async function saveSettings() {
             if (userDoc.exists) appData.settings = userDoc.data();
         }
         
-        // 3. Actualizamos la UI con los datos capitalizados y los nuevos datos del backend
-        document.getElementById('settings-ciudad').value = appData.settings.ubicacion?.ciudad || '';
-        document.getElementById('settings-pais').value = appData.settings.ubicacion?.pais || '';
-        document.getElementById('settings-zona-horaria').value = appData.settings.ubicacion?.timeZone || 'No disponible';
-        document.getElementById('settings-moneda').value = appData.settings.moneda || 'No disponible';
-
-        initialUserSettings = { ...currentValues }; // Actualizamos el estado de referencia
         showToast("Ajustes guardados con éxito.");
+        // Volvemos al dashboard para forzar una recarga limpia de los datos.
+        renderDashboard();
+
+        // --- FIN DE LA MODIFICACIÓN QUIRÚRGICA ---
 
     } catch (error) {
         console.error("Error al guardar ajustes:", error);
         showToast(`Error: ${error.message || 'Ocurrió un error desconocido.'}`, true);
     } finally {
-        // 4. Restauramos el botón a su estado original
         saveBtn.innerHTML = originalBtnText;
         saveBtn.disabled = true;
         saveBtn.classList.remove('enabled');
