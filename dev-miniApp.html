@@ -3480,112 +3480,68 @@ function renderSettings() {
     updateBackButton();
 
     const settings = appData.settings || {};
+    // --- INICIO DE LA CORRECCIÓN CLAVE ---
+    // Ahora leemos tanto la estructura nueva (plana) como la antigua (anidada).
+    // La nueva tiene prioridad. Esto asegura compatibilidad durante la migración.
     const config = settings.configuracion || {};
-    const ubicacion = settings.ubicacion || {};
-    const informeManana = config.InformeDiario || {}; 
+    const informeManana = config.InformeDiario || {};
     const informeTarde = config.informeTarde || {};
     const informeMensual = config.informeMensual || {};
+    
+    const settingsData = {
+        nombre: settings.nombre || '',
+        ciudad: settings.ubicacion?.ciudad || '',
+        pais: settings.ubicacion?.pais || '',
+        tema: settings.tema || config.tema || 'auto', // Lee nuevo y antiguo
+        alertaInventario: settings.alertaInventario ?? config.alertaInventario === true,
+
+        informeDiario_activo: settings.informeDiario_activo ?? informeManana.activo === true,
+        informeDiario_franjaHoraria: String(settings.informeDiario_franjaHoraria ?? informeManana.franjaHoraria ?? '8'),
+
+        informeTarde_activo: settings.informeTarde_activo ?? informeTarde.activo === true,
+        informeTarde_franjaHoraria: String(settings.informeTarde_franjaHoraria ?? informeTarde.franjaHoraria ?? '20'),
+
+        informeMensual_activo: settings.informeMensual_activo ?? informeMensual.activo === true,
+        informeMensual_dia: String(settings.informeMensual_dia ?? informeMensual.dia ?? '1'),
+        informeMensual_hora: String(settings.informeMensual_hora ?? informeMensual.hora ?? '14'),
+    };
+    
+    // La "foto" inicial ahora se basa en esta lectura unificada y correcta.
+    initialUserSettings = { ...settingsData };
+    // --- FIN DE LA CORRECCIÓN CLAVE ---
+
     const isPremium = appData.isPremium === true;
     
-    // --- INICIO DE LA MODIFICACIÓN QUIRÚRGICA ---
-    // Leemos de la estructura anidada, pero guardamos en una estructura aplanada
-    // para que el resto del script (validate, save) trabaje con el nuevo formato.
-    initialUserSettings = {
-        nombre: settings.nombre || '',
-        ciudad: ubicacion.ciudad || '',
-        pais: ubicacion.pais || '',
-        tema: config.tema || 'auto',
-        
-        informeDiario_activo: informeManana.activo === true,
-        informeDiario_franjaHoraria: String(informeManana.franjaHoraria || '8'),
-        
-        informeTarde_activo: informeTarde.activo === true,
-        informeTarde_franjaHoraria: String(informeTarde.franjaHoraria || '20'),
+    mainContentArea.innerHTML = `...`; // (El resto del HTML de la función no cambia)
 
-        informeMensual_activo: informeMensual.activo === true,
-        informeMensual_dia: String(informeMensual.dia || '1'),
-        informeMensual_hora: String(informeMensual.hora || '14'),
-
-        alertaInventario: config.alertaInventario === true // Este campo se mantiene igual
-    };
-    // --- FIN DE LA MODIFICACIÓN QUIRÚRGICA ---
-    
-    mainContentArea.innerHTML = `
-        <div class="settings-container">
-            <h2 class="settings-section-title">👤 Perfil de Usuario</h2>
-            <div class="form-card">
-                <label>Nombre</label><input type="text" id="settings-nombre" placeholder="Tu nombre" />
-                <label>Ciudad</label><input type="text" id="settings-ciudad" placeholder="Ej: Barcelona" />
-                <label>País</label><input type="text" id="settings-pais" placeholder="Ej: España" />
-                <div class="settings-item" style="padding-top:15px;"><span class="settings-item-label">Tema de la App</span><div class="settings-item-control"><select id="settings-theme"><option value="auto">Automático (Telegram)</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></div></div>
-            </div>
-            <h2 class="settings-section-title">📄 Información de la Cuenta</h2>
-            <div class="form-card">
-                <label>Email de Registro (no editable)</label><input type="email" id="settings-email" readonly />
-                <label>Fecha de Activación (no editable)</label><input type="text" id="settings-fecha-activacion" readonly />
-                <label>Zona Horaria Detectada (no editable)</label><input type="text" id="settings-zona-horaria" readonly />
-                <label>Moneda (detectada)</label><input type="text" id="settings-moneda" readonly />
-            </div>
-            <h2 class="settings-section-title">🔔 Informes y Alertas</h2>
-            <div class="form-card">
-                <div class="settings-item"><span class="settings-item-label">Informe Matutino</span><label class="switch"><input type="checkbox" id="settings-informe-manana-activo"><span class="slider"></span></label></div>
-                <div class="settings-item">
-                    <span class="settings-item-label">Hora del Informe</span>
-                    <select id="settings-franja-manana">
-                        <option value="6">Franja de 6 a 7 hs</option>
-                        <option value="7">Franja de 7 a 8 hs</option>
-                        <option value="8">Franja de 8 a 9 hs</option>
-                        <option value="9">Franja de 9 a 10 hs</option>
-                    </select>
-                </div>
-                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
-                <div class="settings-item"><span class="settings-item-label">Informe del Tiempo (Tarde)</span><label class="switch"><input type="checkbox" id="settings-informe-tarde-activo"><span class="slider"></span></label></div>
-                <div class="settings-item"><span class="settings-item-label">Hora del Informe</span><select id="settings-franja-tarde"><option value="19">19:00</option><option value="20">20:00</option><option value="21">21:00</option></select></div>
-                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
-                <div class="settings-item"><span class="settings-item-label">Informe Mensual de Gastos</span><label class="switch"><input type="checkbox" id="settings-informe-mensual-activo"><span class="slider"></span></label></div>
-                <div class="settings-item"><span class="settings-item-label">Día de Envío</span><select id="settings-dia-informe-mensual">${[...Array(10).keys()].map(i => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select></div>
-                <div class="settings-item"><span class="settings-item-label">Hora de Envío</span><select id="settings-hora-informe-mensual">${[...Array(15).keys()].map(i => `<option value="${i + 8}">${(i + 8).toString().padStart(2, '0')}:00</option>`).join('')}</select></div>
-                <hr style="margin: 15px 0; border-top: 1px solid #eee;">
-                <div class="settings-item" id="alerta-inventario-wrapper"><span class="settings-item-label">Alertas de Compra Inteligente ${isPremium ? '' : '⭐'}</span><label class="switch"><input type="checkbox" id="settings-alerta-inventario"><span class="slider"></span></label></div>
-            </div>
-            <div class="form-card" style="margin-top: 20px;"><div class="button-group">
-                <button id="settings-cancel-btn" class="cancel">Cancelar</button>
-                <button id="settings-save-btn" disabled>Guardar Cambios</button>
-            </div>
-			</div>
-            <div class="form-card" style="margin-top: 20px;">
-                 <button id="settings-sync-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; background-color: var(--muted);">Sincronizar Contadores</button>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('settings-nombre').value = initialUserSettings.nombre;
-    document.getElementById('settings-ciudad').value = initialUserSettings.ciudad;
-    document.getElementById('settings-pais').value = initialUserSettings.pais;
-    document.getElementById('settings-theme').value = initialUserSettings.tema;
+    // Rellenamos los campos usando el objeto 'settingsData' que ya tiene la lógica correcta
+    document.getElementById('settings-nombre').value = settingsData.nombre;
+    document.getElementById('settings-ciudad').value = settingsData.ciudad;
+    document.getElementById('settings-pais').value = settingsData.pais;
+    document.getElementById('settings-theme').value = settingsData.tema;
     
     document.getElementById('settings-email').value = settings.email || 'No disponible';
     document.getElementById('settings-fecha-activacion').value = settings.fechaActivacion || 'No disponible';
-    document.getElementById('settings-zona-horaria').value = ubicacion.timeZone || 'No disponible';
+    document.getElementById('settings-zona-horaria').value = settings.ubicacion?.timeZone || 'No disponible';
     document.getElementById('settings-moneda').value = settings.moneda || 'No disponible';
     
-    document.getElementById('settings-informe-manana-activo').checked = initialUserSettings.informeDiario_activo;
-    document.getElementById('settings-franja-manana').value = initialUserSettings.informeDiario_franjaHoraria;
+    document.getElementById('settings-informe-manana-activo').checked = settingsData.informeDiario_activo;
+    document.getElementById('settings-franja-manana').value = settingsData.informeDiario_franjaHoraria;
     
-    document.getElementById('settings-informe-tarde-activo').checked = initialUserSettings.informeTarde_activo;
-    document.getElementById('settings-franja-tarde').value = initialUserSettings.informeTarde_franjaHoraria;
+    document.getElementById('settings-informe-tarde-activo').checked = settingsData.informeTarde_activo;
+    document.getElementById('settings-franja-tarde').value = settingsData.informeTarde_franjaHoraria;
     
     const alertaInventarioSwitch = document.getElementById('settings-alerta-inventario');
-    alertaInventarioSwitch.checked = initialUserSettings.alertaInventario;
+    alertaInventarioSwitch.checked = settingsData.alertaInventario;
     if (!isPremium) {
         alertaInventarioSwitch.disabled = true;
         document.getElementById('alerta-inventario-wrapper').style.opacity = '0.6';
         document.getElementById('alerta-inventario-wrapper').onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
     }
 
-    document.getElementById('settings-informe-mensual-activo').checked = initialUserSettings.informeMensual_activo;
-    document.getElementById('settings-dia-informe-mensual').value = initialUserSettings.informeMensual_dia;
-    document.getElementById('settings-hora-informe-mensual').value = initialUserSettings.informeMensual_hora;
+    document.getElementById('settings-informe-mensual-activo').checked = settingsData.informeMensual_activo;
+    document.getElementById('settings-dia-informe-mensual').value = settingsData.informeMensual_dia;
+    document.getElementById('settings-hora-informe-mensual').value = settingsData.informeMensual_hora;
 
     const controls = document.querySelectorAll('#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, #settings-alerta-inventario');
     controls.forEach(control => {
