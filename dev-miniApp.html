@@ -3648,61 +3648,51 @@ async function saveSettings() {
     saveBtn.disabled = true;
 
     try {
-        // --- INICIO DE LA MODIFICACIÓN QUIRÚRGICA ---
-        // 1. Recolectamos los datos del formulario directamente en formato aplanado.
         const currentValues = {
             nombre: document.getElementById('settings-nombre').value,
             ciudad: capitalize(document.getElementById('settings-ciudad').value.trim()),
             pais: capitalize(document.getElementById('settings-pais').value.trim()),
             tema: document.getElementById('settings-theme').value,
-            
             informeDiario_activo: document.getElementById('settings-informe-manana-activo').checked,
             informeDiario_franjaHoraria: parseInt(document.getElementById('settings-franja-manana').value, 10),
-
             informeTarde_activo: document.getElementById('settings-informe-tarde-activo').checked,
             informeTarde_franjaHoraria: parseInt(document.getElementById('settings-franja-tarde').value, 10),
-
             informeMensual_activo: document.getElementById('settings-informe-mensual-activo').checked,
             informeMensual_dia: parseInt(document.getElementById('settings-dia-informe-mensual').value, 10),
             informeMensual_hora: parseInt(document.getElementById('settings-hora-informe-mensual').value, 10),
-            
             alertaInventario: document.getElementById('settings-alerta-inventario').checked
         };
-
+        
         const hasLocationChanged = currentValues.ciudad !== initialUserSettings.ciudad || currentValues.pais !== initialUserSettings.pais;
         const userDocRef = db.collection('users').doc(chatId);
         
-        // 2. Preparamos el objeto de actualización para Firestore.
-        const firestoreUpdateData = {};
+        // --- INICIO DE LA CORRECCIÓN CLAVE ---
+        // 1. Creamos un objeto para la actualización que contendrá TODOS los campos aplanados.
+        const firestoreUpdateData = {
+            'informeDiario_activo': currentValues.informeDiario_activo,
+            'informeDiario_franjaHoraria': currentValues.informeDiario_franjaHoraria,
+            'informeTarde_activo': currentValues.informeTarde_activo,
+            'informeTarde_franjaHoraria': currentValues.informeTarde_franjaHoraria,
+            'informeMensual_activo': currentValues.informeMensual_activo,
+            'informeMensual_dia': currentValues.informeMensual_dia,
+            'informeMensual_hora': currentValues.informeMensual_hora,
+            
+            // Añadimos también los otros campos que podrían haber cambiado.
+            'nombre': currentValues.nombre,
+            'configuracion.tema': currentValues.tema,
+            'configuracion.alertaInventario': currentValues.alertaInventario,
+            
+            // Y el comando para eliminar los mapas antiguos del objeto 'configuracion'
+            'configuracion.InformeDiario': firebase.firestore.FieldValue.delete(),
+            'configuracion.informeTarde': firebase.firestore.FieldValue.delete(),
+            'configuracion.informeMensual': firebase.firestore.FieldValue.delete()
+        };
+        // --- FIN DE LA CORRECCIÓN CLAVE ---
         
-        // Añadimos todos los campos que no son de ubicación.
-        Object.keys(currentValues).forEach(key => {
-            if (key !== 'ciudad' && key !== 'pais' && String(currentValues[key]) !== String(initialUserSettings[key])) {
-                // Caso especial para el tema, que sigue estando dentro de 'configuracion'
-                if (key === 'tema' || key === 'alertaInventario') {
-                    firestoreUpdateData[`configuracion.${key}`] = currentValues[key];
-                } else {
-                    firestoreUpdateData[key] = currentValues[key];
-                }
-            }
-        });
-
-        // 3. Añadimos el comando para eliminar el mapa 'configuracion' antiguo si existe.
-        // Solo lo hacemos si estamos guardando cambios en los informes para no borrar 'tema' innecesariamente.
-        const hasReportConfigChanged = Object.keys(firestoreUpdateData).some(k => k.startsWith('informe'));
-        if (hasReportConfigChanged) {
-            firestoreUpdateData['configuracion.InformeDiario'] = firebase.firestore.FieldValue.delete();
-            firestoreUpdateData['configuracion.informeTarde'] = firebase.firestore.FieldValue.delete();
-            firestoreUpdateData['configuracion.informeMensual'] = firebase.firestore.FieldValue.delete();
-        }
-
-        // 4. Ejecutamos las actualizaciones.
         let cloudFunctionPromise = Promise.resolve();
 
-        // Actualizamos los campos aplanados.
-        if (Object.keys(firestoreUpdateData).length > 0) {
-            await userDocRef.update(firestoreUpdateData);
-        }
+        // 2. Ejecutamos la actualización con la estructura completa.
+        await userDocRef.update(firestoreUpdateData);
         
         // Si la ubicación cambió, llamamos a la Cloud Function como antes.
         if (hasLocationChanged) {
@@ -3720,7 +3710,6 @@ async function saveSettings() {
             });
         }
         
-        // 5. Esperamos y actualizamos la app.
         const cloudFunctionResult = await cloudFunctionPromise;
         if (cloudFunctionResult && cloudFunctionResult.result && cloudFunctionResult.result.status === 'success') {
             appData.settings = cloudFunctionResult.result.updatedSettings;
@@ -3729,11 +3718,8 @@ async function saveSettings() {
             if (userDoc.exists) appData.settings = userDoc.data();
         }
         
-        showToast("Ajustes guardados con éxito.");
-        // Volvemos al dashboard para forzar una recarga limpia de los datos.
+        showToast("Ajustes guardados y migrados con éxito.");
         renderDashboard();
-
-        // --- FIN DE LA MODIFICACIÓN QUIRÚRGICA ---
 
     } catch (error) {
         console.error("Error al guardar ajustes:", error);
