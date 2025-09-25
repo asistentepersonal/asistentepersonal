@@ -5359,8 +5359,7 @@ function renderDashboard() {
   
   // La tarjeta del calendario ya es activa y llama a renderCalendarView
   const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
-  const cuentasClarasCardHtml = `<div class="card disabled-card" id="cuentas-claras-card"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>`;
-
+  const cuentasClarasCardHtml = `<div class="card clickable-card" id="cuentas-claras-card"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>`;
   mainContentArea.innerHTML = `
     <div class="grid">
       <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">✍️️</div><div class="card-title">Avisarme</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
