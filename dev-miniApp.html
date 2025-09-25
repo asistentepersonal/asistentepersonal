@@ -4283,28 +4283,15 @@ async function renderPanelGestion(listaId) {
         const listaData = listaDoc.data();
         document.getElementById('gestion-nombre-lista').textContent = `Gestionar: "${listaData.nombre}"`;
 
-        let linksHtml = '<h3 class="shopping-list-section-title">Enlaces de Invitación</h3>';
-        linksHtml += '<ul class="list-style-none">';
-
-        const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
-
-        listaData.participantes.forEach(participante => {
-            const invitationLink = `${baseUrl}/lista/${listaId}?invitado=${participante.token}`;
-            linksHtml += `
-                <li class="list-item">
-                    <div class="list-item-content">
-                        <span class="list-item-title">Enlace para ${participante.nombre}</span>
-                        <input type="text" value="${invitationLink}" readonly style="width:100%; margin-top: 8px; font-size: 0.8rem; background-color: var(--bg); border: 1px solid #ddd; padding: 5px;">
-                    </div>
-                    <div class="list-item-actions">
-                        <button class="add-article-btn copy-link-btn" data-link="${invitationLink}" style="padding: 8px 12px; font-size: 0.9rem; min-width: 80px;">Copiar</button>
-                    </div>
-                </li>
-            `;
-        });
-        linksHtml += '</ul>';
-
-        document.getElementById('gestion-contenido').innerHTML = linksHtml;
+        const contenidoHtml = `
+    <div class="form-card" style="margin-top: 15px; text-align: left;">
+        <p style="color: var(--muted); margin-bottom: 15px;">Comparte la invitación con los participantes. Cada uno recibirá un enlace personal e intransferible.</p>
+        <div id="share-buttons-container">
+            <!-- Los botones se generarán con JavaScript -->
+        </div>
+    </div>
+`;
+document.getElementById('gestion-contenido').innerHTML = contenidoHtml;
         
         mainContentArea.querySelectorAll('.copy-link-btn').forEach(button => {
     button.onclick = (e) => {
