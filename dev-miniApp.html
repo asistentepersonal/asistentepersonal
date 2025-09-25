@@ -4311,8 +4311,8 @@ listaData.participantes.forEach((participante, index) => {
             
             <!-- Botones de fallback (ocultos por defecto) -->
             <div class="fallback-share-buttons" id="fallback-buttons-${index}" style="display: none; gap: 5px;">
-                <a href="whatsapp://send?text=${encodeURIComponent(shareText)}" class="add-article-btn" style="background-color: #25D366; padding: 8px 12px; font-size: 0.9rem; text-decoration: none;">WhatsApp</a>
-                <a href="tg://msg_url?url=${encodeURIComponent(invitationLink)}&text=${encodeURIComponent(shareText)}" class="add-article-btn" style="background-color: #0088cc; padding: 8px 12px; font-size: 0.9rem; text-decoration: none;">Telegram</a>
+                <button class="add-article-btn whatsapp-btn" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366; padding: 8px 12px; font-size: 0.9rem;">WhatsApp</button>
+                <button class="add-article-btn telegram-btn" data-url="${encodeURIComponent(invitationLink)}" data-text="${encodeURIComponent(shareText)}" style="background-color: #0088cc; padding: 8px 12px; font-size: 0.9rem;">Telegram</button>
             </div>
         </div>
     </div>`;
@@ -4342,6 +4342,23 @@ shareContainer.querySelectorAll('.share-btn-main').forEach(mainButton => {
             document.getElementById(`fallback-buttons-${buttonIndex}`).style.display = 'flex';
             mainButton.style.display = 'none';
         }
+    };
+});
+// Lógica para los botones de fallback en móvil
+shareContainer.querySelectorAll('.whatsapp-btn').forEach(button => {
+    button.onclick = (e) => {
+        const text = decodeURIComponent(e.currentTarget.dataset.text);
+        // La API de Telegram puede abrir enlaces externos, incluyendo los de WhatsApp
+        window.Telegram.WebApp.openLink(`https://wa.me/?text=${encodeURIComponent(text)}`);
+    };
+});
+
+shareContainer.querySelectorAll('.telegram-btn').forEach(button => {
+    button.onclick = (e) => {
+        const url = decodeURIComponent(e.currentTarget.dataset.url);
+        const text = decodeURIComponent(e.currentTarget.dataset.text);
+        // La API de Telegram para compartir dentro de la propia app
+        window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
     };
 });
         
