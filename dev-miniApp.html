@@ -78,21 +78,24 @@
     vertical-align: middle;
     margin-right: 8px;
 	.share-action-btn {
-    background-color: var(--primary);
-    color: var(--action-text);
-    padding: 8px 12px;
+    width: 44px;
+    height: 44px;
+    padding: 8px;
+    border-radius: 50%; /* Esto los hace redondos */
     border: none;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
     cursor: pointer;
-    text-decoration: none;
-    opacity: 1 !important; /* ¡La clave! Forzamos la opacidad total */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1 !important;
+}
+.share-action-btn img {
+    width: 100%;
+    height: 100%;
 }
 .share-action-btn:disabled {
     cursor: not-allowed;
     opacity: 0.6;
-}
 }
     @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
@@ -4326,11 +4329,17 @@ listaData.participantes.forEach((participante, index) => {
             <button class="add-article-btn share-btn-main" data-index="${index}" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366; padding: 8px 12px; font-size: 0.9rem; min-width: 90px;">Compartir</button>
             
             <!-- Botones de fallback (ocultos por defecto) -->
-            <div class="fallback-share-buttons" id="fallback-buttons-${index}" style="display: none; gap: 5px;">
-                <button class="share-action-btn whatsapp-btn" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366;">WhatsApp</button>
-                <button class="share-action-btn telegram-btn" data-url="${encodeURIComponent(invitationLink)}" data-text="${encodeURIComponent(shareText)}" style="background-color: #0088cc;">Telegram</button>
-                <button class="share-action-btn email-btn" data-subject="Invitación a ${encodeURIComponent(listaData.nombre)}" data-body="${encodeURIComponent(shareText)}" style="background-color: #7f8c8d;">Email</button>
-            </div>
+            <div class="fallback-share-buttons" id="fallback-buttons-${index}" style="display: none; gap: 8px;">
+			<button class="share-action-btn whatsapp-btn" data-text="${encodeURIComponent(shareText)}" style="background-color: #fff;">
+			<img src="https://i.postimg.cc/bJc2WhkS/whatsapp.png" alt="WhatsApp">
+			</button>
+			<button class="share-action-btn telegram-btn" data-url="${encodeURIComponent(invitationLink)}" data-text="${encodeURIComponent(shareText)}" style="background-color: #0088cc;">
+			<img src="https://i.postimg.cc/9Qf0ftKy/telegram.png" alt="Telegram">
+			</button>
+			<button class="share-action-btn email-btn" data-subject="Invitación a ${encodeURIComponent(listaData.nombre)}" data-body="${encodeURIComponent(shareText)}" style="background-color: #fff;">
+			<img src="https://i.postimg.cc/L82w3sJj/email.png" alt="Email">
+			</button>
+			</div>
         </div>
     </div>`;
 });
