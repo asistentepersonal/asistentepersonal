@@ -983,12 +983,12 @@ async function initializeApp() {
         const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
         
         if (String(serverVersion) !== String(HTML_VERSION)) {
-            console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
-            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            hideSplashScreen(); 
-            showChangelogModal(serverVersion, changelogText);
-            return; 
-        }
+    console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
+    const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+    // ¡CAMBIO CLAVE! No ocultamos el splash, el modal se mostrará sobre él.
+    showChangelogModal(serverVersion, changelogText);
+    return; 
+}
 
         console.log("Versión correcta. Ejecutando la aplicación...");
         runApp();
