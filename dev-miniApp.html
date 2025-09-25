@@ -4292,6 +4292,48 @@ async function renderPanelGestion(listaId) {
     </div>
 `;
 document.getElementById('gestion-contenido').innerHTML = contenidoHtml;
+const shareContainer = document.getElementById('share-buttons-container');
+const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
+let buttonsHtml = '';
+
+listaData.participantes.forEach(participante => {
+    const invitationLink = `${baseUrl}/lista/${listaId}?invitado=${participante.token}`;
+    const shareText = `¡Hola, ${participante.nombre}! Te invito a unirte a nuestra lista de gastos "${listaData.nombre}".\n\nUsa este enlace personal para añadir tus gastos:\n${invitationLink}`;
+    
+    buttonsHtml += `
+    <div class="list-item" style="padding: 15px 10px;">
+        <div class="list-item-content">
+            <span class="list-item-title">Invitación para ${participante.nombre}</span>
+        </div>
+        <div class="list-item-actions">
+            <button class="add-article-btn share-btn" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366; padding: 8px 12px; font-size: 0.9rem; min-width: 90px;">Compartir</button>
+        </div>
+    </div>`;
+});
+shareContainer.innerHTML = buttonsHtml;
+shareContainer.querySelectorAll('.share-btn').forEach(button => {
+    button.onclick = (e) => {
+        const textToShare = decodeURIComponent(e.currentTarget.dataset.text);
+
+        if (navigator.share) { // Usamos la API Web Share si está disponible
+            navigator.share({
+                title: `Invitación a "${listaData.nombre}"`,
+                text: textToShare,
+            }).catch((error) => console.log('Error al compartir', error));
+        } else {
+            // Fallback para entornos que no soportan Web Share (como el escritorio)
+            // Usamos la API de Telegram que ya probamos
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.writeTextToClipboard) {
+                window.Telegram.WebApp.writeTextToClipboard(textToShare);
+                showToast('Texto de invitación copiado al portapapeles');
+            } else {
+                // Fallback final
+                alert("Tu navegador no soporta la función de compartir. Por favor, copia el texto manualmente.");
+                prompt("Copia esta invitación:", textToShare);
+            }
+        }
+    };
+});
         
         mainContentArea.querySelectorAll('.copy-link-btn').forEach(button => {
     button.onclick = (e) => {
