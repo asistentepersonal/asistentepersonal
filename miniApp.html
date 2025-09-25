@@ -3629,6 +3629,63 @@ function validateSettings() {
     saveBtn.classList.toggle('enabled', hasChanged);
 }
 
+/**
+ * Calcula la próxima fecha de envío de un informe en formato Timestamp UTC.
+ * @param {boolean} activo - Si el informe está activado o no.
+ * @param {string} timeZone - La zona horaria del usuario (ej. "Europe/Madrid").
+ * @param {object} opciones - Contiene la configuración de hora/día.
+ * @param {number} [opciones.hora] - La hora de envío (0-23).
+ * @param {number} [opciones.dia] - El día del mes de envío (1-31).
+ * @returns {firebase.firestore.Timestamp|null} - El Timestamp UTC o null.
+ */
+function calcularProximoEnvioUTC(activo, timeZone, opciones) {
+  // Si el informe no está activo o no tenemos zona horaria, devolvemos null.
+  if (!activo || !timeZone) {
+    return null;
+  }
+
+  try {
+    const ahora = new Date();
+    
+    // Creamos una fecha "ahora" pero en la zona horaria del usuario.
+    // Esto es un truco para que al ajustar la hora, se haga sobre la hora local correcta.
+    const ahoraEnTimeZone = new Date(ahora.toLocaleString('en-US', { timeZone: timeZone }));
+
+    let proximaFecha = new Date(ahoraEnTimeZone);
+
+    // Caso para informes diarios (matutino y tarde)
+    if (opciones.hora !== undefined && opciones.dia === undefined) {
+      proximaFecha.setHours(opciones.hora, 0, 0, 0); // Pone la hora en punto.
+
+      // Si la hora calculada para hoy ya pasó, programamos para el día siguiente.
+      if (proximaFecha <= ahoraEnTimeZone) {
+        proximaFecha.setDate(proximaFecha.getDate() + 1);
+      }
+    }
+    // Caso para el informe mensual
+    else if (opciones.hora !== undefined && opciones.dia !== undefined) {
+      proximaFecha.setDate(opciones.dia);
+      proximaFecha.setHours(opciones.hora, 0, 0, 0);
+
+      // Si la fecha/hora calculada para este mes ya pasó, programamos para el mes que viene.
+      if (proximaFecha <= ahoraEnTimeZone) {
+        proximaFecha.setMonth(proximaFecha.getMonth() + 1);
+      }
+    } else {
+        // Si las opciones no son válidas, devolvemos null.
+        return null;
+    }
+    
+    // ¡Magia! Convertimos la fecha (que está en hora local del usuario) a un Timestamp de Firestore.
+    // Firestore SIEMPRE lo guardará internamente como UTC, que es exactamente lo que queremos.
+    return firebase.firestore.Timestamp.fromDate(proximaFecha);
+
+  } catch (error) {
+    console.error("Error calculando la próxima fecha de envío:", error);
+    return null; // En caso de error, devolvemos null para no romper nada.
+  }
+}
+
 // --- VERSIÓN FINAL-FINAL DE saveSettings (CON SPINNER Y CAPITALIZACIÓN) ---
 async function saveSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
@@ -3658,11 +3715,31 @@ async function saveSettings() {
             alertaInventario: document.getElementById('settings-alerta-inventario').checked
         };
         
+        // --- INICIO DE LA NUEVA LÓGICA DE CÁLCULO DE FECHAS ---
+        const userTimeZone = appData.settings.ubicacion?.timeZone || 'UTC'; // Obtenemos la timeZone
+        
+        const proximoEnvioDiario = calcularProximoEnvioUTC(
+            currentValues.informeDiario_activo,
+            userTimeZone,
+            { hora: currentValues.informeDiario_franjaHoraria }
+        );
+
+        const proximoEnvioTarde = calcularProximoEnvioUTC(
+            currentValues.informeTarde_activo,
+            userTimeZone,
+            { hora: currentValues.informeTarde_franjaHoraria }
+        );
+
+        const proximoEnvioMensual = calcularProximoEnvioUTC(
+            currentValues.informeMensual_activo,
+            userTimeZone,
+            { dia: currentValues.informeMensual_dia, hora: currentValues.informeMensual_hora }
+        );
+        // --- FIN DE LA NUEVA LÓGICA ---
+
         const hasLocationChanged = currentValues.ciudad !== initialUserSettings.ciudad || currentValues.pais !== initialUserSettings.pais;
         const userDocRef = db.collection('users').doc(chatId);
         
-        // --- INICIO DE LA CORRECCIÓN CLAVE ---
-        // 1. Creamos un objeto para la actualización que contendrá TODOS los campos aplanados.
         const firestoreUpdateData = {
             'informeDiario_activo': currentValues.informeDiario_activo,
             'informeDiario_franjaHoraria': currentValues.informeDiario_franjaHoraria,
@@ -3671,25 +3748,25 @@ async function saveSettings() {
             'informeMensual_activo': currentValues.informeMensual_activo,
             'informeMensual_dia': currentValues.informeMensual_dia,
             'informeMensual_hora': currentValues.informeMensual_hora,
+
+            // --- AÑADIMOS LOS NUEVOS CAMPOS A LA ACTUALIZACIÓN ---
+            'informeDiario_proximoEnvioUTC': proximoEnvioDiario,
+            'informeTarde_proximoEnvioUTC': proximoEnvioTarde,
+            'informeMensual_proximoEnvioUTC': proximoEnvioMensual,
             
-            // Añadimos también los otros campos que podrían haber cambiado.
             'nombre': currentValues.nombre,
             'configuracion.tema': currentValues.tema,
             'configuracion.alertaInventario': currentValues.alertaInventario,
             
-            // Y el comando para eliminar los mapas antiguos del objeto 'configuracion'
             'configuracion.InformeDiario': firebase.firestore.FieldValue.delete(),
             'configuracion.informeTarde': firebase.firestore.FieldValue.delete(),
             'configuracion.informeMensual': firebase.firestore.FieldValue.delete()
         };
-        // --- FIN DE LA CORRECCIÓN CLAVE ---
         
         let cloudFunctionPromise = Promise.resolve();
 
-        // 2. Ejecutamos la actualización con la estructura completa.
         await userDocRef.update(firestoreUpdateData);
         
-        // Si la ubicación cambió, llamamos a la Cloud Function como antes.
         if (hasLocationChanged) {
             const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/updateUserSettings';
             const payload = { data: { chatId: chatId, nombre: currentValues.nombre, ciudad: currentValues.ciudad, pais: currentValues.pais }};
@@ -3713,7 +3790,7 @@ async function saveSettings() {
             if (userDoc.exists) appData.settings = userDoc.data();
         }
         
-        showToast("Ajustes guardados y migrados con éxito.");
+        showToast("Ajustes guardados y programados con éxito.");
         renderDashboard();
 
     } catch (error) {
