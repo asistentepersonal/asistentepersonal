@@ -4256,6 +4256,7 @@ function renderCrearListaForm() {
         }
     };
 }
+
 async function renderPanelGestion(listaId) {
     navigationHistory.push(renderCuentasClarasLobby);
     updateBackButton();
@@ -4285,7 +4286,6 @@ async function renderPanelGestion(listaId) {
         let linksHtml = '<h3 class="shopping-list-section-title">Enlaces de Invitación</h3>';
         linksHtml += '<ul class="list-style-none">';
 
-        // La URL base que te dio la terminal
         const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
 
         listaData.participantes.forEach(participante => {
@@ -4306,7 +4306,6 @@ async function renderPanelGestion(listaId) {
 
         document.getElementById('gestion-contenido').innerHTML = linksHtml;
         
-        // Añadimos la funcionalidad a los botones de "Copiar"
         mainContentArea.querySelectorAll('.copy-link-btn').forEach(button => {
             button.onclick = (e) => {
                 const linkToCopy = e.currentTarget.dataset.link;
@@ -4325,62 +4324,6 @@ async function renderPanelGestion(listaId) {
         showToast("No se pudo cargar la lista.", true);
         goBack();
     }
-}
-function renderPanelGestion() {
-    // Preparamos la navegación para poder volver al lobby
-    navigationHistory.push(renderCuentasClarasLobby);
-    updateBackButton();
-
-    mainContentArea.innerHTML = `
-        <!-- PANTALLA 3: PANEL DE GESTIÓN DE UNA LISTA ESPECÍFICA -->
-        <div class="list-container" id="panel-gestion-lista">
-
-            <!-- Cabecera con el nombre de la lista que se está gestionando -->
-            <div class="list-header">
-                <h2>Gestionando: <span id="gestion-nombre-lista">Viaje a París</span></h2>
-            </div>
-
-            <!-- Bloque para Compartir el Enlace (con emojis mejorados) -->
-            <div class="form-card" style="margin-bottom: 20px;">
-                <label>Enlace Mágico para Compartir</label>
-                <input type="text" id="lista-enlace-input" value="https://tu-app/lista/AbCd12EfGh34" readonly style="text-align: center; font-size: 0.9rem;">
-                <div class="button-group" style="margin-top: 15px;">
-                    <button id="compartir-whatsapp-btn" class="enabled" style="background-color: #25D366;">🟢 WhatsApp</button>
-                    <button id="compartir-telegram-btn" class="enabled" style="background-color: #0088cc;">🔵 Telegram</button>
-                </div>
-                <div class="button-group" style="margin-top: 10px;">
-                    <button id="compartir-email-btn" class="enabled" style="background-color: #7f8c8d;">✉️ Email</button>
-                    <button id="copiar-enlace-btn" class="enabled" style="background-color: #95a5a6;">📋 Copiar</button>
-                </div>
-            </div>
-
-            <!-- Bloque de Resumen en Tiempo Real -->
-            <h3 class="shopping-list-section-title">Resumen en Tiempo Real</h3>
-            <ul class="list-style-none" id="gestion-resumen-list">
-                <li class="list-item">
-                    <div class="list-item-content">
-                        <span class="list-item-title">Total Gastado en la Lista</span>
-                    </div>
-                    <span style="font-size: 1.2rem; font-weight: bold;">1,230.00 €</span>
-                </li>
-                <li class="list-item">
-                    <div class="list-item-content">
-                        <span class="list-item-title">Tu Aportación</span>
-                        <span class="list-item-subtitle">Has pagado 800€ de 410€ que te corresponden</span>
-                    </div>
-                    <span style="color: green; font-weight: bold; font-size: 1.1rem;">+390€</span>
-                </li>
-            </ul>
-
-            <!-- Bloque de Acciones del Organizador -->
-            <h3 class="shopping-list-section-title">Acciones de Administrador</h3>
-            <div class="form-card">
-                <button id="cerrar-lista-btn" class="cancel" style="width:100%;">⚖️ Cerrar Lista y Liquidar Cuentas</button>
-            </div>
-        </div>
-    `;
-
-    // (Aquí, en el futuro, iría la lógica para los botones de compartir y cerrar)
 }
 
 // ====================================================================================
