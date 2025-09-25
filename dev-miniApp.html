@@ -4320,11 +4320,18 @@ listaData.participantes.forEach((participante, index) => {
     <div class="list-item" style="padding: 15px 10px;">
         <div class="list-item-content">
             <span class="list-item-title">Invitación para ${participante.nombre}</span>
-        <div class="fallback-share-buttons" id="fallback-buttons-${index}" style="display: none; gap: 5px; flex-wrap: wrap; justify-content: flex-end;">
-		<button class="share-action-btn whatsapp-btn" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366;">WhatsApp</button>
-		<button class="share-action-btn telegram-btn" data-url="${encodeURIComponent(invitationLink)}" data-text="${encodeURIComponent(shareText)}" style="background-color: #0088cc;">Telegram</button>
-		<button class="share-action-btn email-btn" data-subject="Invitación a ${encodeURIComponent(listaData.nombre)}" data-body="${encodeURIComponent(shareText)}" style="background-color: #7f8c8d;">Email</button>
-		</div>
+        </div>
+        <div class="list-item-actions" id="actions-container-${index}" style="flex-wrap: wrap; justify-content: flex-end;">
+            <!-- Botón principal -->
+            <button class="add-article-btn share-btn-main" data-index="${index}" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366; padding: 8px 12px; font-size: 0.9rem; min-width: 90px;">Compartir</button>
+            
+            <!-- Botones de fallback (ocultos por defecto) -->
+            <div class="fallback-share-buttons" id="fallback-buttons-${index}" style="display: none; gap: 5px;">
+                <button class="share-action-btn whatsapp-btn" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366;">WhatsApp</button>
+                <button class="share-action-btn telegram-btn" data-url="${encodeURIComponent(invitationLink)}" data-text="${encodeURIComponent(shareText)}" style="background-color: #0088cc;">Telegram</button>
+                <button class="share-action-btn email-btn" data-subject="Invitación a ${encodeURIComponent(listaData.nombre)}" data-body="${encodeURIComponent(shareText)}" style="background-color: #7f8c8d;">Email</button>
+            </div>
+        </div>
     </div>`;
 });
 shareContainer.innerHTML = buttonsHtml;
