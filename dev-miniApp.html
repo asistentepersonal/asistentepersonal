@@ -4307,17 +4307,26 @@ async function renderPanelGestion(listaId) {
         document.getElementById('gestion-contenido').innerHTML = linksHtml;
         
         mainContentArea.querySelectorAll('.copy-link-btn').forEach(button => {
-            button.onclick = (e) => {
-                const linkToCopy = e.currentTarget.dataset.link;
-                navigator.clipboard.writeText(linkToCopy).then(() => {
-                    showToast('¡Enlace copiado!');
-                    e.currentTarget.textContent = '¡Copiado!';
-                    setTimeout(() => { e.currentTarget.textContent = 'Copiar'; }, 2000);
-                }).catch(err => {
-                    showToast('Error al copiar el enlace.', true);
-                });
-            };
-        });
+    button.onclick = (e) => {
+        const linkToCopy = e.currentTarget.dataset.link;
+        
+        // Usamos la API nativa de la Mini App de Telegram, que es más fiable
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.writeTextToClipboard) {
+            window.Telegram.WebApp.writeTextToClipboard(linkToCopy);
+            showToast('¡Enlace copiado!');
+            e.currentTarget.textContent = '¡Copiado!';
+            setTimeout(() => { e.currentTarget.textContent = 'Copiar'; }, 2000);
+        } else {
+            // Mantenemos el método anterior como fallback para pruebas en un navegador normal
+            navigator.clipboard.writeText(linkToCopy).then(() => {
+                showToast('¡Enlace copiado! (Modo Navegador)');
+                e.currentTarget.textContent = '¡Copiado!';
+            }).catch(err => {
+                showToast('Error al copiar. Selecciona el enlace manualmente.', true);
+            });
+        }
+    };
+});
 
     } catch (error) {
         console.error("Error al cargar el panel de gestión:", error);
