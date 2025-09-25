@@ -4124,7 +4124,7 @@ function renderCuentasClarasLobby() {
                         <div class="list-item-content">
                             <span class="list-item-title">${lista.nombre}</span>
                             <span class="list-item-subtitle">
-                                ${lista.participantes.length} Participantes | Creada el ${lista.fecha_creacion.toDate().toLocaleDateString('es-ES')}
+                                ${lista.participantes.length} Participantes | Creada el ${lista.fecha_creacion ? lista.fecha_creacion.toDate().toLocaleDateString('es-ES') : '...'}
                             </span>
                         </div>
                         <div class="list-item-actions">
