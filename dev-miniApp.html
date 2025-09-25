@@ -4155,13 +4155,13 @@ function renderCuentasClarasLobby() {
              listasContainer.innerHTML = html;
         }
 
-        // Añadimos el listener de clics a las listas activas (en el futuro nos llevará a la gestión)
+        // Añadimos el listener que abre el panel de gestión para cada lista
         listasContainer.querySelectorAll('.list-item.clickable').forEach(item => {
-            item.onclick = () => {
-                // Por ahora, solo un toast. En Fase 2, esto abrirá la pantalla de gestión.
-                showToast(`Próximamente: Gestionar "${item.querySelector('.list-item-title').innerText}"`);
-            };
-        });
+        item.onclick = () => {
+        const listaId = item.dataset.listaId;
+        renderPanelGestion(listaId);
+    };
+});
 
     }, error => {
         console.error("Error al escuchar las listas de Cuentas Claras:", error);
@@ -4256,7 +4256,76 @@ function renderCrearListaForm() {
         }
     };
 }
+async function renderPanelGestion(listaId) {
+    navigationHistory.push(renderCuentasClarasLobby);
+    updateBackButton();
 
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header">
+                <h2 id="gestion-nombre-lista">Cargando...</h2>
+            </div>
+            <div id="gestion-contenido">
+                <div class="no-data-msg">Cargando datos de la lista...</div>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const listaDoc = await db.collection('cuentasClaras_listas').doc(listaId).get();
+        if (!listaDoc.exists) {
+            showToast("Error: No se encontró la lista.", true);
+            goBack();
+            return;
+        }
+
+        const listaData = listaDoc.data();
+        document.getElementById('gestion-nombre-lista').textContent = `Gestionar: "${listaData.nombre}"`;
+
+        let linksHtml = '<h3 class="shopping-list-section-title">Enlaces de Invitación</h3>';
+        linksHtml += '<ul class="list-style-none">';
+
+        // La URL base que te dio la terminal
+        const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
+
+        listaData.participantes.forEach(participante => {
+            const invitationLink = `${baseUrl}/lista/${listaId}?invitado=${participante.token}`;
+            linksHtml += `
+                <li class="list-item">
+                    <div class="list-item-content">
+                        <span class="list-item-title">Enlace para ${participante.nombre}</span>
+                        <input type="text" value="${invitationLink}" readonly style="width:100%; margin-top: 8px; font-size: 0.8rem; background-color: var(--bg); border: 1px solid #ddd; padding: 5px;">
+                    </div>
+                    <div class="list-item-actions">
+                        <button class="add-article-btn copy-link-btn" data-link="${invitationLink}" style="padding: 8px 12px; font-size: 0.9rem; min-width: 80px;">Copiar</button>
+                    </div>
+                </li>
+            `;
+        });
+        linksHtml += '</ul>';
+
+        document.getElementById('gestion-contenido').innerHTML = linksHtml;
+        
+        // Añadimos la funcionalidad a los botones de "Copiar"
+        mainContentArea.querySelectorAll('.copy-link-btn').forEach(button => {
+            button.onclick = (e) => {
+                const linkToCopy = e.currentTarget.dataset.link;
+                navigator.clipboard.writeText(linkToCopy).then(() => {
+                    showToast('¡Enlace copiado!');
+                    e.currentTarget.textContent = '¡Copiado!';
+                    setTimeout(() => { e.currentTarget.textContent = 'Copiar'; }, 2000);
+                }).catch(err => {
+                    showToast('Error al copiar el enlace.', true);
+                });
+            };
+        });
+
+    } catch (error) {
+        console.error("Error al cargar el panel de gestión:", error);
+        showToast("No se pudo cargar la lista.", true);
+        goBack();
+    }
+}
 function renderPanelGestion() {
     // Preparamos la navegación para poder volver al lobby
     navigationHistory.push(renderCuentasClarasLobby);
