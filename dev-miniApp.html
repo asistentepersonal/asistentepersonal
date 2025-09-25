@@ -4045,90 +4045,135 @@ function renderTimelineGrid(canales, programas) {
 // --- MÓDULO: CUENTAS CLARAS ---
 // ==================================================
 
+// Variable global para poder desconectar el listener al salir de la vista
+let unsubscribeCuentasClaras = null;
+
 function renderCuentasClarasLobby() {
-    // Preparamos la navegación para poder volver al dashboard
-    navigationHistory.push(renderDashboard);
+    // Al volver atrás, nos aseguramos de que el listener se desconecte
+    navigationHistory.push(() => {
+        if (typeof unsubscribeCuentasClaras === 'function') {
+            unsubscribeCuentasClaras();
+            unsubscribeCuentasClaras = null;
+        }
+        renderDashboard();
+    });
     updateBackButton();
     
-    // Usamos el esqueleto HTML para la vista principal
     mainContentArea.innerHTML = `
-        <!-- PANTALLA 1: LISTADO DE LISTAS DEL ORGANIZADOR -->
         <div class="list-container" id="cuentas-claras-lobby">
-            
-            <!-- Cabecera y Botón de Acción Principal -->
             <div class="list-header">
                 <h2>⚖️ Cuentas Claras</h2>
             </div>
             <div class="add-article-btn-container">
                 <button class="add-article-btn" id="crear-nueva-lista-btn">➕ Crear Nueva Lista</button>
             </div>
+            
+            <!-- Separador visual para las listas -->
+            <div style="padding: 0 10px;">
+                <hr style="margin: 20px 0; border-top: 1px solid #eee;">
+            </div>
 
-            <!-- Sección para las listas que están actualmente en curso -->
-            <h3 class="shopping-list-section-title">Listas Activas</h3>
-            <ul class="list-style-none" id="listas-activas-list">
-                
-                <!-- EJEMPLO DE UNA LISTA ACTIVA (Esto se generaría dinámicamente) -->
-                <li class="list-item clickable" data-lista-id="AbCd12EfGh34">
-                    <div class="list-item-content">
-                        <span class="list-item-title">Fin de semana en la sierra</span>
-                        <span class="list-item-subtitle">Total: 250,00 € | 4 Participantes</span>
-                    </div>
-                    <div class="list-item-actions">
-                        <button class="generic-menu-btn" style="cursor: pointer;">Gestionar</button>
-                    </div>
-                </li>
-                
-                <li class="list-item clickable" data-lista-id="IjKl56MnOp78">
-                    <div class="list-item-content">
-                        <span class="list-item-title">Viaje a París</span>
-                        <span class="list-item-subtitle">Total: 1,230,00 € | 3 Participantes</span>
-                    </div>
-                    <div class="list-item-actions">
-                         <button class="generic-menu-btn" style="cursor: pointer;">Gestionar</button>
-                    </div>
-                </li>
-
-            </ul>
-
-            <!-- Sección para las listas ya finalizadas -->
-            <h3 class="shopping-list-section-title">Historial (Listas Archivadas)</h3>
-            <ul class="list-style-none" id="listas-archivadas-list">
-
-                <!-- EJEMPLO DE UNA LISTA ARCHIVADA -->
-                <li class="list-item" style="opacity: 0.6;">
-                    <div class="list-item-content">
-                        <span class="list-item-title">Cena de Navidad</span>
-                        <span class="list-item-subtitle">Cerrada el 26/12/2025</span>
-                    </div>
-                </li>
-
-            </ul>
+            <div id="listas-container">
+                <!-- El contenido de las listas se insertará aquí dinámicamente -->
+            </div>
         </div>
     `;
 
-        // Conectamos el botón para crear una nueva lista
+    // Conectamos el botón para ir al formulario de creación
     document.getElementById('crear-nueva-lista-btn').onclick = renderCrearListaForm;
 
-    // Conectamos los botones "Gestionar" de cada lista activa
-    document.querySelectorAll('#listas-activas-list .list-item.clickable').forEach(item => {
-        const gestionarBtn = item.querySelector('.generic-menu-btn');
-        if (gestionarBtn) {
-            gestionarBtn.onclick = (e) => {
-                e.stopPropagation(); // Evita que se dispare el clic del 'item' completo
-                // const listaId = item.dataset.listaId; // En el futuro, usaríamos esto
-                renderPanelGestion(/* podríamos pasar el listaId aquí */);
-            };
+    const listasContainer = document.getElementById('listas-container');
+    listasContainer.innerHTML = `<div class="no-data-msg">Cargando tus listas...</div>`;
+
+    // Desconectamos cualquier listener anterior para evitar duplicados
+    if (typeof unsubscribeCuentasClaras === 'function') {
+        unsubscribeCuentasClaras();
+    }
+
+    // Creamos la consulta a Firestore
+    const q = db.collection('cuentasClaras_listas') // Usamos la nueva colección
+                 .where('miembros', 'array-contains', chatId) // Buscamos listas donde el usuario es miembro
+                 .orderBy('fecha_creacion', 'desc');
+
+    // Escuchamos los cambios en tiempo real
+    unsubscribeCuentasClaras = q.onSnapshot(snapshot => {
+        if (snapshot.empty) {
+            listasContainer.innerHTML = '<div class="no-data-msg">Aún no tienes listas.<br>¡Crea una para empezar!</div>';
+            return;
         }
+
+        const listasActivas = [];
+        const listasArchivadas = [];
+
+        snapshot.forEach(doc => {
+            const lista = { id: doc.id, ...doc.data() };
+            if (lista.estado === 'archivado') {
+                listasArchivadas.push(lista);
+            } else {
+                listasActivas.push(lista);
+            }
+        });
+        
+        let html = '';
+
+        if (listasActivas.length > 0) {
+            html += '<h3 class="shopping-list-section-title">Listas Activas</h3><ul class="list-style-none">';
+            listasActivas.forEach(lista => {
+                html += `
+                    <li class="list-item clickable" data-lista-id="${lista.id}">
+                        <div class="list-item-content">
+                            <span class="list-item-title">${lista.nombre}</span>
+                            <span class="list-item-subtitle">
+                                ${lista.participantes.length} Participantes | Creada el ${lista.fecha_creacion.toDate().toLocaleDateString('es-ES')}
+                            </span>
+                        </div>
+                        <div class="list-item-actions">
+                            <span style="color: var(--muted); font-size: 1.5rem;">›</span>
+                        </div>
+                    </li>`;
+            });
+            html += '</ul>';
+        }
+
+        if (listasArchivadas.length > 0) {
+            html += '<h3 class="shopping-list-section-title">Historial (Archivadas)</h3><ul class="list-style-none">';
+            listasArchivadas.forEach(lista => {
+                html += `
+                    <li class="list-item" style="opacity: 0.7;">
+                        <div class="list-item-content">
+                            <span class="list-item-title">${lista.nombre}</span>
+                            <span class="list-item-subtitle">Archivada</span>
+                        </div>
+                    </li>`;
+            });
+            html += '</ul>';
+        }
+
+        if (listasActivas.length === 0 && listasArchivadas.length === 0) {
+             listasContainer.innerHTML = '<div class="no-data-msg">Aún no tienes listas.<br>¡Crea una para empezar!</div>';
+        } else {
+             listasContainer.innerHTML = html;
+        }
+
+        // Añadimos el listener de clics a las listas activas (en el futuro nos llevará a la gestión)
+        listasContainer.querySelectorAll('.list-item.clickable').forEach(item => {
+            item.onclick = () => {
+                // Por ahora, solo un toast. En Fase 2, esto abrirá la pantalla de gestión.
+                showToast(`Próximamente: Gestionar "${item.querySelector('.list-item-title').innerText}"`);
+            };
+        });
+
+    }, error => {
+        console.error("Error al escuchar las listas de Cuentas Claras:", error);
+        listasContainer.innerHTML = '<div class="no-data-msg">❌<br>Error al cargar las listas.</div>';
     });
 }
 
 function renderCrearListaForm() {
-    // Preparamos la navegación para poder volver al lobby
     navigationHistory.push(renderCuentasClarasLobby);
     updateBackButton();
 
     mainContentArea.innerHTML = `
-        <!-- PANTALLA 2: FORMULARIO DE CREACIÓN DE UNA NUEVA LISTA -->
         <div class="list-container">
             <div class="list-header">
                 <h2>➕ Crear Nueva Lista de Gastos</h2>
@@ -4138,22 +4183,72 @@ function renderCrearListaForm() {
                 <input type="text" id="nueva-lista-nombre" placeholder="Ej: Fin de semana en la sierra" />
 
                 <label>Moneda</label>
-                <input type="text" id="nueva-lista-moneda" value="€" />
+                <input type="text" id="nueva-lista-moneda" value="${appData.settings.moneda || '€'}" />
 
-                <label>Participantes (inclúyete y escribe uno por línea)</label>
-                <textarea id="nueva-lista-participantes" rows="5" placeholder="TuNombre&#10;Ana&#10;Carlos&#10;Sofía"></textarea>
+                <label>Participantes (uno por línea, inclúyete)</label>
+                <textarea id="nueva-lista-participantes" rows="5" placeholder="${appData.settings.nombre || 'TuNombre'}\nAna\nCarlos"></textarea>
                 
                 <div class="button-group">
                     <button id="cancelar-creacion-lista-btn" class="cancel">Cancelar</button>
-                    <button id="confirmar-creacion-lista-btn" class="enabled">Crear Lista</button>
+                    <button id="confirmar-creacion-lista-btn" disabled>Crear Lista</button>
                 </div>
             </div>
         </div>
     `;
 
-    // Conectamos el botón de cancelar para que vuelva a la pantalla anterior
     document.getElementById('cancelar-creacion-lista-btn').onclick = goBack;
-    // (Aquí, en el futuro, el botón 'confirmar-creacion-lista-btn' llamaría a la lógica de guardado)
+    
+    const nombreInput = document.getElementById('nueva-lista-nombre');
+    const participantesInput = document.getElementById('nueva-lista-participantes');
+    const crearBtn = document.getElementById('confirmar-creacion-lista-btn');
+
+    function validarFormulario() {
+        const nombreValido = nombreInput.value.trim().length > 2;
+        const participantes = participantesInput.value.trim().split('\n').filter(p => p.trim() !== '');
+        const participantesValidos = participantes.length >= 2;
+        
+        const esValido = nombreValido && participantesValidos;
+        crearBtn.disabled = !esValido;
+        crearBtn.classList.toggle('enabled', esValido);
+    }
+
+    nombreInput.addEventListener('input', validarFormulario);
+    participantesInput.addEventListener('input', validarFormulario);
+
+    crearBtn.onclick = async () => {
+        showSpinner("Creando lista...");
+        crearBtn.disabled = true;
+
+        const nombre = nombreInput.value.trim();
+        const moneda = document.getElementById('nueva-lista-moneda').value.trim() || '€';
+        const participantes = participantesInput.value.trim().split('\n').map(p => p.trim()).filter(p => p !== '');
+        
+        try {
+            // Generamos un ID amigable para la lista
+            const listaId = `lista_${generateCustomId('')}`;
+            
+            await db.collection('cuentasClaras_listas').doc(listaId).set({
+                nombre: nombre,
+                moneda: moneda,
+                participantes: participantes,
+                // Por ahora, todos los participantes son "miembros". Más adelante diferenciaremos roles.
+                miembros: [chatId], // De momento, solo el creador es miembro con ID
+                creador: chatId,
+                estado: 'abierto',
+                fecha_creacion: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            showToast("¡Lista creada con éxito!");
+            goBack(); // Vuelve al Lobby, donde la nueva lista aparecerá
+
+        } catch (error) {
+            console.error("Error al crear la lista:", error);
+            showToast("No se pudo crear la lista. Inténtalo de nuevo.", true);
+            crearBtn.disabled = false;
+        } finally {
+            hideSpinner();
+        }
+    };
 }
 
 function renderPanelGestion() {
