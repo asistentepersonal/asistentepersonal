@@ -4345,7 +4345,7 @@ async function renderPanelGestion(listaId) {
         shareContainer.querySelectorAll('.whatsapp-btn').forEach(button => {
             button.onclick = (e) => {
                 const text = decodeURIComponent(e.currentTarget.dataset.text);
-                window.Telegram.WebApp.openLink(`https://wa.me/?text=${encodeURIComponent(text)}`);
+                tg.openLink(`https://wa.me/?text=${encodeURIComponent(text)}`);
             };
         });
 
@@ -4353,7 +4353,7 @@ async function renderPanelGestion(listaId) {
             button.onclick = (e) => {
                 const url = decodeURIComponent(e.currentTarget.dataset.url);
                 const text = decodeURIComponent(e.currentTarget.dataset.text);
-                window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
+                tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
             };
         });
 
@@ -4361,15 +4361,9 @@ async function renderPanelGestion(listaId) {
             button.onclick = (e) => {
                 const subject = decodeURIComponent(e.currentTarget.dataset.subject);
                 const body = decodeURIComponent(e.currentTarget.dataset.body);
-                try {
-                    // Intenta abrir el cliente de correo
-                    window.Telegram.WebApp.openLink(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-                } catch (err) {
-                    // Si falla, copia al portapapeles
-                    console.error("Fallo al abrir mailto:, copiando al portapapeles.", err);
-                    window.Telegram.WebApp.writeTextToClipboard(decodeURIComponent(e.currentTarget.dataset.body));
-                    showToast('Texto de invitación copiado al portapapeles.');
-                }
+                // --- CORRECCIÓN CLAVE ---
+                // Usamos el mismo método openLink, que es el correcto para Telegram.
+                tg.openLink(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
             };
         });
 
