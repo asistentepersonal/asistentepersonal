@@ -78,6 +78,29 @@
     vertical-align: middle;
     margin-right: 8px;
 }
+
+.share-action-btn {
+    width: 44px;
+    height: 44px;
+    padding: 8px;
+    border-radius: 50%; /* Esto los hace redondos */
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1 !important;
+    transition: transform 0.2s ease;
+}
+.share-action-btn:hover {
+    transform: scale(1.1);
+}
+.share-action-btn svg {
+    width: 100%;
+    height: 100%;
+    fill: white; /* Color del logo */
+}
+}
     @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
     .back-btn { background: transparent; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); padding-right: 15px; }
@@ -4282,80 +4305,73 @@ async function renderPanelGestion(listaId) {
 
         const listaData = listaDoc.data();
         document.getElementById('gestion-nombre-lista').textContent = `Gestionar: "${listaData.nombre}"`;
-
+        
         const contenidoHtml = `
-    <div class="form-card" style="margin-top: 15px; text-align: left;">
-        <p style="color: var(--muted); margin-bottom: 15px;">Comparte la invitación con los participantes. Cada uno recibirá un enlace personal e intransferible.</p>
-        <div id="share-buttons-container">
-            <!-- Los botones se generarán con JavaScript -->
-        </div>
-    </div>
-`;
-document.getElementById('gestion-contenido').innerHTML = contenidoHtml;
-const shareContainer = document.getElementById('share-buttons-container');
-const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
-let buttonsHtml = '';
+        <div class="form-card" style="margin-top: 15px; text-align: left;">
+            <p style="color: var(--muted); margin-bottom: 15px;">Comparte la invitación con los demás participantes usando los botones.</p>
+            <div id="share-buttons-container"></div>
+        </div>`;
+        document.getElementById('gestion-contenido').innerHTML = contenidoHtml;
 
-listaData.participantes.forEach(participante => {
-    const invitationLink = `${baseUrl}/lista/${listaId}?invitado=${participante.token}`;
-    const shareText = `¡Hola, ${participante.nombre}! Te invito a unirte a nuestra lista de gastos "${listaData.nombre}".\n\nUsa este enlace personal para añadir tus gastos:\n${invitationLink}`;
-    
-    buttonsHtml += `
-    <div class="list-item" style="padding: 15px 10px;">
-        <div class="list-item-content">
-            <span class="list-item-title">Invitación para ${participante.nombre}</span>
-        </div>
-        <div class="list-item-actions">
-            <button class="add-article-btn share-btn" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366; padding: 8px 12px; font-size: 0.9rem; min-width: 90px;">Compartir</button>
-        </div>
-    </div>`;
-});
-shareContainer.innerHTML = buttonsHtml;
-shareContainer.querySelectorAll('.share-btn').forEach(button => {
-    button.onclick = (e) => {
-        const textToShare = decodeURIComponent(e.currentTarget.dataset.text);
+        const shareContainer = document.getElementById('share-buttons-container');
+        const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
+        let buttonsHtml = '';
 
-        if (navigator.share) { // Usamos la API Web Share si está disponible
-            navigator.share({
-                title: `Invitación a "${listaData.nombre}"`,
-                text: textToShare,
-            }).catch((error) => console.log('Error al compartir', error));
-        } else {
-            // Fallback para entornos que no soportan Web Share (como el escritorio)
-            // Usamos la API de Telegram que ya probamos
-            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.writeTextToClipboard) {
-                window.Telegram.WebApp.writeTextToClipboard(textToShare);
-                showToast('Texto de invitación copiado al portapapeles');
-            } else {
-                // Fallback final
-                alert("Tu navegador no soporta la función de compartir. Por favor, copia el texto manualmente.");
-                prompt("Copia esta invitación:", textToShare);
-            }
-        }
-    };
-});
-        
-        mainContentArea.querySelectorAll('.copy-link-btn').forEach(button => {
-    button.onclick = (e) => {
-        const linkToCopy = e.currentTarget.dataset.link;
-        
-        // Usamos la API nativa de la Mini App de Telegram, que es más fiable
-        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.writeTextToClipboard) {
-            window.Telegram.WebApp.writeTextToClipboard(linkToCopy);
-            showToast('¡Enlace copiado!');
-            e.currentTarget.textContent = '¡Copiado!';
-            setTimeout(() => { e.currentTarget.textContent = 'Copiar'; }, 2000);
-        } else {
-            // Mantenemos el método anterior como fallback para pruebas en un navegador normal
-            navigator.clipboard.writeText(linkToCopy).then(() => {
-                showToast('¡Enlace copiado! (Modo Navegador)');
-                e.currentTarget.textContent = '¡Copiado!';
-            }).catch(err => {
-                showToast('Error al copiar. Selecciona el enlace manualmente.', true);
-            });
-        }
-    };
-});
+        listaData.participantes.forEach(participante => {
+            const invitationLink = `${baseUrl}/lista/${listaId}?invitado=${participante.token}`;
+            const shareText = `¡Hola, ${participante.nombre}! Te invito a unirte a nuestra lista de gastos "${listaData.nombre}".\n\nUsa este enlace personal para añadir tus gastos:\n${invitationLink}`;
+            
+            buttonsHtml += `
+            <div class="list-item" style="padding: 15px 10px;">
+                <div class="list-item-content">
+                    <span class="list-item-title">Invitación para ${participante.nombre}</span>
+                </div>
+                <div class="list-item-actions" style="gap: 10px;">
+                    <button class="share-action-btn whatsapp-btn" data-text="${encodeURIComponent(shareText)}" style="background-color: #25D366;">
+                        <svg viewBox="0 0 24 24"><path d="M16.75,13.96C17,14.21 17.08,14.76 16.96,15.26C16.77,16.04 16.04,16.5 15.32,16.6C14.63,16.69 13.96,16.63 13.38,16.36C12.8,16.08 11.07,15.24 9.38,13.62C7.69,12 6.8,10.23 6.5,9.62C6.23,9.04 6.17,8.37 6.26,7.68C6.35,6.96 6.83,6.23 7.02,6.04C7.21,5.85 7.42,5.77 7.66,5.77C7.91,5.77 8.11,5.83 8.26,5.99C8.42,6.15 8.58,6.46 8.68,6.63C8.76,6.78 8.84,6.97 8.81,7.12C8.79,7.27 8.76,7.34 8.61,7.5C8.46,7.65 8.31,7.8 8.16,7.95C8,8.11 7.89,8.23 7.97,8.39C8.04,8.55 8.34,9.11 8.88,9.66C9.43,10.21 9.94,10.56 10.16,10.73C10.32,10.85 10.45,10.93 10.6,10.85C10.75,10.78 10.91,10.58 11.07,10.43C11.23,10.28 11.41,10.13 11.57,10.13C11.72,10.13 11.97,10.11 12.16,10.21C12.37,10.31 12.83,10.82 13.22,11.21C13.61,11.6 13.73,11.78 13.84,11.9C13.95,12 13.93,12.15 13.9,12.28C13.88,12.41 13.53,12.93 13.3,13.16C13.07,13.39 12.88,13.5 12.72,13.62C12.57,13.73 12.41,13.8 12.41,13.95C12.41,14.1 16.5,13.7 16.75,13.96M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C10.84,22 9.7,21.76 8.65,21.31L4,22.5L5.19,17.9C4.74,16.85 4.5,15.69 4.5,14.5A10,10 0 0,1 14.5,4.5C14.5,4.5 12,2 12,2Z" /></svg>
+                    </button>
+                    <button class="share-action-btn telegram-btn" data-url="${encodeURIComponent(invitationLink)}" data-text="${encodeURIComponent(shareText)}" style="background-color: #0088cc;">
+                        <svg viewBox="0 0 24 24"><path d="M9.78,18.65L10.26,14.21L18.46,7.5C18.85,7.11 18.42,6.92 18,7.31L9.62,13.23L5.32,11.86C4.89,11.72 4.88,11.37 5.37,11.16L19.37,5.16C19.87,4.96 20.34,5.25 20.14,5.83L17.14,19.83C16.94,20.33 16.47,20.44 16.1,20.05L12.06,16.64L9.78,18.65Z" /></svg>
+                    </button>
+                    <button class="share-action-btn email-btn" data-subject="Invitación a ${encodeURIComponent(listaData.nombre)}" data-body="${encodeURIComponent(shareText)}" style="background-color: #7f8c8d;">
+                        <svg viewBox="0 0 24 24"><path d="M20,8L12,13L4,8V6L12,11L20,6M20,4H4C2.89,4 2,4.89 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.89 21.1,4 20,4Z" /></svg>
+                    </button>
+                </div>
+            </div>`;
+        });
+        shareContainer.innerHTML = buttonsHtml;
+
+        // Lógica para cada botón
+        shareContainer.querySelectorAll('.whatsapp-btn').forEach(button => {
+            button.onclick = (e) => {
+                const text = decodeURIComponent(e.currentTarget.dataset.text);
+                window.Telegram.WebApp.openLink(`https://wa.me/?text=${encodeURIComponent(text)}`);
+            };
+        });
+
+        shareContainer.querySelectorAll('.telegram-btn').forEach(button => {
+            button.onclick = (e) => {
+                const url = decodeURIComponent(e.currentTarget.dataset.url);
+                const text = decodeURIComponent(e.currentTarget.dataset.text);
+                window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
+            };
+        });
+
+        shareContainer.querySelectorAll('.email-btn').forEach(button => {
+            button.onclick = (e) => {
+                const subject = decodeURIComponent(e.currentTarget.dataset.subject);
+                const body = decodeURIComponent(e.currentTarget.dataset.body);
+                try {
+                    // Intenta abrir el cliente de correo
+                    window.Telegram.WebApp.openLink(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+                } catch (err) {
+                    // Si falla, copia al portapapeles
+                    console.error("Fallo al abrir mailto:, copiando al portapapeles.", err);
+                    window.Telegram.WebApp.writeTextToClipboard(decodeURIComponent(e.currentTarget.dataset.body));
+                    showToast('Texto de invitación copiado al portapapeles.');
+                }
+            };
+        });
 
     } catch (error) {
         console.error("Error al cargar el panel de gestión:", error);
