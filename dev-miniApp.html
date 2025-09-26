@@ -4395,7 +4395,8 @@ async function renderPanelGestion(listaId) {
         
         listaData.participantes.forEach(participante => {
             const invitationLink = `${baseUrl}/lista/${listaId}?invitado=${participante.token}`;
-            const shareText = `¡Hola, ${participante.nombre}! Te invito a unirte a nuestra lista de gastos "${listaData.nombre}".\n\nUsa este enlace personal para añadir tus gastos:\n${invitationLink}`;
+            // --- CORRECCIÓN CLAVE: El texto ya no incluye el enlace. ---
+            const shareText = `¡Hola, ${participante.nombre}! Te invito a unirte a nuestra lista de gastos "${listaData.nombre}".\n\nUsa este enlace personal para añadir tus gastos:`;
             
             participantsHtml += `
                 <li class="list-item clickable participant-item" 
@@ -4410,7 +4411,6 @@ async function renderPanelGestion(listaId) {
         });
         participantsHtml += '</ul>';
 
-        // --- INICIO DEL BLOQUE CORREGIDO ---
         const mobileOnlyButton = isMobileDevice() 
             ? `<button class="share-action-btn more-options-btn" style="background-color: #7f8c8d;" data-action="open-share-page">
                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L16.04,7.15C16.56,7.62 17.24,7.92 18,7.92C19.66,7.92 21,6.58 21,5C21,3.42 19.66,2 18,2C16.34,2 15,3.42 15,5C15,5.24 15.04,5.47 15.09,5.7L7.96,9.85C7.44,9.38 6.76,9.08 6,9.08C4.34,9.08 3,10.42 3,12C3,13.58 4.34,14.92 6,14.92C6.76,14.92 7.44,14.62 7.96,14.15L15.09,18.3C15.04,18.53 15,18.76 15,19C15,20.58 16.34,22 18,22C19.66,22 21,20.58 21,19C21,17.42 19.66,16.08 18,16.08Z" /></svg>
@@ -4428,8 +4428,6 @@ async function renderPanelGestion(listaId) {
                 </div>
             </div>
         `;
-        // --- FIN DEL BLOQUE CORREGIDO ---
-
         document.getElementById('gestion-contenido').innerHTML = participantsHtml + actionsHtml;
 
         const participantsList = document.getElementById('participants-list');
@@ -4463,15 +4461,18 @@ async function renderPanelGestion(listaId) {
             const action = button.dataset.action;
             const { text, link, title } = activeShareData;
 
+            // Para WhatsApp y Twitter, juntamos el texto y el link para `openLink`
+            const combinedTextForOpenLink = `${text}\n${link}`;
+
             switch(action) {
                 case 'whatsapp':
-                    tg.openLink(`https://wa.me/?text=${encodeURIComponent(text)}`);
+                    tg.openLink(`https://wa.me/?text=${encodeURIComponent(combinedTextForOpenLink)}`);
                     break;
                 case 'telegram':
                     tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
                     break;
                 case 'twitter':
-                    tg.openLink(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`);
+                    tg.openLink(`https://twitter.com/intent/tweet?text=${encodeURIComponent(combinedTextForOpenLink)}`);
                     break;
                 case 'open-share-page':
                     const shareUrl = `${baseUrl}/invite.html?text=${encodeURIComponent(text)}&link=${encodeURIComponent(link)}&title=${encodeURIComponent(title)}`;
