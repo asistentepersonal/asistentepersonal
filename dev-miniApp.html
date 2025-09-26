@@ -4406,7 +4406,7 @@ async function renderPanelGestion(listaId) {
         });
         participantsHtml += '</ul>';
 
-        // --- HTML DE LOS BOTONES ACTUALIZADO ---
+        // --- HTML DE LOS BOTONES CORREGIDO Y SIMPLIFICADO ---
         const actionsHtml = `
             <div id="share-actions-container" style="display: none; padding: 15px; margin-top: 15px; background-color: var(--bg); border-radius: 10px;">
                 <p id="share-actions-title" style="text-align:center; font-weight:500; margin-bottom:15px;"></p>
@@ -4421,12 +4421,8 @@ async function renderPanelGestion(listaId) {
                     <button class="share-action-btn twitter-btn" style="background-color: #1DA1F2;" data-action="twitter">
                         <svg viewBox="0 0 24 24"><path d="M22.46,6C21.69,6.35 20.86,6.58 20,6.69C20.88,6.16 21.56,5.32 21.88,4.31C21.05,4.81 20.13,5.16 19.16,5.36C18.37,4.5 17.26,4 16,4C13.65,4 11.73,5.92 11.73,8.26C11.73,8.63 11.77,8.98 11.84,9.31C8.16,9.12 4.88,7.37 2.6,4.79C2.22,5.42 2,6.16 2,6.94C2,8.43 2.77,9.75 3.94,10.54C3.22,10.52 2.53,10.31 1.91,10V10.03C1.91,12.11 3.38,13.85 5.4,14.26C5.02,14.37 4.61,14.42 4.19,14.42C3.92,14.42 3.65,14.39 3.39,14.34C3.9,16.03 5.4,17.26 7.2,17.29C5.74,18.46 3.9,19.16 2,19.16C1.63,19.16 1.27,19.14 0.91,19.12C2.73,20.33 4.91,21 7.2,21C16,21 20.28,13.58 20.28,7.5C20.28,7.29 20.27,7.09 20.26,6.89C21.1,6.25 21.85,5.45 22.46,4.5Z" /></svg>
                     </button>
-                    <button class="share-action-btn sms-btn" style="background-color: #4CAF50;" data-action="sms">
-                        <svg viewBox="0 0 24 24"><path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2M8 14H6V12H8V14M13 14H11V12H13V14M18 14H16V12H18V14Z" /></svg>
-                    </button>
                     <button class="share-action-btn more-options-btn" style="background-color: #7f8c8d;" data-action="smart-share">
                        <svg viewBox="0 0 24 24"><path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L16.04,7.15C16.56,7.62 17.24,7.92 18,7.92C19.66,7.92 21,6.58 21,5C21,3.42 19.66,2 18,2C16.34,2 15,3.42 15,5C15,5.24 15.04,5.47 15.09,5.7L7.96,9.85C7.44,9.38 6.76,9.08 6,9.08C4.34,9.08 3,10.42 3,12C3,13.58 4.34,14.92 6,14.92C6.76,14.92 7.44,14.62 7.96,14.15L15.09,18.3C15.04,18.53 15,18.76 15,19C15,20.58 16.34,22 18,22C19.66,22 21,20.58 21,19C21,17.42 19.66,16.08 18,16.08Z" /></svg>
-                       <span style="font-size:0.7rem; color:white; margin-top: 4px; position:absolute; bottom: -15px; width: 100%; text-align: center;">Otras...</span>
                     </button>
                 </div>
             </div>
@@ -4474,9 +4470,6 @@ async function renderPanelGestion(listaId) {
                 case 'twitter':
                     tg.openLink(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`);
                     break;
-                case 'sms':
-                    tg.openLink(`sms:?body=${encodeURIComponent(text)}`);
-                    break;
                 case 'smart-share':
                     if (navigator.share) {
                         try {
@@ -4486,7 +4479,8 @@ async function renderPanelGestion(listaId) {
                         }
                     } else {
                         navigator.clipboard.writeText(text).then(() => {
-                            showToast('Texto copiado. Ahora puedes pegarlo en la app que elijas.', false, true);
+                            // --- TEXTO DEL TOAST MEJORADO ---
+                            showToast('¡Copiado! El enlace de invitación está en tu portapapeles. Pégalo en la app que prefieras.', false, true);
                         }).catch(err => {
                             showToast('Error al copiar el texto.', true);
                         });
