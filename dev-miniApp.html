@@ -4341,7 +4341,7 @@ async function renderPanelGestion(listaId) {
         });
         shareContainer.innerHTML = buttonsHtml;
 
-        // Lógica para cada botón
+        // Lógica para WhatsApp
         shareContainer.querySelectorAll('.whatsapp-btn').forEach(button => {
             button.onclick = (e) => {
                 const text = decodeURIComponent(e.currentTarget.dataset.text);
@@ -4349,6 +4349,7 @@ async function renderPanelGestion(listaId) {
             };
         });
 
+        // Lógica para Telegram
         shareContainer.querySelectorAll('.telegram-btn').forEach(button => {
             button.onclick = (e) => {
                 const url = decodeURIComponent(e.currentTarget.dataset.url);
@@ -4357,16 +4358,30 @@ async function renderPanelGestion(listaId) {
             };
         });
 
+        // Lógica para el botón "Más Opciones"
         shareContainer.querySelectorAll('.more-options-btn').forEach(button => {
             button.onclick = (e) => {
                 const text = decodeURIComponent(e.currentTarget.dataset.text);
                 const title = decodeURIComponent(e.currentTarget.dataset.title);
-                if (navigator.share) {
-                    navigator.share({ title: title, text: text })
-                        .catch((error) => console.log('Error al compartir', error));
-                } else {
-                    showToast('Función no soportada, copia el texto.', true);
-                }
+                
+                // Copiamos al portapapeles primero, como red de seguridad.
+                navigator.clipboard.writeText(text).then(() => {
+                    // Solo si se puede intentar, se intenta. Si no, al menos ya se copió.
+                    if (navigator.share) {
+                        navigator.share({ title: title, text: text })
+                            .catch((error) => {
+                                // Si el usuario cancela, no mostramos nada.
+                                if (error.name !== 'AbortError') {
+                                    showToast('Invitación copiada al portapapeles.');
+                                }
+                            });
+                    } else {
+                        // Si navigator.share no existe, informamos que ya se copió.
+                        showToast('¡Invitación copiada!');
+                    }
+                }).catch(err => {
+                    showToast('Error al copiar la invitación.', true);
+                });
             };
         });
 
