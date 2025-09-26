@@ -4316,7 +4316,7 @@ async function renderPanelGestion(listaId) {
         document.getElementById('gestion-nombre-lista').textContent = `Gestionar: "${listaData.nombre}"`;
 
         // Generamos el HTML de la lista de participantes y el contenedor de acciones
-        let participantsHtml = '<p style="padding: 0 10px; color: var(--muted);">Selecciona un participante para invitar:</p><ul id="participants-list" class="list-style-none" style="margin-top:10px;">';
+        let participantsHtml = '<p style="padding: 0 10px; color: var(--muted);">1. Selecciona un participante:</p><ul id="participants-list" class="list-style-none" style="margin-top:10px;">';
         const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
         
         listaData.participantes.forEach(participante => {
@@ -4325,9 +4325,8 @@ async function renderPanelGestion(listaId) {
             
             participantsHtml += `
                 <li class="list-item clickable participant-item" 
-                    data-share-text="${encodeURIComponent(shareText)}" 
-                    data-share-title="Invitación a ${encodeURIComponent(listaData.nombre)}"
-                    data-telegram-url="${encodeURIComponent(invitationLink)}">
+                    data-share-text="${encodeURIComponent(shareText)}"
+                    data-invitation-link="${encodeURIComponent(invitationLink)}">
                     <div class="list-item-content">
                         <span class="list-item-title">${participante.nombre}</span>
                         <span class="list-item-subtitle">Toca para invitar</span>
@@ -4338,7 +4337,7 @@ async function renderPanelGestion(listaId) {
 
         const actionsHtml = `
             <div id="share-actions-container" style="display: none; padding: 15px; margin-top: 15px; background-color: var(--bg); border-radius: 10px;">
-                <p id="share-actions-title" style="text-align:center; font-weight:500; margin-bottom:15px;"></p>
+                <p id="share-actions-title" style="text-align:center; font-weight:500; margin-bottom:15px;">2. Elige cómo invitar:</p>
                 <div style="display: flex; justify-content: center; gap: 15px;">
                     <button class="share-action-btn whatsapp-btn" style="background-color: #25D366;">
                         <svg viewBox="0 0 24 24"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.61 15.35 3.48 16.84L2 22L7.32 20.55C8.75 21.33 10.36 21.8 12.04 21.8H12.05C17.5 21.8 21.95 17.35 21.95 11.9C21.95 9.28 20.94 6.85 19.1 4.99C17.25 3.14 14.81 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.5 17.87 6.06C19.43 7.62 20.27 9.68 20.27 11.9C20.27 16.45 16.65 20.12 12.05 20.12C10.56 20.12 9.14 19.7 7.95 18.91L7.55 18.66L4.43 19.53L5.34 16.48L5.08 16.08C4.22 14.81 3.79 13.39 3.79 11.91C3.79 7.35 7.42 3.67 12.05 3.67M9.03 7.33C8.84 7.33 8.65 7.39 8.52 7.63L7.92 8.23C7.77 8.38 7.62 8.53 7.62 8.73C7.62 8.94 7.77 9.13 7.92 9.28L8.12 9.48C8.28 9.64 8.42 9.83 8.52 10.03C8.61 10.23 8.61 10.45 8.52 10.65L7.92 11.84C7.82 12.04 7.77 12.14 7.92 12.29C8.07 12.44 8.61 12.74 9.21 13.28C10.03 13.99 10.65 14.39 11.1 14.59C11.3 14.69 11.49 14.64 11.64 14.49L12.09 13.94C12.29 13.69 12.39 13.5 12.59 13.5C12.79 13.5 14.28 14.24 14.53 14.39C14.78 14.54 14.93 14.59 15.03 14.69C15.13 14.79 15.13 14.98 14.93 15.18L14.48 15.63C14.28 15.83 14.14 15.93 13.94 16.03C13.74 16.13 13.28 16.28 12.83 16.28C12.38 16.28 11.84 16.18 11.49 16.03C10.91 15.78 10.08 15.43 9.08 14.64C7.95 13.74 7.15 12.64 6.8 11.94C6.45 11.24 6.2 10.59 6.2 9.94C6.2 9.11 6.45 8.53 6.7 8.13C6.95 7.73 7.25 7.53 7.55 7.43C7.85 7.33 8.1 7.33 8.25 7.33H8.35C8.55 7.33 8.74 7.33 8.89 7.53L9.39 8.13C9.49 8.23 9.54 8.33 9.54 8.48C9.54 8.63 9.49 8.73 9.39 8.83L9.14 9.08C9.09 9.13 9.03 9.18 8.98 9.18C8.93 9.18 8.89 9.18 8.84 9.13L8.69 8.98C8.69 8.98 8.39 8.68 9.03 7.93C9.68 7.18 9.73 7.18 9.88 7.33L10.58 8.03C10.73 8.18 10.88 8.23 11.03 8.13C11.18 8.03 11.73 7.53 11.88 7.38C12.03 7.23 11.98 7.13 11.83 6.98L11.08 6.23C10.88 5.98 10.58 5.78 10.23 5.78C9.88 5.78 9.23 6.03 9.03 7.33Z" /></svg>
@@ -4349,70 +4348,34 @@ async function renderPanelGestion(listaId) {
                     <button class="share-action-btn messenger-btn" style="background-color: #0078FF;">
                         <svg viewBox="0 0 24 24"><path d="M12,2C6.48,2 2,5.79 2,10.15C2,12.5 3.55,14.53 5.76,15.53L4.8,18.7L8.3,17.38C9.48,17.8 10.7,18 12,18C17.52,18 22,14.21 22,9.85C22,5.48 17.52,2 12,2M8,11.15L6,9.15L10,7.15L14,9.15L16,11.15L12,13.15L8,11.15Z" /></svg>
                     </button>
-                    <button class="share-action-btn twitter-btn" style="background-color: #1DA1F2;">
-                        <svg viewBox="0 0 24 24"><path d="M22.46,6C21.69,6.35 20.86,6.58 20,6.69C20.88,6.16 21.56,5.32 21.88,4.31C21.05,4.81 20.13,5.16 19.16,5.36C18.37,4.5 17.26,4 16,4C13.65,4 11.73,5.92 11.73,8.26C11.73,8.63 11.77,8.98 11.84,9.31C8.16,9.12 4.88,7.37 2.6,4.79C2.22,5.42 2,6.16 2,6.94C2,8.43 2.77,9.75 3.94,10.54C3.22,10.52 2.53,10.31 1.91,10V10.03C1.91,12.11 3.38,13.85 5.4,14.26C5.02,14.37 4.61,14.42 4.19,14.42C3.92,14.42 3.65,14.39 3.39,14.34C3.9,16.03 5.4,17.26 7.2,17.29C5.74,18.46 3.9,19.16 2,19.16C1.63,19.16 1.27,19.14 0.91,19.12C2.73,20.33 4.91,21 7.2,21C16,21 20.28,13.58 20.28,7.5C20.28,7.29 20.27,7.09 20.26,6.89C21.1,6.25 21.85,5.45 22.46,4.5Z" /></svg>
-                    </button>
-                    <button class="share-action-btn more-options-btn" style="background-color: #7f8c8d;">
-                       <svg viewBox="0 0 24 24"><path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L16.04,7.15C16.56,7.62 17.24,7.92 18,7.92C19.66,7.92 21,6.58 21,5C21,3.42 19.66,2 18,2C16.34,2 15,3.42 15,5C15,5.24 15.04,5.47 15.09,5.7L7.96,9.85C7.44,9.38 6.76,9.08 6,9.08C4.34,9.08 3,10.42 3,12C3,13.58 4.34,14.92 6,14.92C6.76,14.92 7.44,14.62 7.96,14.15L15.09,18.3C15.04,18.53 15,18.76 15,19C15,20.58 16.34,22 18,22C19.66,22 21,20.58 21,19C21,17.42 19.66,16.08 18,16.08Z" /></svg>
+                    <button class="share-action-btn sms-btn" style="background-color: #4CAF50;">
+                        <svg viewBox="0 0 24 24"><path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M8,9H16V11H8V9M12,14H8V12H12V14M16,7H8V5H16V7Z" /></svg>
                     </button>
                 </div>
             </div>
         `;
         document.getElementById('gestion-contenido').innerHTML = participantsHtml + actionsHtml;
 
-        // Detectamos si es un dispositivo móvil
-        const isMobileDevice = /Mobi/i.test(navigator.userAgent);
-
-        // Lógica de visibilidad
-        const moreOptionsBtn = document.querySelector('.more-options-btn');
-        if (isMobileDevice) {
-            moreOptionsBtn.style.display = 'none'; // Se oculta en móvil
-        }
-
-        // Añadimos la lógica de selección y activación de botones
         const participantsList = document.getElementById('participants-list');
         const actionsContainer = document.getElementById('share-actions-container');
-        const actionsTitle = document.getElementById('share-actions-title');
         
         participantsList.addEventListener('click', (e) => {
             const selectedItem = e.target.closest('.participant-item');
             if (!selectedItem) return;
 
-            // Gestionar el estado visual "seleccionado"
             participantsList.querySelectorAll('.participant-item').forEach(item => item.classList.remove('selected'));
             selectedItem.classList.add('selected');
 
-            // Recoger los datos del participante seleccionado
-            const shareText = selectedItem.dataset.shareText;
-            const shareTitle = selectedItem.dataset.shareTitle;
-            const telegramUrl = selectedItem.dataset.telegramUrl;
-            const participantName = selectedItem.querySelector('.list-item-title').textContent;
-
-            // Actualizar el título y los botones de acción
-            actionsTitle.textContent = `Invitar a ${participantName}`;
-            actionsContainer.querySelector('.whatsapp-btn').dataset.text = shareText;
-            actionsContainer.querySelector('.telegram-btn').dataset.text = shareText;
-            actionsContainer.querySelector('.telegram-btn').dataset.url = telegramUrl;
-            actionsContainer.querySelector('.messenger-btn').dataset.text = telegramUrl; // Messenger usa el link directo
-            actionsContainer.querySelector('.twitter-btn').dataset.text = shareText;
-            actionsContainer.querySelector('.more-options-btn').dataset.text = shareText;
-            actionsContainer.querySelector('.more-options-btn').dataset.title = shareTitle;
+            actionsContainer.dataset.shareText = selectedItem.dataset.shareText;
+            actionsContainer.dataset.invitationLink = selectedItem.dataset.invitationLink;
             
-            // Mostrar el contenedor de acciones
             actionsContainer.style.display = 'block';
         });
 
-        // Asignar funciones a los botones de acción
-        actionsContainer.querySelector('.whatsapp-btn').onclick = (e) => tg.openLink(`https://wa.me/?text=${e.currentTarget.dataset.text}`);
-        actionsContainer.querySelector('.telegram-btn').onclick = (e) => tg.openTelegramLink(`https://t.me/share/url?url=${e.currentTarget.dataset.url}&text=${e.currentTarget.dataset.text}`);
-        actionsContainer.querySelector('.messenger-btn').onclick = (e) => tg.openLink(`fb-messenger://share?link=${e.currentTarget.dataset.text}`);
-        actionsContainer.querySelector('.twitter-btn').onclick = (e) => tg.openLink(`https://twitter.com/intent/tweet?text=${e.currentTarget.dataset.text}`);
-        actionsContainer.querySelector('.more-options-btn').onclick = (e) => {
-             if (navigator.share) {
-                navigator.share({ title: decodeURIComponent(e.currentTarget.dataset.title), text: decodeURIComponent(e.currentTarget.dataset.text) });
-            }
-        };
-        
+        actionsContainer.querySelector('.whatsapp-btn').onclick = (e) => tg.openLink(`https://wa.me/?text=${actionsContainer.dataset.shareText}`);
+        actionsContainer.querySelector('.telegram-btn').onclick = (e) => tg.openTelegramLink(`https://t.me/share/url?url=${actionsContainer.dataset.invitationLink}&text=${actionsContainer.dataset.shareText}`);
+        actionsContainer.querySelector('.messenger-btn').onclick = (e) => tg.openLink(`fb-messenger://share?link=${actionsContainer.dataset.invitationLink}`);
+        actionsContainer.querySelector('.sms-btn').onclick = (e) => tg.openLink(`sms:?&body=${actionsContainer.dataset.shareText}`);
 
     } catch (error) {
         console.error("Error al cargar el panel de gestión:", error);
