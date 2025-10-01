@@ -2309,9 +2309,11 @@ async function addArticle() {
     const cycle = parseInt(document.getElementById('article-cycle').value, 10) || 0;
     if (!description) return;
 
-    const emoji = findEmojiForText(description);
+    // Verificamos si el texto que vamos a guardar ya empieza con un emoji del diccionario
+const startsWithEmoji = emojiDictionary.some(e => description.startsWith(e.emoji));
 
-if (!emoji) {
+// Solo si NO empieza con un emoji, disparamos el webhook
+if (!startsWithEmoji) {
     try {
         const user = tg?.initDataUnsafe?.user;
         const userName = (user?.first_name || user?.username) || 'Usuario Desconocido';
@@ -2331,7 +2333,9 @@ if (!emoji) {
         console.error("Error construyendo la notificación de emoji faltante:", e);
     }
 }
-    const finalDescription = emoji ? `${emoji} ${description}` : description;
+
+// El texto final ya está formateado por la lógica 'oninput', por lo que lo usamos directamente.
+const finalDescription = description;
 
     goBack();
     showToast('Añadiendo artículo...');
