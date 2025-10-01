@@ -995,16 +995,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
 	
-	// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCCz7-d3dX2uw_sF4swtmNY0zXScphxkZk",
-  authDomain: "asistentepersonal-4ad2b.firebaseapp.com",
-  projectId: "asistentepersonal-4ad2b",
-  storageBucket: "asistentepersonal-4ad2b.firebasestorage.app",
-  messagingSenderId: "1068752893536",
-  appId: "1:1068752893536:web:4654f215bc2676b68bf505",
-  measurementId: "G-XWEJS9BMFY"
-};
+	
     
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
@@ -2263,8 +2254,38 @@ function renderAddArticleForm() {
       </div>`;
     const sendBtn = document.getElementById('add-article-send-btn');
     const descriptionInput = document.getElementById('article-description');
-    descriptionInput.oninput = () => { const isEnabled = descriptionInput.value.trim() !== ''; sendBtn.disabled = !isEnabled; sendBtn.classList.toggle('enabled', isEnabled); };
-    sendBtn.onclick = addArticle;
+descriptionInput.oninput = () => {
+            const isEnabled = descriptionInput.value.trim() !== '';
+            sendBtn.disabled = !isEnabled;
+            sendBtn.classList.toggle('enabled', isEnabled);
+
+            const text = descriptionInput.value;
+
+            // Evitar buscar si el campo está vacío o ya empieza con un emoji
+            const startsWithEmoji = emojiDictionary.some(e => text.startsWith(e.emoji));
+            if (!text || startsWithEmoji) {
+                return;
+            }
+
+            // Dividir el texto en palabras y buscar una coincidencia
+            const words = text.toLowerCase().split(' ').filter(word => word.length > 2);
+            let foundEmoji = null;
+
+            for (const word of words) {
+                const foundItem = emojiDictionary.find(item =>
+                    item.label === word || (item.tags && item.tags.includes(word))
+                );
+
+                if (foundItem) {
+                    foundEmoji = foundItem.emoji;
+                    break;
+                }
+            }
+
+            if (foundEmoji) {
+                descriptionInput.value = `${foundEmoji} ${text}`;
+            }
+        };    sendBtn.onclick = addArticle;
 }
 
 async function addArticle() {
