@@ -994,6 +994,22 @@
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+	// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCCz7-d3dX2uw_sF4swtmNY0zXScphxkZk",
+  authDomain: "asistentepersonal-4ad2b.firebaseapp.com",
+  projectId: "asistentepersonal-4ad2b",
+  storageBucket: "asistentepersonal-4ad2b.firebasestorage.app",
+  messagingSenderId: "1068752893536",
+  appId: "1:1068752893536:web:4654f215bc2676b68bf505",
+  measurementId: "G-XWEJS9BMFY"
+};
+
+if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+    window.db = firebase.firestore();
+}
+// --- FIN DE INICIALIZACIÓN ---
 	
 	
     
