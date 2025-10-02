@@ -1066,17 +1066,26 @@ async function initializeApp() {
 // --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
 async function runApp() {
     try {
+        // 1. Obtener los ajustes del usuario (sin cambios)
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
-
         if (!userSettingsDoc.exists) {
             failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
             return;
         }
-
         appData.settings = userSettingsDoc.data() || {};
         appData.isPremium = appData.settings.plan_premium === true;
-        
-        // Listener GLOBAL de contadores
+
+        // --- INICIO DE LA CORRECCIÓN ---
+        // 2. Obtener el estado INICIAL de los contadores ANTES de dibujar nada
+        const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
+        if (countsDoc.exists) {
+            // Si el documento existe, lo usamos como estado inicial fusionándolo con los defaults
+            appData.counts = { ...appData.counts, ...countsDoc.data() };
+        }
+        // Si no existe, appData.counts mantendrá sus valores por defecto (0, '0,00', etc.)
+        // --- FIN DE LA CORRECCIÓN ---
+
+        // 3. Configurar los listeners para futuras actualizaciones (sin cambios)
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot((doc) => {
                 if (doc.exists) {
@@ -1093,7 +1102,7 @@ async function runApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario en tiempo real
+        // Listener para el badge del calendario en tiempo real (sin cambios)
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date();
@@ -1111,7 +1120,8 @@ async function runApp() {
           }, error => {
               console.error("Error en listener de eventos de hoy:", error);
           });
-
+        
+        // 4. Dibujar la UI con los datos ya cargados (sin cambios)
         updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
