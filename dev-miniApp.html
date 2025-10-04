@@ -5474,16 +5474,18 @@ function renderDashboard() {
 
   // --- INICIO DE LA MODIFICACIÓN ---
 
-// Se define la variable baseUrl con la URL de tu aplicación
-const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
-
 // Asignación del evento al botón
 document.getElementById('scan-gasto-link').onclick = () => {
-    // Se construye la URL completa para abrir
-    // Asegúrate de que las variables 'text', 'link' y 'title' tengan un valor antes de esta línea.
-    const shareUrl = `${baseUrl}/photo-ticket.html?text=${encodeURIComponent(text)}&link=${encodeURIComponent(link)}&title=${encodeURIComponent(title)}`;
     
-    // Se llama a la función para abrir el enlace
+    // 1. Definimos las variables con los valores que quieres enviar
+    const title = "Toma tu foto";
+    const text = "Test";
+    const link = "https://asistentepersonal-4ad2b.web.app"; // El link que se pasa como parámetro
+
+    // 2. Construimos la URL completa, codificando los valores para que sean seguros
+    const shareUrl = `https://asistentepersonal-4ad2b.web.app/photo-ticket.html?title=${encodeURIComponent(title)}&text=${encodeURIComponent(text)}&link=${encodeURIComponent(link)}`;
+    
+    // 3. Abrimos el enlace
     tg.openLink(shareUrl);
 };
 
