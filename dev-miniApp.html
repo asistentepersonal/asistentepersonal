@@ -5473,17 +5473,13 @@ function renderDashboard() {
   document.getElementById('list-notes-link').onclick = renderNotesList;
 
   // --- INICIO DE LA MODIFICACIÓN CLAVE ---
-  document.getElementById('scan-gasto-link').onclick = () => {
-    // --- INICIO DE LA MODIFICACIÓN CLAVE ---
+document.getElementById('scan-gasto-link').onclick = () => {
     // Llamada directa a photo-ticket.html con un parámetro para evitar el caché.
-    const cacheBuster = `?v=${new Date().getTime()}`;
+    const cacheBuster = `?v=${new Date().getTime()}`; // Esta línea no se usaba, pero la dejo por si la necesitas.
     const shareUrl = `${baseUrl}/photo-ticket.html?text=${encodeURIComponent(text)}&link=${encodeURIComponent(link)}&title=${encodeURIComponent(title)}`;
-                    tg.openLink(shareUrl);
-                    break
-    }
-    // --- FIN DE LA MODIFICACIÓN CLAVE ---
-  };
-  // --- FIN DE LA MODIFICACIÓN CLAVE ---
+    tg.openLink(shareUrl);
+};
+// --- FIN DE LA MODIFICACIÓN CLAVE ---
   
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
   document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
