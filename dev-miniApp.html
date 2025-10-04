@@ -2594,43 +2594,6 @@ const categoriasGastos = {
     "🎁 Otros": ["🎉 Regalos y celebraciones", "❤️ Donaciones o caridad", "🐾 Mascotas (comida, veterinario, etc.)"]
 };
 
-function renderInstructionScreen() {
-    navigationHistory.push(renderDashboard);
-    updateBackButton();
-    
-    // La URL completa de tu página externa
-    const photoTicketUrl = 'https://asistentepersonal-4ad2b.web.app/photo-ticket.html';
-
-    mainContentArea.innerHTML = `
-        <div class="list-container">
-            <div class="list-header"></div>
-            <div class="scan-instruction-screen">
-                <h2>Registrar Gasto con Foto</h2>
-                <ol style="text-align: left; margin: 0 auto 30px auto; max-width: 300px;">
-                    <li style="margin-bottom: 10px;">Pulsa el botón de abajo para abrir la cámara o tu galería.</li>
-                    <li>Toma o selecciona la foto de tu ticket.</li>
-                    <li>Confirma la imagen para volver aquí y procesarla.</li>
-                </ol>
-                <div class="add-article-btn-container">
-                    <button class="add-article-btn" id="scan-ticket-button">Abrir Cámara / Galería 🖼️</button>
-                </div>
-            </div>
-        </div>`;
-    
-    // Asignamos la nueva acción para abrir la página externa
-    const scanButton = document.getElementById('scan-ticket-button');
-    if (scanButton) {
-        scanButton.onclick = () => {
-            if (tg && tg.openLink) {
-                tg.openLink(photoTicketUrl);
-            } else {
-                // Fallback para pruebas en navegador de escritorio
-                window.open(photoTicketUrl, '_blank');
-            }
-        };
-    }
-}
-
 async function handleImageScan() {
     if (!selectedImageFile) {
         showToast('No se ha seleccionado ninguna imagen.', true);
@@ -5484,12 +5447,9 @@ function renderDashboard() {
   if (isPremium) {
     chefCardHtml = `<div class="card clickable-card" id="chef-card"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef</div></div>`;
   } else {
-    // --- LA CORRECCIÓN CLAVE ---
-    // Añadimos el id 'chef-card-locked' para poder aplicar el estilo específico.
     chefCardHtml = `<div class="card disabled-card" id="chef-card-locked"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef ⭐</div></div>`;
   }
   
-  // La tarjeta del calendario ya es activa y llama a renderCalendarView
   const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
   const cuentasClarasCardHtml = `<div class="card disabled-card" id="cuentas-claras-card"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>`;
 
@@ -5511,7 +5471,18 @@ function renderDashboard() {
   document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
   document.getElementById('add-note-link').onclick = () => renderNoteForm();
   document.getElementById('list-notes-link').onclick = renderNotesList;
-  document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
+
+  // --- INICIO DE LA MODIFICACIÓN CLAVE ---
+  document.getElementById('scan-gasto-link').onclick = () => {
+    const photoTicketUrl = 'https://asistentepersonal-4ad2b.web.app/photo-ticket.html';
+    if (tg && tg.openLink) {
+        tg.openLink(photoTicketUrl);
+    } else {
+        window.open(photoTicketUrl, '_blank');
+    }
+  };
+  // --- FIN DE LA MODIFICACIÓN CLAVE ---
+  
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
   document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
   document.getElementById('list-gastos-link').onclick = () => {
@@ -5520,8 +5491,7 @@ function renderDashboard() {
       renderGastosSearchScreen();
   };
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-
-  document.getElementById('calendar-card').onclick = renderCalendarView; // Ahora llama a nuestra nueva función
+  document.getElementById('calendar-card').onclick = renderCalendarView;
   document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
   
   if (isPremium) {
@@ -5532,8 +5502,6 @@ function renderDashboard() {
     if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
   }
 
-  // --- CÓDIGO RESTAURADO PARA LOS MENÚS ---
-  // Este es el bloque que faltaba y que repara los menús desplegables.
   document.querySelectorAll('.clickable-card').forEach(card => {
       card.addEventListener('click', (e) => {
           if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
@@ -5564,7 +5532,6 @@ function renderDashboard() {
           }
       });
   });
-  // --- FIN DEL CÓDIGO RESTAURADO ---
 }
 
 // Lógica de pestañas
