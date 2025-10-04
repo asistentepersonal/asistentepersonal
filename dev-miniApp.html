@@ -5475,14 +5475,14 @@ function renderDashboard() {
   // --- INICIO DE LA MODIFICACIÓN CLAVE ---
   document.getElementById('scan-gasto-link').onclick = () => {
     // --- INICIO DE LA MODIFICACIÓN CLAVE ---
-    // Se añade un parámetro con la fecha actual para evitar problemas de caché.
+    // Llamada directa a photo-ticket.html con un parámetro para evitar el caché.
     const cacheBuster = `?v=${new Date().getTime()}`;
-    const lanzadorUrl = `https://asistentepersonal-4ad2b.web.app/lanzador-camara.html${cacheBuster}`;
+    const photoTicketUrl = `https://asistentepersonal-4ad2b.web.app/photo-ticket.html${cacheBuster}`;
     
     if (tg && tg.openLink) {
-        tg.openLink(lanzadorUrl);
+        tg.openLink(photoTicketUrl);
     } else {
-        window.open(lanzadorUrl, '_blank');
+        window.open(photoTicketUrl, '_blank');
     }
     // --- FIN DE LA MODIFICACIÓN CLAVE ---
   };
