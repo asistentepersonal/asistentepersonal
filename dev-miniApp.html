@@ -4382,32 +4382,34 @@ function renderCrearListaForm() {
     const moneda = document.getElementById('nueva-lista-moneda').value.trim() || '€';
     
     const creadorNombre = (appData.settings.nombre || `Usuario${chatId}`).trim();
-let participantesNombres = participantesInput.value.trim().split('\n').map(p => p.trim()).filter(p => p !== '');
+// 1. Obtenemos los nombres del textarea.
+const nombresDelTextarea = participantesInput.value.trim().split('\n').map(p => p.trim()).filter(p => p !== '');
 
-// Nos aseguramos de que el nombre del creador esté en la lista para evitar errores.
-const creadorEnLista = participantesNombres.some(p => p.toLowerCase() === creadorNombre.toLowerCase());
-if (!creadorEnLista) {
-    // Si no está, lo añadimos al principio.
-    participantesNombres.unshift(creadorNombre);
-    // Opcional: actualizar el textarea para que el usuario vea el cambio.
-    participantesInput.value = participantesNombres.join('\n');
-}
+// 2. Creamos un Set para garantizar nombres únicos, añadiendo primero el del creador.
+const nombresUnicos = new Set([creadorNombre, ...nombresDelTextarea]);
 
+// 3. Convertimos el Set de nuevo a un array para trabajar con él.
+const participantesNombres = Array.from(nombresUnicos);
+
+// 4. Actualizamos el textarea para que el usuario vea la lista limpia y sin duplicados.
+participantesInput.value = participantesNombres.join('\n');
+
+// 5. Generamos tokens para cada participante único.
 const participantesConTokens = participantesNombres.map(nombre => ({
     nombre: nombre,
     token: generateCustomId('INV-')
 }));
 
-// Buscamos el token del creador de forma segura.
+// 6. Buscamos el token del creador de forma segura en la lista ya procesada.
 const creadorData = participantesConTokens.find(p => p.nombre.toLowerCase() === creadorNombre.toLowerCase());
 const tokenDelCreador = creadorData ? creadorData.token : null;
 
-// Verificación final. Si no encontramos el token del creador, no continuamos.
+// 7. La verificación de seguridad se mantiene.
 if (!tokenDelCreador) {
     hideSpinner();
-    showToast("Error: No se pudo asignar un token al creador de la lista.", true);
+    showToast("Error crítico: No se pudo encontrar el token del creador.", true);
     crearBtn.disabled = false;
-    return; // Detiene la ejecución.
+    return; 
 }
 
 try {
@@ -4467,21 +4469,26 @@ async function renderPanelGestion(listaId) {
         const baseUrl = 'https://asistentepersonal-4ad2b.web.app'; 
         
         listaData.participantes.forEach(participante => {
-            const invitationLink = `${baseUrl}/lista/${listaId}?invitado=${participante.token}`;
-            // --- CORRECCIÓN CLAVE: El texto ya no incluye el enlace. ---
-            const shareText = `¡Hola, ${participante.nombre}! Te invito a unirte a nuestra lista de gastos "${listaData.nombre}".\n\nUsa este enlace personal para añadir tus gastos:`;
-            
-            participantsHtml += `
-                <li class="list-item clickable participant-item" 
-                    data-share-text="${encodeURIComponent(shareText)}" 
-                    data-share-link="${encodeURIComponent(invitationLink)}"
-                    data-share-title="Invitación a ${encodeURIComponent(listaData.nombre)}">
-                    <div class="list-item-content">
-                        <span class="list-item-title">${participante.nombre}</span>
-                        <span class="list-item-subtitle">Toca para invitar</span>
-                    </div>
-                </li>`;
-        });
+    const invitationLink = `${baseUrl}/lista/${listaId}?invitado=${participante.token}`;
+    
+    // 1. Mejora del texto de la invitación para mayor claridad y formato.
+    const shareText = `¡Hola, ${participante.nombre}!\n\nTe invito a la lista de gastos "${listaData.nombre}".\n\n👇 Accede con tu enlace personal:`;
+
+    // 2. Lógica para identificar y etiquetar al organizador.
+    const esOrganizador = participante.token === listaData.token_creador;
+    const organizadorLabel = esOrganizador ? ' <span class="list-item-subtitle" style="font-weight:normal; opacity:0.8;">(organizador)</span>' : '';
+
+    participantsHtml += `
+        <li class="list-item clickable participant-item" 
+            data-share-text="${encodeURIComponent(shareText)}" 
+            data-share-link="${encodeURIComponent(invitationLink)}"
+            data-share-title="Invitación a ${encodeURIComponent(listaData.nombre)}">
+            <div class="list-item-content">
+                <span class="list-item-title">${participante.nombre}${organizadorLabel}</span>
+                <span class="list-item-subtitle">Toca para invitar</span>
+            </div>
+        </li>`;
+});
         participantsHtml += '</ul>';
 
         const mobileOnlyButton = isMobileDevice() 
