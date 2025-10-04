@@ -2597,38 +2597,55 @@ const categoriasGastos = {
 function renderInstructionScreen() {
     navigationHistory.push(renderDashboard);
     updateBackButton();
-    
-    // La URL completa de tu página externa
-    const photoTicketUrl = 'https://asistentepersonal-4ad2b.web.app/photo-ticket.html';
-
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"></div>
             <div class="scan-instruction-screen">
                 <h2>Registrar Gasto con Foto</h2>
                 <ol style="text-align: left; margin: 0 auto 30px auto; max-width: 300px;">
-                    <li style="margin-bottom: 10px;">Pulsa el botón de abajo para abrir la cámara o tu galería.</li>
-                    <li>Toma o selecciona la foto de tu ticket.</li>
-                    <li>Confirma la imagen para volver aquí y procesarla.</li>
-                </ol>
+				<li style="margin-bottom: 10px;">Primero, sal de la app y saca una foto nítida de tu ticket con la cámara de tu teléfono.</li>
+				<li>Luego, vuelve aquí y pulsa el botón de abajo para subir esa foto desde tu galería.</li>
+				</ol>
                 <div class="add-article-btn-container">
-                    <button class="add-article-btn" id="scan-ticket-button">Abrir Cámara / Galería 🖼️</button>
+                    <button class="add-article-btn" id="scan-ticket-button">Subir Ticket desde Galería 🖼️</button>
                 </div>
             </div>
         </div>`;
     
-    // Asignamos la nueva acción para abrir la página externa
+    // Asignamos la acción directamente al botón
     const scanButton = document.getElementById('scan-ticket-button');
     if (scanButton) {
-        scanButton.onclick = () => {
-            if (tg && tg.openLink) {
-                tg.openLink(photoTicketUrl);
-            } else {
-                // Fallback para pruebas en navegador de escritorio
-                window.open(photoTicketUrl, '_blank');
-            }
-        };
+        // triggerFileInput es la función que ya tienes en tu código para abrir la galería
+        scanButton.onclick = triggerFileInput;
     }
+}
+function triggerFileInput() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+
+    fileInput.onchange = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        selectedImageFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('image-preview-element').src = e.target.result;
+            document.getElementById('image-preview-overlay').style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+    };
+
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    
+    // Limpiamos el input del DOM para evitar problemas en futuras aperturas.
+    window.addEventListener('focus', () => {
+        if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
+        }
+    }, { once: true });
 }
 
 async function handleImageScan() {
