@@ -5472,14 +5472,22 @@ function renderDashboard() {
   document.getElementById('add-note-link').onclick = () => renderNoteForm();
   document.getElementById('list-notes-link').onclick = renderNotesList;
 
-  // --- INICIO DE LA MODIFICACIÓN CLAVE ---
+  // --- INICIO DE LA MODIFICACIÓN ---
+
+// Se define la variable baseUrl con la URL de tu aplicación
+const baseUrl = 'https://asistentepersonal-4ad2b.web.app';
+
+// Asignación del evento al botón
 document.getElementById('scan-gasto-link').onclick = () => {
-    // Llamada directa a photo-ticket.html con un parámetro para evitar el caché.
-    const cacheBuster = `?v=${new Date().getTime()}`; // Esta línea no se usaba, pero la dejo por si la necesitas.
+    // Se construye la URL completa para abrir
+    // Asegúrate de que las variables 'text', 'link' y 'title' tengan un valor antes de esta línea.
     const shareUrl = `${baseUrl}/photo-ticket.html?text=${encodeURIComponent(text)}&link=${encodeURIComponent(link)}&title=${encodeURIComponent(title)}`;
+    
+    // Se llama a la función para abrir el enlace
     tg.openLink(shareUrl);
 };
-// --- FIN DE LA MODIFICACIÓN CLAVE ---
+
+// --- FIN DE LA MODIFICACIÓN ---
   
   document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
   document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
