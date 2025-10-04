@@ -5475,8 +5475,10 @@ function renderDashboard() {
   // --- INICIO DE LA MODIFICACIÓN CLAVE ---
   document.getElementById('scan-gasto-link').onclick = () => {
     // --- INICIO DE LA MODIFICACIÓN CLAVE ---
-    // Ahora apunta a la nueva página "lanzador"
-    const lanzadorUrl = 'https://asistentepersonal-4ad2b.web.app/lanzador-camara.html';
+    // Se añade un parámetro con la fecha actual para evitar problemas de caché.
+    const cacheBuster = `?v=${new Date().getTime()}`;
+    const lanzadorUrl = `https://asistentepersonal-4ad2b.web.app/lanzador-camara.html${cacheBuster}`;
+    
     if (tg && tg.openLink) {
         tg.openLink(lanzadorUrl);
     } else {
