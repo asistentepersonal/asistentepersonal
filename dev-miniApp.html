@@ -5477,12 +5477,9 @@ function renderDashboard() {
     // --- INICIO DE LA MODIFICACIÓN CLAVE ---
     // Llamada directa a photo-ticket.html con un parámetro para evitar el caché.
     const cacheBuster = `?v=${new Date().getTime()}`;
-    const photoTicketUrl = `https://asistentepersonal-4ad2b.web.app/photo-ticket.html${cacheBuster}`;
-    
-    if (tg && tg.openLink) {
-        tg.openLink(photoTicketUrl);
-    } else {
-        window.open(photoTicketUrl, '_blank');
+    const shareUrl = `${baseUrl}/photo-ticket.html?text=${encodeURIComponent(text)}&link=${encodeURIComponent(link)}&title=${encodeURIComponent(title)}`;
+                    tg.openLink(shareUrl);
+                    break
     }
     // --- FIN DE LA MODIFICACIÓN CLAVE ---
   };
