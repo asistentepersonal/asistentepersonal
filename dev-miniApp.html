@@ -5474,12 +5474,15 @@ function renderDashboard() {
 
   // --- INICIO DE LA MODIFICACIÓN CLAVE ---
   document.getElementById('scan-gasto-link').onclick = () => {
-    const photoTicketUrl = 'https://asistentepersonal-4ad2b.web.app/photo-ticket.html';
+    // --- INICIO DE LA MODIFICACIÓN CLAVE ---
+    // Ahora apunta a la nueva página "lanzador"
+    const lanzadorUrl = 'https://asistentepersonal-4ad2b.web.app/lanzador-camara.html';
     if (tg && tg.openLink) {
-        tg.openLink(photoTicketUrl);
+        tg.openLink(lanzadorUrl);
     } else {
-        window.open(photoTicketUrl, '_blank');
+        window.open(lanzadorUrl, '_blank');
     }
+    // --- FIN DE LA MODIFICACIÓN CLAVE ---
   };
   // --- FIN DE LA MODIFICACIÓN CLAVE ---
   
