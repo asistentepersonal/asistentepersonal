@@ -4418,9 +4418,9 @@ try {
     await db.collection('cuentasClaras_listas').doc(listaId).set({
         nombre: nombre,
         moneda: moneda,
-        participantes: participantesConTokens,
-        token_creador: tokenDelCreador, // Campo clave para identificar al organizador.
-        miembros: [chatId], // De momento, solo el creador es miembro "Telegram".
+        participantes: participantesConTokens, // <-- Este es el campo clave que faltaba
+        token_creador: tokenDelCreador,
+        miembros: [chatId],
         creador: chatId,
         estado: 'abierto',
         fecha_creacion: firebase.firestore.FieldValue.serverTimestamp()
