@@ -246,7 +246,7 @@
 {"emoji":"🛍️","label":"compras","tags":["compras","tiendas","shopping"]},
 {"emoji":"🎁","label":"souvenir","tags":["regalo","souvenir","recuerdo","presente"]},
 {"emoji":"💳","label":"tarjeta","tags":["tarjeta","crédito","débito","visa","mastercard"]},
-   {"emoji":"👕","label":"ropa","tags":["ropa","camiseta","remera","franela","polo","prenda"]},
+{"emoji":"👕","label":"ropa","tags":["ropa","camiseta","remera","franela","polo","prenda"]},
 {"emoji":"👖","label":"pantalones","tags":["pantalones","jeans","vaqueros","pantalón"]},
 {"emoji":"👗","label":"vestido","tags":["vestido","ropa","fiesta"]},
 {"emoji":"👟","label":"zapatillas","tags":["zapatillas","tenis","zapatos","calzado","deportivas","bambas"]},
