@@ -1083,7 +1083,7 @@ if (typeof firebase !== 'undefined' && !firebase.apps.length) {
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.34"; // IMPORTANTE: Incrementa la versión del cliente.
+// La constante HTML_VERSION se elimina. La versión ahora se gestiona desde Firestore.
 
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
@@ -1097,36 +1097,35 @@ if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
 async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
-    console.log("Iniciando app y verificando versión...");
-
-    // Comprueba si venimos de una recarga forzada por el changelog.
-    if (sessionStorage.getItem('force_app_load') === 'true') {
-        sessionStorage.removeItem('force_app_load'); // Limpiamos la bandera
-        console.log("Recarga forzada detectada. Saltando verificación de versión.");
-        runApp(); // Ejecutamos la app directamente
-        return;
-    }
+    console.log("Iniciando app y verificando versión (flujo localStorage)...");
 
     try {
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        const serverVersion = versionDoc.exists ? versionDoc.data().current_version : "0.0.0";
+        const localVersion = parseInt(localStorage.getItem('app_version') || '0', 10);
         
-        if (String(serverVersion) !== String(HTML_VERSION)) {
-            console.log(`Versión desactualizada. Cliente: ${HTML_VERSION}, Servidor: ${serverVersion}. Mostrando changelog.`);
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        // Usamos 0 como valor por defecto si el documento o el campo no existen.
+        const serverVersion = versionDoc.exists ? (versionDoc.data().current_version || 0) : 0;
+
+        if (serverVersion > localVersion) {
+            console.log(`Nueva versión detectada al iniciar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            hideSplashScreen(); 
+            hideSplashScreen();
             showChangelogModal(serverVersion, changelogText);
-            return; 
+            return; // Detenemos la ejecución. El modal se encargará del resto.
         }
 
+        // Si es el primer arranque (localVersion es 0), guardamos la versión actual del servidor.
+        if (localVersion === 0 && serverVersion > 0) {
+            localStorage.setItem('app_version', serverVersion);
+        }
+        
         console.log("Versión correcta. Ejecutando la aplicación...");
         runApp();
 
     } catch (err) {
         console.error("Error crítico en initializeApp:", err);
-        showToast(`Error de inicialización: ${err.message}`, true);
-        mainContentArea.innerHTML = `<div class="no-data-msg">🔌<br>Error de conexión.<br><small>Inténtalo de nuevo más tarde.</small></div>`;
-        hideSplashScreen();
+        // Si hay un error de red, intentamos arrancar la app igualmente (modo offline).
+        runApp(); 
     }
 }
 
@@ -1238,14 +1237,14 @@ function showChangelogModal(version, changelogText) {
         .map(line => `<li>${line}</li>`)
         .join('');
 
-    // Definimos la acción del botón
-        continueBtn.onclick = () => {
+    // Definimos la acción del botón con la nueva lógica de localStorage
+    continueBtn.onclick = () => {
         overlay.classList.remove('show');
         setTimeout(() => {
             showToast("Aplicando actualización...", false);
-            // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-            // Le decimos al navegador que en la próxima carga, ignore la verificación.
-            sessionStorage.setItem('force_app_load', 'true'); 
+            // 1. Guardamos la nueva versión en el almacenamiento local.
+            localStorage.setItem('app_version', version);
+            // 2. Forzamos una recarga completa para obtener el nuevo HTML.
             window.location.reload(true);
         }, 300);
     };
@@ -1335,20 +1334,35 @@ if (tg) {
     // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
     // =========================================================================
 tg.onEvent('viewportChanged', async (event) => {
-    // --- LÓGICA DE SINCRONIZACIÓN MEJORADA ---
     const isAppMaximized = event.isStateStable && tg.isExpanded;
-
     if (!isAppReady || !isAppMaximized) {
         return;
     }
-    // --- FIN DE LA LÓGICA MEJORADA ---
 
-    // --- ¡NUEVA LÓGICA AÑADIDA! ---
-    // Antes de sincronizar datos, comprobamos si hay una nueva versión de la app.
-    // Si la hay, la función forzará una recarga y el código de abajo no se ejecutará.
-    await checkVersionOnFocus();
-    // --- FIN DE LA LÓGICA AÑADIDA ---
+    // --- INICIO: VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR ---
+    if (window.isCheckingVersion) return; // Evitar verificaciones múltiples
+    window.isCheckingVersion = true;
 
+    try {
+        const localVersion = parseInt(localStorage.getItem('app_version') || '0', 10);
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        const serverVersion = versionDoc.exists ? (versionDoc.data().current_version || 0) : 0;
+        
+        if (serverVersion > localVersion) {
+            console.log(`Nueva versión detectada al maximizar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
+            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+            showChangelogModal(serverVersion, changelogText);
+            window.isCheckingVersion = false;
+            return; // IMPORTANTE: Detenemos la sincronización de datos si hay una actualización pendiente.
+        }
+    } catch (err) {
+        console.error("Error verificando versión al maximizar:", err);
+    } finally {
+        setTimeout(() => { window.isCheckingVersion = false; }, 5000); // Permitir otra verificación tras 5s
+    }
+    // --- FIN: VERIFICACIÓN DE VERSIÓN ---
+
+    // Si no hay actualización, la sincronización de datos continúa como antes.
     console.log("App maximizada y lista. Comprobando cambios de datos...");
     
     try {
