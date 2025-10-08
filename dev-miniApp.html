@@ -23,8 +23,8 @@
     :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px;}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));grid-auto-rows: minmax(140px, auto);gap:16px;padding:20px;}
-    .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:16px;padding:20px;}
+    .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);position:relative;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;}
     .card.clickable-card { cursor: pointer; }
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
@@ -5826,7 +5826,7 @@ function renderDashboard() {
   // La tarjeta del calendario ya es activa y llama a renderCalendarView
   const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red"  id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
   const cuentasClarasCardHtml = `
-      <div class="card clickable-card" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png'); background-size: cover; background-position: center; padding: 0;">
+      <div class="card clickable-card" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png'); background-size: cover; background-position: center; background-repeat: no-repeat;">
         <div class="card-badge red" id="cuentas-claras-badge">${counts.cuentasClarasCount || 0}</div>
       </div>`;
 
