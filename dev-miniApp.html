@@ -113,18 +113,18 @@
         position: fixed;
         top: 50%;
         left: 50%;
-        transform: translate(-50%, -50%); /* Centrado para el spinner de página completa */
-        border: 4px solid #f3f3f3; /* Círculo de fondo gris claro */
-        border-top: 4px solid var(--primary); /* Segmento superior con el color principal */
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid var(--primary);
         border-radius: 50%;
         width: 40px;
         height: 40px;
-        animation: spin 1s ease-in-out infinite; /* Animación más rápida y suave */
+        animation: spin 1s linear infinite; /* Usamos 'linear' para una rotación constante */
         z-index: 1001;
     }
+    /* La animación ahora solo se encarga de rotar, haciendo el spinner reutilizable */
     @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
     /* --- FIN SPINNER MEJORADO --- */
 	.btn-spinner {
@@ -2705,10 +2705,10 @@ async function handleImageScan() {
     const sendBtn = document.getElementById('preview-send-btn');
     const originalBtnHTML = sendBtn.innerHTML;
     
-    // Activamos el spinner en el botón
+    // Activamos el spinner en el botón. El overlay de previsualización NO se cierra.
     sendBtn.disabled = true;
     sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Procesando...`;
-    
+
     const toBase64 = file => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -2724,21 +2724,26 @@ async function handleImageScan() {
         const result = await scanTicketFunction({ imageBase64: imageBase64 });
         const resultData = result.data;
 
+        // Si la respuesta es un gasto válido, cerramos el overlay y renderizamos el formulario
         if (resultData && resultData.tipo && resultData.tipo.toUpperCase() === 'GASTO') {
+            document.getElementById('image-preview-overlay').style.display = 'none'; // <-- Cierre del modal aquí
             renderAddGastoForm(resultData);
         } else {
-            // Si la respuesta no es un gasto válido, mostramos un error pero no rompemos la app
             const errorMessage = resultData?.datos?.motivo || "El ticket no parece ser un gasto válido.";
             showToast(errorMessage, true);
+            // Si hay un error, restauramos el botón para que el usuario pueda intentarlo de nuevo
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = originalBtnHTML;
         }
 
     } catch (error) {
         console.error('Error al escanear el ticket vía Cloud Function:', error);
         showToast(`Error al procesar: ${error.message}`, true);
-    } finally {
-        // Restauramos el botón a su estado original
+        // Si hay un error, también restauramos el botón
         sendBtn.disabled = false;
         sendBtn.innerHTML = originalBtnHTML;
+    } finally {
+        // Limpiamos la variable de la imagen seleccionada
         selectedImageFile = null;
     }
 }
