@@ -1254,6 +1254,33 @@ function showChangelogModal(version, changelogText) {
     overlay.classList.add('show');
 }
 
+// --- INICIO: NUEVA FUNCIÓN PARA VERIFICAR VERSIÓN AL MAXIMIZAR ---
+async function checkVersionOnFocus() {
+    // Usamos una bandera global para evitar múltiples verificaciones si el evento se dispara rápido
+    if (window.isCheckingVersion) return;
+    window.isCheckingVersion = true;
+
+    console.log("Verificando versión al maximizar la app...");
+    try {
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        if (versionDoc.exists) {
+            const serverVersion = versionDoc.data().current_version;
+            // Si la versión del servidor es diferente a la del cliente, forzamos una recarga completa
+            if (String(serverVersion) !== String(HTML_VERSION)) {
+                console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Cliente: ${HTML_VERSION}. ¡Recargando!`);
+                window.location.reload(true); // El 'true' fuerza la recarga desde el servidor
+            }
+        }
+    } catch (err) {
+        // En caso de error (ej. sin conexión), no hacemos nada para no interrumpir al usuario.
+        console.error("Error durante la verificación de versión en foco:", err);
+    } finally {
+        // Reseteamos la bandera después de unos segundos para permitir futuras verificaciones
+        setTimeout(() => { window.isCheckingVersion = false; }, 5000);
+    }
+}
+// --- FIN: NUEVA FUNCIÓN ---
+
 // --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
 
@@ -1309,17 +1336,20 @@ if (tg) {
     // =========================================================================
 tg.onEvent('viewportChanged', async (event) => {
     // --- LÓGICA DE SINCRONIZACIÓN MEJORADA ---
-    // 'isStateStable' es true cuando la ventana se maximiza, pero a menudo
-    // es false cuando el teclado aparece, lo que nos sirve como filtro.
     const isAppMaximized = event.isStateStable && tg.isExpanded;
 
-    // Solo actuamos si la app está lista Y si el evento es una maximización real.
     if (!isAppReady || !isAppMaximized) {
         return;
     }
     // --- FIN DE LA LÓGICA MEJORADA ---
 
-    console.log("App maximizada y lista. Comprobando cambios...");
+    // --- ¡NUEVA LÓGICA AÑADIDA! ---
+    // Antes de sincronizar datos, comprobamos si hay una nueva versión de la app.
+    // Si la hay, la función forzará una recarga y el código de abajo no se ejecutará.
+    await checkVersionOnFocus();
+    // --- FIN DE LA LÓGICA AÑADIDA ---
+
+    console.log("App maximizada y lista. Comprobando cambios de datos...");
     
     try {
         const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
