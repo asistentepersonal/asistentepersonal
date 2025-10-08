@@ -26,23 +26,9 @@
     .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:16px;padding:20px;}
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
     .card.clickable-card { cursor: pointer; }
-
-    /* --- INICIO: ESTILO PARA TARJETA CON IMAGEN DE FONDO --- */
-    .card.card-image-bg {
-        padding: 0; /* Anulamos el padding interno */
-        position: relative; /* Necesario para el truco de la altura */
-        height: 0;
-        padding-top: 100%; /* ¡La clave! Fuerza un aspect-ratio de 1:1 (cuadrado) */
-        
-        background-size: contain; /* Asegura que toda la imagen sea visible */
-        background-repeat: no-repeat;
-        background-position: center;
-        background-color: #000; /* Fondo negro por si la imagen tarda en cargar */
-    }
-    /* --- FIN: ESTILO PARA TARJETA CON IMAGEN DE FONDO --- */
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
-    .card-badge{position:absolute;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
+    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
 	.card-badge.card-badge-pill {
     width: auto;
     height: auto;
@@ -194,6 +180,7 @@
 .participant-item.selected .list-item-subtitle {
     color: var(--action-text) !important;
     opacity: 0.8;
+}
 }
     @keyframes fadein{from{opacity:0;}to{opacity:1;}}@keyframes fadeout{from{opacity:1;}to{opacity:0;}}
     .list-header { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; }
@@ -1348,52 +1335,61 @@ if (tg) {
     // =========================================================================
 tg.onEvent('viewportChanged', async (event) => {
     const isAppMaximized = event.isStateStable && tg.isExpanded;
-    if (!isAppMaximized) {
-        return; // Salimos si no es una maximización real.
+    if (!isAppReady || !isAppMaximized) {
+        return;
     }
 
-    // --- VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR (Lógica corregida y 100% compatible) ---
-    if (window.isCheckingVersion) return;
+    // --- INICIO: VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR ---
+    if (window.isCheckingVersion) return; // Evitar verificaciones múltiples
     window.isCheckingVersion = true;
-    
+
     try {
         const localVersion = parseInt(localStorage.getItem('app_version') || '0', 10);
         const versionDoc = await db.collection('app_config').doc('version_info').get();
-        
-        const serverVersionData = versionDoc.exists ? versionDoc.data() : null;
-        const serverVersion = (serverVersionData && serverVersionData.current_version) ? serverVersionData.current_version : 0;
+        const serverVersion = versionDoc.exists ? (versionDoc.data().current_version || 0) : 0;
         
         if (serverVersion > localVersion) {
-            const changelogText = (serverVersionData && serverVersionData.changelog) ? serverVersionData.changelog : "* Se han realizado mejoras y correcciones de errores.";
+            console.log(`Nueva versión detectada al maximizar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
+            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
             showChangelogModal(serverVersion, changelogText);
-            return; // Detenemos todo lo demás si hay actualización.
+            window.isCheckingVersion = false;
+            return; // IMPORTANTE: Detenemos la sincronización de datos si hay una actualización pendiente.
         }
     } catch (err) {
         console.error("Error verificando versión al maximizar:", err);
     } finally {
-        setTimeout(() => { window.isCheckingVersion = false; }, 5000);
+        setTimeout(() => { window.isCheckingVersion = false; }, 5000); // Permitir otra verificación tras 5s
     }
-    // --- FIN VERIFICACIÓN DE VERSIÓN ---
+    // --- FIN: VERIFICACIÓN DE VERSIÓN ---
 
-    // Si la app no está lista aún, no intentamos sincronizar datos.
-    if (!isAppReady) {
-        return;
-    }
-
-    // La sincronización de datos solo se ejecuta si no hubo actualización y la app está lista.
+    // Si no hay actualización, la sincronización de datos continúa como antes.
     console.log("App maximizada y lista. Comprobando cambios de datos...");
+    
     try {
         const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
-        if (countsDoc.exists) {
-            const serverCounts = countsDoc.data();
-            if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
-                appData.counts = serverCounts;
-                if (document.querySelector('.grid')) {
-                    renderDashboard();
-                }
-                appData.isSecondaryDataLoaded = false;
-            }
+        if (!countsDoc.exists) {
+            console.warn("No se encontró el documento de contadores durante la sincronización.");
+            return;
         }
+
+        const serverCounts = countsDoc.data();
+        
+        // Usar JSON.stringify para una comparación robusta de los objetos
+        if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
+            console.log("Cambios en contadores detectados. Actualizando UI...");
+            
+            appData.counts = serverCounts;
+            // Importante: Solo refrescamos el dashboard SI estamos en la pantalla de Home
+            if (document.querySelector('.grid')) {
+                renderDashboard();
+            }
+            // showToast("Datos sincronizados.", false); // Desactivado para no molestar al usuario
+            // Marcamos las listas como potencialmente desactualizadas
+            appData.isSecondaryDataLoaded = false;
+        } else {
+            console.log("Sin cambios detectados en los contadores.");
+        }
+
     } catch (err) {
         console.error("Error en la sincronización al maximizar:", err);
     }
@@ -4569,29 +4565,19 @@ crearBtn.onclick = async () => {
         }
         const tokenDelCreador = creadorData.token;
         
-        // 4. Crear la nueva lista y actualizar el contador
+        // 4. Crear la nueva lista en Firestore
         const listaId = `lista_${generateCustomId('')}`;
         const listaRef = db.collection('cuentasClaras_listas').doc(listaId);
-        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-
-        // Usamos un batch para asegurar que ambas operaciones se completen con éxito
-        const createListBatch = db.batch();
-
-        createListBatch.set(listaRef, {
+        await listaRef.set({
             nombre: nombreLista,
             moneda: moneda,
-            participantes: participantesProcesados,
+            participantes: participantesProcesados, // Ahora incluye idUsuario
             token_creador: tokenDelCreador,
             miembros: [chatId],
             creador: chatId,
             estado: 'abierto',
             fecha_creacion: firebase.firestore.FieldValue.serverTimestamp()
         });
-
-        // Incrementamos el nuevo contador
-        createListBatch.set(countsRef, { cuentasClarasCount: firebase.firestore.FieldValue.increment(1) }, { merge: true });
-        
-        await createListBatch.commit();
 
         // 5. Actualizar el perfil de cada participante para añadir esta nueva lista
         const batch = db.batch();
@@ -5831,22 +5817,19 @@ function renderDashboard() {
   
   // La tarjeta del calendario ya es activa y llama a renderCalendarView
   const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
-  const cuentasClarasBadge = counts.cuentasClarasCount > 0 
-    ? `<div class="card-badge" style="top: 12px; left: 12px;">${counts.cuentasClarasCount > 99 ? '99+' : counts.cuentasClarasCount}</div>` 
-    : '';
-  const cuentasClarasCardHtml = `<div class="card clickable-card card-image-bg" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png');">${cuentasClarasBadge}</div>`;
+  const cuentasClarasCardHtml = `<div class="card disabled-card" id="cuentas-claras-card"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>`;
 
   mainContentArea.innerHTML = `
     <div class="grid">
-      <div class="card clickable-card"><div class="card-badge red" style="top: 12px; left: 12px;" id="reminders-badge">${counts.remindersCount > 99 ? '99+' : (counts.remindersCount || 0)}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">✍️️</div><div class="card-title">Avisarme</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
-      <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount > 99 ? '99+' : (counts.shoppingPendingCount || 0)}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount > 99 ? '99+' : (counts.shoppingBoughtCount || 0)}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
-      <div class="card clickable-card"><div class="card-badge red" style="top: 12px; left: 12px;" id="notes-badge">${counts.notesCount > 99 ? '99+' : (counts.notesCount || 0)}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">✍️️</div><div class="card-title">Avisarme</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       ${calendarCardHtml}
-      <div class="card clickable-card"><div class="card-badge card-badge-pill red" style="top: 12px; left: 12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+      <div class="card clickable-card"><div class="card-badge card-badge-pill red" style="left:12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${cuentasClarasCardHtml}
       ${chefCardHtml}
       <div id="guia-tv-card" class="card disabled-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
-    </div>
+    </div>`;
   
   document.getElementById('add-reminder-link').onclick = renderReminderForm;
   document.getElementById('list-reminders-link').onclick = renderRemindersList;
