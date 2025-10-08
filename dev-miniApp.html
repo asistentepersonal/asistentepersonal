@@ -1154,6 +1154,9 @@ async function runApp() {
         // 3. Configurar los listeners para futuras actualizaciones (sin cambios)
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot((doc) => {
+                // Si la bandera está activa, es un cambio local y lo ignoramos.
+                if (isLocalUpdate) return;
+
                 if (doc.exists) {
                     const serverCounts = doc.data();
                     if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
@@ -1621,6 +1624,7 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 let isInitializing = false;
+let isLocalUpdate = false; // <-- Bandera para ignorar el "eco" de Firestore
 let isAppReady = false;
 let unsubscribeShoppingList = null;
 let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
@@ -1941,6 +1945,7 @@ async function saveReminder() {
   }
 
   try {
+    isLocalUpdate = true; // <-- Activamos la bandera ANTES de la escritura
     const customId = generateCustomId('G-');
     const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const localTimeStr = time.toLocaleString('es-ES', { timeZone: userTimeZone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -1960,20 +1965,19 @@ async function saveReminder() {
     const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(customId);
     const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-    // Se realizan las escrituras en Firestore y se espera a que terminen.
     await reminderRef.set(reminderData);
     await countsRef.update({
         remindersCount: firebase.firestore.FieldValue.increment(1)
     });
     
-    // Solo si todo lo anterior tuvo éxito, se muestra el toast y se navega.
     showToast('Recordatorio creado con éxito.');
     renderRemindersList();
 
   } catch (err) { 
-    // En caso de cualquier error, se muestra el toast rojo.
     showToast(`Error al crear el recordatorio: ${err.message}.`, true);
     renderDashboard();
+  } finally {
+    isLocalUpdate = false; // <-- Aseguramos que la bandera se resetee SIEMPRE
   }
 }
 
