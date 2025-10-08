@@ -1353,13 +1353,14 @@ tg.onEvent('viewportChanged', async (event) => {
         return; // Salimos si no es una maximización real.
     }
 
-    // --- VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR (Lógica corregida) ---
+    // --- VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR (Lógica corregida y 100% compatible) ---
     if (window.isCheckingVersion) return;
     window.isCheckingVersion = true;
     
     try {
         const localVersion = parseInt(localStorage.getItem('app_version') || '0', 10);
         const versionDoc = await db.collection('app_config').doc('version_info').get();
+        
         const serverVersionData = versionDoc.exists ? versionDoc.data() : null;
         const serverVersion = (serverVersionData && serverVersionData.current_version) ? serverVersionData.current_version : 0;
         
