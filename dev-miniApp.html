@@ -3078,7 +3078,7 @@ function renderGastosSearchScreen(gastos = null) {
             <div id="gastos-search-results" style="margin-top: 10px;">${resultsHtml}</div>
         </div>`;
         
-    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
+    const fpConfig = { disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
     flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
     
@@ -3338,6 +3338,7 @@ function renderChefPage() {
     maxDateForChef.setDate(now.getDate() + 3);
 
     flatpickr("#chef-fecha-comida", {
+        disableMobile: true,
         enableTime: true,
         locale: "es",
         altInput: true,
@@ -4095,7 +4096,7 @@ function renderExportPage() {
             </div>
         </div>
     `;
-    const fpConfig = { dateFormat: "d/m/Y", locale: "es" };
+    const fpConfig = { disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
     flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
     document.getElementById('export-cancel-btn').onclick = goBack;
@@ -4626,7 +4627,51 @@ async function renderPanelGestion(listaId) {
                 </div>
             </div>
         `;
-        document.getElementById('gestion-contenido').innerHTML = participantsHtml + actionsHtml;
+        // --- INICIO: NUEVO CÓDIGO PARA AÑADIR PARTICIPANTES ---
+        const addButtonHtml = `
+            <div class="add-article-btn-container">
+                <button class="add-article-btn enabled" id="show-add-participant-modal-btn" style="background-color: var(--muted); max-width: 100%;">
+                    ➕ Añadir Participantes
+                </button>
+            </div>`;
+        
+        const modalHtml = `
+            <div class="modal-overlay" id="add-participant-modal" style="display: none;">
+                <div class="modal-content">
+                    <h3 class="modal-title">Añadir a "${listaData.nombre}"</h3>
+                    <label>Nuevos participantes (uno por línea)</label>
+                    <textarea id="new-participants-textarea" rows="4" placeholder="Ana\nCarlos"></textarea>
+                    <div class="button-group" style="margin-top: 20px;">
+                        <button id="cancel-add-participant-btn" class="cancel">Cancelar</button>
+                        <button id="confirm-add-participant-btn" class="enabled" disabled>Añadir</button>
+                    </div>
+                </div>
+            </div>`;
+
+        document.getElementById('gestion-contenido').innerHTML = participantsHtml + addButtonHtml + actionsHtml + modalHtml;
+        
+        // Conectar botones del nuevo modal
+        const addParticipantModal = document.getElementById('add-participant-modal');
+        document.getElementById('show-add-participant-modal-btn').onclick = () => {
+            addParticipantModal.style.display = 'flex';
+            setTimeout(() => addParticipantModal.classList.add('show'), 10);
+        };
+        document.getElementById('cancel-add-participant-btn').onclick = () => {
+            addParticipantModal.classList.remove('show');
+            setTimeout(() => addParticipantModal.style.display = 'none', 300);
+        };
+        document.getElementById('confirm-add-participant-btn').onclick = () => {
+            addParticipantsToList(listaId, listaData.participantes.map(p => p.nombre));
+        };
+
+        // Lógica para habilitar/deshabilitar el botón de añadir del modal
+        const newParticipantsTextarea = document.getElementById('new-participants-textarea');
+        const confirmAddBtn = document.getElementById('confirm-add-participant-btn');
+        newParticipantsTextarea.oninput = () => {
+            const hasText = newParticipantsTextarea.value.trim() !== '';
+            confirmAddBtn.disabled = !hasText;
+        };
+        // --- FIN: NUEVO CÓDIGO ---
 
         const participantsList = document.getElementById('participants-list');
         const actionsContainer = document.getElementById('share-actions-container');
@@ -4685,6 +4730,82 @@ async function renderPanelGestion(listaId) {
         goBack();
     }
 }
+
+// --- INICIO: NUEVA FUNCIÓN PARA AÑADIR PARTICIPANTES A LA LISTA ---
+async function addParticipantsToList(listaId, nombresExistentes) {
+    const confirmBtn = document.getElementById('confirm-add-participant-btn');
+    const originalBtnHTML = confirmBtn.innerHTML;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = `<span class="spinner btn-spinner"></span> Añadiendo...`;
+    
+    const textarea = document.getElementById('new-participants-textarea');
+    const nombresNuevos = textarea.value.trim().split('\n')
+        .map(p => p.trim())
+        .filter(p => p && !nombresExistentes.includes(p)); // Filtra vacíos y ya existentes
+
+    if (nombresNuevos.length === 0) {
+        showToast("No hay nuevos participantes para añadir.", true);
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalBtnHTML;
+        return;
+    }
+
+    try {
+        // 1. Procesar cada nombre para obtener/crear su perfil de usuario
+        const nuevosParticipantesProcesados = await Promise.all(nombresNuevos.map(async (nombre) => {
+            let idUsuario;
+            const userQuery = await db.collection('usuarios').where('nombre', '==', nombre).limit(1).get();
+            
+            if (!userQuery.empty) {
+                idUsuario = userQuery.docs[0].id;
+            } else {
+                const newUserRef = db.collection('usuarios').doc();
+                idUsuario = newUserRef.id;
+                await newUserRef.set({
+                    nombre: nombre,
+                    fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+                    listas: []
+                });
+            }
+            return { nombre: nombre, token: generateCustomId('INV-'), idUsuario: idUsuario };
+        }));
+
+        // 2. Actualizar el documento de la lista y los perfiles de los nuevos usuarios en un batch
+        const batch = db.batch();
+        const listaRef = db.collection('cuentasClaras_listas').doc(listaId);
+        
+        // Añadir los nuevos participantes a la lista
+        batch.update(listaRef, {
+            participantes: firebase.firestore.FieldValue.arrayUnion(...nuevosParticipantesProcesados)
+        });
+
+        // Añadir la lista al perfil de cada nuevo participante
+        nuevosParticipantesProcesados.forEach(participante => {
+            const userRef = db.collection('usuarios').doc(participante.idUsuario);
+            batch.update(userRef, {
+                listas: firebase.firestore.FieldValue.arrayUnion(listaId)
+            });
+        });
+
+        await batch.commit();
+
+        // 3. Cerrar modal y refrescar la vista
+        const addParticipantModal = document.getElementById('add-participant-modal');
+        addParticipantModal.classList.remove('show');
+        setTimeout(() => {
+            addParticipantModal.style.display = 'none';
+            showToast(`${nombresNuevos.length} participante(s) añadido(s).`);
+            renderPanelGestion(listaId); // ¡La clave para refrescar la lista en pantalla!
+        }, 300);
+
+    } catch (error) {
+        console.error("Error al añadir participantes:", error);
+        showToast("No se pudieron añadir los participantes.", true);
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalBtnHTML;
+    }
+}
+// --- FIN: NUEVA FUNCIÓN ---
 
 // ====================================================================================
 // --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO SIMPLIFICADO + MENÚ + BOTÓN FLOTANTE) ---
@@ -5310,11 +5431,13 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     let initialStartDate; // Variable para almacenar la fecha de inicio original al cargar
 
     const fpEnd = flatpickr("#event-end-date", {
+        disableMobile: true,
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
     });
 
     const fpStart = flatpickr("#event-start-date", {
+        disableMobile: true,
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
         onReady: function(selectedDates) {
