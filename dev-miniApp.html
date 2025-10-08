@@ -2380,8 +2380,9 @@ async function addArticle() {
             const user = tg?.initDataUnsafe?.user;
             const userName = (user?.first_name || user?.username) || 'Usuario Desconocido';
             
-            // Preparamos la llamada a nuestra Cloud Function
-            const logEmojiFunction = firebase.functions().httpsCallable('logMissingEmojiTerm');
+           // Preparamos la llamada a nuestra Cloud Function especificando la región correcta
+            const functions = firebase.app().functions('europe-west1');
+            const logEmojiFunction = functions.httpsCallable('logMissingEmojiTerm');
             logEmojiFunction({ 
                 listId: chatId, // Tu función espera 'listId', le pasamos el chatId
                 guestName: userName, // Tu función espera 'guestName', le pasamos el userName
@@ -2723,8 +2724,9 @@ async function handleImageScan() {
     try {
         const imageBase64 = await toBase64(selectedImageFile);
 
-        // Llamamos a nuestra Cloud Function
-        const scanTicketFunction = firebase.functions().httpsCallable('processTicketScan');
+        // Llamamos a nuestra Cloud Function especificando la región correcta
+        const functions = firebase.app().functions('europe-west1');
+        const scanTicketFunction = functions.httpsCallable('processTicketScan');
         const result = await scanTicketFunction({ imageBase64: imageBase64 });
         const resultData = result.data;
 
