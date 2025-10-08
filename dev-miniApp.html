@@ -1161,7 +1161,7 @@ async function runApp() {
                         appData.counts = serverCounts;
                         if (document.querySelector('.grid')) {
                             renderDashboard();
-                            showToast("Datos sincronizados.", false);
+                            // showToast("Datos sincronizados.", false); // Desactivado para no molestar al usuario
                         }
                     }
                 }
@@ -1339,7 +1339,7 @@ tg.onEvent('viewportChanged', async (event) => {
             if (document.querySelector('.grid')) {
                 renderDashboard();
             }
-            showToast("Datos sincronizados.", false);
+            // showToast("Datos sincronizados.", false); // Desactivado para no molestar al usuario
             // Marcamos las listas como potencialmente desactualizadas
             appData.isSecondaryDataLoaded = false;
         } else {
@@ -2880,14 +2880,18 @@ async function saveGasto() {
         appData.counts.gastosMesActual = (appData.counts.gastosMesActual || 0) + importe;
         if (!appData.counts.mesesActivosGastos.includes(mesAnio)) appData.counts.mesesActivosGastos.push(mesAnio);
 
+        // La función goBack() ya se encarga de volver y renderizar la pantalla anterior (el dashboard).
         goBack();
-        renderDashboard();
-        showToast('Gasto registrado con éxito.');
+
+        // Usamos un pequeño retardo para asegurar que el toast aparezca DESPUÉS de que la UI se haya actualizado.
+        setTimeout(() => {
+            showToast('Gasto registrado con éxito.');
+        }, 100);
 
     } catch (err) {
         console.error("Error en saveGasto():", err);
         showToast(`Error: ${err.message}.`, true);
-        saveBtn.disabled = false; // Reactivar botón en caso de error
+        saveBtn.disabled = false;
         saveBtn.innerHTML = originalBtnHTML;
     }
 }
