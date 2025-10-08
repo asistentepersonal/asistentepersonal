@@ -1940,11 +1940,6 @@ async function saveReminder() {
     return;
   }
 
-  // --- FLUJO CORREGIDO ---
-  // Ya no volvemos atrás ni renderizamos el dashboard. 
-  // La app permanecerá en la vista de lista.
-  showToast('Guardando recordatorio...'); 
-  
   try {
     const customId = generateCustomId('G-');
     const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1964,19 +1959,20 @@ async function saveReminder() {
 
     const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(customId);
     const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-    
+
+    // Se realizan las escrituras en Firestore y se espera a que terminen.
     await reminderRef.set(reminderData);
     await countsRef.update({
         remindersCount: firebase.firestore.FieldValue.increment(1)
     });
     
-    // Al finalizar, en lugar de ir al dashboard, vamos a la lista.
-    // El listener en tiempo real de la lista se encargará de mostrar el nuevo item.
+    // Solo si todo lo anterior tuvo éxito, se muestra el toast y se navega.
+    showToast('Recordatorio creado con éxito.');
     renderRemindersList();
 
   } catch (err) { 
-    showToast(`Error al guardar: ${err.message}.`, true); 
-    // Si hay un error, sí volvemos al dashboard para evitar una pantalla de error.
+    // En caso de cualquier error, se muestra el toast rojo.
+    showToast(`Error al crear el recordatorio: ${err.message}.`, true);
     renderDashboard();
   }
 }
