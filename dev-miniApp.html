@@ -2649,25 +2649,23 @@ function renderInstructionScreen() {
     updateBackButton();
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header"></div>
-            <div class="scan-instruction-screen">
-                <h2>Registrar Gasto con Foto</h2>
-                <ol style="text-align: left; margin: 0 auto 30px auto; max-width: 300px;">
-				<li style="margin-bottom: 10px;">Primero, sal de la app y saca una foto nítida de tu ticket con la cámara de tu teléfono.</li>
-				<li>Luego, vuelve aquí y pulsa el botón de abajo para subir esa foto desde tu galería.</li>
-				</ol>
-                <div class="add-article-btn-container">
-                    <button class="add-article-btn" id="scan-ticket-button">Subir Ticket desde Galería 🖼️</button>
+            <div class="list-header"><h2>📷 Registrar Gasto con Foto</h2></div>
+            <div class="form-card" style="text-align: left;">
+                <p style="margin-bottom: 20px; line-height: 1.5; color: var(--muted);">Sigue estos pasos para un análisis rápido y preciso de tu ticket:</p>
+                <ol style="padding-left: 20px; margin-bottom: 30px;">
+                    <li style="margin-bottom: 10px;">Primero, sal de la app y saca una foto nítida y bien iluminada de tu ticket con la cámara de tu teléfono.</li>
+                    <li>Luego, vuelve aquí y pulsa el botón de abajo para subir esa foto desde tu galería.</li>
+                </ol>
+                <div class="add-article-btn-container" style="padding: 0;">
+                    <button class="add-article-btn enabled" id="scan-ticket-button" style="width:100%; max-width:100%;">
+                        Subir Ticket desde Galería 🖼️
+                    </button>
                 </div>
             </div>
         </div>`;
     
-    // Asignamos la acción directamente al botón
-    const scanButton = document.getElementById('scan-ticket-button');
-    if (scanButton) {
-        // triggerFileInput es la función que ya tienes en tu código para abrir la galería
-        scanButton.onclick = triggerFileInput;
-    }
+    // Asignamos la acción directamente al botón, que ahora abre la galería.
+    document.getElementById('scan-ticket-button').onclick = triggerFileInput;
 }
 function triggerFileInput() {
     const fileInput = document.createElement('input');
@@ -2711,9 +2709,9 @@ async function handleImageScan() {
     sendBtn.disabled = true;
     sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Procesando...`;
     
+    // Cerramos el overlay de previsualización para que el usuario vea la pantalla anterior
     document.getElementById('image-preview-overlay').style.display = 'none';
 
-    // Función para convertir la imagen a Base64
     const toBase64 = file => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -2723,20 +2721,18 @@ async function handleImageScan() {
 
     try {
         const imageBase64 = await toBase64(selectedImageFile);
-
-        // Llamamos a nuestra Cloud Function especificando la región correcta
         const functions = firebase.app().functions('europe-west1');
         const scanTicketFunction = functions.httpsCallable('processTicketScan');
+        
         const result = await scanTicketFunction({ imageBase64: imageBase64 });
         const resultData = result.data;
 
-        // Cuando tu función en index.js esté lista para devolver los datos del ticket,
-        // esta sección funcionará para rellenar el formulario.
         if (resultData && resultData.tipo && resultData.tipo.toUpperCase() === 'GASTO') {
             renderAddGastoForm(resultData);
         } else {
-            // Mientras tanto, mostramos el mensaje de éxito de tu función actual.
-            showToast(resultData.message || "Función ejecutada. Backend en desarrollo.", false);
+            // Si la respuesta no es un gasto válido, mostramos un error pero no rompemos la app
+            const errorMessage = resultData?.datos?.motivo || "El ticket no parece ser un gasto válido.";
+            showToast(errorMessage, true);
         }
 
     } catch (error) {
