@@ -42,7 +42,7 @@
     /* --- FIN: ESTILO PARA TARJETA CON IMAGEN DE FONDO --- */
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
-    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
+    .card-badge{position:absolute;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
 	.card-badge.card-badge-pill {
     width: auto;
     height: auto;
@@ -4579,19 +4579,29 @@ crearBtn.onclick = async () => {
         }
         const tokenDelCreador = creadorData.token;
         
-        // 4. Crear la nueva lista en Firestore
+        // 4. Crear la nueva lista y actualizar el contador
         const listaId = `lista_${generateCustomId('')}`;
         const listaRef = db.collection('cuentasClaras_listas').doc(listaId);
-        await listaRef.set({
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+        // Usamos un batch para asegurar que ambas operaciones se completen con éxito
+        const createListBatch = db.batch();
+
+        createListBatch.set(listaRef, {
             nombre: nombreLista,
             moneda: moneda,
-            participantes: participantesProcesados, // Ahora incluye idUsuario
+            participantes: participantesProcesados,
             token_creador: tokenDelCreador,
             miembros: [chatId],
             creador: chatId,
             estado: 'abierto',
             fecha_creacion: firebase.firestore.FieldValue.serverTimestamp()
         });
+
+        // Incrementamos el nuevo contador
+        createListBatch.set(countsRef, { cuentasClarasCount: firebase.firestore.FieldValue.increment(1) }, { merge: true });
+        
+        await createListBatch.commit();
 
         // 5. Actualizar el perfil de cada participante para añadir esta nueva lista
         const batch = db.batch();
@@ -5831,7 +5841,10 @@ function renderDashboard() {
   
   // La tarjeta del calendario ya es activa y llama a renderCalendarView
   const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
-  const cuentasClarasCardHtml = `<div class="card clickable-card card-image-bg" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png');"></div>`;
+  const cuentasClarasBadge = counts.cuentasClarasCount > 0 
+    ? `<div class="card-badge" style="top: 12px; left: 12px;">${counts.cuentasClarasCount}</div>` 
+    : '';
+  const cuentasClarasCardHtml = `<div class="card clickable-card card-image-bg" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png');">${cuentasClarasBadge}</div>`;
 
   mainContentArea.innerHTML = `
     <div class="grid">
