@@ -1083,7 +1083,7 @@ if (typeof firebase !== 'undefined' && !firebase.apps.length) {
 // =========================================================================
 // --- NUEVA LÓGICA DE ARRANQUE (FIRESTORE FIRST) ---
 // =========================================================================
-const HTML_VERSION = "1.2.31"; // IMPORTANTE: Incrementa la versión del cliente.
+const HTML_VERSION = "1.2.32"; // IMPORTANTE: Incrementa la versión del cliente.
 
 // --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
 // --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
@@ -4638,12 +4638,14 @@ async function renderPanelGestion(listaId) {
         const modalHtml = `
             <div class="modal-overlay" id="add-participant-modal" style="display: none;">
                 <div class="modal-content">
-                    <h3 class="modal-title">Añadir a "${listaData.nombre}"</h3>
-                    <label>Nuevos participantes (uno por línea)</label>
-                    <textarea id="new-participants-textarea" rows="4" placeholder="Ana\nCarlos"></textarea>
-                    <div class="button-group" style="margin-top: 20px;">
-                        <button id="cancel-add-participant-btn" class="cancel">Cancelar</button>
-                        <button id="confirm-add-participant-btn" class="enabled" disabled>Añadir</button>
+                    <div class="form-card">
+                        <h3 class="modal-title" style="margin-bottom: 20px;">Añadir a "${listaData.nombre}"</h3>
+                        <label>Nuevos participantes (uno por línea)</label>
+                        <textarea id="new-participants-textarea" rows="4" placeholder="Ana\nCarlos"></textarea>
+                        <div class="button-group">
+                            <button id="cancel-add-participant-btn" class="cancel">Cancelar</button>
+                            <button id="confirm-add-participant-btn" class="enabled" disabled>Añadir</button>
+                        </div>
                     </div>
                 </div>
             </div>`;
