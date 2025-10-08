@@ -107,7 +107,26 @@
     opacity: 0.8;
 }    .toast.error{background:var(--error-bg);}
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
-    .spinner{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 2s linear infinite;z-index:1001; text-align: center;}    @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0deg);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
+    /* --- SPINNER MEJORADO (MÁS FLUIDO Y REUTILIZABLE) --- */
+    .spinner {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%); /* Centrado para el spinner de página completa */
+        border: 4px solid #f3f3f3; /* Círculo de fondo gris claro */
+        border-top: 4px solid var(--primary); /* Segmento superior con el color principal */
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s ease-in-out infinite; /* Animación más rápida y suave */
+        z-index: 1001;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    /* --- FIN SPINNER MEJORADO --- */
 	.btn-spinner {
     display: inline-block !important; /* Asegura que se muestre */
     position: relative !important; /* Anula el 'fixed' */
@@ -1312,9 +1331,6 @@ tg.onEvent('viewportChanged', async (event) => {
 });
 }
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
-const chefWebhookURL = 'https://hook.eu2.make.com/p6z2dgx6medjbx47udphv5nz2blqcvm8';
-const makeTicketWebhookUrl = 'https://hook.eu2.make.com/d3lj3iug4qsbyjdmalmh3sk491elhqps';
-const makeEmojiWebhookUrl = 'https://hook.eu2.make.com/rpfzqlvyd4subtzmxoa3uritfk8tvbcl';
 let selectedImageFile = null;
     let chatId; // Solo declaramos la variable aquí.
     
@@ -2356,38 +2372,35 @@ async function addArticle() {
     if (!description) return;
 
     // Verificamos si el texto que vamos a guardar ya empieza con un emoji del diccionario
-const startsWithEmoji = emojiDictionary.some(e => description.startsWith(e.emoji));
+    const startsWithEmoji = emojiDictionary.some(e => description.startsWith(e.emoji));
 
-// Solo si NO empieza con un emoji, disparamos el webhook
-if (!startsWithEmoji) {
-    try {
-        const user = tg?.initDataUnsafe?.user;
-        const userName = (user?.first_name || user?.username) || 'Usuario Desconocido';
+    // Solo si NO empieza con un emoji, disparamos la Cloud Function
+    if (!startsWithEmoji) {
+        try {
+            const user = tg?.initDataUnsafe?.user;
+            const userName = (user?.first_name || user?.username) || 'Usuario Desconocido';
+            
+            // Preparamos la llamada a nuestra Cloud Function
+            const logEmojiFunction = firebase.functions().httpsCallable('logMissingEmojiTerm');
+            logEmojiFunction({ 
+                listId: chatId, // Tu función espera 'listId', le pasamos el chatId
+                guestName: userName, // Tu función espera 'guestName', le pasamos el userName
+                article: description 
+            }).catch(err => console.error("Error al notificar emoji faltante a la Cloud Function:", err));
 
-        const payload = {
-            chatId: chatId,
-            userName: userName,
-            article: description
-        };
-
-        fetch(makeEmojiWebhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).catch(err => console.error("Error al notificar emoji faltante:", err));
-    } catch (e) {
-        console.error("Error construyendo la notificación de emoji faltante:", e);
+        } catch (e) {
+            console.error("Error construyendo la notificación de emoji faltante:", e);
+        }
     }
-}
 
-// El texto final ya está formateado por la lógica 'oninput', por lo que lo usamos directamente.
-const finalDescription = description;
+    // El resto de la lógica para guardar el artículo en Firestore no cambia.
+    const finalDescription = description;
 
     goBack();
     showToast('Añadiendo artículo...');
 
     try {
-        const customId = generateCustomId('G-'); // Generar ID personalizado
+        const customId = generateCustomId('G-');
         await db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(customId).set({
             articulo: finalDescription,
             cycle: cycle,
@@ -2689,28 +2702,48 @@ async function handleImageScan() {
         showToast('No se ha seleccionado ninguna imagen.', true);
         return;
     }
+
+    const sendBtn = document.getElementById('preview-send-btn');
+    const originalBtnHTML = sendBtn.innerHTML;
+    
+    // Activamos el spinner en el botón
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Procesando...`;
+    
     document.getElementById('image-preview-overlay').style.display = 'none';
-    showSpinner();
-    const formData = new FormData();
-    formData.append('file', selectedImageFile, selectedImageFile.name);
+
+    // Función para convertir la imagen a Base64
+    const toBase64 = file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+    });
+
     try {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 60000);
-        const response = await fetch(makeTicketWebhookUrl, { method: 'POST', body: formData, signal: controller.signal });
-        clearTimeout(id);
-        if (!response.ok) { throw new Error(`Error del servidor de Make: ${response.status}`); }
-        const resultText = await response.text();
-        const resultJson = JSON.parse(resultText);
-        if(resultJson.tipo && resultJson.tipo.toUpperCase() === 'GASTO') {
-            renderAddGastoForm(resultJson);
+        const imageBase64 = await toBase64(selectedImageFile);
+
+        // Llamamos a nuestra Cloud Function
+        const scanTicketFunction = firebase.functions().httpsCallable('processTicketScan');
+        const result = await scanTicketFunction({ imageBase64: imageBase64 });
+        const resultData = result.data;
+
+        // Cuando tu función en index.js esté lista para devolver los datos del ticket,
+        // esta sección funcionará para rellenar el formulario.
+        if (resultData && resultData.tipo && resultData.tipo.toUpperCase() === 'GASTO') {
+            renderAddGastoForm(resultData);
         } else {
-            throw new Error(resultJson.datos.motivo || 'El ticket no parece ser un gasto válido.');
+            // Mientras tanto, mostramos el mensaje de éxito de tu función actual.
+            showToast(resultData.message || "Función ejecutada. Backend en desarrollo.", false);
         }
+
     } catch (error) {
-        console.error('Error al escanear el ticket:', error);
+        console.error('Error al escanear el ticket vía Cloud Function:', error);
         showToast(`Error al procesar: ${error.message}`, true);
     } finally {
-        hideSpinner();
+        // Restauramos el botón a su estado original
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = originalBtnHTML;
         selectedImageFile = null;
     }
 }
