@@ -2709,9 +2709,6 @@ async function handleImageScan() {
     sendBtn.disabled = true;
     sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Procesando...`;
     
-    // Cerramos el overlay de previsualización para que el usuario vea la pantalla anterior
-    document.getElementById('image-preview-overlay').style.display = 'none';
-
     const toBase64 = file => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
