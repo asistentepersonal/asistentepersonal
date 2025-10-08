@@ -127,6 +127,18 @@
         100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
     /* --- FIN SPINNER MEJORADO --- */
+
+    /* --- ESTILOS PARA SPINNER DENTRO DE BOTONES --- */
+    .btn-spinner {
+        animation: spin-button 0.8s linear infinite;
+        border-color: rgba(255, 255, 255, 0.8) !important;
+        border-top-color: transparent !important; /* Esto crea el efecto de giro */
+    }
+
+    @keyframes spin-button {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
 	.btn-spinner {
     display: inline-block !important; /* Asegura que se muestre */
     position: relative !important; /* Anula el 'fixed' */
@@ -1280,8 +1292,17 @@ if (tg) {
         document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); 
         document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); 
         document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); 
-        document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff'); 
-    } 
+        document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
+        
+        // --- INICIO: CORRECCIÓN DE CALENDARIO EN MODO OSCURO ---
+        if (tg.colorScheme === 'dark') {
+            const darkThemeLink = document.createElement('link');
+            darkThemeLink.rel = 'stylesheet';
+            darkThemeLink.href = 'https://npmcdn.com/flatpickr/dist/themes/dark.css';
+            document.head.appendChild(darkThemeLink);
+        }
+        // --- FIN: CORRECCIÓN DE CALENDARIO ---
+    }
     
     // =========================================================================
     // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
@@ -2824,8 +2845,12 @@ function renderAddGastoForm(initialData = null) {
 }
 
 async function saveGasto() {
+    const saveBtn = document.getElementById('save-gasto-btn');
+    const originalBtnHTML = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Registrando...`;
+
     try {
-        showSpinner("Registrando gasto...");
         const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
         const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
         const establecimiento = document.getElementById('gasto-establecimiento').value;
@@ -2833,14 +2858,10 @@ async function saveGasto() {
         const subCategoria = document.getElementById('gasto-subcategoria').value;
         const mesAnio = `${(fechaGastoObj.getMonth() + 1).toString().padStart(2, '0')}/${fechaGastoObj.getFullYear()}`;
 
-        const gastoData = {
-            importe, establecimiento, categoria, subCategoria,
-            fecha: fechaGastoObj,
-            mesAnio: mesAnio
-        };
+        const gastoData = { importe, establecimiento, categoria, subCategoria, fecha: fechaGastoObj, mesAnio: mesAnio };
 
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-        const newGastoRef = db.collection('users').doc(chatId).collection('gastos').doc(generateCustomId('G-')); // Generar Ref con ID
+        const newGastoRef = db.collection('users').doc(chatId).collection('gastos').doc(generateCustomId('G-'));
 
         await db.runTransaction(async (transaction) => {
             const countsDoc = await transaction.get(countsRef);
@@ -2851,11 +2872,8 @@ async function saveGasto() {
             const mesesActivos = currentCounts.mesesActivosGastos || [];
             if (!mesesActivos.includes(mesAnio)) mesesActivos.push(mesAnio);
 
-            transaction.set(newGastoRef, gastoData); // Crear el documento del gasto
-            transaction.update(countsRef, {
-                gastosMesActual: nuevoTotalGastos,
-                mesesActivosGastos: mesesActivos
-            });
+            transaction.set(newGastoRef, gastoData);
+            transaction.update(countsRef, { gastosMesActual: nuevoTotalGastos, mesesActivosGastos: mesesActivos });
         });
 
         appData.counts.gastosMesActual = (appData.counts.gastosMesActual || 0) + importe;
@@ -2868,8 +2886,8 @@ async function saveGasto() {
     } catch (err) {
         console.error("Error en saveGasto():", err);
         showToast(`Error: ${err.message}.`, true);
-    } finally {
-        hideSpinner();
+        saveBtn.disabled = false; // Reactivar botón en caso de error
+        saveBtn.innerHTML = originalBtnHTML;
     }
 }
 
