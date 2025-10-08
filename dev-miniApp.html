@@ -26,6 +26,20 @@
     .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:16px;padding:20px;}
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center;position:relative;}
     .card.clickable-card { cursor: pointer; }
+
+    /* --- INICIO: ESTILO PARA TARJETA CON IMAGEN DE FONDO --- */
+    .card.card-image-bg {
+        padding: 0; /* Anulamos el padding interno */
+        position: relative; /* Necesario para el truco de la altura */
+        height: 0;
+        padding-top: 100%; /* ¡La clave! Fuerza un aspect-ratio de 1:1 (cuadrado) */
+        
+        background-size: contain; /* Asegura que toda la imagen sea visible */
+        background-repeat: no-repeat;
+        background-position: center;
+        background-color: #000; /* Fondo negro por si la imagen tarda en cargar */
+    }
+    /* --- FIN: ESTILO PARA TARJETA CON IMAGEN DE FONDO --- */
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
     .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
@@ -5817,7 +5831,7 @@ function renderDashboard() {
   
   // La tarjeta del calendario ya es activa y llama a renderCalendarView
   const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
-  const cuentasClarasCardHtml = `<div class="card disabled-card" id="cuentas-claras-card"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>`;
+  const cuentasClarasCardHtml = `<div class="card clickable-card card-image-bg" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png');"></div>`;
 
   mainContentArea.innerHTML = `
     <div class="grid">
