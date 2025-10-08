@@ -5833,9 +5833,7 @@ function renderDashboard() {
   // La tarjeta del calendario ya es activa y llama a renderCalendarView
   const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
   const cuentasClarasBadge = counts.cuentasClarasCount > 0 
-    ? `<div class="card-badge" style="top: 8px; left: 8px;">${counts.cuentasClarasCount}</div>` 
-    : '';
-    ? `<div class="card-badge" style="top: 12px; left: 12px;">${counts.cuentasClarasCount}</div>` 
+    ? `<div class="card-badge" style="top: 12px; left: 12px;">${counts.cuentasClarasCount > 99 ? '99+' : counts.cuentasClarasCount}</div>` 
     : '';
   const cuentasClarasCardHtml = `<div class="card clickable-card card-image-bg" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png');">${cuentasClarasBadge}</div>`;
 
