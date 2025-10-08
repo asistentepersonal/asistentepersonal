@@ -28,7 +28,7 @@
     .card.clickable-card { cursor: pointer; }
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
-    .card-badge{position:absolute;top:12px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
+    .card-badge{position:absolute;top:8px;left:8px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
 	.card-badge.card-badge-pill {
     width: auto;
     height: auto;
@@ -1447,8 +1447,9 @@ let appData = {
         notesCount: 0, 
         calendarTodayCount: 0, 
         gastosMesActual: '0,00', 
-        mesesActivosGastos: [] 
-    }, 
+        mesesActivosGastos: [],
+        cuentasClarasCount: 0 // <-- CONTADOR AÑADIDO
+    },
     remindersList: [], 
     shoppingList: [], 
     notesList: [], 
@@ -5816,16 +5817,19 @@ function renderDashboard() {
   }
   
   // La tarjeta del calendario ya es activa y llama a renderCalendarView
-  const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red" style="left:12px;" id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
-  const cuentasClarasCardHtml = `<div class="card disabled-card" id="cuentas-claras-card"><div class="card-icon">⚖️</div><div class="card-title">Cuentas Claras</div></div>`;
+  const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red"  id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
+  const cuentasClarasCardHtml = `
+      <div class="card clickable-card" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png'); background-size: cover; background-position: center; padding: 0;">
+        <div class="card-badge red" id="cuentas-claras-badge">${counts.cuentasClarasCount || 0}</div>
+      </div>`;
 
   mainContentArea.innerHTML = `
     <div class="grid">
-      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">✍️️</div><div class="card-title">Avisarme</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red"  id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon">✍️️</div><div class="card-title">Avisarme</div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
       <div class="card clickable-card"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon">🛒</div><div class="card-title">Compras</div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
-      <div class="card clickable-card"><div class="card-badge red" style="left:12px;" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
+      <div class="card clickable-card"><div class="card-badge red"  id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon">📝</div><div class="card-title">Notas</div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
       ${calendarCardHtml}
-      <div class="card clickable-card"><div class="card-badge card-badge-pill red" style="left:12px;" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+      <div class="card clickable-card"><div class="card-badge card-badge-pill red"  id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon">💰</div><div class="card-title">Gastos</div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
       ${cuentasClarasCardHtml}
       ${chefCardHtml}
       <div id="guia-tv-card" class="card disabled-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
