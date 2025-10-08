@@ -354,6 +354,38 @@
   100% { transform: scale(0.95); }
 }
 /* --- FIN CÓDIGO SPLASH SCREEN --- */
+
+/* --- INICIO ESTILOS SPINNER DE PUNTOS --- */
+.dot-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px; /* Espacio entre los puntos */
+}
+.dot-spinner__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--primary); /* Usa el color principal de la app */
+  animation: pulse-dot 1.4s infinite ease-in-out;
+}
+.dot-spinner__dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dot-spinner__dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(0.5);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* --- FIN ESTILOS SPINNER DE PUNTOS --- */
 /* --- INICIO ESTILOS GUÍA TV --- */
 .guia-tv-container { padding: 10px; max-width: 100%; overflow: hidden; }
 .guia-nav { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 8px; }
@@ -904,8 +936,12 @@
 <body>
   <!-- --- INICIO SPLASH SCREEN --- -->
 	<div id="splash-screen" class="splash-screen">
-  <img src="https://lh3.googleusercontent.com/d/1zQd1rn14IFHAGYHn95GVvILTB90i3320" alt="Logo" class="splash-logo" />
-  <div class="splash-text">Cargando tu asistente...</div>
+        <div class="dot-spinner">
+            <div class="dot-spinner__dot"></div>
+            <div class="dot-spinner__dot"></div>
+            <div class="dot-spinner__dot"></div>
+        </div>
+        <div class="splash-text">Cargando tu asistente...</div>
 	</div>
 <!-- --- FIN SPLASH SCREEN --- -->
 <!-- --- INICIO MODAL DE CHANGELOG --- -->
