@@ -2242,57 +2242,45 @@ function handleShoppingItemInteractions(event) {
 
 async function toggleShoppingItemStatus(itemId, newStatus) {
     const itemRef = db.collection('users').doc(chatId).collection('listaDeLaCompra').doc(itemId);
-    // Usar el prefijo del ID para determinar si es un artículo del Chef
-    const isChefItem = itemId.startsWith('ITEM-');
 
-    // --- Lógica de Eliminación (para artículos del Chef al ser Comprados) ---
-    if (newStatus === 'Comprado' && isChefItem) {
-        // Actualización optimista: lo removemos de la lista local y re-renderizamos
-        const index = appData.shoppingList.findIndex(item => item.id === itemId);
-        if (index > -1) {
-            appData.shoppingList.splice(index, 1);
-        }
-        renderShoppingListContent(appData.shoppingList); // Re-renderizar la UI
-        updateShoppingCounts(appData.shoppingList);      // Actualizar los badges de contadores
-        showToast('Artículo de Chef marcado como comprado y eliminado.');
+    // --- Lógica Unificada y Moderna ---
+    if (newStatus === 'Comprado') {
+        // 1. Buscamos el artículo en nuestra lista local para chequear su ciclo de compra.
+        const item = appData.shoppingList.find(i => i.id === itemId);
 
-        try {
-            await itemRef.delete(); // Ejecutar la eliminación real en Firestore
-            // El listener de Firestore ('onSnapshot') confirmará la eliminación y si hay alguna
-            // discrepancia, la corregirá, pero nuestra actualización optimista ya lo ha hecho en la UI.
-        } catch (err) {
-            console.error("Error al eliminar artículo del Chef de Firestore:", err);
-            showToast(`Error de sincronización al eliminar: ${err.message}. Restaurando datos...`, true);
-            initializeApp(); // Recarga completa en caso de error grave en la eliminación
+        // 2. Si el artículo existe y su ciclo es 0, es un artículo de un solo uso y debe ser eliminado.
+        if (item && item.cycle === 0) {
+            const itemName = item.articulo.length > 20 ? item.articulo.substring(0, 20) + '...' : item.articulo;
+            showToast(`'${itemName}' completado y eliminado.`);
+            
+            // Llamamos a la función de borrado existente que ya maneja la lógica de Firestore y contadores.
+            handleDeleteShoppingItem(itemId);
+            return; // ¡Importante! Salimos de la función, el trabajo está hecho.
         }
-        return; // Salir después de procesar la eliminación
     }
 
-    // --- Lógica de Actualización de Estado (para otros casos) ---
-    // Esto incluye:
-    // - Artículos manuales ('G-') que se marcan como 'Comprado'.
-    // - Cualquier artículo (Chef o manual) que se marca como 'Pendiente'.
-
+    // 3. Si no se cumplió la condición de borrado (ciclo > 0 o se está moviendo a "Pendiente"), 
+    // procedemos a actualizar el estado del artículo.
     try {
-        // Antes de intentar actualizar, verifica si el documento existe en Firestore
         const docSnap = await itemRef.get();
         if (!docSnap.exists) {
-            console.warn(`Intento de actualizar documento no existente en Firestore: ${itemId}. Posiblemente ya eliminado o error de sincronización.`);
-            showToast("Advertencia: El artículo ya no existe en la base de datos. Actualizando lista.", false);
-            renderShoppingList(); // Re-renderiza la lista para reflejar el estado actual de Firestore
+            console.warn(`Intento de actualizar documento no existente: ${itemId}.`);
+            showToast("El artículo ya no existe. Actualizando lista.", false);
+            if (unsubscribeShoppingList) unsubscribeShoppingList();
+            renderShoppingList();
             return;
         }
 
-        // Si el documento existe, procede con la actualización del estado
         await itemRef.update({
             estado: newStatus,
             fecha: firebase.firestore.FieldValue.serverTimestamp()
         });
-        // El listener de Firestore se encargará de actualizar la UI y los contadores.
+        // El listener onSnapshot en tiempo real se encargará de actualizar la UI automáticamente.
+
     } catch (err) {
         console.error("Error al cambiar el estado del artículo:", err);
-        showToast(`Error: ${err.message}. Restaurando datos...`, true);
-        initializeApp(); // Recarga completa en caso de error grave en la actualización
+        showToast(`Error de sincronización: ${err.message}.`, true);
+        initializeApp(); // Forzamos una recarga completa en caso de un error grave.
     }
 }
 
