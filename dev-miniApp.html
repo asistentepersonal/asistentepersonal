@@ -265,8 +265,8 @@
     flex-shrink: 0;        /* ¡CLAVE! Impide que el botón se encoja o desaparezca */
     line-height: 1;
 }
-    #image-preview-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-    #image-preview-element { max-width: 90%; max-height: 70%; object-fit: contain; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+    #image-preview-overlay, #chef-image-preview-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    #image-preview-element, #chef-image-preview-element { max-width: 90%; max-height: 70%; object-fit: contain; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
     #image-preview-actions { display: flex; gap: 20px; margin-top: 20px; width: 100%; max-width: 400px; }
     #image-preview-actions button { flex: 1; padding: 15px; font-size: 1.2rem; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; }
     #preview-send-btn { background-color: var(--action-bg); color: var(--action-text); }
@@ -3487,6 +3487,8 @@ function handleChefImageSelection(file, callback) {
 
 // [VERSIÓN FINAL CON CLOUD FUNCTIONS - CORREGIDA]
 // Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
+// [VERSIÓN FINAL CON CLOUD FUNCTIONS - CORREGIDA]
+// Esta función ahora se comunica directamente con nuestro propio backend en Firebase.
 async function executeChefRequest(files) {
     // --- INICIO DE LA MODIFICACIÓN CLAVE ---
     const submitBtn = document.getElementById('chef-submit-btn');
@@ -3659,32 +3661,32 @@ function handleChefResultsClicks(event) {
         case 'copy-recipe': copyToClipboard(button); break;
         case 'go-home': renderDashboard(); break;
         case 'toggle-instructions': // <--- Nueva acción para el desplegable
-            event.stopPropagation(); // Evitar que el clic se propague más allá del botón
-            const targetId = button.dataset.target;
-            const targetElement = document.getElementById(targetId);
-            const parentCard = button.closest('.recipe-card');
+    event.stopPropagation(); // Evitar que el clic se propague más allá del botón
+    const targetId = button.dataset.target;
+    const targetElement = document.getElementById(targetId);
+    const parentCard = button.closest('.recipe-card');
 
-            if (targetElement && parentCard) {
-                const isOpen = targetElement.style.display === 'block';
-                if (isOpen) {
-                    targetElement.style.maxHeight = '0';
-                    targetElement.style.padding = '0 15px'; // Restablecer padding al cerrar
-                    setTimeout(() => { targetElement.style.display = 'none'; }, 300); // Ocultar después de la transición
-                    parentCard.classList.remove('open'); // Quitar clase 'open' del padre
-                } else {
-                    targetElement.style.display = 'block';
-                    // Forzar el redibujado para que la transición funcione
-                    targetElement.offsetHeight; 
-                    targetElement.style.maxHeight = '500px'; // Un valor suficientemente grande
-                    targetElement.style.padding = '15px'; // Restaurar padding al abrir
-                    parentCard.classList.add('open'); // Añadir clase 'open' al padre
-                }
-                const arrow = button.querySelector('.expand-arrow');
-                if (arrow) {
-                    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-                }
-            }
-            break;
+    if (targetElement && parentCard) {
+        const isOpen = targetElement.style.display === 'block';
+        if (isOpen) {
+            targetElement.style.maxHeight = '0';
+            targetElement.style.padding = '0 15px'; // Restablecer padding al cerrar
+            setTimeout(() => { targetElement.style.display = 'none'; }, 300); // Ocultar después de la transición
+            parentCard.classList.remove('open'); // Quitar clase 'open' del padre
+        } else {
+            targetElement.style.display = 'block';
+            // Forzar el redibujado para que la transición funcione
+            targetElement.offsetHeight; 
+            targetElement.style.maxHeight = '500px'; // Un valor suficientemente grande
+            targetElement.style.padding = '15px'; // Restaurar padding al abrir
+            parentCard.classList.add('open'); // Añadir clase 'open' al padre
+        }
+        const arrow = button.querySelector('.expand-arrow');
+        if (arrow) {
+            arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+    }
+    break;
     }
 }
 
