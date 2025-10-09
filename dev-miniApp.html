@@ -5539,10 +5539,28 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     titleInput.oninput = validate;
     validate();
     
-    saveBtn.onclick = () => {
-        const finalEventData = isEditing ? { ...event } : {};
-        finalEventData.notificaciones = currentNotifications;
-        saveCalendarEvent(finalEventData);
+    // --- LÓGICA DE GUARDADO CON SPINNER INTEGRADO ---
+    saveBtn.onclick = async () => {
+        const originalBtnHTML = saveBtn.innerHTML;
+        const otherBtn = document.getElementById('delete-event-btn') || document.getElementById('cancel-event-btn');
+
+        saveBtn.disabled = true;
+        if (otherBtn) otherBtn.disabled = true;
+        saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;
+
+        try {
+            const finalEventData = isEditing ? { ...event } : {};
+            finalEventData.notificaciones = currentNotifications;
+            await saveCalendarEvent(finalEventData);
+            // Si tiene éxito, saveCalendarEvent navega y no necesitamos hacer nada más aquí.
+        } catch (error) {
+            // Si saveCalendarEvent falla, lanza un error que capturamos aquí.
+            // El toast de error ya se muestra dentro de saveCalendarEvent.
+            // Solo necesitamos restaurar los botones.
+            saveBtn.disabled = false;
+            if (otherBtn) otherBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnHTML;
+        }
     };
 
     if (isEditing) {
@@ -5555,25 +5573,21 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
             saveBtn.style.display = 'none';
 
             const confirmYes = document.createElement('button');
-            // [CORRECCIÓN FINAL] Se añade 'enabled' para que sea clicable y se le da el estilo 'yes'
             confirmYes.className = 'confirm-btn-yes enabled';
             confirmYes.textContent = 'Sí, Eliminar';
             const originalYesText = confirmYes.textContent;
 
             const confirmNo = document.createElement('button');
-            // [CORRECCIÓN FINAL] Se añade 'enabled' para que sea clicable y se le da el estilo 'no'
             confirmNo.className = 'confirm-btn-no enabled';
             confirmNo.textContent = 'No';
 
             confirmYes.onclick = async () => {
-                // Lógica de spinner dentro del botón
                 confirmYes.disabled = true;
-                confirmNo.disabled = true; // Deshabilitar ambos para evitar dobles clics
+                confirmNo.disabled = true;
                 confirmYes.innerHTML = `<span class="spinner btn-spinner"></span> Eliminando...`;
                 
                 await handleDeleteCalendarEvent(event.id);
                 
-                // Si la eliminación falla, la función handleDelete no navegará y podemos restaurar los botones
                 confirmYes.disabled = false;
                 confirmNo.disabled = false;
                 confirmYes.innerHTML = originalYesText;
@@ -5695,14 +5709,13 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     setTimeout(() => { modal.classList.add('show'); }, 10);
 }
 async function saveCalendarEvent(eventData) {
-    showSpinner("Guardando evento...");
+    // Se elimina showSpinner(). El feedback visual se gestionará en el botón.
     const title = document.getElementById('event-title').value.trim();
     const isEditing = eventData && eventData.id;
 
     if (!title) {
         showToast("El título es obligatorio.", true);
-        hideSpinner();
-        return;
+        return; // No continuamos si no hay título.
     }
 
     try {
@@ -5742,25 +5755,22 @@ async function saveCalendarEvent(eventData) {
 
         if (isEditing) {
             await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
-            showToast("Evento actualizado.");
         } else {
             await collectionRef.add(dataToSave);
-            showToast("Evento creado.");
         }
         
-        // --- INICIO: LLAMADA A LA SINCRONIZACIÓN DEL CONTADOR ---
-        // Después de cualquier guardado, recalculamos y guardamos el contador correcto.
         await recalculateAndSyncCalendarCount();
-        // --- FIN: LLAMADA A LA SINCRONIZACIÓN DEL CONTADOR ---
-
+        
+        // Se elimina el toast de éxito. La navegación es la confirmación.
         goBack();
 
     } catch (err) {
         console.error("Error guardando evento en Firestore:", err);
         showToast(`Error al guardar: ${err.message}`, true);
-    } finally {
-        hideSpinner();
+        // Lanzamos el error para que la UI pueda reaccionar (ej: reactivar el botón).
+        throw err;
     }
+    // No hay 'finally' porque no hay spinner global.
 }
 
 /**
