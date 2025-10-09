@@ -1777,35 +1777,42 @@ async function executeDelete(type, id) {
 
     try {
         switch(type) {
-            const listContainer = document.getElementById('reminders-list');
-            if (listContainer && listContainer.children.length === 0) {
-                listContainer.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-            }
-            
-            // 2. Sincronización en segundo plano con Firestore de forma atómica
-            (async () => {
-                try {
-                    const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
-                    const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+            case 'reminder': {
+                // --- INICIO: LÓGICA OPTIMISTA Y NATIVA DE FIRESTORE (SIN SPINNER/TOAST) ---
+                // 1. Actualización optimista de la UI (instantánea para el usuario)
+                const reminderItem = document.getElementById(`item-${id}`);
+                if (reminderItem) reminderItem.remove();
 
-                    // Usamos un batch para asegurar que ambas operaciones (borrado y decremento) se completen o ninguna lo haga.
-                    const batch = db.batch();
-                    batch.delete(reminderRef);
-                    batch.update(countsRef, {
-                        remindersCount: firebase.firestore.FieldValue.increment(-1)
-                    });
-                    await batch.commit();
-                    console.log("Recordatorio eliminado y contador actualizado en Firestore.");
-
-                } catch (err) {
-                    console.error("Error al eliminar recordatorio en Firestore:", err);
-                    // Si falla, mostramos un error y forzamos una recarga para restaurar la consistencia visual.
-                    showToast('Error de sincronización al eliminar. Restaurando...', true);
-                    setTimeout(() => initializeApp(), 1500);
+                const listContainer = document.getElementById('reminders-list');
+                if (listContainer && listContainer.children.length === 0) {
+                    listContainer.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
                 }
-            })(); // Autoejecutamos la función asíncrona
+                
+                // 2. Sincronización en segundo plano con Firestore de forma atómica
+                (async () => {
+                    try {
+                        const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
+                        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-            return; // Salimos para no ejecutar ningún código antiguo.
+                        // Usamos un batch para asegurar que ambas operaciones (borrado y decremento) se completen o ninguna lo haga.
+                        const batch = db.batch();
+                        batch.delete(reminderRef);
+                        batch.update(countsRef, {
+                            remindersCount: firebase.firestore.FieldValue.increment(-1)
+                        });
+                        await batch.commit();
+                        console.log("Recordatorio eliminado y contador actualizado en Firestore.");
+
+                    } catch (err) {
+                        console.error("Error al eliminar recordatorio en Firestore:", err);
+                        // Si falla, mostramos un error y forzamos una recarga para restaurar la consistencia visual.
+                        showToast('Error de sincronización al eliminar. Restaurando...', true);
+                        setTimeout(() => initializeApp(), 1500);
+                    }
+                })(); // Autoejecutamos la función asíncrona
+
+                return; // Salimos para no ejecutar ningún código antiguo.
+            }
 
             case 'note':
                 // --- LÓGICA OPTIMISTA (se mantiene) ---
