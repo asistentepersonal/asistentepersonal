@@ -1930,53 +1930,51 @@ function renderReminderForm() {
 }
 
 async function saveReminder() {
-const category = document.querySelector('input[name="category"]:checked').value;
-const description = document.getElementById('text').value.trim();
-const time = document.getElementById('time')._flatpickr.selectedDates[0];
-const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
+  const category = document.querySelector('input[name="category"]:checked').value;
+  const description = document.getElementById('text').value.trim();
+  const time = document.getElementById('time')._flatpickr.selectedDates[0];
+  const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
 
-if (!description || !time) {
+  if (!description || !time) {
     showToast("La descripción y la fecha son obligatorias.", true);
     return;
-}
+  }
 
-// --- PATRÓN DE UI OPTIMISTA Y NAVEGACIÓN ---
-// 1. Mostramos el toast de éxito INMEDIATAMENTE.
-showToast('Recordatorio creado con éxito.');
-// 2. Navegamos hacia atrás. La vista anterior se recargará y el listener de Firestore
-//    mostrará el nuevo recordatorio que se está guardando en segundo plano.
-goBack(); 
-
-try {
+  try {
     const customId = generateCustomId('G-');
     const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const localTimeStr = time.toLocaleString('es-ES', { timeZone: userTimeZone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     const reminderData = {
-        descripcion: description,
-        categoria_recordatorio: category,
-        fecha_universal: time.toISOString(),
-        status: "pending_creation",
-        tracking_code: customId,
-        chat_id: chatId.toString(),
-        hora_local: localTimeStr,
-        horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null,
-        trigger_id: null
+      descripcion: description,
+      categoria_recordatorio: category,
+      fecha_universal: time.toISOString(),
+      status: "pending_creation",
+      tracking_code: customId,
+      chat_id: chatId.toString(),
+      hora_local: localTimeStr,
+      horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null,
+      trigger_id: null
     };
 
     const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(customId);
     const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-    // Se realizan las escrituras en Firestore en segundo plano.
+    // Se realizan las escrituras en Firestore y se espera a que terminen.
     await reminderRef.set(reminderData);
     await countsRef.update({
         remindersCount: firebase.firestore.FieldValue.increment(1)
     });
+    
+    // Solo si todo lo anterior tuvo éxito, se muestra el toast y se navega.
+    showToast('Recordatorio creado con éxito.');
+    renderRemindersList();
 
-} catch (err) { 
-    // Si la operación en segundo plano falla, se lo notificamos al usuario.
-    console.error("Error en segundo plano al guardar recordatorio:", err);
-    showToast(`Error de sincronización: ${err.message}.`, true, true); // Toast persistente
+  } catch (err) { 
+    // En caso de cualquier error, se muestra el toast rojo.
+    showToast(`Error al crear el recordatorio: ${err.message}.`, true);
+    renderDashboard();
+  }
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
@@ -5704,85 +5702,79 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     setTimeout(() => { modal.classList.add('show'); }, 10);
 }
 async function saveCalendarEvent(eventData) {
-const title = document.getElementById('event-title').value.trim();
-const isEditing = eventData && eventData.id;
+    showSpinner("Guardando evento...");
+    const title = document.getElementById('event-title').value.trim();
+    // Determinamos si estamos editando basándonos en si eventData tiene un ID.
+    const isEditing = eventData && eventData.id;
 
-if (!title) {
-    showToast("El título es obligatorio.", true);
-    return;
-}
-
-showSpinner("Guardando evento...");
-
-try {
-    const isAllDay = document.getElementById('event-all-day').checked;
-    let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-    let endDate = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
-
-    if (isAllDay) {
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date(startDate); 
-        endDate.setHours(23, 59, 59, 999);
+    if (!title) {
+        showToast("El título es obligatorio.", true);
+        hideSpinner();
+        return;
     }
 
-    if (endDate < startDate) {
-        throw new Error("La fecha de fin no puede ser anterior a la de inicio.");
-    }
+    try {
+        const isAllDay = document.getElementById('event-all-day').checked;
+        let startDate, endDate;
+        
+        // Obtenemos las fechas del formulario
+        startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
+        endDate = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
 
-    const notificationsToSave = (eventData.notificaciones || []).map(notif => ({
-        metodo: notif.metodo,
-        minutosAntes: notif.minutosAntes,
-        trigger_id: null,
-        status: 'pending_creation'
-    }));
+        // Lógica para eventos de "Todo el día"
+        if (isAllDay) {
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(startDate); 
+            endDate.setHours(23, 59, 59, 999);
+        }
 
-    const dataToSave = {
-        titulo: title,
-        descripcion: document.getElementById('event-description').value.trim(),
-        color: document.getElementById('event-color-value').value,
-        fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
-        fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
-        esTodoElDia: isAllDay,
-        notificaciones: notificationsToSave,
-        status: 'pending_creation'
-    };
-    
-    const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
+        // Validación de fechas
+        if (endDate < startDate) {
+            hideSpinner();
+            showToast("La fecha de fin no puede ser anterior a la de inicio.", true);
+            return;
+        }
 
-    if (isEditing) {
-        await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
-        showToast("Evento actualizado.");
-    } else {
-        const batch = db.batch();
-        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-        const newEventRef = collectionRef.doc();
-        batch.set(newEventRef, dataToSave);
+        // Leemos las notificaciones desde la variable `eventData.notificaciones` (del sistema de chips)
+        // y la transformamos a la estructura que tu backend necesita.
+        const notificationsToSave = (eventData.notificaciones || []).map(notif => ({
+            metodo: notif.metodo,
+            minutosAntes: notif.minutosAntes,
+            trigger_id: null,
+            status: 'pending_creation'
+        }));
 
-        const hoy = new Date();
-        const esParaHoy = startDate.getDate() === hoy.getDate() &&
-                          startDate.getMonth() === hoy.getMonth() &&
-                          startDate.getFullYear() === hoy.getFullYear();
+        // Construimos el objeto final con la estructura requerida por tus activadores
+        const dataToSave = {
+            titulo: title,
+            descripcion: document.getElementById('event-description').value.trim(),
+            color: document.getElementById('event-color-value').value,
+            fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
+            fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
+            esTodoElDia: isAllDay,
+            notificaciones: notificationsToSave,
+            status: 'pending_creation'
+        };
+        
+        const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
 
-        if (esParaHoy) {
-            batch.update(countsRef, {
-                calendarTodayCount: firebase.firestore.FieldValue.increment(1)
-            });
-            appData.counts.calendarTodayCount = (appData.counts.calendarTodayCount || 0) + 1;
+        if (isEditing) {
+            await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
+            showToast("Evento actualizado.");
+        } else {
+            await collectionRef.add(dataToSave);
+            showToast("Evento creado.");
         }
         
-        await batch.commit();
-        showToast("Evento creado.");
+        goBack(); // Volvemos a la vista del calendario
+
+    } catch (err) {
+        console.error("Error guardando evento en Firestore:", err);
+        showToast(`Error al guardar: ${err.message}`, true);
+    } finally {
+        hideSpinner();
     }
-    
-    goBack(); // Navegación correcta al finalizar.
-
-} catch (err) {
-    console.error("Error guardando evento en Firestore:", err);
-    showToast(`Error al guardar: ${err.message}`, true);
-} finally {
-    hideSpinner();
 }
-
 
 async function handleDeleteCalendarEvent(eventId) {
     showSpinner("Eliminando...");
