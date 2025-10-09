@@ -5596,15 +5596,30 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
             saveBtn.style.display = 'none';
 
             const confirmYes = document.createElement('button');
-            // [CORRECCIÓN VISUAL] Asignamos la clase correcta para el botón de confirmación.
-            confirmYes.className = 'confirm-btn-yes';
+            // [CORRECCIÓN FINAL] Se añade 'enabled' para que sea clicable y se le da el estilo 'yes'
+            confirmYes.className = 'confirm-btn-yes enabled';
             confirmYes.textContent = 'Sí, Eliminar';
-            confirmYes.onclick = () => handleDeleteCalendarEvent(event.id);
+            const originalYesText = confirmYes.textContent;
 
             const confirmNo = document.createElement('button');
-            // [CORRECCIÓN VISUAL] Asignamos la clase correcta para el botón de cancelación.
-            confirmNo.className = 'confirm-btn-no';
+            // [CORRECCIÓN FINAL] Se añade 'enabled' para que sea clicable y se le da el estilo 'no'
+            confirmNo.className = 'confirm-btn-no enabled';
             confirmNo.textContent = 'No';
+
+            confirmYes.onclick = async () => {
+                // Lógica de spinner dentro del botón
+                confirmYes.disabled = true;
+                confirmNo.disabled = true; // Deshabilitar ambos para evitar dobles clics
+                confirmYes.innerHTML = `<span class="spinner btn-spinner"></span> Eliminando...`;
+                
+                await handleDeleteCalendarEvent(event.id);
+                
+                // Si la eliminación falla, la función handleDelete no navegará y podemos restaurar los botones
+                confirmYes.disabled = false;
+                confirmNo.disabled = false;
+                confirmYes.innerHTML = originalYesText;
+            };
+
             confirmNo.onclick = () => {
                 deleteBtn.style.display = 'block';
                 saveBtn.style.display = 'block';
@@ -5826,13 +5841,11 @@ async function recalculateAndSyncCalendarCount() {
 }
 
 async function handleDeleteCalendarEvent(eventId) {
-    showSpinner("Eliminando evento...");
+    // Se elimina la llamada a showSpinner(). La UI del botón se encargará del feedback.
     try {
-        // [NUEVA LÓGICA FIRESTORE] Se elimina la llamada al webhook y se usa el SDK nativo.
         const eventRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId);
         await eventRef.delete();
         
-        // Sincronizamos el contador maestro en Firestore después de la eliminación.
         await recalculateAndSyncCalendarCount();
 
         showToast("Evento eliminado con éxito.");
@@ -5840,9 +5853,10 @@ async function handleDeleteCalendarEvent(eventId) {
         
     } catch (err) { 
         showToast(`Error al eliminar: ${err.message}`, true); 
-    } finally { 
-        hideSpinner(); 
-    }
+        // Si hay un error, la UI se quedará en el formulario para que el usuario sepa que algo falló.
+        // La reactivación de los botones se gestionará en la función que los crea.
+    } 
+    // Se elimina el 'finally' porque ya no hay spinner global que ocultar.
 }
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
