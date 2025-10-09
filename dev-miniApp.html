@@ -1636,31 +1636,62 @@ let currentCalendarDate = new Date();
 /// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
 async function loadSecondaryData() {
     if (appData.isSecondaryDataLoaded) return;
-	// --- PUNTO DE DEPURACIÓN 2: VERIFICAR SI HAY INTERFERENCIA ---
-	console.log("2. ENTRANDO A loadSecondaryData. Estado actual de los contadores:", JSON.parse(JSON.stringify(appData.counts)));
-	// --- FIN DEPURACIÓN ---
     
-    console.log("Cargando datos secundarios por primera vez...");
+    console.log("Cargando datos secundarios desde Firestore (método moderno y paralelo)...");
     showSpinner("Cargando listas...");
+
     try {
-        const secondaryData = await fetchWithTimeout(gasWebhookURL, { Type: 'get_secondary_data', chat_ID: chatId }).then(res => res.json());
-        if (secondaryData.error) throw new Error(secondaryData.error);
+        // Lanzamos las tres consultas a Firestore de forma simultánea para máxima velocidad.
+        const remindersPromise = db.collection('users').doc(chatId).collection('notificaciones').orderBy('fecha_universal', 'asc').get();
+        const shoppingPromise = db.collection('users').doc(chatId).collection('listaDeLaCompra').orderBy('estado', 'asc').orderBy('fecha', 'desc').get();
+        const calendarPromise = db.collection('users').doc(chatId).collection('eventos_calendario').orderBy('fechaInicio', 'asc').get();
 
-        appData.remindersList = secondaryData.remindersList;
-        appData.shoppingList = secondaryData.shoppingList;
-        appData.calendarEvents = secondaryData.calendarEvents;
-        
-        // La siguiente línea es la causa del error NaN. Se comenta para que Firestore sea la única fuente.
-        // appData.counts.gastosMesActual = secondaryData.gastosMesActual; 
-        
-        appData.counts.calendarTodayCount = secondaryData.calendarTodayCount;
-        appData.counts.mesesActivosGastos = secondaryData.mesesActivosGastos;
+        // Promise.all espera a que las tres consultas terminen antes de continuar.
+        const [remindersSnapshot, shoppingSnapshot, calendarSnapshot] = await Promise.all([
+            remindersPromise,
+            shoppingPromise,
+            calendarPromise
+        ]);
 
+        // Procesamos los resultados de cada consulta.
+        appData.remindersList = remindersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                tracking_code: doc.id,
+                Descripcion: data.descripcion,
+                Categoria: data.categoria_recordatorio,
+                Fecha: data.hora_local,
+                Status: data.status
+            };
+        });
+
+        appData.shoppingList = shoppingSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                articulo: data.articulo,
+                estado: data.estado,
+                fecha: data.fecha ? data.fecha.toDate() : null, // Convertimos Timestamp a Date
+                cycle: data.cycle || 0
+            };
+        });
+        
+        appData.calendarEvents = calendarSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                fechaInicio: data.fechaInicio.toDate(), // Convertimos Timestamp a Date
+                fechaFin: data.fechaFin.toDate()       // Convertimos Timestamp a Date
+            };
+        });
+
+        // Marcamos los datos como cargados para no volver a pedirlos.
         appData.isSecondaryDataLoaded = true;
-        console.log("Datos secundarios cargados con éxito.");
-        
+        console.log("Datos secundarios cargados con éxito desde Firestore.");
+
     } catch (err) {
-        console.error("Error cargando datos secundarios:", err);
+        console.error("Error cargando datos secundarios desde Firestore:", err);
         showToast(`Error al cargar datos: ${err.message}`, true);
     } finally {
         hideSpinner();
