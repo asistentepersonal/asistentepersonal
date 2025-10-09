@@ -5450,7 +5450,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
-            <div class="form-card">
+            <div class="form-card" ${isEditing ? `id="item-${event.id}"` : ''}>
                 <label>Título</label><input type="text" id="event-title" value="${isEditing ? event.titulo : ''}" required />
                 <label>Descripción</label><textarea id="event-description" rows="5">${isEditing ? event.descripcion : ''}</textarea>
                 <div class="settings-item"><span class="settings-item-label">Todo el día</span><label class="switch"><input type="checkbox" id="event-all-day" ${isEditing && event.esTodoElDia ? 'checked' : ''}><span class="slider"></span></label></div>
