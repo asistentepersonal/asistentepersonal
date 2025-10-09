@@ -3303,6 +3303,7 @@ async function saveEditedGasto(idUnico) {
 function renderChefPage() {
     removeCalendarFAB();
 	setActiveTab('tab-chef');
+    mainContentArea.removeEventListener('click', handleChefResultsClicks); // <-- LÍNEA AÑADIDA: Limpia el listener anterior
     navigationHistory.push(renderDashboard);
     updateBackButton();
 
