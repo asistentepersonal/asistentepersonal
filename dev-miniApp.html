@@ -1967,13 +1967,17 @@ async function saveReminder() {
     });
     
     // Solo si todo lo anterior tuvo éxito, se muestra el toast y se navega.
-    showToast('Recordatorio creado con éxito.');
     renderRemindersList();
 
   } catch (err) { 
     // En caso de cualquier error, se muestra el toast rojo.
     showToast(`Error al crear el recordatorio: ${err.message}.`, true);
-    renderDashboard();
+    // NO volvemos al dashboard. Reactivamos el botón para que el usuario pueda reintentar.
+    const sendBtn = document.getElementById('sendBtn');
+    if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.classList.add('enabled');
+    }
   }
 }
 
