@@ -5450,7 +5450,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>${isEditing ? '✏️ Editar Evento' : '➕ Nuevo Evento'}</h2></div>
-            <div class="form-card" ${isEditing ? `id="item-${event.id}"` : ''}>
+            <div class="form-card">
                 <label>Título</label><input type="text" id="event-title" value="${isEditing ? event.titulo : ''}" required />
                 <label>Descripción</label><textarea id="event-description" rows="5">${isEditing ? event.descripcion : ''}</textarea>
                 <div class="settings-item"><span class="settings-item-label">Todo el día</span><label class="switch"><input type="checkbox" id="event-all-day" ${isEditing && event.esTodoElDia ? 'checked' : ''}><span class="slider"></span></label></div>
@@ -5499,25 +5499,15 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
         onReady: function(selectedDates) {
-            // Se ejecuta solo una vez al cargar. Guardamos la fecha inicial.
-            if (selectedDates.length > 0) {
-                initialStartDate = new Date(selectedDates[0].getTime());
-            }
+            if (selectedDates.length > 0) { initialStartDate = new Date(selectedDates[0].getTime()); }
         },
         onChange: function(selectedDates) {
             const newStartDate = selectedDates[0];
-            // Si no hay fecha o la fecha no ha cambiado desde la carga inicial, no hacemos nada.
-            if (!newStartDate || !initialStartDate || newStartDate.getTime() === initialStartDate.getTime()) {
-                return;
-            }
-            
-            // Actualizamos la fecha de referencia para futuros cambios manuales.
+            if (!newStartDate || !initialStartDate || newStartDate.getTime() === initialStartDate.getTime()) { return; }
             initialStartDate = new Date(newStartDate.getTime());
-
             const currentEndDate = fpEnd.selectedDates[0];
             if (!currentEndDate || newStartDate >= currentEndDate) {
-                const newEndDate = new Date(newStartDate.getTime() + 60 * 60 * 1000);
-                fpEnd.setDate(newEndDate, true);
+                fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
             }
         }
     });
@@ -5526,12 +5516,11 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
         const isAllDay = allDayCheckbox.checked;
         timePickersDiv.style.display = isAllDay ? 'none' : 'block';
         const newFormat = isAllDay ? "d/m/Y" : "d/m/Y H:i";
-        fpStart.set('enableTime', !isAllDay);
-        fpEnd.set('enableTime', !isAllDay);
-        fpStart.set('altFormat', newFormat);
-        fpEnd.set('altFormat', newFormat);
-        fpStart.redraw();
-        fpEnd.redraw();
+        [fpStart, fpEnd].forEach(fp => {
+            fp.set('enableTime', !isAllDay);
+            fp.set('altFormat', newFormat);
+            fp.redraw();
+        });
     };
     allDayCheckbox.onchange = toggleTimePickers;
     toggleTimePickers();
@@ -5552,11 +5541,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
         };
     });
     
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.custom-dropdown')) {
-            colorOptions.style.display = 'none';
-        }
-    }, true);
+    document.addEventListener('click', (e) => { if (!e.target.closest('.custom-dropdown')) { colorOptions.style.display = 'none'; } }, true);
     
     const getNotificationText = (notif) => {
         const mins = notif.minutosAntes;
@@ -5585,16 +5570,15 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     addNotificationBtn.onclick = () => showNotificationModal(currentNotifications, renderChips);
     renderChips();
 
-    // --- LÓGICA DE ACTIVACIÓN INTELIGENTE ---
-        const validate = () => { 
+    const validate = () => { 
         const isValid = titleInput.value.trim() !== '';
         saveBtn.disabled = !isValid;
-        addNotificationBtn.disabled = !isValid; // Controla la funcionalidad
-        saveBtn.classList.toggle('enabled', isValid); // Controla el estilo visual de "Guardar"
-        addNotificationBtn.classList.toggle('enabled', isValid); // <-- ESTA LÍNEA FALTABA Y SOLUCIONA TODO
+        addNotificationBtn.disabled = !isValid;
+        saveBtn.classList.toggle('enabled', isValid);
+        addNotificationBtn.classList.toggle('enabled', isValid);
     };
     titleInput.oninput = validate;
-    validate(); // Llamada inicial para establecer el estado correcto al cargar
+    validate();
     
     saveBtn.onclick = () => {
         const finalEventData = isEditing ? { ...event } : {};
@@ -5603,7 +5587,32 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     };
 
     if (isEditing) {
-        document.getElementById('delete-event-btn').onclick = () => { confirmDelete('calendar_event', event.id); };
+        const deleteBtn = document.getElementById('delete-event-btn');
+        deleteBtn.onclick = () => {
+            const buttonGroup = deleteBtn.closest('.button-group');
+            if (!buttonGroup) return;
+
+            deleteBtn.style.display = 'none';
+            saveBtn.style.display = 'none';
+
+            const confirmYes = document.createElement('button');
+            confirmYes.className = 'confirm-btn-yes';
+            confirmYes.textContent = 'Sí, Eliminar';
+            confirmYes.onclick = () => handleDeleteCalendarEvent(event.id);
+
+            const confirmNo = document.createElement('button');
+            confirmNo.className = 'confirm-btn-no';
+            confirmNo.textContent = 'No';
+            confirmNo.onclick = () => {
+                deleteBtn.style.display = 'block';
+                saveBtn.style.display = 'block';
+                confirmYes.remove();
+                confirmNo.remove();
+            };
+
+            buttonGroup.appendChild(confirmNo);
+            buttonGroup.appendChild(confirmYes);
+        };
     } else {
         document.getElementById('cancel-event-btn').onclick = goBack;
     }
