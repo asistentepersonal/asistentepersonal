@@ -1006,6 +1006,15 @@
         <button id="preview-cancel-btn">Cancelar</button>
         <button id="preview-send-btn">Enviar</button>
     </div>
+	<!-- INICIO MODAL DE PREVISUALIZACIÓN EXCLUSIVO PARA CHEF -->
+  <div id="chef-image-preview-overlay" style="display: none;">
+    <img id="chef-image-preview-element" src="" alt="Vista previa de ingredientes" />
+    <div id="image-preview-actions">
+        <button id="chef-preview-cancel-btn">Cancelar</button>
+        <button id="chef-preview-send-btn">Usar esta Foto</button>
+    </div>
+  </div>
+  <!-- FIN MODAL DE PREVISUALIZACIÓN EXCLUSIVO PARA CHEF -->
   </div>
 <!-- INICIO MODAL DE NOTIFICACIONES -->
 <div class="modal-overlay" id="notification-modal" style="display: none;">
@@ -3444,12 +3453,12 @@ function renderChefPage() {
 }
 
 function handleChefImageSelection(file, callback) {
-    const overlay = document.getElementById('image-preview-overlay');
-    const imgElement = document.getElementById('image-preview-element');
-    const sendBtn = document.getElementById('preview-send-btn');
-    const cancelBtn = document.getElementById('preview-cancel-btn');
+    // Utilizamos los nuevos IDs exclusivos para el modal del Chef
+    const overlay = document.getElementById('chef-image-preview-overlay');
+    const imgElement = document.getElementById('chef-image-preview-element');
+    const sendBtn = document.getElementById('chef-preview-send-btn');
+    const cancelBtn = document.getElementById('chef-preview-cancel-btn');
 
-    sendBtn.textContent = "Usar esta Foto";
     const reader = new FileReader();
     reader.onload = (e) => {
         imgElement.src = e.target.result;
@@ -3457,23 +3466,20 @@ function handleChefImageSelection(file, callback) {
     };
     reader.readAsDataURL(file);
 
+    // La función de limpieza ahora es mucho más simple y autocontenida
     const cleanup = () => {
         overlay.style.display = 'none';
-        sendBtn.onclick = handleImageScan; 
-        cancelBtn.onclick = () => {
-            document.getElementById('image-preview-overlay').style.display = 'none';
-            selectedImageFile = null;
-        };
-        sendBtn.textContent = "Enviar";
+        // Ya no necesitamos restaurar los handlers de otros flujos, evitando conflictos.
     };
 
+    // Asignamos las acciones a los botones del modal del Chef
     sendBtn.onclick = () => {
-        callback(file);
-        cleanup();
+        callback(file); // Ejecuta la acción de añadir la foto a las previsualizaciones
+        cleanup();      // Cierra y limpia el modal
     };
-    
+
     cancelBtn.onclick = () => {
-        cleanup();
+        cleanup();      // Simplemente cierra y limpia el modal
     };
 }
 
