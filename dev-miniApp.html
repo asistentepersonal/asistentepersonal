@@ -1154,9 +1154,6 @@ async function runApp() {
         // 3. Configurar los listeners para futuras actualizaciones (sin cambios)
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot((doc) => {
-                // Si la bandera está activa, es un cambio local y lo ignoramos.
-                if (isLocalUpdate) return;
-
                 if (doc.exists) {
                     const serverCounts = doc.data();
                     if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
@@ -1624,7 +1621,6 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 let isInitializing = false;
-let isLocalUpdate = false; // <-- Bandera para ignorar el "eco" de Firestore
 let isAppReady = false;
 let unsubscribeShoppingList = null;
 let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
@@ -1945,7 +1941,6 @@ async function saveReminder() {
   }
 
   try {
-    isLocalUpdate = true; // <-- Activamos la bandera ANTES de la escritura
     const customId = generateCustomId('G-');
     const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const localTimeStr = time.toLocaleString('es-ES', { timeZone: userTimeZone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -1965,19 +1960,23 @@ async function saveReminder() {
     const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(customId);
     const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
+    // Se realizan las escrituras en Firestore y se espera a que terminen.
     await reminderRef.set(reminderData);
     await countsRef.update({
         remindersCount: firebase.firestore.FieldValue.increment(1)
     });
     
+    // Navegamos PRIMERO a la lista actualizada.
+renderRemindersList();
+// Y LUEGO, mostramos la confirmación sobre la nueva vista.
+setTimeout(() => {
     showToast('Recordatorio creado con éxito.');
-    renderRemindersList();
+}, 100); // Pequeño retardo para asegurar que el toast aparezca después de la transición.
 
   } catch (err) { 
+    // En caso de cualquier error, se muestra el toast rojo.
     showToast(`Error al crear el recordatorio: ${err.message}.`, true);
     renderDashboard();
-  } finally {
-    isLocalUpdate = false; // <-- Aseguramos que la bandera se resetee SIEMPRE
   }
 }
 
@@ -5763,12 +5762,39 @@ async function saveCalendarEvent(eventData) {
         const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
 
         if (isEditing) {
-            await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
-            showToast("Evento actualizado.");
-        } else {
-            await collectionRef.add(dataToSave);
-            showToast("Evento creado.");
-        }
+    // La lógica de edición no modifica contadores por ahora, ya que requeriría
+    // verificar si la fecha cambió de/hacia "hoy", lo cual es más complejo.
+    await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
+    showToast("Evento actualizado.");
+
+} else {
+    // --- INICIO: LÓGICA DE BATCH WRITE ATÓMICO ---
+    const batch = db.batch();
+    const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+    // 1. Añadir el nuevo evento al batch
+    const newEventRef = collectionRef.doc(); // Generamos una referencia para el nuevo evento
+    batch.set(newEventRef, dataToSave);
+
+    // 2. Comprobar si el evento es para hoy y añadir la actualización del contador
+    const hoy = new Date();
+    const esParaHoy = startDate.getDate() === hoy.getDate() &&
+                      startDate.getMonth() === hoy.getMonth() &&
+                      startDate.getFullYear() === hoy.getFullYear();
+
+    if (esParaHoy) {
+        batch.update(countsRef, {
+            calendarTodayCount: firebase.firestore.FieldValue.increment(1)
+        });
+        // UI Optimista: Actualizamos el contador local inmediatamente
+        appData.counts.calendarTodayCount = (appData.counts.calendarTodayCount || 0) + 1;
+    }
+    
+    // 3. Ejecutar todas las operaciones juntas
+    await batch.commit();
+    showToast("Evento creado.");
+    // --- FIN: LÓGICA DE BATCH WRITE ---
+}
         
         goBack(); // Volvemos a la vista del calendario
 
