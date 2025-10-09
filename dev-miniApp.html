@@ -1978,7 +1978,6 @@ try {
     console.error("Error en segundo plano al guardar recordatorio:", err);
     showToast(`Error de sincronización: ${err.message}.`, true, true); // Toast persistente
 }
-}
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
 let unsubscribeRemindersList = null;
