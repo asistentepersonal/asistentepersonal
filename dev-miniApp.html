@@ -1132,6 +1132,7 @@ async function initializeApp() {
 // --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
 async function runApp() {
     try {
+		console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
         // 1. Obtener los ajustes del usuario (sin cambios)
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
         if (!userSettingsDoc.exists) {
@@ -1140,6 +1141,7 @@ async function runApp() {
         }
         appData.settings = userSettingsDoc.data() || {};
         appData.isPremium = appData.settings.plan_premium === true;
+		console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
         // --- INICIO DE LA CORRECCIÓN ---
         // 2. Obtener el estado INICIAL de los contadores ANTES de dibujar nada
@@ -1160,6 +1162,7 @@ async function runApp() {
                         appData.counts = serverCounts;
                         if (document.querySelector('.grid')) {
                             renderDashboard();
+							console.log("🏁 [Arranque] UI inicial renderizada. La aplicación está lista.");
                             // showToast("Datos sincronizados.", false); // Desactivado para no molestar al usuario
                         }
                     }
@@ -1459,8 +1462,7 @@ let appData = {
     notesList: [], 
     calendarEvents: [], 
     settings: {}, 
-    isPremium: false, 
-    isSecondaryDataLoaded: false 
+    isPremium: false 
 };
 let initialUserSettings = {};
 let secondaryDataPromise = null;
@@ -1633,71 +1635,6 @@ const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
 let currentCalendarView = 'month';
 let currentCalendarDate = new Date();
 
-/// --- CARGADOR DE DATOS SECUNDARIOS (OPTIMIZADO) ---
-async function loadSecondaryData() {
-    if (appData.isSecondaryDataLoaded) return;
-    
-    console.log("✅✅✅ ¡VERSIÓN CORRECTA! Cargando datos desde Firestore NATIVO. ✅✅✅");
-    showSpinner("Cargando listas...");
-
-    try {
-        // Lanzamos las tres consultas a Firestore de forma simultánea para máxima velocidad.
-        const remindersPromise = db.collection('users').doc(chatId).collection('notificaciones').orderBy('fecha_universal', 'asc').get();
-        const shoppingPromise = db.collection('users').doc(chatId).collection('listaDeLaCompra').orderBy('estado', 'asc').orderBy('fecha', 'desc').get();
-        const calendarPromise = db.collection('users').doc(chatId).collection('eventos_calendario').orderBy('fechaInicio', 'asc').get();
-
-        // Promise.all espera a que las tres consultas terminen antes de continuar.
-        const [remindersSnapshot, shoppingSnapshot, calendarSnapshot] = await Promise.all([
-            remindersPromise,
-            shoppingPromise,
-            calendarPromise
-        ]);
-
-        // Procesamos los resultados de cada consulta.
-        appData.remindersList = remindersSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                tracking_code: doc.id,
-                Descripcion: data.descripcion,
-                Categoria: data.categoria_recordatorio,
-                Fecha: data.hora_local,
-                Status: data.status
-            };
-        });
-
-        appData.shoppingList = shoppingSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                articulo: data.articulo,
-                estado: data.estado,
-                fecha: data.fecha ? data.fecha.toDate() : null, // Convertimos Timestamp a Date
-                cycle: data.cycle || 0
-            };
-        });
-        
-        appData.calendarEvents = calendarSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                fechaInicio: data.fechaInicio.toDate(), // Convertimos Timestamp a Date
-                fechaFin: data.fechaFin.toDate()       // Convertimos Timestamp a Date
-            };
-        });
-
-        // Marcamos los datos como cargados para no volver a pedirlos.
-        appData.isSecondaryDataLoaded = true;
-        console.log("Datos secundarios cargados con éxito desde Firestore.");
-
-    } catch (err) {
-        console.error("Error cargando datos secundarios desde Firestore:", err);
-        showToast(`Error al cargar datos: ${err.message}`, true);
-    } finally {
-        hideSpinner();
-    }
-}
-
 function setActiveTab(activeTabId) { 
   document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active')); 
   const activeTab = document.getElementById(activeTabId); 
@@ -1809,23 +1746,19 @@ async function executeDelete(type, id) {
     try {
         switch(type) {
             case 'reminder': {
-                // --- INICIO: LÓGICA OPTIMISTA Y NATIVA DE FIRESTORE (SIN SPINNER/TOAST) ---
-                // 1. Actualización optimista de la UI (instantánea para el usuario)
+                // --- LÓGICA OPTIMISTA Y NATIVA DE FIRESTORE ---
                 const reminderItem = document.getElementById(`item-${id}`);
                 if (reminderItem) reminderItem.remove();
-
-                const listContainer = document.getElementById('reminders-list');
-                if (listContainer && listContainer.children.length === 0) {
-                    listContainer.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-                }
                 
-                // 2. Sincronización en segundo plano con Firestore de forma atómica
+                appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
+                const reminderBadge = document.getElementById('reminders-badge');
+                if (reminderBadge) reminderBadge.textContent = appData.counts.remindersCount;
+
                 (async () => {
                     try {
                         const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
                         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-                        // Usamos un batch para asegurar que ambas operaciones (borrado y decremento) se completen o ninguna lo haga.
                         const batch = db.batch();
                         batch.delete(reminderRef);
                         batch.update(countsRef, {
@@ -1836,89 +1769,75 @@ async function executeDelete(type, id) {
 
                     } catch (err) {
                         console.error("Error al eliminar recordatorio en Firestore:", err);
-                        // Si falla, mostramos un error y forzamos una recarga para restaurar la consistencia visual.
                         showToast('Error de sincronización al eliminar. Restaurando...', true);
                         setTimeout(() => initializeApp(), 1500);
                     }
-                })(); // Autoejecutamos la función asíncrona
-
-                return; // Salimos para no ejecutar ningún código antiguo.
+                })(); 
+                return;
             }
 
-            case 'note':
-                // --- LÓGICA OPTIMISTA (se mantiene) ---
+            case 'note': {
                 const noteItemElement = document.getElementById(`item-${id}`);
                 if (noteItemElement) noteItemElement.remove();
                 
-                const noteIndexToDelete = appData.notesList.findIndex(n => n.Nota_ID === id);
-                if (noteIndexToDelete > -1) {
-                    appData.notesList.splice(noteIndexToDelete, 1);
-                    appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
-                }
-                
+                appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
                 const notesListBadge = document.getElementById('notes-badge');
                 if(notesListBadge) notesListBadge.textContent = appData.counts.notesCount;
 
-                if (appData.notesList.length === 0) {
-                    const notesListUlContainer = document.getElementById('notes-list');
-                    if (notesListUlContainer) notesListUlContainer.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+                if (document.getElementById('notes-list') && document.getElementById('notes-list').children.length === 0) {
+                     document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
                 }
 
                 showToast('Nota eliminada');
                 
-                // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
-                try {
-                    const noteDocRef = db.collection('users').doc(chatId).collection('notas').doc(id);
-                    const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+                (async () => {
+                    try {
+                        const noteDocRef = db.collection('users').doc(chatId).collection('notas').doc(id);
+                        const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-                    // Ejecutamos ambas operaciones en un batch para asegurar consistencia
-                    const batch = db.batch();
-                    batch.delete(noteDocRef);
-                    batch.update(countsDocRef, {
-                        notesCount: firebase.firestore.FieldValue.increment(-1)
-                    });
-                    await batch.commit();
-                    console.log("Nota eliminada y contador actualizado en Firestore.");
+                        const batch = db.batch();
+                        batch.delete(noteDocRef);
+                        batch.update(countsDocRef, {
+                            notesCount: firebase.firestore.FieldValue.increment(-1)
+                        });
+                        await batch.commit();
+                        console.log("Nota eliminada y contador actualizado en Firestore.");
 
-                } catch(err) {
-                    console.error("Error al eliminar nota en Firestore:", err);
-                    showToast('Error de sincronización al eliminar. Recargando...', true);
-                    setTimeout(() => initializeApp(), 1500);
-                }
-                return; // Salimos para no ejecutar el fetch antiguo
+                    } catch(err) {
+                        console.error("Error al eliminar nota en Firestore:", err);
+                        showToast('Error de sincronización al eliminar. Recargando...', true);
+                        setTimeout(() => initializeApp(), 1500);
+                    }
+                })();
+                return; 
+            }
             
             case 'calendar_event':
-                // --- CÓDIGO ACTUALIZADO ---
-                // Ahora llama a la nueva función de borrado de Firestore.
                 handleDeleteCalendarEvent(id);
-                return; // Importante salir para no ejecutar el fetch de abajo.
+                return;
 
             case 'gasto':
                 payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
-                // La actualización de gastos y contadores se gestionará por el backend
                 break;
             
-            case 'shopping_item': // <--- CASO AÑADIDO Y CORREGIDO
-                handleDeleteShoppingItem(id); // Llamar a la función dedicada para eliminar el artículo
-                return; // Salir, ya que handleDeleteShoppingItem gestiona todo el proceso
+            case 'shopping_item': 
+                handleDeleteShoppingItem(id);
+                return;
         }
 
     } catch(e) { showToast('Error local al procesar.', true); return; }
 
-    // Este bloque 'try...catch' de abajo ahora solo se ejecutará para el caso 'gasto',
-    // ya que todos los demás casos tienen un 'return'.
     try {
         const res = await fetchWithTimeout(gasWebhookURL, payload);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         showToast(successMessage);
 
-        // Forzar una resincronización de contadores del dashboard
         const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
         if (syncCheck.success) {
-            appData.counts = syncCheck.counts; // Actualizar contadores localmente
+            appData.counts = syncCheck.counts;
         } else {
-            initializeApp(); // Si falla la resincronización, recarga completa
+            initializeApp();
         }
 
     } catch (err) {
@@ -2130,7 +2049,6 @@ async function editReminderDescription(item) {
       showToast('Recordatorio actualizado.');
       
       // Recargar la lista para reflejar el cambio
-      await loadSecondaryData();
       renderRemindersList();
 
     } catch (err) {
@@ -5908,18 +5826,16 @@ function renderDashboard() {
   navigationHistory = [];
   updateBackButton();
   const counts = appData.counts;
+  console.log(`[UI Render] renderDashboard dibujando con contadores:`, JSON.parse(JSON.stringify(counts)));
   const isPremium = appData.isPremium === true;
 
   let chefCardHtml = '';
   if (isPremium) {
     chefCardHtml = `<div class="card clickable-card" id="chef-card"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef</div></div>`;
   } else {
-    // --- LA CORRECCIÓN CLAVE ---
-    // Añadimos el id 'chef-card-locked' para poder aplicar el estilo específico.
     chefCardHtml = `<div class="card disabled-card" id="chef-card-locked"><div class="card-icon">🧑‍🍳</div><div class="card-title">Chef ⭐</div></div>`;
   }
   
-  // La tarjeta del calendario ya es activa y llama a renderCalendarView
   const calendarCardHtml = `<div class="card clickable-card" id="calendar-card"><div class="card-badge red"  id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon">🗓️</div><div class="card-title">Calendario</div></div>`;
   const cuentasClarasCardHtml = `
       <div class="card clickable-card" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/icon-512x512.png'); background-size: cover; background-position: center; background-repeat: no-repeat;">
@@ -5954,7 +5870,7 @@ function renderDashboard() {
   };
   document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
 
-  document.getElementById('calendar-card').onclick = renderCalendarView; // Ahora llama a nuestra nueva función
+  document.getElementById('calendar-card').onclick = renderCalendarView;
   document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
   
   if (isPremium) {
@@ -5966,11 +5882,12 @@ function renderDashboard() {
   }
 
   // --- CÓDIGO RESTAURADO PARA LOS MENÚS ---
-  // Este es el bloque que faltaba y que repara los menús desplegables.
   document.querySelectorAll('.clickable-card').forEach(card => {
       card.addEventListener('click', (e) => {
           if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
           if (e.currentTarget.id === 'chef-card' && !isPremium) return;
+          // [LOG Estratégico] Confirmamos que el clic en la card se ha registrado.
+          console.log(`[UI Event] Clic en la card: ${e.currentTarget.querySelector('.card-title')?.textContent || e.currentTarget.id}`);
           e.stopPropagation();
           const menuBtn = card.querySelector('.card-menu-btn');
           if (menuBtn) {
@@ -5997,7 +5914,6 @@ function renderDashboard() {
           }
       });
   });
-  // --- FIN DEL CÓDIGO RESTAURADO ---
 }
 
 // Lógica de pestañas
