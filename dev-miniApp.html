@@ -5712,7 +5712,6 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
 async function saveCalendarEvent(eventData) {
     showSpinner("Guardando evento...");
     const title = document.getElementById('event-title').value.trim();
-    // Determinamos si estamos editando basándonos en si eventData tiene un ID.
     const isEditing = eventData && eventData.id;
 
     if (!title) {
@@ -5723,28 +5722,19 @@ async function saveCalendarEvent(eventData) {
 
     try {
         const isAllDay = document.getElementById('event-all-day').checked;
-        let startDate, endDate;
-        
-        // Obtenemos las fechas del formulario
-        startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-        endDate = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
+        let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
+        let endDate = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
 
-        // Lógica para eventos de "Todo el día"
         if (isAllDay) {
             startDate.setHours(0, 0, 0, 0);
             endDate = new Date(startDate); 
             endDate.setHours(23, 59, 59, 999);
         }
 
-        // Validación de fechas
         if (endDate < startDate) {
-            hideSpinner();
-            showToast("La fecha de fin no puede ser anterior a la de inicio.", true);
-            return;
+            throw new Error("La fecha de fin no puede ser anterior a la de inicio.");
         }
 
-        // Leemos las notificaciones desde la variable `eventData.notificaciones` (del sistema de chips)
-        // y la transformamos a la estructura que tu backend necesita.
         const notificationsToSave = (eventData.notificaciones || []).map(notif => ({
             metodo: notif.metodo,
             minutosAntes: notif.minutosAntes,
@@ -5752,7 +5742,6 @@ async function saveCalendarEvent(eventData) {
             status: 'pending_creation'
         }));
 
-        // Construimos el objeto final con la estructura requerida por tus activadores
         const dataToSave = {
             titulo: title,
             descripcion: document.getElementById('event-description').value.trim(),
@@ -5774,7 +5763,12 @@ async function saveCalendarEvent(eventData) {
             showToast("Evento creado.");
         }
         
-        goBack(); // Volvemos a la vista del calendario
+        // --- INICIO: LLAMADA A LA SINCRONIZACIÓN DEL CONTADOR ---
+        // Después de cualquier guardado, recalculamos y guardamos el contador correcto.
+        await recalculateAndSyncCalendarCount();
+        // --- FIN: LLAMADA A LA SINCRONIZACIÓN DEL CONTADOR ---
+
+        goBack();
 
     } catch (err) {
         console.error("Error guardando evento en Firestore:", err);
@@ -5784,10 +5778,45 @@ async function saveCalendarEvent(eventData) {
     }
 }
 
+/**
+ * [NUEVA FUNCIÓN PROFESIONAL]
+ * Recalcula el número de eventos para el día de hoy y actualiza el
+ * documento de contadores en Firestore para garantizar la persistencia.
+ */
+async function recalculateAndSyncCalendarCount() {
+    try {
+        console.log("Sincronizando contador del calendario en Firestore...");
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+
+        const startTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
+        const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
+
+        const snapshot = await db.collection('users').doc(chatId).collection('eventos_calendario')
+            .where('fechaInicio', '>=', startTimestamp)
+            .where('fechaInicio', '<=', endTimestamp)
+            .get();
+
+        const todayCount = snapshot.size;
+
+        // Actualizamos el documento maestro de contadores
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        await countsRef.update({
+            calendarTodayCount: todayCount
+        });
+
+        console.log(`Contador del calendario sincronizado en Firestore. Total para hoy: ${todayCount}`);
+    } catch (error) {
+        // Este error no debe detener al usuario, solo lo registramos.
+        console.error("Error crítico al sincronizar el contador del calendario:", error);
+    }
+}
+
 async function handleDeleteCalendarEvent(eventId) {
     showSpinner("Eliminando...");
     try {
-        // Ahora llamamos al backend para que él se encargue de todo
         const payload = { 
             Type: 'delete_calendar_event', 
             chat_ID: chatId, 
@@ -5798,6 +5827,10 @@ async function handleDeleteCalendarEvent(eventId) {
 
         if (data.error) throw new Error(data.error);
         
+        // --- INICIO: LLAMADA A LA SINCRONIZACIÓN DEL CONTADOR ---
+        await recalculateAndSyncCalendarCount();
+        // --- FIN: LLAMADA A LA SINCRONIZACIÓN DEL CONTADOR ---
+
         showToast("Evento eliminado.");
         // El listener de Firestore en la vista del calendario se encargará de actualizar la UI
         
