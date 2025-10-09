@@ -1168,15 +1168,19 @@ async function runApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario en tiempo real (sin cambios)
+        // Listener para el badge del calendario en tiempo real (CORREGIDO Y OPTIMIZADO)
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date();
         endOfToday.setHours(23, 59, 59, 999);
+        
+        // Convertimos las fechas de JS al formato Timestamp de Firestore para una consulta 100% precisa.
+        const startOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
+        const endOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
 
         db.collection('users').doc(chatId).collection('eventos_calendario')
-          .where('fechaInicio', '>=', startOfToday)
-          .where('fechaInicio', '<=', endOfToday)
+          .where('fechaInicio', '>=', startOfTodayTimestamp) // Usamos la fecha convertida
+          .where('fechaInicio', '<=', endOfTodayTimestamp) // Usamos la fecha convertida
           .onSnapshot(snapshot => {
               appData.counts.calendarTodayCount = snapshot.size;
               const calendarBadge = document.getElementById('calendar-badge');
