@@ -1816,9 +1816,51 @@ async function executeDelete(type, id) {
                 handleDeleteCalendarEvent(id);
                 return;
 
-            case 'gasto':
-                payload.Type = 'delete_gasto_id'; payload.ID_Unico = id; successMessage = 'Gasto eliminado';
-                break;
+            case 'gasto': {
+                // --- INICIO: LÓGICA DE ELIMINACIÓN NATIVA CON TRANSACCIÓN DE FIRESTORE ---
+                showToast("Eliminando gasto...");
+
+                (async () => {
+                    try {
+                        const gastoRef = db.collection('users').doc(chatId).collection('gastos').doc(id);
+                        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+                        // Usamos una transacción para garantizar la consistencia de los datos financieros.
+                        await db.runTransaction(async (transaction) => {
+                            const gastoDoc = await transaction.get(gastoRef);
+                            if (!gastoDoc.exists) {
+                                throw "El gasto que intentas eliminar ya no existe.";
+                            }
+
+                            const importeGasto = gastoDoc.data().importe || 0;
+                            const decremento = -importeGasto;
+
+                            // 1. Preparamos la eliminación del gasto
+                            transaction.delete(gastoRef);
+                            // 2. Preparamos la actualización del contador
+                            transaction.update(countsRef, { 
+                                gastosMesActual: firebase.firestore.FieldValue.increment(decremento) 
+                            });
+                        });
+
+                        // Si la transacción tuvo éxito, actualizamos la UI localmente.
+                        // La lista de gastos se actualizará la próxima vez que se cargue,
+                        // pero el contador del dashboard lo podemos refrescar ya.
+                        const gastoOriginal = gastosEncontrados.find(g => g.ID_Unico === id);
+                        if (gastoOriginal) {
+                             appData.counts.gastosMesActual -= (gastoOriginal.importe || 0);
+                        }
+                        renderDashboard(); // Re-dibuja el dashboard con el nuevo total.
+                        showToast("Gasto eliminado con éxito.");
+
+                    } catch (err) {
+                        console.error("Error en la transacción de eliminación de gasto:", err);
+                        showToast(`Error al eliminar: ${err}.`, true);
+                    }
+                })();
+
+                return; // Salimos para no ejecutar el código antiguo de abajo.
+            }
             
             case 'shopping_item': 
                 handleDeleteShoppingItem(id);
@@ -1826,24 +1868,6 @@ async function executeDelete(type, id) {
         }
 
     } catch(e) { showToast('Error local al procesar.', true); return; }
-
-    try {
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast(successMessage);
-
-        const syncCheck = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId }).then(res => res.json());
-        if (syncCheck.success) {
-            appData.counts = syncCheck.counts;
-        } else {
-            initializeApp();
-        }
-
-    } catch (err) {
-        showToast(`Error: ${err.message}. Restaurando...`, true);
-        initializeApp();
-    }
 }
 
 // ==================================================
@@ -2039,21 +2063,26 @@ function handleReminderListClick(e) {
 
 async function editReminderDescription(item) {
   const newDescription = prompt('Editar descripción del recordatorio:', item.Descripcion);
+  
+  // Verificamos que el usuario introdujo un texto nuevo y diferente.
   if (newDescription && newDescription.trim() !== '' && newDescription.trim() !== item.Descripcion) {
     showToast('Guardando cambios...');
-    const payload = { Type: 'edit_reminder_description', chat_ID: chatId, tracking_code: item.tracking_code, new_description: newDescription.trim() };
+    
     try {
-      const res = await fetchWithTimeout(gasWebhookURL, payload);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      showToast('Recordatorio actualizado.');
+      // Usamos el SDK de Firestore para actualizar el documento directamente.
+      const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(item.tracking_code);
+      await reminderRef.update({
+        descripcion: newDescription.trim()
+      });
       
-      // Recargar la lista para reflejar el cambio
-      renderRemindersList();
+      // No necesitamos hacer nada más. El oyente `onSnapshot` en `renderRemindersList`
+      // detectará este cambio automáticamente y actualizará la UI.
+      showToast('Recordatorio actualizado.');
 
     } catch (err) {
-      showToast(`Error: ${err.message}. No se actualizó.`, true);
-      initializeApp(); // Recarga completa en caso de error
+      // En caso de error, mostramos un mensaje y la app permanecerá consistente.
+      showToast(`Error al actualizar: ${err.message}`, true);
+      console.error("Error al editar descripción del recordatorio:", err);
     }
   }
 }
@@ -4066,16 +4095,43 @@ async function saveSettings() {
 async function syncCounts() {
     showSpinner("Sincronizando contadores...");
     try {
-        const res = await fetchWithTimeout(gasWebhookURL, { Type: 'resync_counts', chat_ID: chatId });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        if (data.success && data.counts) {
-            Object.assign(appData.counts, data.counts);
-            showToast("Contadores resincronizados con éxito.");
-            renderDashboard(); // Re-renderizar el dashboard para mostrar los nuevos contadores
-        } else {
-            throw new Error("Respuesta inesperada del servidor.");
-        }
+        // [NUEVA LÓGICA FIRESTORE] Consultas de conteo en paralelo.
+        const remindersPromise = db.collection('users').doc(chatId).collection('notificaciones').get();
+        const shoppingPendingPromise = db.collection('users').doc(chatId).collection('listaDeLaCompra').where('estado', '==', 'Pendiente').get();
+        const shoppingBoughtPromise = db.collection('users').doc(chatId).collection('listaDeLaCompra').where('estado', '==', 'Comprado').get();
+        const notesPromise = db.collection('users').doc(chatId).collection('notas').get();
+        // Añade aquí más promesas de conteo si es necesario en el futuro.
+
+        const [
+            remindersSnapshot,
+            shoppingPendingSnapshot,
+            shoppingBoughtSnapshot,
+            notesSnapshot
+        ] = await Promise.all([
+            remindersPromise,
+            shoppingPendingPromise,
+            shoppingBoughtPromise,
+            notesPromise
+        ]);
+
+        // Construimos el objeto con los nuevos contadores reales.
+        const newCounts = {
+            remindersCount: remindersSnapshot.size,
+            shoppingPendingCount: shoppingPendingSnapshot.size,
+            shoppingBoughtCount: shoppingBoughtSnapshot.size,
+            notesCount: notesSnapshot.size
+            // No tocamos los contadores de gastos o calendario que se gestionan por separado.
+        };
+
+        // Actualizamos el documento maestro en Firestore.
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        await countsRef.update(newCounts);
+
+        // Actualizamos la data local y la UI.
+        Object.assign(appData.counts, newCounts);
+        showToast("Contadores resincronizados con éxito.");
+        renderDashboard();
+
     } catch (err) {
         showToast(`Error al sincronizar: ${err.message}`, true);
     } finally {
