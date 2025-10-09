@@ -1929,6 +1929,7 @@ function renderReminderForm() {
   toggleRecurrentField(); validate();
 }
 
+async function saveReminder() {
 const category = document.querySelector('input[name="category"]:checked').value;
 const description = document.getElementById('text').value.trim();
 const time = document.getElementById('time')._flatpickr.selectedDates[0];
@@ -5703,6 +5704,7 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     modal.style.display = 'flex';
     setTimeout(() => { modal.classList.add('show'); }, 10);
 }
+async function saveCalendarEvent(eventData) {
 const title = document.getElementById('event-title').value.trim();
 const isEditing = eventData && eventData.id;
 
