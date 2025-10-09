@@ -1777,32 +1777,35 @@ async function executeDelete(type, id) {
 
     try {
         switch(type) {
-            case 'reminder':
-                // --- Lógica optimista para la UI ---
-                const reminderElem = document.getElementById(`item-${id}`);
-                if (reminderElem) reminderElem.remove();
-                const remIndex = appData.remindersList.findIndex(r => r.tracking_code === id);
-                if (remIndex > -1) appData.remindersList.splice(remIndex, 1);
-                appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
-                renderDashboard();
-                showToast('Cancelando recordatorio...');
+            const listContainer = document.getElementById('reminders-list');
+            if (listContainer && listContainer.children.length === 0) {
+                listContainer.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+            }
             
-                // --- Llamada al backend para la lógica de cancelación ---
+            // 2. Sincronización en segundo plano con Firestore de forma atómica
+            (async () => {
                 try {
-                    const payload = { 
-                        Type: 'cancel_reminder', 
-                        chat_ID: chatId, 
-                        tracking_code: id 
-                    };
-                    const res = await fetchWithTimeout(gasWebhookURL, payload);
-                    const data = await res.json();
-                    if (data.error) throw new Error(data.error);
-                    showToast('Recordatorio cancelado con éxito.');
-                } catch(err) {
-                    showToast(`Error de cancelación: ${err.message}. Restaurando...`, true);
-                    initializeApp();
+                    const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
+                    const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+                    // Usamos un batch para asegurar que ambas operaciones (borrado y decremento) se completen o ninguna lo haga.
+                    const batch = db.batch();
+                    batch.delete(reminderRef);
+                    batch.update(countsRef, {
+                        remindersCount: firebase.firestore.FieldValue.increment(-1)
+                    });
+                    await batch.commit();
+                    console.log("Recordatorio eliminado y contador actualizado en Firestore.");
+
+                } catch (err) {
+                    console.error("Error al eliminar recordatorio en Firestore:", err);
+                    // Si falla, mostramos un error y forzamos una recarga para restaurar la consistencia visual.
+                    showToast('Error de sincronización al eliminar. Restaurando...', true);
+                    setTimeout(() => initializeApp(), 1500);
                 }
-                return; // Salir para no ejecutar código antiguo.
+            })(); // Autoejecutamos la función asíncrona
+
+            return; // Salimos para no ejecutar ningún código antiguo.
 
             case 'note':
                 // --- LÓGICA OPTIMISTA (se mantiene) ---
@@ -2052,7 +2055,7 @@ async function renderRemindersList() {
                 <div class="list-item-actions">
                     <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
                     <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Cancelar</a>
+                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
                     </div>
                 </div>
             </li>`).join('');
