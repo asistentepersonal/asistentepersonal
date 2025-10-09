@@ -5486,7 +5486,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     const chipsContainer = document.getElementById('notification-chips-container');
     const addNotificationBtn = document.getElementById('add-notification-btn');
 
-    let initialStartDate; // Variable para almacenar la fecha de inicio original al cargar
+    let initialStartDate;
 
     const fpEnd = flatpickr("#event-end-date", {
         disableMobile: true,
@@ -5596,11 +5596,13 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
             saveBtn.style.display = 'none';
 
             const confirmYes = document.createElement('button');
+            // [CORRECCIÓN VISUAL] Asignamos la clase correcta para el botón de confirmación.
             confirmYes.className = 'confirm-btn-yes';
             confirmYes.textContent = 'Sí, Eliminar';
             confirmYes.onclick = () => handleDeleteCalendarEvent(event.id);
 
             const confirmNo = document.createElement('button');
+            // [CORRECCIÓN VISUAL] Asignamos la clase correcta para el botón de cancelación.
             confirmNo.className = 'confirm-btn-no';
             confirmNo.textContent = 'No';
             confirmNo.onclick = () => {
@@ -5824,24 +5826,17 @@ async function recalculateAndSyncCalendarCount() {
 }
 
 async function handleDeleteCalendarEvent(eventId) {
-    showSpinner("Eliminando...");
+    showSpinner("Eliminando evento...");
     try {
-        const payload = { 
-            Type: 'delete_calendar_event', 
-            chat_ID: chatId, 
-            eventId: eventId 
-        };
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-
-        if (data.error) throw new Error(data.error);
+        // [NUEVA LÓGICA FIRESTORE] Se elimina la llamada al webhook y se usa el SDK nativo.
+        const eventRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId);
+        await eventRef.delete();
         
-        // --- INICIO: LLAMADA A LA SINCRONIZACIÓN DEL CONTADOR ---
+        // Sincronizamos el contador maestro en Firestore después de la eliminación.
         await recalculateAndSyncCalendarCount();
-        // --- FIN: LLAMADA A LA SINCRONIZACIÓN DEL CONTADOR ---
 
-        showToast("Evento eliminado.");
-        // El listener de Firestore en la vista del calendario se encargará de actualizar la UI
+        showToast("Evento eliminado con éxito.");
+        goBack(); // Volvemos a la vista del calendario
         
     } catch (err) { 
         showToast(`Error al eliminar: ${err.message}`, true); 
