@@ -1330,7 +1330,6 @@ function updateBackButton() {
 const tg = window.Telegram?.WebApp;
 // --- VARIABLES GLOBALES PARA EMOJIS ---
 let emojiDictionary = [];
-const EMOJIS_DB_FILENAME = 'emoji-articulos-v1.json'; // Nombre del archivo JSON
 // ---
 if (tg) { 
     tg.expand(); 
@@ -1490,25 +1489,58 @@ function showSpinner(message = '') {
     spinner.style.display = 'block'; 
 }
 async function loadEmojiDictionary() {
-    const cacheKey = `emojiCache-${EMOJIS_DB_FILENAME}`; // Usa el nuevo nombre
+    const CACHE_KEY_DATA = 'emoji_dictionary_data';
+    const CACHE_KEY_VERSION = 'emoji_dictionary_version';
+    // --- ¡IMPORTANTE! Ahora apuntamos a las URLs de Firebase Hosting ---
+    const BASE_URL = 'https://asistentepersonal-4ad2b.web.app';
+    const DICTIONARY_FILE = `${BASE_URL}/emoji-articulos-v1.json`;
+    const VERSION_FILE = `${BASE_URL}/dictionary-version.json?v=${new Date().getTime()}`; // Forzar no-cache para la versión
+
+    let localVersion = parseInt(localStorage.getItem(CACHE_KEY_VERSION) || '0', 10);
+    
     try {
-        const cachedData = localStorage.getItem(cacheKey);
-        if (cachedData) {
-            console.log("Cargando diccionario de emojis desde el caché local.");
-            emojiDictionary = JSON.parse(cachedData);
+        // 1. Siempre intentar obtener la versión más reciente del servidor.
+        console.log("Verificando versión del diccionario de emojis en Firebase...");
+        const versionResponse = await fetch(VERSION_FILE);
+        if (!versionResponse.ok) throw new Error('No se pudo obtener la versión del diccionario.');
+        
+        const remoteConfig = await versionResponse.json();
+        const remoteVersion = remoteConfig.version;
+
+        // 2. Comparar versiones. Si la remota es más nueva, descargar el diccionario completo.
+        if (remoteVersion > localVersion) {
+            console.log(`Nueva versión del diccionario detectada (v${remoteVersion}). Descargando...`);
+            const dictionaryResponse = await fetch(DICTIONARY_FILE);
+            if (!dictionaryResponse.ok) throw new Error('No se pudo descargar el nuevo diccionario.');
+            
+            const dictionaryData = await dictionaryResponse.json();
+            
+            // Guardar los nuevos datos y la nueva versión.
+            localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(dictionaryData));
+            localStorage.setItem(CACHE_KEY_VERSION, remoteVersion.toString());
+            
+            // Actualizar la variable global.
+            emojiDictionary = dictionaryData;
+            console.log("Diccionario de emojis actualizado y guardado en caché.");
             return;
+        } else {
+            console.log("El diccionario de emojis local está actualizado.");
         }
 
-        console.log("Descargando diccionario de emojis por primera vez...");
-        const response = await fetch(EMOJIS_DB_FILENAME); // Usa el nuevo nombre
-        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-        
-        const data = await response.json();
-        emojiDictionary = data;
-        localStorage.setItem(cacheKey, JSON.stringify(data));
-
     } catch (error) {
-        console.error("No se pudo cargar el diccionario de emojis:", error);
+        // Si hay cualquier error de red (ej. offline), el proceso se interrumpe y se pasa a usar la caché.
+        console.warn("No se pudo contactar con Firebase para verificar el diccionario. Se usará la versión en caché si existe.", error.message);
+    }
+
+    // 3. Si no hubo actualización o hubo un error, cargar desde la caché local si existe.
+    const cachedData = localStorage.getItem(CACHE_KEY_DATA);
+    if (cachedData) {
+        console.log("Cargando diccionario de emojis desde la caché local.");
+        emojiDictionary = JSON.parse(cachedData);
+    } else {
+        // Si no hay nada en caché (primera carga y falló la red), se usa un diccionario vacío.
+        console.error("No se pudo cargar el diccionario de emojis ni desde Firebase ni desde la caché.");
+        emojiDictionary = []; // Aseguramos que sea un array vacío para no causar errores.
     }
 }
 function generateCustomId(prefix) {
