@@ -3923,64 +3923,7 @@ function validateSettings() {
     saveBtn.classList.toggle('enabled', hasChanged);
 }
 
-/**
- * Calcula la próxima fecha de envío de un informe en formato Timestamp UTC.
- * @param {boolean} activo - Si el informe está activado o no.
- * @param {string} timeZone - La zona horaria del usuario (ej. "Europe/Madrid").
- * @param {object} opciones - Contiene la configuración de hora/día.
- * @param {number} [opciones.hora] - La hora de envío (0-23).
- * @param {number} [opciones.dia] - El día del mes de envío (1-31).
- * @returns {firebase.firestore.Timestamp|null} - El Timestamp UTC o null.
- */
-function calcularProximoEnvioUTC(activo, timeZone, opciones) {
-  // Si el informe no está activo o no tenemos zona horaria, devolvemos null.
-  if (!activo || !timeZone) {
-    return null;
-  }
-
-  try {
-    const ahora = new Date();
-    
-    // Creamos una fecha "ahora" pero en la zona horaria del usuario.
-    // Esto es un truco para que al ajustar la hora, se haga sobre la hora local correcta.
-    const ahoraEnTimeZone = new Date(ahora.toLocaleString('en-US', { timeZone: timeZone }));
-
-    let proximaFecha = new Date(ahoraEnTimeZone);
-
-    // Caso para informes diarios (matutino y tarde)
-    if (opciones.hora !== undefined && opciones.dia === undefined) {
-      proximaFecha.setHours(opciones.hora, 0, 0, 0); // Pone la hora en punto.
-
-      // Si la hora calculada para hoy ya pasó, programamos para el día siguiente.
-      if (proximaFecha <= ahoraEnTimeZone) {
-        proximaFecha.setDate(proximaFecha.getDate() + 1);
-      }
-    }
-    // Caso para el informe mensual
-    else if (opciones.hora !== undefined && opciones.dia !== undefined) {
-      proximaFecha.setDate(opciones.dia);
-      proximaFecha.setHours(opciones.hora, 0, 0, 0);
-
-      // Si la fecha/hora calculada para este mes ya pasó, programamos para el mes que viene.
-      if (proximaFecha <= ahoraEnTimeZone) {
-        proximaFecha.setMonth(proximaFecha.getMonth() + 1);
-      }
-    } else {
-        // Si las opciones no son válidas, devolvemos null.
-        return null;
-    }
-    
-    // ¡Magia! Convertimos la fecha (que está en hora local del usuario) a un Timestamp de Firestore.
-    // Firestore SIEMPRE lo guardará internamente como UTC, que es exactamente lo que queremos.
-    return firebase.firestore.Timestamp.fromDate(proximaFecha);
-
-  } catch (error) {
-    console.error("Error calculando la próxima fecha de envío:", error);
-    return null; // En caso de error, devolvemos null para no romper nada.
-  }
-}
-
-// --- VERSIÓN FINAL-FINAL DE saveSettings (CON SPINNER Y CAPITALIZACIÓN) ---
+// --- VERSIÓN DEFINITIVA DE saveSettings ---
 async function saveSettings() {
     const saveBtn = document.getElementById('settings-save-btn');
     const originalBtnText = saveBtn.textContent;
@@ -3994,106 +3937,63 @@ async function saveSettings() {
     saveBtn.disabled = true;
 
     try {
-        const currentValues = {
+        // 1. Recopilamos TODOS los datos del formulario que el usuario puede cambiar.
+        const settingsPayload = {
+            chatId: chatId,
             nombre: document.getElementById('settings-nombre').value,
             ciudad: capitalize(document.getElementById('settings-ciudad').value.trim()),
             pais: capitalize(document.getElementById('settings-pais').value.trim()),
-            tema: document.getElementById('settings-theme').value,
-            informeDiario_activo: document.getElementById('settings-informe-manana-activo').checked,
-            informeDiario_franjaHoraria: parseInt(document.getElementById('settings-franja-manana').value, 10),
-            informeTarde_activo: document.getElementById('settings-informe-tarde-activo').checked,
-            informeTarde_franjaHoraria: parseInt(document.getElementById('settings-franja-tarde').value, 10),
-            informeMensual_activo: document.getElementById('settings-informe-mensual-activo').checked,
-            informeMensual_dia: parseInt(document.getElementById('settings-dia-informe-mensual').value, 10),
-            informeMensual_hora: parseInt(document.getElementById('settings-hora-informe-mensual').value, 10),
-            alertaInventario: document.getElementById('settings-alerta-inventario').checked
-        };
-        
-        // --- INICIO DE LA NUEVA LÓGICA DE CÁLCULO DE FECHAS ---
-        const userTimeZone = appData.settings.timeZone || 'UTC'; // Obtenemos la timeZone
-        
-        const proximoEnvioDiario = calcularProximoEnvioUTC(
-            currentValues.informeDiario_activo,
-            userTimeZone,
-            { hora: currentValues.informeDiario_franjaHoraria }
-        );
-
-        const proximoEnvioTarde = calcularProximoEnvioUTC(
-            currentValues.informeTarde_activo,
-            userTimeZone,
-            { hora: currentValues.informeTarde_franjaHoraria }
-        );
-
-        const proximoEnvioMensual = calcularProximoEnvioUTC(
-            currentValues.informeMensual_activo,
-            userTimeZone,
-            { dia: currentValues.informeMensual_dia, hora: currentValues.informeMensual_hora }
-        );
-        // --- FIN DE LA NUEVA LÓGICA ---
-
-        const hasLocationChanged = currentValues.ciudad !== initialUserSettings.ciudad || currentValues.pais !== initialUserSettings.pais;
-        const userDocRef = db.collection('users').doc(chatId);
-        
-        const firestoreUpdateData = {
-            'informeDiario_activo': currentValues.informeDiario_activo,
-            'informeDiario_franjaHoraria': currentValues.informeDiario_franjaHoraria,
-            'informeTarde_activo': currentValues.informeTarde_activo,
-            'informeTarde_franjaHoraria': currentValues.informeTarde_franjaHoraria,
-            'informeMensual_activo': currentValues.informeMensual_activo,
-            'informeMensual_dia': currentValues.informeMensual_dia,
-            'informeMensual_hora': currentValues.informeMensual_hora,
-
-            // --- AÑADIMOS LOS NUEVOS CAMPOS A LA ACTUALIZACIÓN ---
-            'informeDiario_proximoEnvioUTC': proximoEnvioDiario,
-            'informeTarde_proximoEnvioUTC': proximoEnvioTarde,
-            'informeMensual_proximoEnvioUTC': proximoEnvioMensual,
-            
-            'nombre': currentValues.nombre,
-            'configuracion.tema': currentValues.tema,
-            'configuracion.alertaInventario': currentValues.alertaInventario,
-            
-            'configuracion.InformeDiario': firebase.firestore.FieldValue.delete(),
-            'configuracion.informeTarde': firebase.firestore.FieldValue.delete(),
-            'configuracion.informeMensual': firebase.firestore.FieldValue.delete()
-        };
-        
-        let cloudFunctionPromise = Promise.resolve();
-
-        await userDocRef.update(firestoreUpdateData);
-        
-        if (hasLocationChanged) {
-            const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/updateUserSettings';
-            const payload = { data: { chatId: chatId, nombre: currentValues.nombre, ciudad: currentValues.ciudad, pais: currentValues.pais }};
-            cloudFunctionPromise = fetch(functionUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }).then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { throw new Error(err.error.message || `Error del servidor: ${response.status}`); });
+            // Enviamos un objeto 'informesConfig' que la Cloud Function ya sabe cómo interpretar.
+            informesConfig: {
+                diario: {
+                    activo: document.getElementById('settings-informe-manana-activo').checked,
+                    hora: parseInt(document.getElementById('settings-franja-manana').value, 10)
+                },
+                tarde: {
+                    activo: document.getElementById('settings-informe-tarde-activo').checked,
+                    hora: parseInt(document.getElementById('settings-franja-tarde').value, 10)
+                },
+                mensual: {
+                    activo: document.getElementById('settings-informe-mensual-activo').checked,
+                    dia: parseInt(document.getElementById('settings-dia-informe-mensual').value, 10),
+                    hora: parseInt(document.getElementById('settings-hora-informe-mensual').value, 10)
                 }
-                return response.json();
-            });
+            }
+            // NOTA: El tema y la alerta de inventario se guardan localmente en el cliente
+            // y no necesitan pasar por esta Cloud Function específica.
+        };
+
+        // 2. Llamamos SIEMPRE a la Cloud Function con todos los datos.
+        const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/updateUserSettings';
+        const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: settingsPayload }) // El payload se anida dentro de 'data' como espera tu función.
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            // Si la respuesta no es OK, lanzamos un error con el mensaje del servidor.
+            throw new Error(result.error.message || `Error del servidor: ${response.status}`);
         }
-        
-        const cloudFunctionResult = await cloudFunctionPromise;
-        if (cloudFunctionResult && cloudFunctionResult.result && cloudFunctionResult.result.status === 'success') {
-            appData.settings = cloudFunctionResult.result.updatedSettings;
+
+        // 3. Si todo fue bien, actualizamos los datos locales con la respuesta del servidor.
+        if (result && result.result && result.result.status === 'success') {
+            appData.settings = result.result.updatedSettings;
+            showToast("Ajustes guardados y programados con éxito.");
+            renderDashboard();
         } else {
-            const userDoc = await db.collection('users').doc(chatId).get();
-            if (userDoc.exists) appData.settings = userDoc.data();
+            throw new Error("La respuesta del servidor no fue la esperada.");
         }
-        
-        showToast("Ajustes guardados y programados con éxito.");
-        renderDashboard();
 
     } catch (error) {
         console.error("Error al guardar ajustes:", error);
         showToast(`Error: ${error.message || 'Ocurrió un error desconocido.'}`, true);
-    } finally {
+        // Si hay un error, restauramos el botón para que el usuario pueda reintentar.
         saveBtn.innerHTML = originalBtnText;
-        saveBtn.disabled = true;
-        saveBtn.classList.remove('enabled');
+        saveBtn.disabled = false;
+        saveBtn.classList.add('enabled');
     }
 }
 
