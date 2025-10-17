@@ -1156,6 +1156,7 @@ async function runApp() {
             return;
         }
         appData.settings = userSettingsDoc.data() || {};
+		applyTheme(appData.settings.tema || 'auto');
         appData.isPremium = appData.settings.plan_premium === true;
 		console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
@@ -1335,23 +1336,6 @@ const EMOJIS_DB_FILENAME = 'emoji-articulos-v1.json'; // Nombre del archivo JSON
 if (tg) { 
     tg.expand(); 
     if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
-    if (tg.themeParams) { 
-        document.documentElement.style.setProperty('--bg', tg.themeParams.bg_color || '#f5f7fa'); 
-        document.documentElement.style.setProperty('--card-bg', tg.themeParams.secondary_bg_color || '#ffffff'); 
-        document.documentElement.style.setProperty('--text', tg.themeParams.text_color || '#333333'); 
-        document.documentElement.style.setProperty('--muted', tg.themeParams.hint_color || '#555555'); 
-        document.documentElement.style.setProperty('--primary', tg.themeParams.button_color || '#4a76f3'); 
-        document.documentElement.style.setProperty('--action-text', tg.themeParams.button_text_color || '#ffffff');
-        
-        // --- INICIO: CORRECCIÓN DE CALENDARIO EN MODO OSCURO ---
-        if (tg.colorScheme === 'dark') {
-            const darkThemeLink = document.createElement('link');
-            darkThemeLink.rel = 'stylesheet';
-            darkThemeLink.href = 'https://npmcdn.com/flatpickr/dist/themes/dark.css';
-            document.head.appendChild(darkThemeLink);
-        }
-        // --- FIN: CORRECCIÓN DE CALENDARIO ---
-    }
     
     // =========================================================================
     // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
@@ -1643,6 +1627,73 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 let isInitializing = false;
+// ==================================================
+// --- MÓDULO: GESTOR DE TEMAS (VERSIÓN CON CALENDARIO) ---
+// ==================================================
+function applyTheme(theme) {
+    const root = document.documentElement;
+    const tg = window.Telegram?.WebApp;
+
+    const themes = {
+        light: {
+            '--bg': '#f5f7fa',
+            '--card-bg': '#ffffff',
+            '--text': '#333333',
+            '--muted': '#555555',
+            '--menu-bg': '#ffffff'
+        },
+        dark: {
+            '--bg': '#1c2128',
+            '--card-bg': '#2d333b',
+            '--text': '#cdd9e5',
+            '--muted': '#768390',
+            '--menu-bg': '#2d333b'
+        }
+    };
+
+    let themeToApply = {};
+    let isDarkMode = false; // <-- Nueva variable para rastrear el modo
+
+    if (theme === 'auto' && tg && tg.themeParams) {
+        // Modo automático: Usar los colores de Telegram
+        themeToApply = {
+            '--bg': tg.themeParams.bg_color || themes.light['--bg'],
+            '--card-bg': tg.themeParams.secondary_bg_color || themes.light['--card-bg'],
+            '--text': tg.themeParams.text_color || themes.light['--text'],
+            '--muted': tg.themeParams.hint_color || themes.light['--muted'],
+            '--menu-bg': tg.themeParams.secondary_bg_color || themes.light['--card-bg']
+        };
+        isDarkMode = (tg.colorScheme === 'dark'); // <-- Determinamos si Telegram está en modo oscuro
+    } else {
+        // Modos manuales: Usar nuestras paletas predefinidas
+        themeToApply = themes[theme] || themes.light;
+        isDarkMode = (theme === 'dark'); // <-- Determinamos si se eligió el modo oscuro manualmente
+    }
+
+    // Aplicar los colores al documento
+    for (const [property, value] of Object.entries(themeToApply)) {
+        root.style.setProperty(property, value);
+    }
+
+    // --- LÓGICA DEL CALENDARIO INTEGRADA ---
+    const darkThemeLinkId = 'flatpickr-dark-theme';
+    const existingLink = document.getElementById(darkThemeLinkId);
+
+    if (isDarkMode && !existingLink) {
+        // Si es modo oscuro y el estilo no existe, lo creamos y añadimos.
+        const darkThemeLink = document.createElement('link');
+        darkThemeLink.id = darkThemeLinkId;
+        darkThemeLink.rel = 'stylesheet';
+        darkThemeLink.href = 'https://npmcdn.com/flatpickr/dist/themes/dark.css';
+        document.head.appendChild(darkThemeLink);
+    } else if (!isDarkMode && existingLink) {
+        // Si NO es modo oscuro y el estilo existe, lo eliminamos.
+        existingLink.remove();
+    }
+    
+    console.log(`[Theme] Tema aplicado: ${theme}. Modo oscuro: ${isDarkMode}`);
+}
+// --- FIN GESTOR DE TEMAS ---
 let isAppReady = false;
 let unsubscribeShoppingList = null;
 let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
@@ -3881,6 +3932,10 @@ function renderSettings() {
         control.addEventListener('input', validateSettings);
         control.addEventListener('change', validateSettings);
     });
+	const themeSelector = document.getElementById('settings-theme');
+	themeSelector.addEventListener('change', () => {
+    applyTheme(themeSelector.value);
+	});
 
     document.getElementById('settings-save-btn').onclick = saveSettings;
     document.getElementById('settings-cancel-btn').onclick = renderDashboard;
@@ -3943,6 +3998,7 @@ async function saveSettings() {
             nombre: document.getElementById('settings-nombre').value,
             ciudad: capitalize(document.getElementById('settings-ciudad').value.trim()),
             pais: capitalize(document.getElementById('settings-pais').value.trim()),
+			tema: document.getElementById('settings-theme').value,
             // Enviamos un objeto 'informesConfig' que la Cloud Function ya sabe cómo interpretar.
             informesConfig: {
                 diario: {
