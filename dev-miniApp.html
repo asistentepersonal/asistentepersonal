@@ -3941,7 +3941,8 @@ function renderSettings() {
     
     // 2. Guardar el cambio en Firestore en segundo plano.
     try {
-        const updateThemeFunction = firebase.functions().httpsCallable('updateTheme');
+        const functions = firebase.app().functions('europe-west1');
+		const updateThemeFunction = functions.httpsCallable('updateTheme');
         await updateThemeFunction({ chatId: chatId, tema: nuevoTema });
         // Opcional: Mostrar un toast sutil de confirmación.
         // showToast("Preferencia de tema guardada.", false);
