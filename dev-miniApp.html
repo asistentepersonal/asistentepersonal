@@ -3927,7 +3927,7 @@ function renderSettings() {
     document.getElementById('settings-dia-informe-mensual').value = settingsData.informeMensual_dia;
     document.getElementById('settings-hora-informe-mensual').value = settingsData.informeMensual_hora;
 
-    const controls = document.querySelectorAll('#settings-nombre, #settings-ciudad, #settings-pais, #settings-theme, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, #settings-alerta-inventario');
+    const controls = document.querySelectorAll('#settings-nombre, #settings-ciudad, #settings-pais, #settings-informe-manana-activo, #settings-franja-manana, #settings-informe-tarde-activo, #settings-franja-tarde, #settings-informe-mensual-activo, #settings-dia-informe-mensual, #settings-hora-informe-mensual, #settings-alerta-inventario');
     controls.forEach(control => {
         control.addEventListener('input', validateSettings);
         control.addEventListener('change', validateSettings);
