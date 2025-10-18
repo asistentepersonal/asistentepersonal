@@ -1682,6 +1682,7 @@ function applyTheme(theme) {
 // --- FIN GESTOR DE TEMAS ---
 let isAppReady = false;
 let unsubscribeShoppingList = null;
+let unsubscribeNotesList = null;
 let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
 let calendarScrollSyncHandler = null; // Para el listener de scroll sincronizado
 const FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION = 'eventos_calendario';
@@ -2587,9 +2588,16 @@ function drawNotesList() {
     notesListUl.innerHTML = listHtml;
 }
 
-// Función principal que se conecta a Firestore CADA VEZ que se entra
-async function renderNotesList() {
-    navigationHistory.push(renderDashboard);
+// --- VERSIÓN EN TIEMPO REAL ---
+function renderNotesList() {
+    navigationHistory.push(() => {
+        // Al volver atrás, nos aseguramos de que el listener se desconecte
+        if (typeof unsubscribeNotesList === 'function') {
+            unsubscribeNotesList();
+            unsubscribeNotesList = null;
+        }
+        renderDashboard();
+    });
     updateBackButton();
     
     mainContentArea.innerHTML = `<div class="list-container">
@@ -2597,8 +2605,11 @@ async function renderNotesList() {
                                 <div class="add-article-btn-container"><button class="add-article-btn" id="create-new-note-btn">Crear Nueva Nota</button></div>
                                 <ul class="list-style-none" id="notes-list"><div class="no-data-msg">Cargando notas...</div></ul>
                              </div>`;
+    
+    const listElement = document.getElementById('notes-list');
+    
     document.getElementById('create-new-note-btn').onclick = () => renderNoteForm();
-    document.getElementById('notes-list').addEventListener('click', e => {
+    listElement.addEventListener('click', e => {
         const target = e.target.closest('.dropdown-item');
         if (!target) return;
         const action = target.dataset.action;
@@ -2611,35 +2622,43 @@ async function renderNotesList() {
         }
     });
 
-    showSpinner();
-    try {
-        const notesRef = db.collection(`users/${chatId}/notas`);
-        const snapshot = await notesRef.get();
-
-        appData.notesList = []; // Limpiamos la lista en memoria para asegurar datos frescos
-        if (!snapshot.empty) {
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                const fecha = data.fecha && data.fecha.toDate ? data.fecha.toDate() : new Date(0);
-                appData.notesList.push({
-                    Nota_ID: doc.id,
-                    Titulo: data.titulo || 'Sin Título',
-                    Descripcion: data.descripcion || '',
-                    Fecha: fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                    FechaRaw: fecha.toISOString() // Guardamos la fecha real para ordenar
-                });
-            });
-        }
-        
-        drawNotesList(); // Llamamos a la función rápida para dibujar la lista
-
-    } catch (error) {
-        console.error("Error al cargar notas desde Firestore: ", error);
-        showToast("Error al cargar las notas.", true);
-        document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">🔌<br>Error de conexión al cargar notas.</div>';
-    } finally {
-        hideSpinner();
+    // Desconectar cualquier listener anterior para evitar duplicados
+    if (typeof unsubscribeNotesList === 'function') {
+        unsubscribeNotesList();
     }
+
+    const q = db.collection('users').doc(chatId).collection('notas')
+                .orderBy('fecha', 'desc');
+    
+    // --- INICIO DE LA LÓGICA EN TIEMPO REAL ---
+    unsubscribeNotesList = q.onSnapshot(snapshot => {
+        appData.notesList = []; // Limpiamos para reconstruir desde la fuente de verdad
+        
+        if (snapshot.empty) {
+            listElement.innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
+            return;
+        }
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const fecha = data.fecha && data.fecha.toDate ? data.fecha.toDate() : new Date(0);
+            appData.notesList.push({
+                Nota_ID: doc.id,
+                Titulo: data.titulo || 'Sin Título',
+                Descripcion: data.descripcion || '',
+                Fecha: fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                FechaRaw: fecha.toISOString()
+            });
+        });
+        
+        // La función drawNotesList ahora se vuelve reutilizable y se llama desde aquí
+        drawNotesList(); 
+
+    }, error => {
+        console.error("Error en el listener de notas:", error);
+        showToast("Error de conexión con la lista de notas.", true);
+        listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
+    });
 }
 
 function renderNoteForm(note = null) {
@@ -2680,52 +2699,52 @@ async function saveNote() {
     const noteId = saveBtn.dataset.noteId;
     const isEditing = !!noteId;
 
-    // --- LÓGICA OPTIMISTA (se mantiene) ---
-    if (isEditing) {
-        const noteIndex = appData.notesList.findIndex(n => n.Nota_ID === noteId);
-        if (noteIndex > -1) { appData.notesList[noteIndex].Titulo = title; appData.notesList[noteIndex].Descripcion = description; }
-    } else {
-        const now = new Date();
-        const tempId = 'temp-' + now.getTime();
-        appData.notesList.unshift({ Nota_ID: tempId, Titulo: title, Descripcion: description, Fecha: now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }), FechaRaw: now.toISOString() });
-        appData.counts.notesCount++;
+    if (!title) {
+        showToast("El título es obligatorio.", true);
+        return;
     }
-    goBack();
-    drawNotesList();
-    const notesBadge = document.getElementById('notes-badge');
-    if(notesBadge) notesBadge.textContent = appData.counts.notesCount;
-    showToast(isEditing ? 'Nota guardada' : 'Nota creada');
     
-    // --- SINCRONIZACIÓN EN SEGUNDO PLANO CON FIRESTORE ---
+    // Volvemos a la lista ANTES de empezar la operación de guardado.
+    // El oyente onSnapshot se encargará de mostrar los cambios.
+    goBack(); 
+    showToast(isEditing ? 'Guardando cambios...' : 'Creando nota...');
+
     try {
         const notesRef = db.collection('users').doc(chatId).collection('notas');
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
+        const dataToSave = {
+            titulo: title,
+            descripcion: description,
+            fecha: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
         if (isEditing) {
-            await notesRef.doc(noteId).update({
-                titulo: title,
-                descripcion: description,
-                fecha: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            console.log("Nota editada en Firestore con éxito.");
+            // En modo edición, simplemente actualizamos el documento existente.
+            await notesRef.doc(noteId).update(dataToSave);
         } else {
-            const customId = generateCustomId('G-'); // Generar ID personalizado
-            await notesRef.doc(customId).set({
-                titulo: title,
-                descripcion: description,
-                fecha: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            await countsRef.update({
+            // Al crear, generamos un nuevo documento y actualizamos el contador.
+            const newNoteRef = notesRef.doc(); // Firestore genera el ID
+            
+            const batch = db.batch();
+            batch.set(newNoteRef, dataToSave);
+            batch.update(countsRef, {
                 notesCount: firebase.firestore.FieldValue.increment(1)
             });
-            console.log("Nota creada y contador actualizado en Firestore.");
+            await batch.commit();
         }
+        
+        // No necesitamos hacer nada más. El oyente onSnapshot en `renderNotesList`
+        // detectará el cambio y actualizará la UI automáticamente.
+
     } catch (error) {
         console.error("Error sincronizando nota con Firestore:", error);
-        showToast("Error de sincronización. Recargando...", true);
-        setTimeout(() => initializeApp(), 1500);
+        showToast("Error de sincronización. Inténtalo de nuevo.", true);
+        // En caso de error, el usuario ya está en la pantalla de la lista,
+        // por lo que verá que su cambio no se aplicó.
     }
 }
+
 // ==================================================
 // --- MÓDULO: GASTOS (ACTUALIZADO CON FIRESTORE) ---
 // ==================================================
