@@ -1362,6 +1362,7 @@ tg.onEvent('viewportChanged', async (event) => {
         if (serverVersion > localVersion) {
             console.log(`Nueva versión detectada al maximizar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+			hideSplashScreen();
             showChangelogModal(serverVersion, changelogText);
             window.isCheckingVersion = false;
             return; // IMPORTANTE: Detenemos la sincronización de datos si hay una actualización pendiente.
