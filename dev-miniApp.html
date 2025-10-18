@@ -1109,46 +1109,21 @@ if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
     window.db = firebase.firestore();
 }
 
-// --- FUNCIÓN DE ARRANQUE MODIFICADA (SOLO VERIFICA VERSIÓN) ---
+// --- FUNCIÓN DE ARRANQUE SIMPLIFICADA ---
 async function initializeApp() {
     if (isInitializing) return;
     isInitializing = true;
-    console.log("Iniciando app y verificando versión (flujo localStorage)...");
-
-    try {
-        const localVersion = parseInt(localStorage.getItem('app_version') || '0', 10);
-        
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        // Usamos 0 como valor por defecto si el documento o el campo no existen.
-        const serverVersion = versionDoc.exists ? (versionDoc.data().current_version || 0) : 0;
-
-        if (serverVersion > localVersion) {
-            console.log(`Nueva versión detectada al iniciar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
-            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            showChangelogModal(serverVersion, changelogText);
-            return; // Detenemos la ejecución. El modal se encargará del resto.
-        }
-
-        // Si es el primer arranque (localVersion es 0), guardamos la versión actual del servidor.
-        if (localVersion === 0 && serverVersion > 0) {
-            localStorage.setItem('app_version', serverVersion);
-        }
-        
-        console.log("Versión correcta. Ejecutando la aplicación...");
-        runApp();
-
-    } catch (err) {
-        console.error("Error crítico en initializeApp:", err);
-        // Si hay un error de red, intentamos arrancar la app igualmente (modo offline).
-        runApp(); 
-    }
+    
+    // Ahora esta función solo se preocupa de ejecutar la lógica principal.
+    loadEmojiDictionary();
+    runApp(); 
 }
 
 // --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
 async function runApp() {
     try {
         console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
-        // 1. Obtener los ajustes del usuario
+        // 1. Obtener los ajustes del usuario (sin cambios)
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
         if (!userSettingsDoc.exists) {
             failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
@@ -1159,70 +1134,79 @@ async function runApp() {
         appData.isPremium = appData.settings.plan_premium === true;
         console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
-        // 3. Configurar el listener ÚNICO para contadores
+        // --- INICIO DE LA CORRECCIÓN ---
+        // 2. Obtener el estado INICIAL de los contadores ANTES de dibujar nada
+        const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
+        if (countsDoc.exists) {
+            // Si el documento existe, lo usamos como estado inicial fusionándolo con los defaults
+            appData.counts = { ...appData.counts, ...countsDoc.data() };
+        }
+        else {
+            // Si el documento 'counts' NO existe (usuario nuevo), lo creamos con la estructura mínima para gastos.
+            console.log("Documento 'counts' no existe. Creando estructura inicial para gastos...");
+        
+            // 2.1. Obtenemos el mes y año actual para el campo 'mesesActivosGastos'.
+            const now = new Date();
+            const mesAnioActual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+        
+            // 2.2. Definimos la estructura inicial MÍNIMA.
+            const contadoresIniciales = {
+                gastosMesActual: 0,
+                mesesActivosGastos: [mesAnioActual]
+            };
+        
+            // 2.3. Guardamos este nuevo documento y ESPERAMOS a que la operación se complete.
+            await db.collection('users').doc(chatId).collection('_metadata').doc('counts').set(contadoresIniciales, { merge: true });
+        
+            // 2.4. Actualizamos el estado local de la app para que refleje esta nueva estructura.
+            appData.counts = { ...appData.counts, ...contadoresIniciales };
+            console.log("Estructura inicial de gastos creada y sincronizada.");
+        }
+        // Si no existe, appData.counts mantendrá sus valores por defecto (0, '0,00', etc.)
+        // --- FIN DE LA CORRECCIÓN ---
+
+        // 3. Configurar los listeners para futuras actualizaciones (sin cambios)
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
-            .onSnapshot(async (doc) => {
+            .onSnapshot((doc) => {
                 if (doc.exists) {
-                    // Caso 1: El documento existe. Actualizamos los datos locales.
-                    appData.counts = { ...appData.counts, ...doc.data() };
-
-                    // ¡Paso Clave! Siempre que recibimos datos, redibujamos el dashboard
-                    // si es la vista activa. Esto cubre la carga inicial y las actualizaciones.
-                    if (document.querySelector('.grid')) {
-                        renderDashboard();
+                    const serverCounts = doc.data();
+                    if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
+                        appData.counts = serverCounts;
+                        if (document.querySelector('.grid')) {
+                            renderDashboard();
+							console.log("🏁 [Arranque] UI inicial renderizada. La aplicación está lista.");
+                            // showToast("Datos sincronizados.", false); // Desactivado para no molestar al usuario
+                        }
                     }
-                    console.log("🏁 [Listener] Contadores sincronizados. UI actualizada.");
-
-                } else {
-                    // Caso 2: El documento NO existe (usuario nuevo). Lo creamos.
-                    console.log("Documento 'counts' no existe. Creando estructura inicial...");
-                    const now = new Date();
-                    const mesAnioActual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
-                    const contadoresIniciales = {
-					gastosMesActual: 0,
-					mesesActivosGastos: [mesAnioActual],
-					remindersCount: 0,
-					shoppingPendingCount: 0,
-					shoppingBoughtCount: 0,
-					notesCount: 0,
-					calendarTodayCount: 0,
-					cuentasClarasCount: 0
-				};
-                    
-                    // Guardamos la estructura inicial. Esto disparará de nuevo el onSnapshot,
-                    // que entrará en el bloque `if (doc.exists)` y renderizará la UI.
-                    await db.collection('users').doc(chatId).collection('_metadata').doc('counts').set(contadoresIniciales, { merge: true });
                 }
             }, (error) => {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario en tiempo real
+        // Listener para el badge del calendario en tiempo real (CORREGIDO Y OPTIMIZADO)
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date();
         endOfToday.setHours(23, 59, 59, 999);
         
+        // Convertimos las fechas de JS al formato Timestamp de Firestore para una consulta 100% precisa.
         const startOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
         const endOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
 
         db.collection('users').doc(chatId).collection('eventos_calendario')
-          .where('fechaInicio', '>=', startOfTodayTimestamp)
-          .where('fechaInicio', '<=', endOfTodayTimestamp)
+          .where('fechaInicio', '>=', startOfTodayTimestamp) // Usamos la fecha convertida
+          .where('fechaInicio', '<=', endOfTodayTimestamp) // Usamos la fecha convertida
           .onSnapshot(snapshot => {
-              const newCount = snapshot.size;
-              if (appData.counts.calendarTodayCount !== newCount) {
-                  appData.counts.calendarTodayCount = newCount;
-                  const calendarBadge = document.getElementById('calendar-badge');
-                  if (calendarBadge) {
-                      calendarBadge.textContent = newCount;
-                  }
+              appData.counts.calendarTodayCount = snapshot.size;
+              const calendarBadge = document.getElementById('calendar-badge');
+              if (calendarBadge) {
+                  calendarBadge.textContent = snapshot.size;
               }
           }, error => {
               console.error("Error en listener de eventos de hoy:", error);
           });
         
-        // 4. Dibujar la UI con los datos ya cargados
+        // 4. Dibujar la UI con los datos ya cargados (sin cambios)
         updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
@@ -1276,6 +1260,7 @@ function showChangelogModal(version, changelogText) {
     continueBtn.onclick = () => {
         overlay.classList.remove('show');
         setTimeout(() => {
+            showToast("Aplicando actualización...", false);
             // 1. Guardamos la nueva versión en el almacenamiento local.
             localStorage.setItem('app_version', version);
             // 2. Forzamos una recarga completa para obtener el nuevo HTML.
@@ -1368,7 +1353,6 @@ tg.onEvent('viewportChanged', async (event) => {
         if (serverVersion > localVersion) {
             console.log(`Nueva versión detectada al maximizar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-			hideSplashScreen();
             showChangelogModal(serverVersion, changelogText);
             window.isCheckingVersion = false;
             return; // IMPORTANTE: Detenemos la sincronización de datos si hay una actualización pendiente.
@@ -5976,8 +5960,44 @@ document.getElementById('tab-chef').onclick = () => {
         renderChefPage();
     }
 };
-loadEmojiDictionary(); // Carga el diccionario de emojis
-initializeApp();
+// =========================================================================
+// --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
+// =========================================================================
+async function checkVersionAndBootstrap() {
+    console.log("Iniciando guardián de versión...");
+    try {
+        // Usamos parseFloat para manejar versiones con decimales como "99.1"
+        const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
+        
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
+
+        if (serverVersion > localVersion) {
+            // -- FLUJO DE ACTUALIZACIÓN --
+            console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}.`);
+            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+            
+            // ¡Clave! Ocultamos el splash ANTES de mostrar el modal.
+            hideSplashScreen(); 
+            showChangelogModal(serverVersion, changelogText);
+            // No hacemos nada más. El modal se encargará del resto.
+
+        } else {
+            // -- FLUJO NORMAL DE LA APP --
+            if (localVersion === 0 && serverVersion > 0) {
+                localStorage.setItem('app_version', serverVersion);
+            }
+            console.log("Versión correcta. Arrancando la aplicación principal...");
+            initializeApp(); // Llamamos a la inicialización principal
+        }
+
+    } catch (err) {
+        console.error("Error crítico en el guardián de versión:", err);
+        // Si hay un error de red, intentamos arrancar la app igualmente (modo offline).
+        initializeApp();
+    }
+}
+checkVersionAndBootstrap();
 });
 </script>
 </body>
