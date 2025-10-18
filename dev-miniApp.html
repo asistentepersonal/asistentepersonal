@@ -1159,41 +1159,33 @@ async function runApp() {
         appData.isPremium = appData.settings.plan_premium === true;
         console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
-        // 2. Obtener el estado INICIAL de los contadores ANTES de dibujar nada
-        const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
-        if (countsDoc.exists) {
-            // Si el documento existe, lo usamos como estado inicial fusionándolo con los defaults
-            appData.counts = { ...appData.counts, ...countsDoc.data() };
-        }
-        else {
-            // Si 'counts' NO existe (usuario nuevo), lo creamos con la estructura mínima para gastos.
-            console.log("Documento 'counts' no existe. Creando estructura inicial para gastos...");
-            const now = new Date();
-            const mesAnioActual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
-            const contadoresIniciales = {
-                gastosMesActual: 0,
-                mesesActivosGastos: [mesAnioActual]
-            };
-            // Guardamos y ESPERAMOS a que la operación se complete.
-            await db.collection('users').doc(chatId).collection('_metadata').doc('counts').set(contadoresIniciales, { merge: true });
-            // Actualizamos el estado local de la app.
-            appData.counts = { ...appData.counts, ...contadoresIniciales };
-            console.log("Estructura inicial de gastos creada y sincronizada.");
-        }
-
-        // 3. Configurar los listeners para futuras actualizaciones (CÓDIGO RESTAURADO)
+        // 3. Configurar el listener ÚNICO para contadores
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
-            .onSnapshot((doc) => {
+            .onSnapshot(async (doc) => {
                 if (doc.exists) {
-                    const serverCounts = doc.data();
-                    // Comparamos si hay cambios reales antes de redibujar
-                    if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
-                        appData.counts = { ...appData.counts, ...serverCounts }; // Fusionamos para no perder contadores locales temporales
-                        if (document.querySelector('.grid')) {
-                            renderDashboard();
-                            console.log("🏁 [Listener] UI actualizada por cambios en contadores.");
-                        }
+                    // Caso 1: El documento existe. Actualizamos los datos locales.
+                    appData.counts = { ...appData.counts, ...doc.data() };
+
+                    // ¡Paso Clave! Siempre que recibimos datos, redibujamos el dashboard
+                    // si es la vista activa. Esto cubre la carga inicial y las actualizaciones.
+                    if (document.querySelector('.grid')) {
+                        renderDashboard();
                     }
+                    console.log("🏁 [Listener] Contadores sincronizados. UI actualizada.");
+
+                } else {
+                    // Caso 2: El documento NO existe (usuario nuevo). Lo creamos.
+                    console.log("Documento 'counts' no existe. Creando estructura inicial...");
+                    const now = new Date();
+                    const mesAnioActual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+                    const contadoresIniciales = {
+                        gastosMesActual: 0,
+                        mesesActivosGastos: [mesAnioActual]
+                    };
+                    
+                    // Guardamos la estructura inicial. Esto disparará de nuevo el onSnapshot,
+                    // que entrará en el bloque `if (doc.exists)` y renderizará la UI.
+                    await db.collection('users').doc(chatId).collection('_metadata').doc('counts').set(contadoresIniciales, { merge: true });
                 }
             }, (error) => {
                 console.error("Error en el listener de contadores: ", error);
