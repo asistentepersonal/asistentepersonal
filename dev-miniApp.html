@@ -5908,7 +5908,7 @@ async function saveCalendarEvent(eventData) {
             status: 'pending_creation'
         };
         
-        const collectionRef = db.collection('users').doc(chatId).collection(FISTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
+        const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
 
         if (isEditing) {
             await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
