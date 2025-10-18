@@ -5059,10 +5059,10 @@ function loadAndDisplayCalendarEvents(view, date) {
         if (!document.getElementById('calendar-content')) return;
         const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
                
-        if (view === 'day') renderDayView(eventsInRange, currentCalendarDate);
-        else if (view === 'three_day') renderThreeDayView(eventsInRange, date);
-        else if (view === 'week') renderWeekView(eventsInRange, start);
-        else if (view === 'month') renderMonthView(eventsInRange, date);
+        if (view === 'day') renderDayView(allEvents, currentCalendarDate);
+		else if (view === 'three_day') renderThreeDayView(allEvents, date);
+		else if (view === 'week') renderWeekView(allEvents, start);
+		else if (view === 'month') renderMonthView(allEvents, date);
         
         hideSpinner();
     }, error => { console.error("Error en listener de calendario:", error); hideSpinner(); });
