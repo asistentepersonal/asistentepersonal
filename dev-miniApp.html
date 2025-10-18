@@ -1125,7 +1125,6 @@ async function initializeApp() {
         if (serverVersion > localVersion) {
             console.log(`Nueva versión detectada al iniciar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            hideSplashScreen();
             showChangelogModal(serverVersion, changelogText);
             return; // Detenemos la ejecución. El modal se encargará del resto.
         }
@@ -1148,7 +1147,7 @@ async function initializeApp() {
 // --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
 async function runApp() {
     try {
-		console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
+        console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
         // 1. Obtener los ajustes del usuario (sin cambios)
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
         if (!userSettingsDoc.exists) {
@@ -1156,9 +1155,9 @@ async function runApp() {
             return;
         }
         appData.settings = userSettingsDoc.data() || {};
-		applyTheme(appData.settings.tema || 'auto');
+        applyTheme(appData.settings.tema || 'auto');
         appData.isPremium = appData.settings.plan_premium === true;
-		console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
+        console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
         // --- INICIO DE LA CORRECCIÓN ---
         // 2. Obtener el estado INICIAL de los contadores ANTES de dibujar nada
@@ -1166,6 +1165,27 @@ async function runApp() {
         if (countsDoc.exists) {
             // Si el documento existe, lo usamos como estado inicial fusionándolo con los defaults
             appData.counts = { ...appData.counts, ...countsDoc.data() };
+        }
+        else {
+            // Si el documento 'counts' NO existe (usuario nuevo), lo creamos con la estructura mínima para gastos.
+            console.log("Documento 'counts' no existe. Creando estructura inicial para gastos...");
+        
+            // 2.1. Obtenemos el mes y año actual para el campo 'mesesActivosGastos'.
+            const now = new Date();
+            const mesAnioActual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+        
+            // 2.2. Definimos la estructura inicial MÍNIMA.
+            const contadoresIniciales = {
+                gastosMesActual: 0,
+                mesesActivosGastos: [mesAnioActual]
+            };
+        
+            // 2.3. Guardamos este nuevo documento y ESPERAMOS a que la operación se complete.
+            await db.collection('users').doc(chatId).collection('_metadata').doc('counts').set(contadoresIniciales, { merge: true });
+        
+            // 2.4. Actualizamos el estado local de la app para que refleje esta nueva estructura.
+            appData.counts = { ...appData.counts, ...contadoresIniciales };
+            console.log("Estructura inicial de gastos creada y sincronizada.");
         }
         // Si no existe, appData.counts mantendrá sus valores por defecto (0, '0,00', etc.)
         // --- FIN DE LA CORRECCIÓN ---
@@ -1265,7 +1285,6 @@ function showChangelogModal(version, changelogText) {
     continueBtn.onclick = () => {
         overlay.classList.remove('show');
         setTimeout(() => {
-            showToast("Aplicando actualización...", false);
             // 1. Guardamos la nueva versión en el almacenamiento local.
             localStorage.setItem('app_version', version);
             // 2. Forzamos una recarga completa para obtener el nuevo HTML.
@@ -2956,26 +2975,32 @@ async function saveGasto() {
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
         const newGastoRef = db.collection('users').doc(chatId).collection('gastos').doc(generateCustomId('G-'));
 
+        // Transacción simplificada: asume que 'counts' ya existe.
         await db.runTransaction(async (transaction) => {
             const countsDoc = await transaction.get(countsRef);
-            if (!countsDoc.exists) throw "Documento de contadores no encontrado.";
-            
             const currentCounts = countsDoc.data();
+
             const nuevoTotalGastos = (currentCounts.gastosMesActual || 0) + importe;
             const mesesActivos = currentCounts.mesesActivosGastos || [];
-            if (!mesesActivos.includes(mesAnio)) mesesActivos.push(mesAnio);
+            if (!mesesActivos.includes(mesAnio)) {
+                mesesActivos.push(mesAnio);
+            }
 
             transaction.set(newGastoRef, gastoData);
-            transaction.update(countsRef, { gastosMesActual: nuevoTotalGastos, mesesActivosGastos: mesesActivos });
+            transaction.update(countsRef, { 
+                gastosMesActual: nuevoTotalGastos, 
+                mesesActivosGastos: mesesActivos 
+            });
         });
 
-        appData.counts.gastosMesActual = (appData.counts.gastosMesActual || 0) + importe;
-        if (!appData.counts.mesesActivosGastos.includes(mesAnio)) appData.counts.mesesActivosGastos.push(mesAnio);
+        // Se actualiza la UI local SOLO si la transacción tuvo éxito.
+        appData.counts.gastosMesActual = (parseFloat(appData.counts.gastosMesActual) || 0) + importe;
+        if (!appData.counts.mesesActivosGastos.includes(mesAnio)) {
+            appData.counts.mesesActivosGastos.push(mesAnio);
+        }
 
-        // La función goBack() ya se encarga de volver y renderizar la pantalla anterior (el dashboard).
         goBack();
 
-        // Usamos un pequeño retardo para asegurar que el toast aparezca DESPUÉS de que la UI se haya actualizado.
         setTimeout(() => {
             showToast('Gasto registrado con éxito.');
         }, 100);
