@@ -1179,9 +1179,15 @@ async function runApp() {
                     const now = new Date();
                     const mesAnioActual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
                     const contadoresIniciales = {
-                        gastosMesActual: 0,
-                        mesesActivosGastos: [mesAnioActual]
-                    };
+					gastosMesActual: 0,
+					mesesActivosGastos: [mesAnioActual],
+					remindersCount: 0,
+					shoppingPendingCount: 0,
+					shoppingBoughtCount: 0,
+					notesCount: 0,
+					calendarTodayCount: 0,
+					cuentasClarasCount: 0
+				};
                     
                     // Guardamos la estructura inicial. Esto disparará de nuevo el onSnapshot,
                     // que entrará en el bloque `if (doc.exists)` y renderizará la UI.
