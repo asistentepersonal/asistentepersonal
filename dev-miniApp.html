@@ -1337,9 +1337,9 @@ tg.onEvent('viewportChanged', async (event) => {
     window.isCheckingVersion = true;
 
     try {
-        const localVersion = parseInt(localStorage.getItem('app_version') || '0', 10);
+        const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
         const versionDoc = await db.collection('app_config').doc('version_info').get();
-        const serverVersion = versionDoc.exists ? (versionDoc.data().current_version || 0) : 0;
+        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
         
         if (serverVersion > localVersion) {
             console.log(`Nueva versión detectada al maximizar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
