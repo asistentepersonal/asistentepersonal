@@ -1148,7 +1148,7 @@ async function initializeApp() {
 async function runApp() {
     try {
         console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
-        // 1. Obtener los ajustes del usuario (sin cambios)
+        // 1. Obtener los ajustes del usuario
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
         if (!userSettingsDoc.exists) {
             failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
@@ -1159,7 +1159,6 @@ async function runApp() {
         appData.isPremium = appData.settings.plan_premium === true;
         console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
-        // --- INICIO DE LA CORRECCIÓN ---
         // 2. Obtener el estado INICIAL de los contadores ANTES de dibujar nada
         const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
         if (countsDoc.exists) {
@@ -1167,40 +1166,32 @@ async function runApp() {
             appData.counts = { ...appData.counts, ...countsDoc.data() };
         }
         else {
-            // Si el documento 'counts' NO existe (usuario nuevo), lo creamos con la estructura mínima para gastos.
+            // Si 'counts' NO existe (usuario nuevo), lo creamos con la estructura mínima para gastos.
             console.log("Documento 'counts' no existe. Creando estructura inicial para gastos...");
-        
-            // 2.1. Obtenemos el mes y año actual para el campo 'mesesActivosGastos'.
             const now = new Date();
             const mesAnioActual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
-        
-            // 2.2. Definimos la estructura inicial MÍNIMA.
             const contadoresIniciales = {
                 gastosMesActual: 0,
                 mesesActivosGastos: [mesAnioActual]
             };
-        
-            // 2.3. Guardamos este nuevo documento y ESPERAMOS a que la operación se complete.
+            // Guardamos y ESPERAMOS a que la operación se complete.
             await db.collection('users').doc(chatId).collection('_metadata').doc('counts').set(contadoresIniciales, { merge: true });
-        
-            // 2.4. Actualizamos el estado local de la app para que refleje esta nueva estructura.
+            // Actualizamos el estado local de la app.
             appData.counts = { ...appData.counts, ...contadoresIniciales };
             console.log("Estructura inicial de gastos creada y sincronizada.");
         }
-        // Si no existe, appData.counts mantendrá sus valores por defecto (0, '0,00', etc.)
-        // --- FIN DE LA CORRECCIÓN ---
 
-        // 3. Configurar los listeners para futuras actualizaciones (sin cambios)
+        // 3. Configurar los listeners para futuras actualizaciones (CÓDIGO RESTAURADO)
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot((doc) => {
                 if (doc.exists) {
                     const serverCounts = doc.data();
+                    // Comparamos si hay cambios reales antes de redibujar
                     if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
-                        appData.counts = serverCounts;
+                        appData.counts = { ...appData.counts, ...serverCounts }; // Fusionamos para no perder contadores locales temporales
                         if (document.querySelector('.grid')) {
                             renderDashboard();
-							console.log("🏁 [Arranque] UI inicial renderizada. La aplicación está lista.");
-                            // showToast("Datos sincronizados.", false); // Desactivado para no molestar al usuario
+                            console.log("🏁 [Listener] UI actualizada por cambios en contadores.");
                         }
                     }
                 }
@@ -1208,30 +1199,32 @@ async function runApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario en tiempo real (CORREGIDO Y OPTIMIZADO)
+        // Listener para el badge del calendario en tiempo real
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date();
         endOfToday.setHours(23, 59, 59, 999);
         
-        // Convertimos las fechas de JS al formato Timestamp de Firestore para una consulta 100% precisa.
         const startOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
         const endOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
 
         db.collection('users').doc(chatId).collection('eventos_calendario')
-          .where('fechaInicio', '>=', startOfTodayTimestamp) // Usamos la fecha convertida
-          .where('fechaInicio', '<=', endOfTodayTimestamp) // Usamos la fecha convertida
+          .where('fechaInicio', '>=', startOfTodayTimestamp)
+          .where('fechaInicio', '<=', endOfTodayTimestamp)
           .onSnapshot(snapshot => {
-              appData.counts.calendarTodayCount = snapshot.size;
-              const calendarBadge = document.getElementById('calendar-badge');
-              if (calendarBadge) {
-                  calendarBadge.textContent = snapshot.size;
+              const newCount = snapshot.size;
+              if (appData.counts.calendarTodayCount !== newCount) {
+                  appData.counts.calendarTodayCount = newCount;
+                  const calendarBadge = document.getElementById('calendar-badge');
+                  if (calendarBadge) {
+                      calendarBadge.textContent = newCount;
+                  }
               }
           }, error => {
               console.error("Error en listener de eventos de hoy:", error);
           });
         
-        // 4. Dibujar la UI con los datos ya cargados (sin cambios)
+        // 4. Dibujar la UI con los datos ya cargados
         updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
