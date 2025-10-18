@@ -1174,28 +1174,27 @@ async function runApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario en tiempo real (CORREGIDO Y OPTIMIZADO)
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-        const endOfToday = new Date();
-        endOfToday.setHours(23, 59, 59, 999);
-        
-        // Convertimos las fechas de JS al formato Timestamp de Firestore para una consulta 100% precisa.
-        const startOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
-        const endOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
+        // Listener para el badge del calendario en tiempo real (CON ZONA HORARIA DEL USUARIO)
+		const userTimeZone = appData.settings.timeZone;
+		const { startOfDayUTC, endOfDayUTC } = getUserTimezoneDateRange(new Date(), userTimeZone);
 
-        db.collection('users').doc(chatId).collection('eventos_calendario')
-          .where('fechaInicio', '>=', startOfTodayTimestamp) // Usamos la fecha convertida
-          .where('fechaInicio', '<=', endOfTodayTimestamp) // Usamos la fecha convertida
-          .onSnapshot(snapshot => {
-              appData.counts.calendarTodayCount = snapshot.size;
-              const calendarBadge = document.getElementById('calendar-badge');
-              if (calendarBadge) {
-                  calendarBadge.textContent = snapshot.size;
-              }
-          }, error => {
-              console.error("Error en listener de eventos de hoy:", error);
-          });
+		// Convertimos las fechas UTC calculadas al formato Timestamp de Firestore para la consulta.
+		const startTimestamp = firebase.firestore.Timestamp.fromDate(startOfDayUTC);
+		const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfDayUTC);
+
+		db.collection('users').doc(chatId).collection('eventos_calendario')
+		  .where('fechaInicio', '>=', startTimestamp)
+		  .where('fechaInicio', '<=', endTimestamp)
+		  .onSnapshot(snapshot => {
+			  // Actualizamos el contador localmente. No necesitamos escribir en DB aquí.
+			  appData.counts.calendarTodayCount = snapshot.size;
+			  const calendarBadge = document.getElementById('calendar-badge');
+			  if (calendarBadge) {
+				  calendarBadge.textContent = snapshot.size;
+			  }
+		  }, error => {
+      console.error("Error en listener de eventos de hoy:", error);
+  });
         
         // 4. Dibujar la UI con los datos ya cargados (sin cambios)
         updateChefTabStyle();
@@ -1505,6 +1504,51 @@ function hideSpinner() { spinner.style.display = 'none'; }
 // --- FUNCIÓN PARA DETECTAR DISPOSITIVOS MÓVILES ---
 function isMobileDevice() {
     return /Mobi/i.test(navigator.userAgent);
+}
+/**
+ * [NUEVA FUNCIÓN REUTILIZABLE]
+ * Calcula el inicio y fin exactos de un día en la zona horaria del usuario,
+ * devolviendo fechas UTC listas para ser usadas en consultas de Firestore.
+ * @param {Date} targetDate - El día para el cual se calculará el rango.
+ * @param {string} timeZone - La zona horaria IANA del usuario (ej. 'Europe/Madrid').
+ * @returns {{startOfDayUTC: Date, endOfDayUTC: Date}}
+ */
+function getUserTimezoneDateRange(targetDate, timeZone) {
+    const tz = timeZone || 'UTC'; // Si no hay timezone, usamos UTC como respaldo seguro.
+
+    try {
+        // Para calcular el desfase (offset), necesitamos un punto de referencia.
+        const now = new Date();
+        // Creamos una fecha a partir de la representación de 'ahora' en la zona del usuario.
+        // El navegador interpreta esta fecha en su propia zona, dándonos el desfase que buscamos.
+        const nowInUserTz = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+        
+        // El offset es la diferencia entre el tiempo real UTC y el tiempo local interpretado como UTC.
+        const offset = now.getTime() - nowInUserTz.getTime();
+
+        // Creamos el inicio del día objetivo (00:00:00) como si estuviéramos en la máquina local.
+        let startOfDayLocal = new Date(targetDate.getTime());
+        startOfDayLocal.setHours(0, 0, 0, 0);
+
+        // Creamos el fin del día objetivo (23:59:59).
+        let endOfDayLocal = new Date(targetDate.getTime());
+        endOfDayLocal.setHours(23, 59, 59, 999);
+        
+        // Aplicamos el desfase calculado para obtener los momentos UTC verdaderos.
+        const startOfDayUTC = new Date(startOfDayLocal.getTime() + offset);
+        const endOfDayUTC = new Date(endOfDayLocal.getTime() + offset);
+
+        return { startOfDayUTC, endOfDayUTC };
+
+    } catch (error) {
+        console.error(`Error al calcular el rango para la zona horaria "${tz}":`, error);
+        // En caso de un error inesperado, devolvemos un rango UTC simple para no bloquear la app.
+        let startOfDayUTC = new Date(targetDate);
+        startOfDayUTC.setUTCHours(0, 0, 0, 0);
+        let endOfDayUTC = new Date(targetDate);
+        endOfDayUTC.setUTCHours(23, 59, 59, 999);
+        return { startOfDayUTC, endOfDayUTC };
+    }
 }
 function showToast(msg, isError = false, persistent = false) {
     const t = document.getElementById('toast');
@@ -1972,55 +2016,55 @@ function renderReminderForm() {
 }
 
 async function saveReminder() {
-    const description = document.getElementById('text').value.trim();
-    if (!description) {
-        showToast("La descripción es obligatoria.", true);
-        return;
-    }
+  const category = document.querySelector('input[name="category"]:checked').value;
+  const description = document.getElementById('text').value.trim();
+  const time = document.getElementById('time')._flatpickr.selectedDates[0];
+  const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
 
+  if (!description || !time) {
+    showToast("La descripción y la fecha son obligatorias.", true);
+    return;
+  }
+
+  try {
+    const customId = generateCustomId('G-');
+    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const localTimeStr = time.toLocaleString('es-ES', { timeZone: userTimeZone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const reminderData = {
+      descripcion: description,
+      categoria_recordatorio: category,
+      fecha_universal: time.toISOString(),
+      status: "pending_creation",
+      tracking_code: customId,
+      chat_id: chatId.toString(),
+      hora_local: localTimeStr,
+      horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null,
+      trigger_id: null
+    };
+
+    const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(customId);
+    const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+    // Se realizan las escrituras en Firestore y se espera a que terminen.
+    await reminderRef.set(reminderData);
+    await countsRef.update({
+        remindersCount: firebase.firestore.FieldValue.increment(1)
+    });
+    
+    // Solo si todo lo anterior tuvo éxito, se muestra el toast y se navega.
+    renderRemindersList();
+
+  } catch (err) { 
+    // En caso de cualquier error, se muestra el toast rojo.
+    showToast(`Error al crear el recordatorio: ${err.message}.`, true);
+    // NO volvemos al dashboard. Reactivamos el botón para que el usuario pueda reintentar.
     const sendBtn = document.getElementById('sendBtn');
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Creando...`;
-
-    try {
-        const category = document.querySelector('input[name="category"]:checked').value;
-        const time = document.getElementById('time')._flatpickr.selectedDates[0];
-        const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
-
-        // 1. Preparamos el payload para la Cloud Function
-        const payload = {
-            chatId: chatId,
-            tipo: 'recordatorio', // Tipo genérico
-            fechaLocal: time.toISOString(), // Enviamos la fecha/hora local elegida por el usuario
-            datos: {
-                descripcion: description,
-                categoria_recordatorio: category,
-                horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null,
-                hora_local: time.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-            }
-        };
-
-        // 2. Llamamos a la nueva Cloud Function
-        const functions = firebase.app().functions('europe-west1');
-        const createNotificationFunction = functions.httpsCallable('createNotification');
-        
-        await createNotificationFunction(payload);
-        
-        // 3. UI Optimista y Navegación
-        // NOTA: El incremento del contador ya no se hace aquí, sino en el backend.
-        // La actualización visual del contador llegará automáticamente vía onSnapshot.
-        goBack();
-        showToast("Recordatorio creado con éxito.");
-        
-    } catch (err) {
-        console.error("Error al llamar a createNotification:", err);
-        showToast(`Error al crear recordatorio: ${err.message}`, true);
-        
-        // Restauramos el botón en caso de error
+    if (sendBtn) {
         sendBtn.disabled = false;
-        sendBtn.innerHTML = 'Crear Recordatorio';
         sendBtn.classList.add('enabled');
     }
+  }
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
@@ -4972,8 +5016,12 @@ function loadAndDisplayCalendarEvents(view, date) {
     const activeItem = document.querySelector(`#calendar-view-menu .dropdown-item[data-view="${view}"]`);
     if (activeItem) activeItem.classList.add('active');
 
-    let start = new Date(date); // Siempre creamos una nueva instancia para evitar mutaciones
-    let end = new Date(date);
+    const userTimeZone = appData.settings.timeZone;
+	const { startOfDayUTC, endOfDayUTC } = getUserTimezoneDateRange(date, userTimeZone);
+
+	// 'start' y 'end' ahora representan el inicio y fin del día en la zona horaria del usuario.
+	let start = startOfDayUTC;
+	let end = endOfDayUTC;
     const periodEl = document.getElementById('calendar-current-period');
     
     start.setHours(0,0,0,0);
@@ -5002,13 +5050,15 @@ function loadAndDisplayCalendarEvents(view, date) {
         if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     }
 
-    const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).where('fechaInicio', '<=', end).orderBy('fechaInicio', 'asc');
+    const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION)
+            .where('fechaInicio', '>=', start)
+            .where('fechaInicio', '<=', end)
+            .orderBy('fechaInicio', 'asc');
     
     unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
         if (!document.getElementById('calendar-content')) return;
         const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
-        const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
-        
+               
         if (view === 'day') renderDayView(eventsInRange, currentCalendarDate);
         else if (view === 'three_day') renderThreeDayView(eventsInRange, date);
         else if (view === 'week') renderWeekView(eventsInRange, start);
@@ -5818,13 +5868,13 @@ async function saveCalendarEvent(eventData) {
 async function recalculateAndSyncCalendarCount() {
     try {
         console.log("Sincronizando contador del calendario en Firestore...");
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-        const endOfToday = new Date();
-        endOfToday.setHours(23, 59, 59, 999);
+        // Utiliza la zona horaria del usuario para el cálculo preciso de "hoy".
+		const userTimeZone = appData.settings.timeZone;
+		const { startOfDayUTC, endOfDayUTC } = getUserTimezoneDateRange(new Date(), userTimeZone);
 
-        const startTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
-        const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
+		// Convertimos las fechas UTC calculadas al formato Timestamp de Firestore.
+		const startTimestamp = firebase.firestore.Timestamp.fromDate(startOfDayUTC);
+		const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfDayUTC);
 
         const snapshot = await db.collection('users').doc(chatId).collection('eventos_calendario')
             .where('fechaInicio', '>=', startTimestamp)
