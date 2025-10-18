@@ -5083,6 +5083,72 @@ function loadAndDisplayCalendarEvents(view, date, userNow) {
         hideSpinner();
     }, error => { console.error("Error en listener de calendario:", error); hideSpinner(); });
 }
+// =========================================================================
+// --- INICIO: NUEVA FUNCIÓN DE CÁLCULO DE DISEÑO DE EVENTOS ---
+// =========================================================================
+function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
+    if (!eventsForDay || eventsForDay.length === 0) return [];
+
+    // 1. Ordenar eventos por hora de inicio
+    const sortedEvents = [...eventsForDay].sort((a, b) => a.fechaInicio - b.fechaInicio);
+
+    // 2. Calcular 'top' y 'height' inicial para cada evento
+    sortedEvents.forEach(event => {
+        const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
+        const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
+        const durationMinutes = Math.max(30, (endMinutes - startMinutes)); // Duración mínima visual de 30 min
+        
+        event.layout = {
+            top: (startMinutes / 60) * HOUR_HEIGHT,
+            height: (durationMinutes / 60) * HOUR_HEIGHT,
+            collisions: 1,
+            colIndex: 0
+        };
+    });
+
+    // 3. Detectar colisiones y determinar el ancho y la posición
+    for (let i = 0; i < sortedEvents.length; i++) {
+        const eventA = sortedEvents[i];
+        let collisionGroup = [eventA];
+
+        for (let j = i + 1; j < sortedEvents.length; j++) {
+            const eventB = sortedEvents[j];
+            // Si el evento B empieza antes de que el A termine, hay colisión
+            if (eventB.fechaInicio < eventA.fechaFin) {
+                collisionGroup.push(eventB);
+            }
+        }
+        
+        // Solo si hay más de un evento colisionando, ajustamos el layout
+        if (collisionGroup.length > 1) {
+            // Re-evaluar el grupo para encontrar el número máximo de solapamientos simultáneos
+            const maxCollisions = collisionGroup.reduce((max, currentEvent) => {
+                const simultaneous = collisionGroup.filter(e => e.fechaInicio < currentEvent.fechaFin && e.fechaFin > currentEvent.fechaInicio).length;
+                return Math.max(max, simultaneous);
+            }, 1);
+
+            collisionGroup.forEach(eventInGroup => {
+                // Asignamos el número máximo de colisiones detectado a todos los miembros del grupo
+                eventInGroup.layout.collisions = Math.max(eventInGroup.layout.collisions, maxCollisions);
+            });
+        }
+    }
+
+    // 4. Asignar el índice de columna (posición horizontal)
+    sortedEvents.forEach(event => {
+        const collidingEvents = sortedEvents.filter(e => e !== event && e.fechaInicio < event.fechaFin && e.fechaFin > event.fechaInicio);
+        const colIndicesTaken = collidingEvents.map(e => e.layout.colIndex);
+        
+        let assignedColIndex = 0;
+        while (colIndicesTaken.includes(assignedColIndex)) {
+            assignedColIndex++;
+        }
+        event.layout.colIndex = assignedColIndex;
+    });
+
+
+    return sortedEvents;
+}
 
 // CAMBIO: La función ahora acepta 'userNow'
 function renderDayView(events, currentDate, userNow) {
