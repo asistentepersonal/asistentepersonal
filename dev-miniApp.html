@@ -1972,55 +1972,55 @@ function renderReminderForm() {
 }
 
 async function saveReminder() {
-  const category = document.querySelector('input[name="category"]:checked').value;
-  const description = document.getElementById('text').value.trim();
-  const time = document.getElementById('time')._flatpickr.selectedDates[0];
-  const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
+    const description = document.getElementById('text').value.trim();
+    if (!description) {
+        showToast("La descripción es obligatoria.", true);
+        return;
+    }
 
-  if (!description || !time) {
-    showToast("La descripción y la fecha son obligatorias.", true);
-    return;
-  }
-
-  try {
-    const customId = generateCustomId('G-');
-    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const localTimeStr = time.toLocaleString('es-ES', { timeZone: userTimeZone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-    const reminderData = {
-      descripcion: description,
-      categoria_recordatorio: category,
-      fecha_universal: time.toISOString(),
-      status: "pending_creation",
-      tracking_code: customId,
-      chat_id: chatId.toString(),
-      hora_local: localTimeStr,
-      horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null,
-      trigger_id: null
-    };
-
-    const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(customId);
-    const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-
-    // Se realizan las escrituras en Firestore y se espera a que terminen.
-    await reminderRef.set(reminderData);
-    await countsRef.update({
-        remindersCount: firebase.firestore.FieldValue.increment(1)
-    });
-    
-    // Solo si todo lo anterior tuvo éxito, se muestra el toast y se navega.
-    renderRemindersList();
-
-  } catch (err) { 
-    // En caso de cualquier error, se muestra el toast rojo.
-    showToast(`Error al crear el recordatorio: ${err.message}.`, true);
-    // NO volvemos al dashboard. Reactivamos el botón para que el usuario pueda reintentar.
     const sendBtn = document.getElementById('sendBtn');
-    if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Creando...`;
+
+    try {
+        const category = document.querySelector('input[name="category"]:checked').value;
+        const time = document.getElementById('time')._flatpickr.selectedDates[0];
+        const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
+
+        // 1. Preparamos el payload para la Cloud Function
+        const payload = {
+            chatId: chatId,
+            tipo: 'recordatorio', // Tipo genérico
+            fechaLocal: time.toISOString(), // Enviamos la fecha/hora local elegida por el usuario
+            datos: {
+                descripcion: description,
+                categoria_recordatorio: category,
+                horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null,
+                hora_local: time.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            }
+        };
+
+        // 2. Llamamos a la nueva Cloud Function
+        const functions = firebase.app().functions('europe-west1');
+        const createNotificationFunction = functions.httpsCallable('createNotification');
+        
+        await createNotificationFunction(payload);
+        
+        // 3. UI Optimista y Navegación
+        // NOTA: El incremento del contador ya no se hace aquí, sino en el backend.
+        // La actualización visual del contador llegará automáticamente vía onSnapshot.
+        goBack();
+        showToast("Recordatorio creado con éxito.");
+        
+    } catch (err) {
+        console.error("Error al llamar a createNotification:", err);
+        showToast(`Error al crear recordatorio: ${err.message}`, true);
+        
+        // Restauramos el botón en caso de error
         sendBtn.disabled = false;
+        sendBtn.innerHTML = 'Crear Recordatorio';
         sendBtn.classList.add('enabled');
     }
-  }
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
