@@ -5149,7 +5149,114 @@ function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
 
     return sortedEvents;
 }
+const EVENT_COLORS_PRESETS = [
+    { value: '#039be5', label: 'Predeterminado (Trabajo)' },
+    { value: '#e67c73', label: 'Salud / Citas' },
+    { value: '#f6bf26', label: 'Personal / Ocio' },
+    { value: '#33b679', label: 'Cumpleaños / Eventos' },
+    { value: '#8e24aa', label: 'Importante / Urgente' }
+];
+// =========================================================================
+// --- FIN: NUEVA FUNCIÓN DE CÁLCULO ---
+// =========================================================================
+async function handleTimelineClick(event) {
+    const eventBlock = event.target.closest('.event-block, .month-event-pill');
+    const emptySlot = event.target.closest('.calendar-day-col');
 
+    // CASO 1: Se ha hecho clic en un evento existente
+    if (eventBlock) {
+        const eventId = eventBlock.dataset.eventId;
+        if (!eventId) return;
+        
+        showSpinner();
+        try {
+            const eventDoc = await db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get();
+            if (eventDoc.exists) {
+                const eventData = eventDoc.data();
+                renderCalendarEventForm({ id: eventDoc.id, ...eventData, fechaInicio: eventData.fechaInicio.toDate(), fechaFin: eventData.fechaFin.toDate() }, renderCalendarView);
+            } else {
+                showToast("El evento ya no existe.", true);
+            }
+        } catch (err) {
+            showToast(`Error al cargar evento: ${err.message}`, true);
+        } finally {
+            hideSpinner();
+        }
+        return;
+    }
+
+    // CASO 2: Se ha hecho clic en un hueco vacío
+    if (emptySlot) {
+        const HOUR_HEIGHT = 60;
+        const dateISO = emptySlot.dataset.dateIso;
+        if (!dateISO) return;
+
+        const baseDate = new Date(dateISO);
+        const clickY = event.offsetY;
+        
+        const totalMinutes = (clickY / HOUR_HEIGHT) * 60;
+        const roundedMinutes = Math.floor(totalMinutes / 15) * 15; // Redondear hacia abajo al cuarto de hora más cercano
+        
+        const startHour = Math.floor(roundedMinutes / 60);
+        const startMinute = roundedMinutes % 60;
+
+        const prefilledStartDate = new Date(baseDate);
+        prefilledStartDate.setHours(startHour, startMinute, 0, 0);
+
+        const prefilledEndDate = new Date(prefilledStartDate.getTime() + 60 * 60 * 1000); // 1 hora después
+
+        renderCalendarEventForm(null, renderCalendarView, prefilledStartDate, prefilledEndDate);
+    }
+}
+async function handleTimelineClick(event) {
+    const eventBlock = event.target.closest('.event-block, .month-event-pill');
+    const emptySlot = event.target.closest('.calendar-day-col');
+
+    // CASO 1: Se ha hecho clic en un evento existente
+    if (eventBlock) {
+        const eventId = eventBlock.dataset.eventId;
+        if (!eventId) return;
+        
+        showSpinner();
+        try {
+            const eventDoc = await db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get();
+            if (eventDoc.exists) {
+                const eventData = eventDoc.data();
+                renderCalendarEventForm({ id: eventDoc.id, ...eventData, fechaInicio: eventData.fechaInicio.toDate(), fechaFin: eventData.fechaFin.toDate() }, renderCalendarView);
+            } else {
+                showToast("El evento ya no existe.", true);
+            }
+        } catch (err) {
+            showToast(`Error al cargar evento: ${err.message}`, true);
+        } finally {
+            hideSpinner();
+        }
+        return;
+    }
+
+    // CASO 2: Se ha hecho clic en un hueco vacío
+    if (emptySlot) {
+        const HOUR_HEIGHT = 60;
+        const dateISO = emptySlot.dataset.dateIso;
+        if (!dateISO) return;
+
+        const baseDate = new Date(dateISO);
+        const clickY = event.offsetY;
+        
+        const totalMinutes = (clickY / HOUR_HEIGHT) * 60;
+        const roundedMinutes = Math.floor(totalMinutes / 15) * 15; // Redondear hacia abajo al cuarto de hora más cercano
+        
+        const startHour = Math.floor(roundedMinutes / 60);
+        const startMinute = roundedMinutes % 60;
+
+        const prefilledStartDate = new Date(baseDate);
+        prefilledStartDate.setHours(startHour, startMinute, 0, 0);
+
+        const prefilledEndDate = new Date(prefilledStartDate.getTime() + 60 * 60 * 1000); // 1 hora después
+
+        renderCalendarEventForm(null, renderCalendarView, prefilledStartDate, prefilledEndDate);
+    }
+}
 // CAMBIO: La función ahora acepta 'userNow'
 function renderDayView(events, currentDate, userNow) {
     const contentEl = document.getElementById('calendar-content');
