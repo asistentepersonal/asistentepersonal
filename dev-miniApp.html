@@ -1174,27 +1174,28 @@ async function runApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario en tiempo real (CON ZONA HORARIA DEL USUARIO)
-		const userTimeZone = appData.settings.timeZone;
-		const { startOfDayUTC, endOfDayUTC } = getUserTimezoneDateRange(new Date(), userTimeZone);
+        // Listener para el badge del calendario en tiempo real (CORREGIDO Y OPTIMIZADO)
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+        
+        // Convertimos las fechas de JS al formato Timestamp de Firestore para una consulta 100% precisa.
+        const startOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
+        const endOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
 
-		// Convertimos las fechas UTC calculadas al formato Timestamp de Firestore para la consulta.
-		const startTimestamp = firebase.firestore.Timestamp.fromDate(startOfDayUTC);
-		const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfDayUTC);
-
-		db.collection('users').doc(chatId).collection('eventos_calendario')
-		  .where('fechaInicio', '>=', startTimestamp)
-		  .where('fechaInicio', '<=', endTimestamp)
-		  .onSnapshot(snapshot => {
-			  // Actualizamos el contador localmente. No necesitamos escribir en DB aquí.
-			  appData.counts.calendarTodayCount = snapshot.size;
-			  const calendarBadge = document.getElementById('calendar-badge');
-			  if (calendarBadge) {
-				  calendarBadge.textContent = snapshot.size;
-			  }
-		  }, error => {
-      console.error("Error en listener de eventos de hoy:", error);
-  });
+        db.collection('users').doc(chatId).collection('eventos_calendario')
+          .where('fechaInicio', '>=', startOfTodayTimestamp) // Usamos la fecha convertida
+          .where('fechaInicio', '<=', endOfTodayTimestamp) // Usamos la fecha convertida
+          .onSnapshot(snapshot => {
+              appData.counts.calendarTodayCount = snapshot.size;
+              const calendarBadge = document.getElementById('calendar-badge');
+              if (calendarBadge) {
+                  calendarBadge.textContent = snapshot.size;
+              }
+          }, error => {
+              console.error("Error en listener de eventos de hoy:", error);
+          });
         
         // 4. Dibujar la UI con los datos ya cargados (sin cambios)
         updateChefTabStyle();
@@ -1387,7 +1388,7 @@ tg.onEvent('viewportChanged', async (event) => {
     }
 });
 }
-const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
+
 let selectedImageFile = null;
     let chatId; // Solo declaramos la variable aquí.
     
@@ -1504,72 +1505,6 @@ function hideSpinner() { spinner.style.display = 'none'; }
 // --- FUNCIÓN PARA DETECTAR DISPOSITIVOS MÓVILES ---
 function isMobileDevice() {
     return /Mobi/i.test(navigator.userAgent);
-}
-/**
- * [NUEVA FUNCIÓN REUTILIZABLE]
- * Calcula el inicio y fin exactos de un día en la zona horaria del usuario,
- * devolviendo fechas UTC listas para ser usadas en consultas de Firestore.
- * @param {Date} targetDate - El día para el cual se calculará el rango.
- * @param {string} timeZone - La zona horaria IANA del usuario (ej. 'Europe/Madrid').
- * @returns {{startOfDayUTC: Date, endOfDayUTC: Date}}
- */
-function getUserTimezoneDateRange(targetDate, timeZone) {
-    const tz = timeZone || 'UTC'; // Si no hay timezone, usamos UTC como respaldo seguro.
-
-    try {
-        // Para calcular el desfase (offset), necesitamos un punto de referencia.
-        const now = new Date();
-        // Creamos una fecha a partir de la representación de 'ahora' en la zona del usuario.
-        // El navegador interpreta esta fecha en su propia zona, dándonos el desfase que buscamos.
-        const nowInUserTz = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-        
-        // El offset es la diferencia entre el tiempo real UTC y el tiempo local interpretado como UTC.
-        const offset = now.getTime() - nowInUserTz.getTime();
-
-        // Creamos el inicio del día objetivo (00:00:00) como si estuviéramos en la máquina local.
-        let startOfDayLocal = new Date(targetDate.getTime());
-        startOfDayLocal.setHours(0, 0, 0, 0);
-
-        // Creamos el fin del día objetivo (23:59:59).
-        let endOfDayLocal = new Date(targetDate.getTime());
-        endOfDayLocal.setHours(23, 59, 59, 999);
-        
-        // Aplicamos el desfase calculado para obtener los momentos UTC verdaderos.
-        const startOfDayUTC = new Date(startOfDayLocal.getTime() + offset);
-        const endOfDayUTC = new Date(endOfDayLocal.getTime() + offset);
-
-        return { startOfDayUTC, endOfDayUTC };
-
-    } catch (error) {
-        console.error(`Error al calcular el rango para la zona horaria "${tz}":`, error);
-        // En caso de un error inesperado, devolvemos un rango UTC simple para no bloquear la app.
-        let startOfDayUTC = new Date(targetDate);
-        startOfDayUTC.setUTCHours(0, 0, 0, 0);
-        let endOfDayUTC = new Date(targetDate);
-        endOfDayUTC.setUTCHours(23, 59, 59, 999);
-        return { startOfDayUTC, endOfDayUTC };
-    }
-}
-/**
- * [NUEVA FUNCIÓN REUTILIZABLE v2]
- * Convierte una fecha UTC (de Firestore) a un objeto Date que representa
- * la hora local del usuario, para ser usada en la UI.
- * @param {Date} utcDate - La fecha en formato UTC que viene de la base de datos.
- * @param {string} timeZone - La zona horaria IANA del usuario.
- * @returns {Date} Un objeto Date ajustado.
- */
-function convertUTCToUserLocalDate(utcDate, timeZone) {
-    if (!utcDate || !timeZone) return utcDate; // Devolver la fecha original si falta algún dato
-    try {
-        // Creamos una cadena de texto de la fecha en la zona horaria del usuario.
-        const localString = utcDate.toLocaleString('en-US', { timeZone: timeZone, hour12: false });
-        // El navegador convierte esta cadena a un objeto Date usando su propia zona horaria,
-        // pero los valores de hora, minuto, etc., serán los correctos del usuario.
-        return new Date(localString);
-    } catch (e) {
-        console.error("Error al convertir UTC a local, usando fecha original:", e);
-        return utcDate;
-    }
 }
 function showToast(msg, isError = false, persistent = false) {
     const t = document.getElementById('toast');
@@ -4222,12 +4157,30 @@ async function executeExport() {
         showToast("Por favor, selecciona ambas fechas.", true);
         return;
     }
+    
+    // URL de tu nueva Cloud Function
+    const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/exportarGastos';
+
     try {
-        const payload = { Type: 'export_gastos', chat_ID: chatId, startDate: startDate, endDate: endDate };
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast(data.message || "Petición de exportación enviada. Revisa tu email.");
+        const payload = {
+            chatId: chatId,
+            startDate: startDate,
+            endDate: endDate
+        };
+
+        const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: payload })
+        });
+        
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error.message || 'Error desconocido del servidor.');
+        }
+
+        showToast(result.result.message || "Petición de exportación enviada.");
         renderDashboard();
     } catch (err) {
         showToast(`Error al exportar: ${err.message}`, true);
@@ -4930,32 +4883,20 @@ async function addParticipantsToList(listaId, nombresExistentes) {
 // --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO SIMPLIFICADO + MENÚ + BOTÓN FLOTANTE) ---
 // ====================================================================================
 // --- NUEVA FUNCIÓN DE AYUDA ---
-// ====================================================================================
-// --- INICIO DEL BLOQUE DE REEMPLAZO (CALENDARIO CON ZONA HORARIA CORRECTA) ---
-// ====================================================================================
-
-// --- NUEVA FUNCIÓN DE AYUDA ---
 function removeCalendarFAB() {
     const fab = document.getElementById('calendar-fab');
     if (fab) fab.remove();
 }
-
 function renderCalendarView() {
-    // --- INICIO DE LA CORRECCIÓN CLAVE ---
-    const userTimeZone = appData.settings.timeZone || 'UTC';
-    // Creamos la fecha "ahora" que representa la hora actual en la zona del usuario.
-    const userNow = new Date(new Date().toLocaleString('en-US', { timeZone: userTimeZone }));
-    
     currentCalendarView = 'month';
-    // El calendario se abre en el mes/día actual DEL USUARIO.
-    currentCalendarDate = new Date(userNow);
-    // --- FIN DE LA CORRECCIÓN CLAVE ---
-
+    currentCalendarDate = new Date();
+    
     navigationHistory.push(() => {
         if (typeof unsubscribeCalendarEvents === 'function') {
             unsubscribeCalendarEvents();
             unsubscribeCalendarEvents = null;
         }
+        // Asegurarse de que el botón + se elimina al salir de la vista de calendario
         const fab = document.getElementById('calendar-fab');
         if (fab) fab.remove();
         renderDashboard();
@@ -4986,6 +4927,7 @@ function renderCalendarView() {
             <div id="calendar-content" style="min-height:300px;"></div>
         </div>`;
 
+    // --- BOTÓN FLOTANTE (+) RESTAURADO ---
     const fab = document.createElement('button');
     fab.id = 'calendar-fab';
     fab.className = 'floating-action-button';
@@ -5003,42 +4945,43 @@ function renderCalendarView() {
         if (target) {
             currentCalendarView = target.dataset.view;
             viewMenu.classList.remove('show');
-            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate, userNow); // CAMBIO: Pasar userNow
+            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
         }
     });
 
     document.getElementById('calendar-prev-btn').onclick = () => {
         currentCalendarDate = getPreviousPeriodDate(currentCalendarView, currentCalendarDate);
-        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate, userNow); // CAMBIO: Pasar userNow
+        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
     };
     document.getElementById('calendar-next-btn').onclick = () => {
         currentCalendarDate = getNextPeriodDate(currentCalendarView, currentCalendarDate);
-        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate, userNow); // CAMBIO: Pasar userNow
+        loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
     };
     
-    loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate, userNow); // CAMBIO: Pasar userNow
+    loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
 }
 
+// Funciones auxiliares para la navegación de fechas (actualizadas para "3 Días")
 function getPreviousPeriodDate(view, date) {
     const d = new Date(date);
     if (view === 'day') d.setDate(d.getDate() - 1);
-    else if (view === 'three_day') d.setDate(d.getDate() - 3);
+    else if (view === 'three_day') d.setDate(d.getDate() - 3); // Retrocede 3 días
     else if (view === 'week') d.setDate(d.getDate() - 7);
-    else d.setMonth(d.getMonth() - 1);
+    else d.setMonth(d.getMonth() - 1); // vista 'month'
     return d;
 }
 
 function getNextPeriodDate(view, date) {
     const d = new Date(date);
     if (view === 'day') d.setDate(d.getDate() + 1);
-    else if (view === 'three_day') d.setDate(d.getDate() + 3);
+    else if (view === 'three_day') d.setDate(d.getDate() + 3); // Avanza 3 días
     else if (view === 'week') d.setDate(d.getDate() + 7);
-    else d.setMonth(d.getMonth() + 1);
+    else d.setMonth(d.getMonth() + 1); // vista 'month'
     return d;
 }
 
-// CAMBIO: La función ahora acepta 'userNow' como fuente de verdad para la hora actual.
-function loadAndDisplayCalendarEvents(view, date, userNow) {
+// Función principal que carga los datos de Firestore y decide qué vista renderizar
+function loadAndDisplayCalendarEvents(view, date) {
     showSpinner("Cargando calendario...");
     if (typeof unsubscribeCalendarEvents === 'function') unsubscribeCalendarEvents();
 
@@ -5046,82 +4989,71 @@ function loadAndDisplayCalendarEvents(view, date, userNow) {
     menuItems.forEach(item => item.classList.remove('active'));
     const activeItem = document.querySelector(`#calendar-view-menu .dropdown-item[data-view="${view}"]`);
     if (activeItem) activeItem.classList.add('active');
-    
-    // CAMBIO: Se usa la función de ayuda para los rangos de fechas
-    const userTimeZone = appData.settings.timeZone;
-    const { startOfDayUTC, endOfDayUTC } = getUserTimezoneDateRange(date, userTimeZone);
-    
-    let start = startOfDayUTC;
-    let end = endOfDayUTC;
+
+    let start = new Date(date); // Siempre creamos una nueva instancia para evitar mutaciones
+    let end = new Date(date);
     const periodEl = document.getElementById('calendar-current-period');
     
+    start.setHours(0,0,0,0);
+
     if (view === 'day') {
-        currentCalendarDate = new Date(date);
-        if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+        // CORRECCIÓN CLAVE: Creamos un nuevo objeto para 'end' para no modificar 'start'
+        end = new Date(start); 
+        end.setHours(23,59,59,999);
+        currentCalendarDate = new Date(start);
+        if (periodEl) periodEl.textContent = start.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     } else if (view === 'three_day') {
-        const endRangeDate = new Date(date);
-        endRangeDate.setDate(endRangeDate.getDate() + 2);
-        const { endOfDayUTC: endRangeUTC } = getUserTimezoneDateRange(endRangeDate, userTimeZone);
-        end = endRangeUTC;
-        if (periodEl) periodEl.textContent = `${date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${endRangeDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        end.setDate(end.getDate() + 2);
+        end.setHours(23,59,59,999);
+        if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
     } else if (view === 'week') {
         const dayOfWeek = date.getDay();
         const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const startOfWeekDate = new Date(date.getFullYear(), date.getMonth(), diff);
-        const endOfWeekDate = new Date(startOfWeekDate);
-        endOfWeekDate.setDate(startOfWeekDate.getDate() + 6);
-        
-        const { startOfDayUTC: startWeekUTC } = getUserTimezoneDateRange(startOfWeekDate, userTimeZone);
-        const { endOfDayUTC: endWeekUTC } = getUserTimezoneDateRange(endOfWeekDate, userTimeZone);
-        start = startWeekUTC;
-        end = endWeekUTC;
-        if (periodEl) periodEl.textContent = `${startOfWeekDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${endOfWeekDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        start = new Date(date.getFullYear(), date.getMonth(), diff, 0, 0, 0, 0);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23,59,59,999);
+        if (periodEl) periodEl.textContent = `${start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
     } else { // 'month'
-        const startOfMonthDate = new Date(date.getFullYear(), date.getMonth(), 1);
-        const endOfMonthDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-        const { startOfDayUTC: startMonthUTC } = getUserTimezoneDateRange(startOfMonthDate, userTimeZone);
-        const { endOfDayUTC: endMonthUTC } = getUserTimezoneDateRange(endOfMonthDate, userTimeZone);
-        start = startMonthUTC;
-        end = endMonthUTC;
+        start = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+        end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
         if (periodEl) periodEl.textContent = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     }
 
-    const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION)
-                .where('fechaInicio', '>=', start)
-                .where('fechaInicio', '<=', end)
-                .orderBy('fechaInicio', 'asc');
+    const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).where('fechaInicio', '<=', end).orderBy('fechaInicio', 'asc');
     
     unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
         if (!document.getElementById('calendar-content')) return;
         const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
+        const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
         
-        // CAMBIO: Pasamos 'userNow' a todas las funciones de renderizado.
-        if (view === 'day') renderDayView(allEvents, currentCalendarDate, userNow);
-        else if (view === 'three_day') renderThreeDayView(allEvents, date, userNow);
-        else if (view === 'week') renderWeekView(allEvents, start, userNow);
-        else if (view === 'month') renderMonthView(allEvents, date, userNow);
+        if (view === 'day') renderDayView(eventsInRange, currentCalendarDate);
+        else if (view === 'three_day') renderThreeDayView(eventsInRange, date);
+        else if (view === 'week') renderWeekView(eventsInRange, start);
+        else if (view === 'month') renderMonthView(eventsInRange, date);
         
         hideSpinner();
     }, error => { console.error("Error en listener de calendario:", error); hideSpinner(); });
 }
+
+// ====================================================================================
+// --- FIN DEL BLOQUE DE REEMPLAZO ---
+// ====================================================================================
+
 // =========================================================================
 // --- INICIO: NUEVA FUNCIÓN DE CÁLCULO DE DISEÑO DE EVENTOS ---
 // =========================================================================
-function calculateEventLayout(eventsForDay, HOUR_HEIGHT, userTimeZone) { // <-- CAMBIO: Acepta userTimeZone
+function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
     if (!eventsForDay || eventsForDay.length === 0) return [];
 
+    // 1. Ordenar eventos por hora de inicio
     const sortedEvents = [...eventsForDay].sort((a, b) => a.fechaInicio - b.fechaInicio);
 
+    // 2. Calcular 'top' y 'height' inicial para cada evento
     sortedEvents.forEach(event => {
-        // --- INICIO DE LA CORRECCIÓN VISUAL ---
-        // Traducimos las fechas UTC a la hora local del usuario ANTES de calcular la posición.
-        const localStartDate = convertUTCToUserLocalDate(event.fechaInicio, userTimeZone);
-        const localEndDate = convertUTCToUserLocalDate(event.fechaFin, userTimeZone);
-        // --- FIN DE LA CORRECCIÓN VISUAL ---
-
-        const startMinutes = localStartDate.getHours() * 60 + localStartDate.getMinutes();
-        const endMinutes = localEndDate.getHours() * 60 + localEndDate.getMinutes();
-        const durationMinutes = Math.max(30, (endMinutes - startMinutes));
+        const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
+        const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
+        const durationMinutes = Math.max(30, (endMinutes - startMinutes)); // Duración mínima visual de 30 min
         
         event.layout = {
             top: (startMinutes / 60) * HOUR_HEIGHT,
@@ -5131,28 +5063,46 @@ function calculateEventLayout(eventsForDay, HOUR_HEIGHT, userTimeZone) { // <-- 
         };
     });
 
-    // El resto de la lógica de colisiones no necesita cambios.
+    // 3. Detectar colisiones y determinar el ancho y la posición
     for (let i = 0; i < sortedEvents.length; i++) {
         const eventA = sortedEvents[i];
+        let collisionGroup = [eventA];
+
         for (let j = i + 1; j < sortedEvents.length; j++) {
             const eventB = sortedEvents[j];
+            // Si el evento B empieza antes de que el A termine, hay colisión
             if (eventB.fechaInicio < eventA.fechaFin) {
-                const maxCollisions = sortedEvents.filter(e => e.fechaInicio < eventB.fechaFin && e.fechaFin > eventB.fechaInicio).length;
-                eventA.layout.collisions = Math.max(eventA.layout.collisions, maxCollisions);
-                eventB.layout.collisions = Math.max(eventB.layout.collisions, maxCollisions);
+                collisionGroup.push(eventB);
             }
+        }
+        
+        // Solo si hay más de un evento colisionando, ajustamos el layout
+        if (collisionGroup.length > 1) {
+            // Re-evaluar el grupo para encontrar el número máximo de solapamientos simultáneos
+            const maxCollisions = collisionGroup.reduce((max, currentEvent) => {
+                const simultaneous = collisionGroup.filter(e => e.fechaInicio < currentEvent.fechaFin && e.fechaFin > currentEvent.fechaInicio).length;
+                return Math.max(max, simultaneous);
+            }, 1);
+
+            collisionGroup.forEach(eventInGroup => {
+                // Asignamos el número máximo de colisiones detectado a todos los miembros del grupo
+                eventInGroup.layout.collisions = Math.max(eventInGroup.layout.collisions, maxCollisions);
+            });
         }
     }
 
+    // 4. Asignar el índice de columna (posición horizontal)
     sortedEvents.forEach(event => {
         const collidingEvents = sortedEvents.filter(e => e !== event && e.fechaInicio < event.fechaFin && e.fechaFin > event.fechaInicio);
         const colIndicesTaken = collidingEvents.map(e => e.layout.colIndex);
+        
         let assignedColIndex = 0;
         while (colIndicesTaken.includes(assignedColIndex)) {
             assignedColIndex++;
         }
         event.layout.colIndex = assignedColIndex;
     });
+
 
     return sortedEvents;
 }
@@ -5215,61 +5165,10 @@ async function handleTimelineClick(event) {
         renderCalendarEventForm(null, renderCalendarView, prefilledStartDate, prefilledEndDate);
     }
 }
-async function handleTimelineClick(event) {
-    const eventBlock = event.target.closest('.event-block, .month-event-pill');
-    const emptySlot = event.target.closest('.calendar-day-col');
-
-    // CASO 1: Se ha hecho clic en un evento existente
-    if (eventBlock) {
-        const eventId = eventBlock.dataset.eventId;
-        if (!eventId) return;
-        
-        showSpinner();
-        try {
-            const eventDoc = await db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).doc(eventId).get();
-            if (eventDoc.exists) {
-                const eventData = eventDoc.data();
-                renderCalendarEventForm({ id: eventDoc.id, ...eventData, fechaInicio: eventData.fechaInicio.toDate(), fechaFin: eventData.fechaFin.toDate() }, renderCalendarView);
-            } else {
-                showToast("El evento ya no existe.", true);
-            }
-        } catch (err) {
-            showToast(`Error al cargar evento: ${err.message}`, true);
-        } finally {
-            hideSpinner();
-        }
-        return;
-    }
-
-    // CASO 2: Se ha hecho clic en un hueco vacío
-    if (emptySlot) {
-        const HOUR_HEIGHT = 60;
-        const dateISO = emptySlot.dataset.dateIso;
-        if (!dateISO) return;
-
-        const baseDate = new Date(dateISO);
-        const clickY = event.offsetY;
-        
-        const totalMinutes = (clickY / HOUR_HEIGHT) * 60;
-        const roundedMinutes = Math.floor(totalMinutes / 15) * 15; // Redondear hacia abajo al cuarto de hora más cercano
-        
-        const startHour = Math.floor(roundedMinutes / 60);
-        const startMinute = roundedMinutes % 60;
-
-        const prefilledStartDate = new Date(baseDate);
-        prefilledStartDate.setHours(startHour, startMinute, 0, 0);
-
-        const prefilledEndDate = new Date(prefilledStartDate.getTime() + 60 * 60 * 1000); // 1 hora después
-
-        renderCalendarEventForm(null, renderCalendarView, prefilledStartDate, prefilledEndDate);
-    }
-}
-// CAMBIO: La función ahora acepta 'userNow'
-function renderDayView(events, currentDate, userNow) {
+function renderDayView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
-    // CAMBIO: La comparación de "hoy" se hace contra 'userNow'.
-    const isToday = currentDate.toDateString() === userNow.toDateString();
+    const isToday = currentDate.toDateString() === new Date().toDateString();
 
     const allDayEvents = events.filter(e => e.esTodoElDia);
     const timedEvents = events.filter(e => !e.esTodoElDia);
@@ -5297,12 +5196,11 @@ function renderDayView(events, currentDate, userNow) {
     contentEl.innerHTML = structureHtml;
 
     const dayCol = document.getElementById('day-col-today');
-    const layoutReadyEvents = calculateEventLayout(timedEvents, HOUR_HEIGHT, userTimeZone);
+    const layoutReadyEvents = calculateEventLayout(timedEvents, HOUR_HEIGHT);
     let dayEventsHtml = '';
 
     if (isToday) {
-        // CAMBIO: La posición de la línea se calcula con 'userNow'.
-        const now = userNow;
+        const now = new Date();
         const nowPosition = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
         dayEventsHtml += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
     }
@@ -5331,9 +5229,7 @@ function renderDayView(events, currentDate, userNow) {
         }, 100);
     }
 }
-
-// CAMBIO: La función ahora acepta 'userNow'
-function renderWeekView(events, startOfWeek, userNow) {
+function renderWeekView(events, startOfWeek) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
     const allDayEvents = events.filter(e => e.esTodoElDia);
@@ -5345,8 +5241,7 @@ function renderWeekView(events, startOfWeek, userNow) {
     for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
         day.setDate(startOfWeek.getDate() + i);
-        // CAMBIO: La comparación de "hoy" se hace contra 'userNow'.
-        const isToday = day.toDateString() === userNow.toDateString();
+        const isToday = day.toDateString() === new Date().toDateString();
         const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
         
         headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span class="day-name">${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
@@ -5389,7 +5284,7 @@ function renderWeekView(events, startOfWeek, userNow) {
     
     for (let i = 0; i < 7; i++) {
         const dayCol = document.getElementById(`day-col-week-${i}`);
-        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT, userTimeZone);
+        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
         dayCol.innerHTML = layoutReadyEvents.map(event => {
             const width = 100 / event.layout.collisions;
             const left = event.layout.colIndex * width;
@@ -5404,9 +5299,7 @@ function renderWeekView(events, startOfWeek, userNow) {
     contentEl.removeEventListener('click', handleTimelineClick);
     contentEl.addEventListener('click', handleTimelineClick);
 }
-
-// CAMBIO: La función ahora acepta 'userNow'
-function renderThreeDayView(events, startDate, userNow) {
+function renderThreeDayView(events, startDate) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
     const allDayEvents = events.filter(e => e.esTodoElDia);
@@ -5417,8 +5310,7 @@ function renderThreeDayView(events, startDate, userNow) {
 
     for (let i = 0; i < 3; i++) {
         const day = new Date(startDate); day.setDate(startDate.getDate() + i);
-        // CAMBIO: La comparación de "hoy" se hace contra 'userNow'.
-        const isToday = day.toDateString() === userNow.toDateString();
+        const isToday = day.toDateString() === new Date().toDateString();
         const dayNumber = isToday ? `<span class="day-number-circle">${day.getDate()}</span>` : `<span>${day.getDate()}</span>`;
         
         headerDaysHtml += `<div class="day-label ${isToday ? 'today':''}"><span class="day-name">${day.toLocaleDateString('es-ES',{weekday:'short'})}</span>${dayNumber}</div>`;
@@ -5461,7 +5353,7 @@ function renderThreeDayView(events, startDate, userNow) {
     
     for (let i = 0; i < 3; i++) {
         const dayCol = document.getElementById(`day-col-3day-${i}`);
-        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT, userTimeZone);
+        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
         dayCol.innerHTML = layoutReadyEvents.map(event => {
             const width = 100 / event.layout.collisions;
             const left = event.layout.colIndex * width;
@@ -5476,72 +5368,81 @@ function renderThreeDayView(events, startDate, userNow) {
     contentEl.removeEventListener('click', handleTimelineClick);
     contentEl.addEventListener('click', handleTimelineClick);
 }
-
-// CAMBIO: La función ahora acepta 'userNow'
-function renderMonthView(events, currentDate, userNow) {
+function renderMonthView(events, currentDate) {
     const contentEl = document.getElementById('calendar-content');
     const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
+    // Contenedor principal que envuelve la cabecera y la cuadrícula
     let finalHtml = `<div class="calendar-month-container">`;
+    
+    // Cabecera con los días de la semana
     let headerHtml = `<div class="calendar-month-header">`;
     weekdays.forEach(day => {
         headerHtml += `<div class="calendar-day-header">${day}</div>`;
     });
     headerHtml += `</div>`;
     finalHtml += headerHtml;
+
+    // Cuadrícula principal del mes
     let gridHtml = `<div class="calendar-month-grid">`;
 
     const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    // Ajuste para que la semana empiece en Lunes (getDay() 0=Dom, 1=Lun...)
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; 
 
+    // Añadir celdas vacías para los días del mes anterior
     for (let i = 0; i < startDayOfWeek; i++) {
         gridHtml += `<div class="calendar-day-cell empty" style="background-color: var(--bg);"></div>`; 
     }
     
+    // Generar las celdas para cada día del mes
     for (let dayNum = 1; dayNum <= lastDay.getDate(); dayNum++) {
         const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
-        // CAMBIO: La comparación de "hoy" se hace contra 'userNow'.
-        const isToday = day.toDateString() === userNow.toDateString();
+        const isToday = day.toDateString() === new Date().toDateString();
         const dayStart = new Date(new Date(day).setHours(0,0,0,0));
         const dayEnd = new Date(new Date(day).setHours(23,59,59,999));
         
+        // --- LÓGICA CORREGIDA ---
+        // Ahora solo filtramos los eventos que INICIAN en este día.
         const eventsForDay = events.filter(e => e.fechaInicio >= dayStart && e.fechaInicio <= dayEnd);
         
+        // Empieza la celda del día
         gridHtml += `<div class="calendar-day-cell ${isToday ? 'today' : ''}" data-date="${day.toISOString()}">
                         <div class="calendar-day-number">${dayNum}</div>
-                        <div class="month-events-container">`;
+                        <div class="month-events-container">`; // Contenedor para las pastillas
 
-        eventsForDay.slice(0, 3).forEach(event => {
+        // Genera las "pastillas" para los eventos del día
+        eventsForDay.slice(0, 3).forEach(event => { // Muestra un máximo de 3 eventos
             gridHtml += `<div class="month-event-pill" style="background-color:${event.color || '#36A2EB'};">${event.titulo}</div>`;
         });
 
+        // Si hay más de 3 eventos, muestra un indicador
         if (eventsForDay.length > 3) {
             gridHtml += `<div class="month-event-pill" style="background:var(--muted);">${eventsForDay.length - 3} más...</div>`;
         }
         
+        // Cierra los contenedores
         gridHtml += `   </div>
                       </div>`;
     }
     
-    gridHtml += `</div>`;
+    gridHtml += `</div>`; // Cierre de calendar-month-grid
     finalHtml += gridHtml;
-    finalHtml += `</div>`;
+    finalHtml += `</div>`; // Cierre de calendar-month-container
     
     contentEl.innerHTML = finalHtml;
 
+    // Añade el listener para hacer clic en un día y cambiar a la vista de "Hoy" (vista de día)
     contentEl.querySelectorAll('.calendar-day-cell:not(.empty)').forEach(dayCell => {
         dayCell.onclick = (e) => {
             currentCalendarDate = new Date(e.currentTarget.dataset.date);
+            // Cambiamos la vista activa a 'day' y recargamos
             currentCalendarView = 'day';
-            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate, userNow); // CAMBIO: Pasar userNow
+            loadAndDisplayCalendarEvents(currentCalendarView, currentCalendarDate);
         };
     });
 }
-
-// ====================================================================================
-// --- FIN DEL BLOQUE DE REEMPLAZO ---
-// ====================================================================================
 
 function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDate = null, prefilledEndDate = null) {
     navigationHistory.push(onBackCallback);
@@ -5550,9 +5451,6 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     let currentNotifications = (isEditing && event.notificaciones) ? 
         event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
         [];
-    
-    const userTimeZone = appData.settings.timeZone || 'UTC';
-    const userNow = new Date(new Date().toLocaleString('en-US', { timeZone: userTimeZone }));
 
     const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
         `<div class="custom-dropdown-item" data-value="${preset.value}">
@@ -5602,28 +5500,31 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     const chipsContainer = document.getElementById('notification-chips-container');
     const addNotificationBtn = document.getElementById('add-notification-btn');
 
-    // --- LÓGICA DE flatpickr CON CORRECCIÓN FINAL ---
+    let initialStartDate;
+
     const fpEnd = flatpickr("#event-end-date", {
         disableMobile: true,
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-        defaultDate: isEditing ? convertUTCToUserLocalDate(event.fechaFin, userTimeZone) : (prefilledEndDate || new Date(userNow.getTime() + 60 * 60 * 1000)),
-        minDate: isEditing ? convertUTCToUserLocalDate(event.fechaInicio, userTimeZone) : userNow
+        defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
     });
 
     const fpStart = flatpickr("#event-start-date", {
         disableMobile: true,
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-        defaultDate: isEditing ? convertUTCToUserLocalDate(event.fechaInicio, userTimeZone) : (prefilledStartDate || userNow),
-        minDate: userNow,
-        onChange: function(selectedDates, dateStr, instance) {
+        defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || new Date()),
+        onReady: function(selectedDates) {
+            if (selectedDates.length > 0) { initialStartDate = new Date(selectedDates[0].getTime()); }
+        },
+        onChange: function(selectedDates) {
             const newStartDate = selectedDates[0];
-            if (!newStartDate) return;
-            const newEndDate = new Date(newStartDate.getTime() + 60 * 60 * 1000);
-            fpEnd.setDate(newEndDate, true);
-            fpEnd.set('minDate', newStartDate);
+            if (!newStartDate || !initialStartDate || newStartDate.getTime() === initialStartDate.getTime()) { return; }
+            initialStartDate = new Date(newStartDate.getTime());
+            const currentEndDate = fpEnd.selectedDates[0];
+            if (!currentEndDate || newStartDate >= currentEndDate) {
+                fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
+            }
         }
     });
-    // --- FIN DE LA LÓGICA DE flatpickr ---
 
     const toggleTimePickers = () => {
         const isAllDay = allDayCheckbox.checked;
@@ -5693,9 +5594,11 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     titleInput.oninput = validate;
     validate();
     
+    // --- LÓGICA DE GUARDADO CON SPINNER INTEGRADO ---
     saveBtn.onclick = async () => {
         const originalBtnHTML = saveBtn.innerHTML;
         const otherBtn = document.getElementById('delete-event-btn') || document.getElementById('cancel-event-btn');
+
         saveBtn.disabled = true;
         if (otherBtn) otherBtn.disabled = true;
         saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;
@@ -5704,7 +5607,11 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
             const finalEventData = isEditing ? { ...event } : {};
             finalEventData.notificaciones = currentNotifications;
             await saveCalendarEvent(finalEventData);
+            // Si tiene éxito, saveCalendarEvent navega y no necesitamos hacer nada más aquí.
         } catch (error) {
+            // Si saveCalendarEvent falla, lanza un error que capturamos aquí.
+            // El toast de error ya se muestra dentro de saveCalendarEvent.
+            // Solo necesitamos restaurar los botones.
             saveBtn.disabled = false;
             if (otherBtn) otherBtn.disabled = false;
             saveBtn.innerHTML = originalBtnHTML;
@@ -5716,30 +5623,38 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
         deleteBtn.onclick = () => {
             const buttonGroup = deleteBtn.closest('.button-group');
             if (!buttonGroup) return;
+
             deleteBtn.style.display = 'none';
             saveBtn.style.display = 'none';
+
             const confirmYes = document.createElement('button');
             confirmYes.className = 'confirm-btn-yes enabled';
             confirmYes.textContent = 'Sí, Eliminar';
             const originalYesText = confirmYes.textContent;
+
             const confirmNo = document.createElement('button');
             confirmNo.className = 'confirm-btn-no enabled';
             confirmNo.textContent = 'No';
+
             confirmYes.onclick = async () => {
                 confirmYes.disabled = true;
                 confirmNo.disabled = true;
                 confirmYes.innerHTML = `<span class="spinner btn-spinner"></span> Eliminando...`;
+                
                 await handleDeleteCalendarEvent(event.id);
+                
                 confirmYes.disabled = false;
                 confirmNo.disabled = false;
                 confirmYes.innerHTML = originalYesText;
             };
+
             confirmNo.onclick = () => {
                 deleteBtn.style.display = 'block';
                 saveBtn.style.display = 'block';
                 confirmYes.remove();
                 confirmNo.remove();
             };
+
             buttonGroup.appendChild(confirmNo);
             buttonGroup.appendChild(confirmYes);
         };
@@ -5849,36 +5764,27 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     setTimeout(() => { modal.classList.add('show'); }, 10);
 }
 async function saveCalendarEvent(eventData) {
+    // Se elimina showSpinner(). El feedback visual se gestionará en el botón.
     const title = document.getElementById('event-title').value.trim();
     const isEditing = eventData && eventData.id;
 
     if (!title) {
         showToast("El título es obligatorio.", true);
-        throw new Error("Título vacío.");
+        return; // No continuamos si no hay título.
     }
 
     try {
-        const userTimeZone = appData.settings.timeZone || 'UTC';
         const isAllDay = document.getElementById('event-all-day').checked;
-        
-        let startDateLocalDevice = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-        let endDateLocalDevice = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
-
-        const now = new Date();
-        const nowInUserTz = new Date(now.toLocaleString('en-US', { timeZone: userTimeZone }));
-        const nowInDeviceTz = new Date(now.toLocaleString('en-US'));
-        const offset = nowInUserTz.getTime() - nowInDeviceTz.getTime();
-        
-        let startDateUTC = new Date(startDateLocalDevice.getTime() + offset);
-        let endDateUTC = new Date(endDateLocalDevice.getTime() + offset);
+        let startDate = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
+        let endDate = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
 
         if (isAllDay) {
-            const range = getUserTimezoneDateRange(startDateUTC, userTimeZone);
-            startDateUTC = range.startOfDayUTC;
-            endDateUTC = range.endOfDayUTC;
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(startDate); 
+            endDate.setHours(23, 59, 59, 999);
         }
 
-        if (endDateUTC < startDateUTC) {
+        if (endDate < startDate) {
             throw new Error("La fecha de fin no puede ser anterior a la de inicio.");
         }
 
@@ -5893,8 +5799,8 @@ async function saveCalendarEvent(eventData) {
             titulo: title,
             descripcion: document.getElementById('event-description').value.trim(),
             color: document.getElementById('event-color-value').value,
-            fechaInicio: firebase.firestore.Timestamp.fromDate(startDateUTC),
-            fechaFin: firebase.firestore.Timestamp.fromDate(endDateUTC),
+            fechaInicio: firebase.firestore.Timestamp.fromDate(startDate),
+            fechaFin: firebase.firestore.Timestamp.fromDate(endDate),
             esTodoElDia: isAllDay,
             notificaciones: notificationsToSave,
             status: 'pending_creation'
@@ -5905,29 +5811,21 @@ async function saveCalendarEvent(eventData) {
         if (isEditing) {
             await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
         } else {
-            // --- INICIO DE LA LÓGICA DE ID PERSONALIZADO ---
-            // Usamos la fecha ya convertida a la hora local del usuario para generar el ID.
-            const dateForId = new Date(startDateLocalDevice); 
-            const yyyy = dateForId.getFullYear();
-            const mm = String(dateForId.getMonth() + 1).padStart(2, '0');
-            const dd = String(dateForId.getDate()).padStart(2, '0');
-            const HH = String(dateForId.getHours()).padStart(2, '0');
-            const MM = String(dateForId.getMinutes()).padStart(2, '0');
-            const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
-            const customId = `${yyyy}${mm}${dd}_${HH}${MM}_${randomPart}`;
-
-            await collectionRef.doc(customId).set(dataToSave);
-            // --- FIN DE LA LÓGICA DE ID PERSONALIZADO ---
+            await collectionRef.add(dataToSave);
         }
         
         await recalculateAndSyncCalendarCount();
+        
+        // Se elimina el toast de éxito. La navegación es la confirmación.
         goBack();
 
     } catch (err) {
         console.error("Error guardando evento en Firestore:", err);
         showToast(`Error al guardar: ${err.message}`, true);
+        // Lanzamos el error para que la UI pueda reaccionar (ej: reactivar el botón).
         throw err;
     }
+    // No hay 'finally' porque no hay spinner global.
 }
 
 /**
@@ -5938,13 +5836,13 @@ async function saveCalendarEvent(eventData) {
 async function recalculateAndSyncCalendarCount() {
     try {
         console.log("Sincronizando contador del calendario en Firestore...");
-        // Utiliza la zona horaria del usuario para el cálculo preciso de "hoy".
-		const userTimeZone = appData.settings.timeZone;
-		const { startOfDayUTC, endOfDayUTC } = getUserTimezoneDateRange(new Date(), userTimeZone);
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
 
-		// Convertimos las fechas UTC calculadas al formato Timestamp de Firestore.
-		const startTimestamp = firebase.firestore.Timestamp.fromDate(startOfDayUTC);
-		const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfDayUTC);
+        const startTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
+        const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
 
         const snapshot = await db.collection('users').doc(chatId).collection('eventos_calendario')
             .where('fechaInicio', '>=', startTimestamp)
