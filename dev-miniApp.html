@@ -1550,6 +1550,27 @@ function getUserTimezoneDateRange(targetDate, timeZone) {
         return { startOfDayUTC, endOfDayUTC };
     }
 }
+/**
+ * [NUEVA FUNCIÓN REUTILIZABLE v2]
+ * Convierte una fecha UTC (de Firestore) a un objeto Date que representa
+ * la hora local del usuario, para ser usada en la UI.
+ * @param {Date} utcDate - La fecha en formato UTC que viene de la base de datos.
+ * @param {string} timeZone - La zona horaria IANA del usuario.
+ * @returns {Date} Un objeto Date ajustado.
+ */
+function convertUTCToUserLocalDate(utcDate, timeZone) {
+    if (!utcDate || !timeZone) return utcDate; // Devolver la fecha original si falta algún dato
+    try {
+        // Creamos una cadena de texto de la fecha en la zona horaria del usuario.
+        const localString = utcDate.toLocaleString('en-US', { timeZone: timeZone, hour12: false });
+        // El navegador convierte esta cadena a un objeto Date usando su propia zona horaria,
+        // pero los valores de hora, minuto, etc., serán los correctos del usuario.
+        return new Date(localString);
+    } catch (e) {
+        console.error("Error al convertir UTC a local, usando fecha original:", e);
+        return utcDate;
+    }
+}
 function showToast(msg, isError = false, persistent = false) {
     const t = document.getElementById('toast');
     
@@ -5086,17 +5107,21 @@ function loadAndDisplayCalendarEvents(view, date, userNow) {
 // =========================================================================
 // --- INICIO: NUEVA FUNCIÓN DE CÁLCULO DE DISEÑO DE EVENTOS ---
 // =========================================================================
-function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
+function calculateEventLayout(eventsForDay, HOUR_HEIGHT, userTimeZone) { // <-- CAMBIO: Acepta userTimeZone
     if (!eventsForDay || eventsForDay.length === 0) return [];
 
-    // 1. Ordenar eventos por hora de inicio
     const sortedEvents = [...eventsForDay].sort((a, b) => a.fechaInicio - b.fechaInicio);
 
-    // 2. Calcular 'top' y 'height' inicial para cada evento
     sortedEvents.forEach(event => {
-        const startMinutes = event.fechaInicio.getHours() * 60 + event.fechaInicio.getMinutes();
-        const endMinutes = event.fechaFin.getHours() * 60 + event.fechaFin.getMinutes();
-        const durationMinutes = Math.max(30, (endMinutes - startMinutes)); // Duración mínima visual de 30 min
+        // --- INICIO DE LA CORRECCIÓN VISUAL ---
+        // Traducimos las fechas UTC a la hora local del usuario ANTES de calcular la posición.
+        const localStartDate = convertUTCToUserLocalDate(event.fechaInicio, userTimeZone);
+        const localEndDate = convertUTCToUserLocalDate(event.fechaFin, userTimeZone);
+        // --- FIN DE LA CORRECCIÓN VISUAL ---
+
+        const startMinutes = localStartDate.getHours() * 60 + localStartDate.getMinutes();
+        const endMinutes = localEndDate.getHours() * 60 + localEndDate.getMinutes();
+        const durationMinutes = Math.max(30, (endMinutes - startMinutes));
         
         event.layout = {
             top: (startMinutes / 60) * HOUR_HEIGHT,
@@ -5106,46 +5131,28 @@ function calculateEventLayout(eventsForDay, HOUR_HEIGHT) {
         };
     });
 
-    // 3. Detectar colisiones y determinar el ancho y la posición
+    // El resto de la lógica de colisiones no necesita cambios.
     for (let i = 0; i < sortedEvents.length; i++) {
         const eventA = sortedEvents[i];
-        let collisionGroup = [eventA];
-
         for (let j = i + 1; j < sortedEvents.length; j++) {
             const eventB = sortedEvents[j];
-            // Si el evento B empieza antes de que el A termine, hay colisión
             if (eventB.fechaInicio < eventA.fechaFin) {
-                collisionGroup.push(eventB);
+                const maxCollisions = sortedEvents.filter(e => e.fechaInicio < eventB.fechaFin && e.fechaFin > eventB.fechaInicio).length;
+                eventA.layout.collisions = Math.max(eventA.layout.collisions, maxCollisions);
+                eventB.layout.collisions = Math.max(eventB.layout.collisions, maxCollisions);
             }
-        }
-        
-        // Solo si hay más de un evento colisionando, ajustamos el layout
-        if (collisionGroup.length > 1) {
-            // Re-evaluar el grupo para encontrar el número máximo de solapamientos simultáneos
-            const maxCollisions = collisionGroup.reduce((max, currentEvent) => {
-                const simultaneous = collisionGroup.filter(e => e.fechaInicio < currentEvent.fechaFin && e.fechaFin > currentEvent.fechaInicio).length;
-                return Math.max(max, simultaneous);
-            }, 1);
-
-            collisionGroup.forEach(eventInGroup => {
-                // Asignamos el número máximo de colisiones detectado a todos los miembros del grupo
-                eventInGroup.layout.collisions = Math.max(eventInGroup.layout.collisions, maxCollisions);
-            });
         }
     }
 
-    // 4. Asignar el índice de columna (posición horizontal)
     sortedEvents.forEach(event => {
         const collidingEvents = sortedEvents.filter(e => e !== event && e.fechaInicio < event.fechaFin && e.fechaFin > event.fechaInicio);
         const colIndicesTaken = collidingEvents.map(e => e.layout.colIndex);
-        
         let assignedColIndex = 0;
         while (colIndicesTaken.includes(assignedColIndex)) {
             assignedColIndex++;
         }
         event.layout.colIndex = assignedColIndex;
     });
-
 
     return sortedEvents;
 }
@@ -5290,7 +5297,7 @@ function renderDayView(events, currentDate, userNow) {
     contentEl.innerHTML = structureHtml;
 
     const dayCol = document.getElementById('day-col-today');
-    const layoutReadyEvents = calculateEventLayout(timedEvents, HOUR_HEIGHT);
+    const layoutReadyEvents = calculateEventLayout(timedEvents, HOUR_HEIGHT, userTimeZone);
     let dayEventsHtml = '';
 
     if (isToday) {
@@ -5382,7 +5389,7 @@ function renderWeekView(events, startOfWeek, userNow) {
     
     for (let i = 0; i < 7; i++) {
         const dayCol = document.getElementById(`day-col-week-${i}`);
-        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
+        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT, userTimeZone);
         dayCol.innerHTML = layoutReadyEvents.map(event => {
             const width = 100 / event.layout.collisions;
             const left = event.layout.colIndex * width;
@@ -5454,7 +5461,7 @@ function renderThreeDayView(events, startDate, userNow) {
     
     for (let i = 0; i < 3; i++) {
         const dayCol = document.getElementById(`day-col-3day-${i}`);
-        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT);
+        const layoutReadyEvents = calculateEventLayout(eventsByDay[i], HOUR_HEIGHT, userTimeZone);
         dayCol.innerHTML = layoutReadyEvents.map(event => {
             const width = 100 / event.layout.collisions;
             const left = event.layout.colIndex * width;
@@ -5544,10 +5551,8 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
         event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
         [];
     
-    // --- INICIO DE LA CORRECCIÓN DE ZONA HORARIA ---
     const userTimeZone = appData.settings.timeZone || 'UTC';
     const userNow = new Date(new Date().toLocaleString('en-US', { timeZone: userTimeZone }));
-    // --- FIN DE LA CORRECCIÓN ---
 
     const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
         `<div class="custom-dropdown-item" data-value="${preset.value}">
@@ -5597,35 +5602,29 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     const chipsContainer = document.getElementById('notification-chips-container');
     const addNotificationBtn = document.getElementById('add-notification-btn');
 
-    // --- LÓGICA DE flatpickr COMPLETAMENTE REVISADA ---
+    // --- LÓGICA DE flatpickr CON CORRECCIÓN FINAL ---
     const fpEnd = flatpickr("#event-end-date", {
         disableMobile: true,
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-        // Valor por defecto corregido
-        defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(userNow.getTime() + 60 * 60 * 1000)),
-        minDate: isEditing ? event.fechaInicio : userNow
+        defaultDate: isEditing ? convertUTCToUserLocalDate(event.fechaFin, userTimeZone) : (prefilledEndDate || new Date(userNow.getTime() + 60 * 60 * 1000)),
+        minDate: isEditing ? convertUTCToUserLocalDate(event.fechaInicio, userTimeZone) : userNow
     });
 
     const fpStart = flatpickr("#event-start-date", {
         disableMobile: true,
         enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-        // Valor por defecto y validación corregidos
-        defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || userNow),
+        defaultDate: isEditing ? convertUTCToUserLocalDate(event.fechaInicio, userTimeZone) : (prefilledStartDate || userNow),
         minDate: userNow,
         onChange: function(selectedDates, dateStr, instance) {
             const newStartDate = selectedDates[0];
             if (!newStartDate) return;
-            
-            // Sincronizar fecha de fin: Siempre una hora después
             const newEndDate = new Date(newStartDate.getTime() + 60 * 60 * 1000);
             fpEnd.setDate(newEndDate, true);
-            
-            // Sincronizar validación: La fecha de fin no puede ser anterior a la de inicio
             fpEnd.set('minDate', newStartDate);
         }
     });
-    // --- FIN DE LA LÓGICA REVISADA ---
-    
+    // --- FIN DE LA LÓGICA DE flatpickr ---
+
     const toggleTimePickers = () => {
         const isAllDay = allDayCheckbox.checked;
         timePickersDiv.style.display = isAllDay ? 'none' : 'block';
@@ -5639,7 +5638,6 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     allDayCheckbox.onchange = toggleTimePickers;
     toggleTimePickers();
 
-    // El resto de la función (colores, notificaciones, validación, botones) permanece sin cambios funcionales.
     const colorSelector = document.getElementById('color-selector');
     const colorOptions = document.getElementById('color-options');
     const colorValueInput = document.getElementById('event-color-value');
@@ -5856,31 +5854,25 @@ async function saveCalendarEvent(eventData) {
 
     if (!title) {
         showToast("El título es obligatorio.", true);
-        throw new Error("Título vacío."); // Lanzamos error para detener la ejecución y que la UI reaccione.
+        throw new Error("Título vacío.");
     }
 
     try {
         const userTimeZone = appData.settings.timeZone || 'UTC';
         const isAllDay = document.getElementById('event-all-day').checked;
         
-        // Obtenemos las fechas seleccionadas, que están en la hora local del dispositivo (España)
         let startDateLocalDevice = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
         let endDateLocalDevice = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
 
-        // --- INICIO DE LA TRADUCCIÓN INVERSA DE ZONA HORARIA ---
-        // 1. Calculamos el desfase entre el dispositivo y el usuario final.
         const now = new Date();
         const nowInUserTz = new Date(now.toLocaleString('en-US', { timeZone: userTimeZone }));
-        const nowInDeviceTz = new Date(now.toLocaleString('en-US')); // Hora local del dispositivo
+        const nowInDeviceTz = new Date(now.toLocaleString('en-US'));
         const offset = nowInUserTz.getTime() - nowInDeviceTz.getTime();
         
-        // 2. Aplicamos el desfase para obtener las fechas UTC correctas.
         let startDateUTC = new Date(startDateLocalDevice.getTime() + offset);
         let endDateUTC = new Date(endDateLocalDevice.getTime() + offset);
-        // --- FIN DE LA TRADUCCIÓN INVERSA ---
 
         if (isAllDay) {
-            // Para eventos de todo el día, nos aseguramos de que cubran el día completo en la zona del usuario.
             const range = getUserTimezoneDateRange(startDateUTC, userTimeZone);
             startDateUTC = range.startOfDayUTC;
             endDateUTC = range.endOfDayUTC;
@@ -5913,16 +5905,28 @@ async function saveCalendarEvent(eventData) {
         if (isEditing) {
             await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
         } else {
-            await collectionRef.add(dataToSave);
+            // --- INICIO DE LA LÓGICA DE ID PERSONALIZADO ---
+            // Usamos la fecha ya convertida a la hora local del usuario para generar el ID.
+            const dateForId = new Date(startDateLocalDevice); 
+            const yyyy = dateForId.getFullYear();
+            const mm = String(dateForId.getMonth() + 1).padStart(2, '0');
+            const dd = String(dateForId.getDate()).padStart(2, '0');
+            const HH = String(dateForId.getHours()).padStart(2, '0');
+            const MM = String(dateForId.getMinutes()).padStart(2, '0');
+            const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const customId = `${yyyy}${mm}${dd}_${HH}${MM}_${randomPart}`;
+
+            await collectionRef.doc(customId).set(dataToSave);
+            // --- FIN DE LA LÓGICA DE ID PERSONALIZADO ---
         }
         
         await recalculateAndSyncCalendarCount();
-        goBack(); // Navegación exitosa
+        goBack();
 
     } catch (err) {
         console.error("Error guardando evento en Firestore:", err);
         showToast(`Error al guardar: ${err.message}`, true);
-        throw err; // Re-lanzamos el error para que la UI sepa que algo falló.
+        throw err;
     }
 }
 
