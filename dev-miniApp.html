@@ -5205,13 +5205,13 @@ function renderDayView(events, currentDate, userTimeZone) {
 
     if (isToday) {
         setTimeout(() => {
-            const scrollBody = contentEl.querySelector('.calendar-scroll-body');
-            const nowLine = contentEl.querySelector('.now-line');
-            if (scrollBody && nowLine) {
-                scrollBody.scrollTo({ top: nowLine.offsetTop - 50, behavior: 'smooth' });
-            }
-        }, 100);
-    }
+        const scrollBody = contentEl.querySelector('.calendar-scroll-body');
+        const nowLine = contentEl.querySelector('.now-line');
+        if (scrollBody && nowLine) {
+            scrollBody.scrollTo({ top: nowLine.offsetTop - 50, behavior: 'smooth' });
+        }
+    }, 100);
+}
 }
 	function renderWeekView(events, startOfWeek, userTimeZone) {
     const contentEl = document.getElementById('calendar-content');
