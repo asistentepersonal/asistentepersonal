@@ -2201,38 +2201,39 @@ async function renderShoppingList() {
                 .orderBy('fecha', 'desc');
 
     unsubscribeShoppingList = q.onSnapshot((snapshot) => {
-        const items = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            items.push({ 
-                id: doc.id,
-                articulo: data.articulo,
-                estado: data.estado,
-                fecha: data.fecha ? data.fecha.toDate() : null,
-                cycle: data.cycle || 0
-            });
+    const items = [];
+    snapshot.forEach((doc) => {
+        const data = doc.data();
+        items.push({ 
+            id: doc.id,
+            articulo: data.articulo,
+            estado: data.estado,
+            fecha: data.fecha ? data.fecha.toDate() : null,
+            cycle: data.cycle || 0
         });
-        
-        appData.shoppingList = items;
-        renderShoppingListContent(items);
-        updateShoppingCounts(items);
-        console.log("Lista de compras actualizada desde Firestore.");
+    });
+    
+    appData.shoppingList = items;
+    const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    renderShoppingListContent(items, userTimeZone);
+    updateShoppingCounts(items);
+    console.log("Lista de compras actualizada desde Firestore.");
 
-    }, (error) => {
+}, (error) => {
         console.error("Error al escuchar la lista de compras:", error);
         showToast("Error en tiempo real de la lista de compras.", true);
         document.getElementById('shopping-list-content').innerHTML = '<div class="no-data-msg">❌ Error al cargar la lista.</div>';
     });
 }
 
-function renderShoppingListContent(items) {
+function renderShoppingListContent(items, userTimeZone) {
     const pendingItems = items.filter(item => item.estado === 'Pendiente');
     const boughtItems = items.filter(item => item.estado === 'Comprado');
     let listHtml = '';
     
     const createItemHTML = (item) => {
         const isPending = item.estado === 'Pendiente';
-        const formattedDate = item.fecha ? item.fecha.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+        const formattedDate = item.fecha ? item.fecha.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: userTimeZone }) : '';
         
         return `
             <li class="shopping-item" id="item-${item.id}">
