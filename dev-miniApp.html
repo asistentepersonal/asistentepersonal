@@ -2044,7 +2044,7 @@ async function saveReminder() {
     } catch (err) {
         showToast(`Error: ${err.message}. El recordatorio no se guardó.`, true);
         // En caso de error, forzamos una recarga desde Firestore para eliminar el ítem optimista.
-        renderRemindersList(); 
+        goBack(); 
     }
 }
 
@@ -2062,7 +2062,13 @@ async function renderRemindersList() {
     });
     updateBackButton();
     
-    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list"><div class="no-data-msg">Cargando...</div></ul></div>`;
+    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list"></ul></div>`;
+
+// Dibuja la lista inmediatamente desde la memoria local para una carga optimista
+	drawRemindersList();
+	const listElement = document.getElementById('reminders-list');
+	listElement.removeEventListener('click', handleReminderListClick); // Previene duplicados
+	listElement.addEventListener('click', handleReminderListClick);
     const listElement = document.getElementById('reminders-list');
 
     // Desconectar cualquier listener anterior para evitar duplicados
