@@ -2053,7 +2053,6 @@ let unsubscribeRemindersList = null;
 
 async function renderRemindersList() {
     navigationHistory.push(() => {
-        // Al volver atrás, nos aseguramos de que el listener se desconecte
         if (typeof unsubscribeRemindersList === 'function') {
             unsubscribeRemindersList();
             unsubscribeRemindersList = null;
@@ -2064,14 +2063,13 @@ async function renderRemindersList() {
     
     mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list"></ul></div>`;
 
-// Dibuja la lista inmediatamente desde la memoria local para una carga optimista
-	drawRemindersList();
-	const listElement = document.getElementById('reminders-list');
-	listElement.removeEventListener('click', handleReminderListClick); // Previene duplicados
-	listElement.addEventListener('click', handleReminderListClick);
+    // Dibuja la lista inmediatamente desde la memoria local para una carga optimista
+    drawRemindersList();
+    
     const listElement = document.getElementById('reminders-list');
+    listElement.removeEventListener('click', handleReminderListClick); // Previene duplicados
+    listElement.addEventListener('click', handleReminderListClick);
 
-    // Desconectar cualquier listener anterior para evitar duplicados
     if (typeof unsubscribeRemindersList === 'function') {
         unsubscribeRemindersList();
     }
@@ -2079,61 +2077,32 @@ async function renderRemindersList() {
     const q = db.collection('users').doc(chatId).collection('notificaciones')
                 .orderBy('fecha_universal', 'asc');
     
-    // --- INICIO DE LA LÓGICA EN TIEMPO REAL ---
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-    const reminders = [];
-    snapshot.forEach(doc => {
-        const data = doc.data();
-        reminders.push({
-            tracking_code: doc.id,
-            Descripcion: data.descripcion,
-            Categoria: data.categoria_recordatorio,
-            Fecha: data.hora_local,
-            Status: data.status
+        const reminders = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            reminders.push({
+                tracking_code: doc.id,
+                Descripcion: data.descripcion,
+                Categoria: data.categoria_recordatorio,
+                Fecha: data.hora_local,
+                Status: data.status
+            });
         });
-    });
-    
-    appData.remindersList = reminders;
-    appData.counts.remindersCount = reminders.length;
-    if (document.getElementById('reminders-badge')) {
-        document.getElementById('reminders-badge').textContent = reminders.length;
-    }
-
-    drawRemindersList(); // <-- LLAMADA A LA NUEVA FUNCIÓN
-
-}, error => {
-        // Actualizamos el contador global y el badge
+        
+        appData.remindersList = reminders;
         appData.counts.remindersCount = reminders.length;
         if (document.getElementById('reminders-badge')) {
             document.getElementById('reminders-badge').textContent = reminders.length;
         }
 
-        const listHtml = reminders.map(item => `
-            <li class="list-item" id="item-${item.tracking_code}">
-                <div class="list-item-content">
-                    <span class="list-item-title">
-                        ${item.Status === 'pending_creation' ? '⌛ ' : ''}${item.Descripcion}
-                    </span>
-                    <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
-                </div>
-                <div class="list-item-actions">
-                    <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
-                    <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                        <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
-                    </div>
-                </div>
-            </li>`).join('');
-
-        listElement.innerHTML = listHtml;
-        listElement.removeEventListener('click', handleReminderListClick); // Prevenir duplicados
-        listElement.addEventListener('click', handleReminderListClick);
+        drawRemindersList();
 
     }, error => {
         console.error("Error en el listener de recordatorios:", error);
         showToast("Error de conexión con la lista.", true);
-        listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
+        if(listElement) listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
     });
-    // --- FIN DE LA LÓGICA EN TIEMPO REAL ---
 }
 
 function drawRemindersList() {
