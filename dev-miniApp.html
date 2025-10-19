@@ -5196,7 +5196,7 @@ function renderDayView(events, currentDate, userTimeZone) {
         dayEventsHtml += `<div class="event-block" data-event-id="${event.id}" 
                              style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
                              <div class="event-block-title">${event.titulo}</div>
-                             <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                             <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', timeZone: userTimeZone})}</div>
                           </div>`;
     });
     dayCol.innerHTML = dayEventsHtml;
@@ -5276,7 +5276,7 @@ function renderDayView(events, currentDate, userTimeZone) {
             return `<div class="event-block" data-event-id="${event.id}" 
                          style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
                          <div class="event-block-title">${event.titulo}</div>
-                         <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                         <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', timeZone: userTimeZone})}</div>
                       </div>`;
         }).join('');
     }
@@ -5345,7 +5345,7 @@ function renderThreeDayView(events, startDate, userTimeZone) {
             return `<div class="event-block" data-event-id="${event.id}" 
                          style="top:${event.layout.top}px; height:${event.layout.height}px; left:${left}%; width:${width}%; background-color:${event.color||'#36A2EB'}; box-sizing: border-box;">
                          <div class="event-block-title">${event.titulo}</div>
-                         <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+                         <div class="event-block-time">${event.fechaInicio.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit', timeZone: userTimeZone})}</div>
                       </div>`;
         }).join('');
     }
