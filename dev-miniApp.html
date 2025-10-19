@@ -5003,10 +5003,12 @@ function loadAndDisplayCalendarEvents(view, date) {
     }
 
     const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).where('fechaInicio', '<=', end).orderBy('fechaInicio', 'asc');
-    
-    const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
+	const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+	console.log(`[Diagnóstico TimeZone] Usando: '${userTimeZone}'. (Valor de Firestore: '${appData.settings.timeZone}')`);
+
+	unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
     if (!document.getElementById('calendar-content')) return;
     const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
     const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
