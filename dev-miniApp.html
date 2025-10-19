@@ -1951,18 +1951,30 @@ function renderReminderForm() {
     </div>`;
   const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
   
-  // --- INICIO DE LA CORRECCIÓN CLAVE ---
-  flatpickr("#time", {
-    disableMobile: true, // <-- AÑADIDO: Fuerza la UI de flatpickr en móviles
-    enableTime: true,
-    altInput: true,
-    altFormat: "d/m/Y H:i",
-    dateFormat: "Y-m-d H:i",
-    defaultDate: new Date(),
-    locale: "es",
-    minDate: "today"
-  });
-  // --- FIN DE LA CORRECCIÓN CLAVE ---
+  // --- INICIO: Lógica robusta de fecha por defecto para Recordatorios ---
+const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const getNowInUserTimeZone = () => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: userTimeZone,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).formatToParts(now).reduce((acc, part) => ({ ...acc, [part.type]: part.value }), {});
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+};
+
+	flatpickr("#time", {
+	disableMobile: true,
+	enableTime: true,
+	altInput: true,
+	altFormat: "d/m/Y H:i",
+	dateFormat: "Y-m-d H:i",
+	defaultDate: getNowInUserTimeZone(),
+	locale: "es",
+	minDate: "today"
+});
+// --- FIN: Lógica robusta ---
 
   function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
   function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
