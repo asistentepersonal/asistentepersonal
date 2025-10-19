@@ -1986,7 +1986,6 @@ const getNowInUserTimeZone = () => {
 async function saveReminder() {
     const sendBtn = document.getElementById('sendBtn');
     sendBtn.disabled = true;
-    sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Creando...`;
 
     try {
         const category = document.querySelector('input[name="category"]:checked').value;
@@ -1998,46 +1997,54 @@ async function saveReminder() {
         if (!description || !selectedDate) {
             throw new Error("La descripción y la fecha son obligatorias.");
         }
-
-        // --- INICIO: LÓGICA DE LLAMADA A CLOUD FUNCTION ---
         
-        // 1. Preparamos los datos que necesita la Cloud Function.
-        // La fecha se envía como una cadena de texto local (ISO sin 'Z').
-        const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
+        // --- INICIO: LÓGICA OPTIMISTA ---
 
+        const customId = generateCustomId('G-');
+        const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
+
+        // 1. Creamos el objeto temporal y lo añadimos a la lista local.
+        const tempReminder = {
+            tracking_code: customId,
+            Descripcion: description,
+            Categoria: category,
+            Fecha: fechaLocalParaUI,
+            Status: 'pending_creation' // <-- Estado inicial con reloj de arena
+        };
+        appData.remindersList.unshift(tempReminder); // 'unshift' lo añade al principio
+
+        // 2. Navegamos y redibujamos la UI instantáneamente.
+        renderRemindersList();
+
+        // --- FIN: LÓGICA OPTIMISTA ---
+
+        // 3. En segundo plano, llamamos a la Cloud Function.
+        const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
         const datosRecordatorio = {
             descripcion: description,
             categoria_recordatorio: category,
+            hora_local: fechaLocalParaUI, // <-- CORRECCIÓN INCLUIDA PARA EL 'undefined'
             horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
         };
 
         const payload = {
             chatId: chatId,
-            tipo: 'recordatorioSimple', // Un 'tipo' para que el backend sepa qué hacer.
+            tipo: 'recordatorioSimple',
             fechaLocal: fechaLocalString,
             datos: datosRecordatorio
+            // El customId no lo enviaremos por ahora para no modificar el backend.
         };
-
-        // 2. Llamamos a la Cloud Function.
+        
         const functions = firebase.app().functions('europe-west1');
         const createNotificationFunction = functions.httpsCallable('createNotification');
-        const result = await createNotificationFunction(payload);
-
-        // 3. Verificamos el resultado.
-        if (!result.data.success) {
-            throw new Error(result.data.message || "La Cloud Function reportó un error.");
-        }
-        
-        // --- FIN: LÓGICA DE LLAMADA A CLOUD FUNCTION ---
-        
-        showToast("Recordatorio programado con éxito.");
-        renderRemindersList();
+        await createNotificationFunction(payload);
+        // Si la llamada falla, el error se captura en el bloque catch.
+        // Si tiene éxito, no hacemos nada, 'onSnapshot' se encargará de quitar el ⌛.
 
     } catch (err) {
-        showToast(`Error: ${err.message}.`, true);
-        sendBtn.disabled = false;
-        sendBtn.innerHTML = 'Crear Recordatorio';
-        sendBtn.classList.add('enabled');
+        showToast(`Error: ${err.message}. El recordatorio no se guardó.`, true);
+        // En caso de error, forzamos una recarga desde Firestore para eliminar el ítem optimista.
+        renderRemindersList(); 
     }
 }
 
@@ -2068,29 +2075,27 @@ async function renderRemindersList() {
     
     // --- INICIO DE LA LÓGICA EN TIEMPO REAL ---
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-        if (snapshot.empty) {
-            listElement.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-            appData.remindersList = [];
-            appData.counts.remindersCount = 0;
-            if (document.getElementById('reminders-badge')) {
-                document.getElementById('reminders-badge').textContent = 0;
-            }
-            return;
-        }
-
-        const reminders = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            reminders.push({
-                tracking_code: doc.id,
-                Descripcion: data.descripcion,
-                Categoria: data.categoria_recordatorio,
-                Fecha: data.hora_local,
-                Status: data.status // Guardamos el estado para la UI
-            });
+    const reminders = [];
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        reminders.push({
+            tracking_code: doc.id,
+            Descripcion: data.descripcion,
+            Categoria: data.categoria_recordatorio,
+            Fecha: data.hora_local,
+            Status: data.status
         });
-        
-        appData.remindersList = reminders;
+    });
+    
+    appData.remindersList = reminders;
+    appData.counts.remindersCount = reminders.length;
+    if (document.getElementById('reminders-badge')) {
+        document.getElementById('reminders-badge').textContent = reminders.length;
+    }
+
+    drawRemindersList(); // <-- LLAMADA A LA NUEVA FUNCIÓN
+
+}, error => {
         // Actualizamos el contador global y el badge
         appData.counts.remindersCount = reminders.length;
         if (document.getElementById('reminders-badge')) {
@@ -2123,6 +2128,34 @@ async function renderRemindersList() {
         listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
     });
     // --- FIN DE LA LÓGICA EN TIEMPO REAL ---
+}
+
+function drawRemindersList() {
+    const listElement = document.getElementById('reminders-list');
+    if (!listElement) return;
+
+    if (appData.remindersList.length === 0) {
+        listElement.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+        return;
+    }
+
+    const listHtml = appData.remindersList.map(item => `
+        <li class="list-item" id="item-${item.tracking_code}">
+            <div class="list-item-content">
+                <span class="list-item-title">
+                    ${item.Status === 'pending_creation' ? '⌛ ' : ''}${item.Descripcion}
+                </span>
+                <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+            </div>
+            <div class="list-item-actions">
+                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
+                <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
+                    <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
+                </div>
+            </div>
+        </li>`).join('');
+
+    listElement.innerHTML = listHtml;
 }
 
 // Nueva función de ayuda para manejar los clics en la lista
