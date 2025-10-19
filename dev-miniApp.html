@@ -5600,7 +5600,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
     // --- LÓGICA DE flatpickr COMPLETAMENTE REVISADA ---
     const fpEnd = flatpickr("#event-end-date", {
         disableMobile: true,
-        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Y-m-d H:i:S", locale: "es",
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         // Valor por defecto corregido
         defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(userNow.getTime() + 60 * 60 * 1000)),
         minDate: isEditing ? event.fechaInicio : userNow
@@ -5608,7 +5608,7 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
 
     const fpStart = flatpickr("#event-start-date", {
         disableMobile: true,
-        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Y-m-d H:i:S", locale: "es",
+        enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
         // Valor por defecto y validación corregidos
         defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || userNow),
         minDate: userNow,
