@@ -5187,10 +5187,29 @@ function renderDayView(events, currentDate, userTimeZone) {
     let dayEventsHtml = '';
 
     if (isToday) {
-        const now = new Date();
-        const nowPosition = ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT;
-        dayEventsHtml += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
-    }
+    // --- INICIO: Lógica de cálculo de hora actual robusta ---
+    const nowUTC = new Date();
+    
+    // Obtenemos el offset en minutos para la zona horaria del usuario.
+    // Intl.DateTimeFormat nos da las partes de la hora en esa zona.
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: userTimeZone,
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    }).formatToParts(nowUTC);
+    
+    const getPart = (partName) => parseInt(parts.find(p => p.type === partName)?.value || '0', 10);
+    
+    const hoursInUserTimeZone = getPart('hour');
+    const minutesInUserTimeZone = getPart('minute');
+    
+    // Calculamos la posición basándonos en la hora real de la zona del usuario.
+    const nowPosition = ((hoursInUserTimeZone * 60 + minutesInUserTimeZone) / 60) * HOUR_HEIGHT;
+    dayEventsHtml += `<div class="now-line" style="top: ${nowPosition}px; left:0; right:0;"></div>`;
+    // --- FIN: Lógica robusta ---
+}
 
     layoutReadyEvents.forEach(event => {
         const width = 100 / event.layout.collisions;
