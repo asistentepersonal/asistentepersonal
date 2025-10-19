@@ -2352,9 +2352,9 @@ async function toggleShoppingItemStatus(itemId, newStatus) {
         }
 
         await itemRef.update({
-            estado: newStatus,
-            fecha: firebase.firestore.FieldValue.serverTimestamp()
-        });
+		estado: newStatus,
+		fecha: new Date()
+	});
         // El listener onSnapshot en tiempo real se encargará de actualizar la UI automáticamente.
 
     } catch (err) {
