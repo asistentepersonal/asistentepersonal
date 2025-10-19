@@ -1388,7 +1388,7 @@ tg.onEvent('viewportChanged', async (event) => {
     }
 });
 }
-
+const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
 let selectedImageFile = null;
     let chatId; // Solo declaramos la variable aquí.
     
@@ -4157,30 +4157,12 @@ async function executeExport() {
         showToast("Por favor, selecciona ambas fechas.", true);
         return;
     }
-    
-    // URL de tu nueva Cloud Function
-    const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/exportarGastos';
-
     try {
-        const payload = {
-            chatId: chatId,
-            startDate: startDate,
-            endDate: endDate
-        };
-
-        const response = await fetch(functionUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: payload })
-        });
-        
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error.message || 'Error desconocido del servidor.');
-        }
-
-        showToast(result.result.message || "Petición de exportación enviada.");
+        const payload = { Type: 'export_gastos', chat_ID: chatId, startDate: startDate, endDate: endDate };
+        const res = await fetchWithTimeout(gasWebhookURL, payload);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showToast(data.message || "Petición de exportación enviada. Revisa tu email.");
         renderDashboard();
     } catch (err) {
         showToast(`Error al exportar: ${err.message}`, true);
@@ -5022,19 +5004,21 @@ function loadAndDisplayCalendarEvents(view, date) {
 
     const q = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION).where('fechaInicio', '<=', end).orderBy('fechaInicio', 'asc');
     
-    unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
-        if (!document.getElementById('calendar-content')) return;
-        const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
-        const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
-        
-        if (view === 'day') renderDayView(eventsInRange, currentCalendarDate);
-        else if (view === 'three_day') renderThreeDayView(eventsInRange, date);
-        else if (view === 'week') renderWeekView(eventsInRange, start);
-        else if (view === 'month') renderMonthView(eventsInRange, date);
-        
-        hideSpinner();
-    }, error => { console.error("Error en listener de calendario:", error); hideSpinner(); });
-}
+    const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+unsubscribeCalendarEvents = q.onSnapshot(snapshot => {
+    if (!document.getElementById('calendar-content')) return;
+    const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), fechaInicio: doc.data().fechaInicio.toDate(), fechaFin: doc.data().fechaFin.toDate() }));
+    const eventsInRange = allEvents.filter(e => e.fechaFin >= start);
+    
+    if (view === 'day') renderDayView(eventsInRange, currentCalendarDate, userTimeZone);
+    else if (view === 'three_day') renderThreeDayView(eventsInRange, date, userTimeZone);
+    else if (view === 'week') renderWeekView(eventsInRange, start, userTimeZone);
+    else if (view === 'month') renderMonthView(eventsInRange, date);
+    
+    hideSpinner();
+	}, error => { console.error("Error en listener de calendario:", error); hideSpinner(); 
+});
 
 // ====================================================================================
 // --- FIN DEL BLOQUE DE REEMPLAZO ---
@@ -5165,7 +5149,7 @@ async function handleTimelineClick(event) {
         renderCalendarEventForm(null, renderCalendarView, prefilledStartDate, prefilledEndDate);
     }
 }
-function renderDayView(events, currentDate) {
+function renderDayView(events, currentDate, userTimeZone) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
     const isToday = currentDate.toDateString() === new Date().toDateString();
@@ -5229,7 +5213,7 @@ function renderDayView(events, currentDate) {
         }, 100);
     }
 }
-function renderWeekView(events, startOfWeek) {
+	function renderWeekView(events, startOfWeek, userTimeZone) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
     const allDayEvents = events.filter(e => e.esTodoElDia);
@@ -5299,7 +5283,7 @@ function renderWeekView(events, startOfWeek) {
     contentEl.removeEventListener('click', handleTimelineClick);
     contentEl.addEventListener('click', handleTimelineClick);
 }
-function renderThreeDayView(events, startDate) {
+function renderThreeDayView(events, startDate, userTimeZone) {
     const contentEl = document.getElementById('calendar-content');
     const HOUR_HEIGHT = 60;
     const allDayEvents = events.filter(e => e.esTodoElDia);
