@@ -1427,9 +1427,26 @@ let selectedImageFile = null;
     }
     
     // --- VERIFICACIÓN FINAL CONTRA LA LISTA BLANCA ---
-    if (!authorizedUsers.includes(chatId)) {
-        failApp("Acceso no autorizado.", true);
+    // --- INICIO: Lógica de Autorización Condicional ---
+if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    // --- ESTAMOS EN TELEGRAM: Verificamos en Firestore ---
+    try {
+        // Esperamos a que la inicialización de la app termine para tener 'db' disponible.
+        // Usamos un pequeño truco para esperar a que la promesa de inicialización se resuelva.
+        await new Promise(resolve => setTimeout(resolve, 0)); 
+        
+        const userDoc = await db.collection('users').doc(chatId).get();
+        if (!userDoc.exists || userDoc.data().activo !== true) {
+            failApp("Acceso no autorizado.", true);
+        }
+    } catch (dbError) {
+        console.error("Error de autorización en Firestore:", dbError);
+        failApp("Error de conexión al verificar acceso.", true);
     }
+} else {
+    
+}
+// --- FIN: Lógica de Autorización Condicional ---
 
 
 let appData = { 
@@ -4045,6 +4062,7 @@ async function saveSettings() {
             nombre: document.getElementById('settings-nombre').value,
             ciudad: capitalize(document.getElementById('settings-ciudad').value.trim()),
             pais: capitalize(document.getElementById('settings-pais').value.trim()),
+			alertaInventario: document.getElementById('settings-alerta-inventario').checked,
 			
             // Enviamos un objeto 'informesConfig' que la Cloud Function ya sabe cómo interpretar.
             informesConfig: {
