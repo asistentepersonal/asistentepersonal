@@ -5582,30 +5582,27 @@ const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolved
     return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 };
 
-	// --- LÓGICA DE FECHAS MEJORADA Y CON RESTRICCIONES ---
-const defaultStartDate = isEditing ? event.fechaInicio : (prefilledStartDate || getNowInUserTimeZone());
-const defaultEndDate = isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date(defaultStartDate).getTime() + 60 * 60 * 1000));
+	// --- LÓGICA DE FECHAS CORREGIDA (V3) ---
+const nowInUserZone = new Date(getNowInUserTimeZone());
+const defaultStartDate = isEditing ? event.fechaInicio : (prefilledStartDate || nowInUserZone);
+const defaultEndDate = isEditing ? event.fechaFin : (prefilledEndDate || new Date(defaultStartDate.getTime() + 60 * 60 * 1000));
 
 const fpEnd = flatpickr("#event-end-date", {
     disableMobile: true,
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
     defaultDate: defaultEndDate,
-    minDate: defaultStartDate // Restricción inicial para que Fin no sea menor que Inicio
+    minDate: defaultStartDate
 });
 
 const fpStart = flatpickr("#event-start-date", {
     disableMobile: true,
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
     defaultDate: defaultStartDate,
-    minDate: isEditing ? null : new Date(), // Si se crea un evento, no puede ser en el pasado.
+    minDate: isEditing ? null : nowInUserZone, // Usamos la misma referencia de 'ahora'
     onChange: function(selectedDates) {
         const newStartDate = selectedDates[0];
         if (!newStartDate) return;
-
-        // 1. Siempre actualiza la fecha de fin a 1h más.
         fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
-
-        // 2. Y actualiza la restricción mínima de la fecha de fin para que el usuario no pueda seleccionar una anterior.
         fpEnd.set('minDate', newStartDate);
     }
 });
@@ -5678,29 +5675,13 @@ const fpStart = flatpickr("#event-start-date", {
     titleInput.oninput = validate;
     validate();
     
-    // --- LÓGICA DE GUARDADO CON SPINNER INTEGRADO ---
-    saveBtn.onclick = async () => {
-        const originalBtnHTML = saveBtn.innerHTML;
-        const otherBtn = document.getElementById('delete-event-btn') || document.getElementById('cancel-event-btn');
-
-        saveBtn.disabled = true;
-        if (otherBtn) otherBtn.disabled = true;
-        saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;
-
-        try {
-            const finalEventData = isEditing ? { ...event } : {};
-            finalEventData.notificaciones = currentNotifications;
-            await saveCalendarEvent(finalEventData);
-            // Si tiene éxito, saveCalendarEvent navega y no necesitamos hacer nada más aquí.
-        } catch (error) {
-            // Si saveCalendarEvent falla, lanza un error que capturamos aquí.
-            // El toast de error ya se muestra dentro de saveCalendarEvent.
-            // Solo necesitamos restaurar los botones.
-            saveBtn.disabled = false;
-            if (otherBtn) otherBtn.disabled = false;
-            saveBtn.innerHTML = originalBtnHTML;
-        }
-    };
+    // --- LÓGICA DE GUARDADO CORREGIDA (V2) ---
+saveBtn.onclick = () => {
+    const eventId = isEditing ? event.id : null;
+    const notifications = currentNotifications;
+    // La llamada a saveCalendarEvent ahora es directa y maneja su propia UI.
+    saveCalendarEvent(eventId, notifications);
+};
 
     if (isEditing) {
         const deleteBtn = document.getElementById('delete-event-btn');
@@ -5847,13 +5828,13 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     modal.style.display = 'flex';
     setTimeout(() => { modal.classList.add('show'); }, 10);
 }
-async function saveCalendarEvent(eventData) {
+async function saveCalendarEvent(eventId, notifications) {
     const title = document.getElementById('event-title').value.trim();
-    const isEditing = eventData && eventData.id;
+    const isEditing = !!eventId;
 
     if (!title) {
         showToast("El título es obligatorio.", true);
-        throw new Error("El título es obligatorio.");
+        return; // Salimos directamente
     }
 
     const saveBtn = document.getElementById('save-event-btn');
@@ -5865,36 +5846,22 @@ async function saveCalendarEvent(eventData) {
     saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;
 
     try {
-        // --- INICIO: LÓGICA DE CORRECCIÓN DE ZONA HORARIA ---
-
-        // Función de ayuda para convertir una fecha "ingenua" a un timestamp UTC verdadero
         const getTrueUTCTimestamp = (dateFromPicker, userTimeZone) => {
-            // 1. Extraemos los componentes numéricos de la fecha seleccionada.
-            // Esto representa la intención del usuario en su hora local.
             const year = dateFromPicker.getFullYear();
             const month = dateFromPicker.getMonth();
             const day = dateFromPicker.getDate();
             const hour = dateFromPicker.getHours();
             const minute = dateFromPicker.getMinutes();
-
-            // 2. Creamos un timestamp como si la hora local del usuario fuera UTC.
             const timestampAsUTC = Date.UTC(year, month, day, hour, minute);
-
-            // 3. Usamos Intl para calcular el offset de la zona horaria del usuario en esa fecha.
             const tempDate = new Date(timestampAsUTC);
             const utcParts = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric' }).formatToParts(tempDate).reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
             const userParts = new Intl.DateTimeFormat('en-US', { timeZone: userTimeZone, hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric' }).formatToParts(tempDate).reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
-
-            // Comparamos la diferencia de horas y días para calcular el offset.
             const hourDiff = (parseInt(userParts.hour, 10) % 24) - (parseInt(utcParts.hour, 10) % 24);
             let dayDiff = 0;
             if (parseInt(userParts.day, 10) > parseInt(utcParts.day, 10) || (parseInt(userParts.day, 10) === 1 && parseInt(utcParts.day, 10) > 20)) dayDiff = 1;
             if (parseInt(userParts.day, 10) < parseInt(utcParts.day, 10) || (parseInt(userParts.day, 10) > 20 && parseInt(utcParts.day, 10) === 1)) dayDiff = -1;
-            
             const offsetInHours = hourDiff + (dayDiff * 24);
             const offsetMilliseconds = offsetInHours * 60 * 60 * 1000;
-
-            // 4. Restamos el offset para obtener el timestamp UTC verdadero.
             return timestampAsUTC - offsetMilliseconds;
         };
 
@@ -5914,13 +5881,10 @@ async function saveCalendarEvent(eventData) {
             throw new Error("La fecha de fin no puede ser anterior a la de inicio.");
         }
 
-        // Convertimos las fechas al UTC correcto
         const finalStartDate = new Date(getTrueUTCTimestamp(startDateFromPicker, userTimeZone));
         const finalEndDate = new Date(getTrueUTCTimestamp(endDateFromPicker, userTimeZone));
 
-        // --- FIN: LÓGICA DE CORRECCIÓN ---
-
-        const notificationsToSave = (eventData.notificaciones || []).map(notif => ({
+        const notificationsToSave = (notifications || []).map(notif => ({
             metodo: notif.metodo,
             minutosAntes: notif.minutosAntes,
             status: 'pending_creation'
@@ -5930,8 +5894,8 @@ async function saveCalendarEvent(eventData) {
             titulo: title,
             descripcion: document.getElementById('event-description').value.trim(),
             color: document.getElementById('event-color-value').value,
-            fechaInicio: firebase.firestore.Timestamp.fromDate(finalStartDate), // <-- Usamos la fecha corregida
-            fechaFin: firebase.firestore.Timestamp.fromDate(finalEndDate),       // <-- Usamos la fecha corregida
+            fechaInicio: firebase.firestore.Timestamp.fromDate(finalStartDate),
+            fechaFin: firebase.firestore.Timestamp.fromDate(finalEndDate),
             esTodoElDia: isAllDay,
             notificaciones: notificationsToSave,
             status: 'pending_creation'
@@ -5940,7 +5904,7 @@ async function saveCalendarEvent(eventData) {
         const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
 
         if (isEditing) {
-            await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
+            await collectionRef.doc(eventId).set(dataToSave, { merge: true });
         } else {
             await collectionRef.add(dataToSave);
         }
@@ -5955,7 +5919,6 @@ async function saveCalendarEvent(eventData) {
         saveBtn.disabled = false;
         if (otherBtn) otherBtn.disabled = false;
         saveBtn.innerHTML = originalBtnHTML;
-        throw err;
     }
 }
 
