@@ -1201,6 +1201,7 @@ async function runApp() {
         updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
+		checkAppVersion(); // Realizamos una comprobación inicial de la versión al cargar.
         hideSplashScreen();
         
     } catch (err) {
@@ -1326,16 +1327,7 @@ if (tg) {
     // =========================================================================
     // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
     // =========================================================================
-tg.onEvent('viewportChanged', async (event) => {
-    const isAppMaximized = event.isStateStable && tg.isExpanded;
-    if (!isAppReady || !isAppMaximized) {
-        return;
-    }
-
-    // --- INICIO: VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR ---
-    if (window.isCheckingVersion) return; // Evitar verificaciones múltiples
-    window.isCheckingVersion = true;
-
+async function checkAppVersion() {
     try {
         const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
         const versionDoc = await db.collection('app_config').doc('version_info').get();
@@ -1353,6 +1345,24 @@ tg.onEvent('viewportChanged', async (event) => {
     } finally {
         setTimeout(() => { window.isCheckingVersion = false; }, 5000); // Permitir otra verificación tras 5s
     }
+}
+tg.onEvent('viewportChanged', async (event) => {
+    const isAppMaximized = event.isStateStable && tg.isExpanded;
+    if (!isAppReady || !isAppMaximized) {
+        return;
+    }
+
+    // --- INICIO: VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR ---
+    if (window.isCheckingVersion) return; // Evitar verificaciones múltiples
+    // Llamamos a nuestra nueva función centralizada.
+	await checkAppVersion();
+
+// Si hay una actualización pendiente (modal visible), no continuamos con la sincronización de datos.
+	if (document.getElementById('changelog-overlay')?.classList.contains('show')) {
+    return;
+}
+
+    
     // --- FIN: VERIFICACIÓN DE VERSIÓN ---
 
     // Si no hay actualización, la sincronización de datos continúa como antes.
