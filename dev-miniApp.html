@@ -6096,52 +6096,64 @@ document.getElementById('tab-chef').onclick = () => {
 // =========================================================================
 async function checkVersionAndBootstrap() {
     console.log("Iniciando guardián de versión...");
-	
-	if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-    // --- ESTAMOS EN TELEGRAM: Verificamos en Firestore ---
-    try {
-        // Esperamos a que la inicialización de la app termine para tener 'db' disponible.
-        // Usamos un pequeño truco para esperar a que la promesa de inicialización se resuelva.
-        await new Promise(resolve => setTimeout(resolve, 0)); 
-        
-        const userDoc = await db.collection('users').doc(chatId).get();
-        if (!userDoc.exists || userDoc.data().activo !== true) {
-            failApp("Acceso no autorizado.", true);
+
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        console.log("[DEBUG] Entorno: Telegram. Iniciando verificación en Firestore para el chatId:", chatId);
+        try {
+            await new Promise(resolve => setTimeout(resolve, 0));
+            if (!window.db) {
+                throw new Error("El objeto 'db' de Firestore no está inicializado.");
+            }
+            console.log("[DEBUG] Objeto 'db' de Firestore disponible. Realizando consulta...");
+            
+            const userDoc = await db.collection('users').doc(chatId).get();
+            
+            console.log("[DEBUG] Consulta a Firestore completada.");
+            console.log("[DEBUG] ¿Documento existe?:", userDoc.exists);
+
+            if (userDoc.exists) {
+                console.log("[DEBUG] Datos del documento:", userDoc.data());
+                console.log("[DEBUG] Valor del campo 'activo':", userDoc.data().activo);
+            }
+
+            if (!userDoc.exists || userDoc.data().activo !== true) {
+                console.warn("[DEBUG] ACCESO DENEGADO. Razón: El documento no existe o el campo 'activo' no es estrictamente 'true'.");
+                failApp("Acceso no autorizado.", true);
+            } else {
+                 console.log("[DEBUG] Acceso autorizado para", chatId);
+            }
+
+        } catch (dbError) {
+            console.error("¡ERROR CRÍTICO DE AUTORIZACIÓN EN FIRESTORE!", dbError);
+            failApp("Error de conexión al verificar acceso.", true);
         }
-    } catch (dbError) {
-        console.error("Error de autorización en Firestore:", dbError);
-        failApp("Error de conexión al verificar acceso.", true);
+    } else {
+        console.log("[DEBUG] Entorno: Desarrollo local. Verificando contra lista fija para el chatId:", chatId);
+        if (!authorizedUsers.includes(chatId)) {
+            failApp("Acceso no autorizado para este ID de desarrollo.", true);
+        } else {
+            console.log("[DEBUG] Acceso autorizado para", chatId);
+        }
     }
-}
+    
     try {
-        // Usamos parseFloat para manejar versiones con decimales como "99.1"
         const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
-        
         const versionDoc = await db.collection('app_config').doc('version_info').get();
         const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
-
         if (serverVersion > localVersion) {
-            // -- FLUJO DE ACTUALIZACIÓN --
             console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}.`);
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            
-            // ¡Clave! Ocultamos el splash ANTES de mostrar el modal.
-            hideSplashScreen(); 
+            hideSplashScreen();
             showChangelogModal(serverVersion, changelogText);
-            // No hacemos nada más. El modal se encargará del resto.
-
         } else {
-            // -- FLUJO NORMAL DE LA APP --
             if (localVersion === 0 && serverVersion > 0) {
                 localStorage.setItem('app_version', serverVersion);
             }
             console.log("Versión correcta. Arrancando la aplicación principal...");
-            initializeApp(); // Llamamos a la inicialización principal
+            initializeApp();
         }
-
     } catch (err) {
         console.error("Error crítico en el guardián de versión:", err);
-        // Si hay un error de red, intentamos arrancar la app igualmente (modo offline).
         initializeApp();
     }
 }
