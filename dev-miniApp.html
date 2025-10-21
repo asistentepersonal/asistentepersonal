@@ -5582,30 +5582,33 @@ const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolved
     return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 };
 
-	const fpEnd = flatpickr("#event-end-date", {
+	// --- LÓGICA DE FECHAS MEJORADA Y CON RESTRICCIONES ---
+const defaultStartDate = isEditing ? event.fechaInicio : (prefilledStartDate || getNowInUserTimeZone());
+const defaultEndDate = isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date(defaultStartDate).getTime() + 60 * 60 * 1000));
+
+const fpEnd = flatpickr("#event-end-date", {
     disableMobile: true,
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-    defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
+    defaultDate: defaultEndDate,
+    minDate: defaultStartDate // Restricción inicial para que Fin no sea menor que Inicio
 });
 
-	const fpStart = flatpickr("#event-start-date", {
+const fpStart = flatpickr("#event-start-date", {
     disableMobile: true,
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-    defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || getNowInUserTimeZone()),
-    onReady: function(selectedDates) {
-// --- FIN: Lógica robusta ---
-            if (selectedDates.length > 0) { initialStartDate = new Date(selectedDates[0].getTime()); }
-        },
-        onChange: function(selectedDates) {
-            const newStartDate = selectedDates[0];
-            if (!newStartDate || !initialStartDate || newStartDate.getTime() === initialStartDate.getTime()) { return; }
-            initialStartDate = new Date(newStartDate.getTime());
-            const currentEndDate = fpEnd.selectedDates[0];
-            if (!currentEndDate || newStartDate >= currentEndDate) {
-                fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
-            }
-        }
-    });
+    defaultDate: defaultStartDate,
+    minDate: isEditing ? null : new Date(), // Si se crea un evento, no puede ser en el pasado.
+    onChange: function(selectedDates) {
+        const newStartDate = selectedDates[0];
+        if (!newStartDate) return;
+
+        // 1. Siempre actualiza la fecha de fin a 1h más.
+        fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
+
+        // 2. Y actualiza la restricción mínima de la fecha de fin para que el usuario no pueda seleccionar una anterior.
+        fpEnd.set('minDate', newStartDate);
+    }
+});
 
     const toggleTimePickers = () => {
         const isAllDay = allDayCheckbox.checked;
