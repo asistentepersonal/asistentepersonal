@@ -5678,7 +5678,7 @@ const fpStart = flatpickr("#event-start-date", {
     // --- LÓGICA DE GUARDADO CORREGIDA (V2) ---
 saveBtn.onclick = () => {
     const eventId = isEditing ? event.id : null;
-    const notifications = currentNotifications;
+    const notifications = currentNotifications.map(n => ({...n})); // Pasamos una copia segura para evitar mutaciones
     // La llamada a saveCalendarEvent ahora es directa y maneja su propia UI.
     saveCalendarEvent(eventId, notifications);
 };
@@ -5831,6 +5831,7 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
 async function saveCalendarEvent(eventId, notifications) {
     const title = document.getElementById('event-title').value.trim();
     const isEditing = !!eventId;
+	let notificationsToSave = [];
 
     if (!title) {
         showToast("El título es obligatorio.", true);
@@ -5884,11 +5885,19 @@ async function saveCalendarEvent(eventId, notifications) {
         const finalStartDate = new Date(getTrueUTCTimestamp(startDateFromPicker, userTimeZone));
         const finalEndDate = new Date(getTrueUTCTimestamp(endDateFromPicker, userTimeZone));
 
-        const notificationsToSave = (notifications || []).map(notif => ({
-            metodo: notif.metodo,
-            minutosAntes: notif.minutosAntes,
-            status: 'pending_creation'
-        }));
+        if (isEditing) {
+    notificationsToSave = (notifications || []).map(notif => ({
+        metodo: notif.metodo,
+        minutosAntes: notif.minutosAntes,
+        status: notif.status || 'pending_creation' // Conserva el estado si existe, si no, lo crea
+    }));
+	} else {
+    notificationsToSave = (notifications || []).map(notif => ({
+        metodo: notif.metodo,
+        minutosAntes: notif.minutosAntes,
+        status: 'pending_creation' // Siempre se crean al ser un evento nuevo
+    }));
+}
 
         const dataToSave = {
             titulo: title,
