@@ -1426,27 +1426,12 @@ let selectedImageFile = null;
         failApp("El ID de Chat obtenido no es válido.");
     }
     
-    // --- VERIFICACIÓN FINAL CONTRA LA LISTA BLANCA ---
-    // --- INICIO: Lógica de Autorización Condicional ---
-if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-    // --- ESTAMOS EN TELEGRAM: Verificamos en Firestore ---
-    try {
-        // Esperamos a que la inicialización de la app termine para tener 'db' disponible.
-        // Usamos un pequeño truco para esperar a que la promesa de inicialización se resuelva.
-        await new Promise(resolve => setTimeout(resolve, 0)); 
-        
-        const userDoc = await db.collection('users').doc(chatId).get();
-        if (!userDoc.exists || userDoc.data().activo !== true) {
-            failApp("Acceso no autorizado.", true);
-        }
-    } catch (dbError) {
-        console.error("Error de autorización en Firestore:", dbError);
-        failApp("Error de conexión al verificar acceso.", true);
+    else {
+    // --- NO ESTAMOS EN TELEGRAM (Desarrollo Local): Verificamos la lista fija ---
+    if (!authorizedUsers.includes(chatId)) {
+        failApp("Acceso no autorizado para este ID de desarrollo.", true);
     }
-} else {
-    
 }
-// --- FIN: Lógica de Autorización Condicional ---
 
 
 let appData = { 
@@ -6111,6 +6096,23 @@ document.getElementById('tab-chef').onclick = () => {
 // =========================================================================
 async function checkVersionAndBootstrap() {
     console.log("Iniciando guardián de versión...");
+	
+	if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    // --- ESTAMOS EN TELEGRAM: Verificamos en Firestore ---
+    try {
+        // Esperamos a que la inicialización de la app termine para tener 'db' disponible.
+        // Usamos un pequeño truco para esperar a que la promesa de inicialización se resuelva.
+        await new Promise(resolve => setTimeout(resolve, 0)); 
+        
+        const userDoc = await db.collection('users').doc(chatId).get();
+        if (!userDoc.exists || userDoc.data().activo !== true) {
+            failApp("Acceso no autorizado.", true);
+        }
+    } catch (dbError) {
+        console.error("Error de autorización en Firestore:", dbError);
+        failApp("Error de conexión al verificar acceso.", true);
+    }
+}
     try {
         // Usamos parseFloat para manejar versiones con decimales como "99.1"
         const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
