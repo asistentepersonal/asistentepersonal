@@ -1263,6 +1263,25 @@ function showChangelogModal(version, changelogText) {
     // Mostramos el modal
     overlay.classList.add('show');
 }
+async function checkAppVersion() {
+    try {
+        const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
+        
+        if (serverVersion > localVersion) {
+            console.log(`Nueva versión detectada al maximizar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
+            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+            showChangelogModal(serverVersion, changelogText);
+            window.isCheckingVersion = false;
+            return; // IMPORTANTE: Detenemos la sincronización de datos si hay una actualización pendiente.
+        }
+    } catch (err) {
+        console.error("Error verificando versión al maximizar:", err);
+    } finally {
+        setTimeout(() => { window.isCheckingVersion = false; }, 5000); // Permitir otra verificación tras 5s
+    }
+}
 
 // --- INICIO: NUEVA FUNCIÓN PARA VERIFICAR VERSIÓN AL MAXIMIZAR ---
 async function checkVersionOnFocus() {
@@ -1327,25 +1346,7 @@ if (tg) {
     // =========================================================================
     // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
     // =========================================================================
-async function checkAppVersion() {
-    try {
-        const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
-        
-        if (serverVersion > localVersion) {
-            console.log(`Nueva versión detectada al maximizar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
-            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            showChangelogModal(serverVersion, changelogText);
-            window.isCheckingVersion = false;
-            return; // IMPORTANTE: Detenemos la sincronización de datos si hay una actualización pendiente.
-        }
-    } catch (err) {
-        console.error("Error verificando versión al maximizar:", err);
-    } finally {
-        setTimeout(() => { window.isCheckingVersion = false; }, 5000); // Permitir otra verificación tras 5s
-    }
-}
+
 tg.onEvent('viewportChanged', async (event) => {
     const isAppMaximized = event.isStateStable && tg.isExpanded;
     if (!isAppReady || !isAppMaximized) {
