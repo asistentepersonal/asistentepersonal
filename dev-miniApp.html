@@ -1252,6 +1252,7 @@ function showChangelogModal(version, changelogText) {
     const versionSpan = document.getElementById('changelog-version');
     const contentUl = document.getElementById('changelog-content');
     const continueBtn = document.getElementById('changelog-continue-btn');
+	hideSplashScreen();
 
     // Si los elementos no se encuentran por alguna razón, simplemente no mostramos el modal
     // y lo reportamos en la consola, evitando la recarga.
