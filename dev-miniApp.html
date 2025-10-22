@@ -6075,36 +6075,43 @@ document.getElementById('tab-chef').onclick = () => {
 // --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
 // =========================================================================
 async function checkVersionAndBootstrap() {
-    console.log("Iniciando guardián de versión...");
+    console.log("Iniciando punto de entrada único de la app...");
     try {
-        // Usamos parseFloat para manejar versiones con decimales como "99.1"
+        // 1. Obtener la versión local
         const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
         
+        // 2. Obtener la versión del servidor
         const versionDoc = await db.collection('app_config').doc('version_info').get();
         const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
-
+        
+        // 3. Comparar las versiones
         if (serverVersion > localVersion) {
-            // -- FLUJO DE ACTUALIZACIÓN --
-            console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}.`);
+            // DECISIÓN B: Hay una actualización.
+            console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}. Mostrando modal.`);
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
             
-            // ¡Clave! Ocultamos el splash ANTES de mostrar el modal.
+            // Ocultamos el splash ANTES de mostrar el modal para que no se superpongan.
             hideSplashScreen(); 
             showChangelogModal(serverVersion, changelogText);
-            // No hacemos nada más. El modal se encargará del resto.
-
-        } else {
-            // -- FLUJO NORMAL DE LA APP --
-            if (localVersion === 0 && serverVersion > 0) {
-                localStorage.setItem('app_version', serverVersion);
-            }
-            console.log("Versión correcta. Arrancando la aplicación principal...");
-            initializeApp(); // Llamamos a la inicialización principal
+            
+            // IMPORTANTE: Detenemos la ejecución aquí. No llamamos a initializeApp().
+            // La app no continuará hasta que el usuario pulse "Continuar" en el modal.
+            return; 
         }
+        
+        // DECISIÓN A: Las versiones coinciden o la local es más nueva (desarrollo).
+        // Si es la primera vez que se abre la app (localVersion es 0), actualizamos el localStorage.
+        if (localVersion === 0 && serverVersion > 0) {
+            localStorage.setItem('app_version', serverVersion);
+        }
+        console.log("Versión correcta. Arrancando la aplicación principal...");
+        initializeApp(); // Llamamos a la inicialización principal de la app.
 
     } catch (err) {
-        console.error("Error crítico en el guardián de versión:", err);
-        // Si hay un error de red, intentamos arrancar la app igualmente (modo offline).
+        console.error("Error en el punto de entrada (checkVersionAndBootstrap):", err);
+        // Si hay un error de red (no se puede contactar a Firestore), intentamos arrancar la app igualmente.
+        // El usuario podrá usar la app en modo offline si ya tiene los datos.
+        showToast("No se pudo verificar la versión. Podrías estar viendo una versión antigua.", true, true);
         initializeApp();
     }
 }
