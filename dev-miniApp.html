@@ -1077,6 +1077,28 @@
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+	let appData = { 
+    counts: { // Inicializar contadores con valores por defecto
+        remindersCount: 0, 
+        shoppingPendingCount: 0, 
+        shoppingBoughtCount: 0, 
+        notesCount: 0, 
+        calendarTodayCount: 0, 
+        gastosMesActual: '0,00', 
+        mesesActivosGastos: [],
+        cuentasClarasCount: 0 // <-- CONTADOR AÑADIDO
+    },
+    remindersList: [], 
+    shoppingList: [], 
+    notesList: [], 
+    calendarEvents: [], 
+    settings: {}, 
+    isPremium: false 
+};
+let initialUserSettings = {};
+let secondaryDataPromise = null;
+const mainContentArea = document.getElementById('main-content-area');
+const spinner = document.getElementById('spinner');
 	// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyCCz7-d3dX2uw_sF4swtmNY0zXScphxkZk",
@@ -1408,29 +1430,6 @@ if (tg && tg.ready) {
     startApp();
 }
 
-
-let appData = { 
-    counts: { // Inicializar contadores con valores por defecto
-        remindersCount: 0, 
-        shoppingPendingCount: 0, 
-        shoppingBoughtCount: 0, 
-        notesCount: 0, 
-        calendarTodayCount: 0, 
-        gastosMesActual: '0,00', 
-        mesesActivosGastos: [],
-        cuentasClarasCount: 0 // <-- CONTADOR AÑADIDO
-    },
-    remindersList: [], 
-    shoppingList: [], 
-    notesList: [], 
-    calendarEvents: [], 
-    settings: {}, 
-    isPremium: false 
-};
-let initialUserSettings = {};
-let secondaryDataPromise = null;
-const mainContentArea = document.getElementById('main-content-area');
-const spinner = document.getElementById('spinner');
 
 function showSpinner(message = '') { 
     spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : ''; 
