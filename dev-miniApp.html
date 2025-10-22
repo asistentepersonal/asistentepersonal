@@ -1077,6 +1077,28 @@
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+	let appData = { 
+    counts: { // Inicializar contadores con valores por defecto
+        remindersCount: 0, 
+        shoppingPendingCount: 0, 
+        shoppingBoughtCount: 0, 
+        notesCount: 0, 
+        calendarTodayCount: 0, 
+        gastosMesActual: '0,00', 
+        mesesActivosGastos: [],
+        cuentasClarasCount: 0 // <-- CONTADOR AÑADIDO
+    },
+    remindersList: [], 
+    shoppingList: [], 
+    notesList: [], 
+    calendarEvents: [], 
+    settings: {}, 
+    isPremium: false 
+};
+let initialUserSettings = {};
+let secondaryDataPromise = null;
+const mainContentArea = document.getElementById('main-content-area');
+const spinner = document.getElementById('spinner');
 	// --- INICIALIZACIÓN GLOBAL DE FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyCCz7-d3dX2uw_sF4swtmNY0zXScphxkZk",
@@ -1201,7 +1223,7 @@ async function runApp() {
         updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
-        hideSplashScreen();
+		hideSplashScreen();
         
     } catch (err) {
         console.error("Error crítico en runApp:", err);
@@ -1231,23 +1253,23 @@ function showChangelogModal(version, changelogText) {
     const contentUl = document.getElementById('changelog-content');
     const continueBtn = document.getElementById('changelog-continue-btn');
 
+    // Si los elementos no se encuentran por alguna razón, simplemente no mostramos el modal
+    // y lo reportamos en la consola, evitando la recarga.
     if (!overlay || !versionSpan || !contentUl || !continueBtn) {
-        // Si algo falla, forzamos la recarga para no bloquear al usuario
-        console.error("No se encontraron los elementos del modal de changelog. Forzando actualización.");
-        window.location.reload(true);
-        return;
+        console.error("No se encontraron los elementos del modal de changelog. La actualización no se puede mostrar visualmente.");
+        return; // Detenemos la función para evitar errores.
     }
 
     // Llenamos el modal con los datos de Firestore
     versionSpan.textContent = version;
     contentUl.innerHTML = changelogText
-        .split('*') // Separamos por el asterisco
+        .split('*')
         .map(line => line.trim())
         .filter(line => line.length > 0)
         .map(line => `<li>${line}</li>`)
         .join('');
 
-    // Definimos la acción del botón con la nueva lógica de localStorage
+    // Definimos la acción del botón con la lógica de localStorage y recarga forzada
     continueBtn.onclick = () => {
         overlay.classList.remove('show');
         setTimeout(() => {
@@ -1255,40 +1277,13 @@ function showChangelogModal(version, changelogText) {
             // 1. Guardamos la nueva versión en el almacenamiento local.
             localStorage.setItem('app_version', version);
             // 2. Forzamos una recarga completa para obtener el nuevo HTML.
-            window.location.reload(true);
+            window.location.href = window.location.pathname + '?v=' + new Date().getTime();
         }, 300);
     };
 
     // Mostramos el modal
     overlay.classList.add('show');
 }
-
-// --- INICIO: NUEVA FUNCIÓN PARA VERIFICAR VERSIÓN AL MAXIMIZAR ---
-async function checkVersionOnFocus() {
-    // Usamos una bandera global para evitar múltiples verificaciones si el evento se dispara rápido
-    if (window.isCheckingVersion) return;
-    window.isCheckingVersion = true;
-
-    console.log("Verificando versión al maximizar la app...");
-    try {
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        if (versionDoc.exists) {
-            const serverVersion = versionDoc.data().current_version;
-            // Si la versión del servidor es diferente a la del cliente, forzamos una recarga completa
-            if (String(serverVersion) !== String(HTML_VERSION)) {
-                console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Cliente: ${HTML_VERSION}. ¡Recargando!`);
-                window.location.reload(true); // El 'true' fuerza la recarga desde el servidor
-            }
-        }
-    } catch (err) {
-        // En caso de error (ej. sin conexión), no hacemos nada para no interrumpir al usuario.
-        console.error("Error durante la verificación de versión en foco:", err);
-    } finally {
-        // Reseteamos la bandera después de unos segundos para permitir futuras verificaciones
-        setTimeout(() => { window.isCheckingVersion = false; }, 5000);
-    }
-}
-// --- FIN: NUEVA FUNCIÓN ---
 
 // --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
@@ -1326,67 +1321,6 @@ if (tg) {
     // =========================================================================
     // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
     // =========================================================================
-tg.onEvent('viewportChanged', async (event) => {
-    const isAppMaximized = event.isStateStable && tg.isExpanded;
-    if (!isAppReady || !isAppMaximized) {
-        return;
-    }
-
-    // --- INICIO: VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR ---
-    if (window.isCheckingVersion) return; // Evitar verificaciones múltiples
-    window.isCheckingVersion = true;
-
-    try {
-        const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
-        
-        if (serverVersion > localVersion) {
-            console.log(`Nueva versión detectada al maximizar. Servidor: ${serverVersion}, Local: ${localVersion}.`);
-            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            showChangelogModal(serverVersion, changelogText);
-            window.isCheckingVersion = false;
-            return; // IMPORTANTE: Detenemos la sincronización de datos si hay una actualización pendiente.
-        }
-    } catch (err) {
-        console.error("Error verificando versión al maximizar:", err);
-    } finally {
-        setTimeout(() => { window.isCheckingVersion = false; }, 5000); // Permitir otra verificación tras 5s
-    }
-    // --- FIN: VERIFICACIÓN DE VERSIÓN ---
-
-    // Si no hay actualización, la sincronización de datos continúa como antes.
-    console.log("App maximizada y lista. Comprobando cambios de datos...");
-    
-    try {
-        const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
-        if (!countsDoc.exists) {
-            console.warn("No se encontró el documento de contadores durante la sincronización.");
-            return;
-        }
-
-        const serverCounts = countsDoc.data();
-        
-        // Usar JSON.stringify para una comparación robusta de los objetos
-        if (JSON.stringify(serverCounts) !== JSON.stringify(appData.counts)) {
-            console.log("Cambios en contadores detectados. Actualizando UI...");
-            
-            appData.counts = serverCounts;
-            // Importante: Solo refrescamos el dashboard SI estamos en la pantalla de Home
-            if (document.querySelector('.grid')) {
-                renderDashboard();
-            }
-            // showToast("Datos sincronizados.", false); // Desactivado para no molestar al usuario
-            // Marcamos las listas como potencialmente desactualizadas
-            appData.isSecondaryDataLoaded = false;
-        } else {
-            console.log("Sin cambios detectados en los contadores.");
-        }
-
-    } catch (err) {
-        console.error("Error en la sincronización al maximizar:", err);
-    }
-});
 }
 const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
 let selectedImageFile = null;
@@ -1407,6 +1341,8 @@ let selectedImageFile = null;
     }
 
     // --- NUEVO FLUJO DE INICIALIZACIÓN CON LISTA BLANCA ---
+    const startApp = () => {
+    // --- NUEVO FLUJO DE INICIALIZACIÓN CON LISTA BLANCA ---
     if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
         chatId = tg.initDataUnsafe.user.id.toString();
         console.log("Chat ID obtenido de Telegram:", chatId);
@@ -1426,34 +1362,43 @@ let selectedImageFile = null;
         failApp("El ID de Chat obtenido no es válido.");
     }
     
-    // --- VERIFICACIÓN FINAL CONTRA LA LISTA BLANCA ---
-    if (!authorizedUsers.includes(chatId)) {
-        failApp("Acceso no autorizado.", true);
-    }
+    // --- VERIFICACIÓN DE ACCESO (DESARROLLO Y ESTADO ACTIVO) ---
+    (async () => {
+        if (authorizedUsers.includes(chatId)) {
+            console.log("Acceso de desarrollador concedido. Omitiendo verificación de estado.");
+            checkVersionAndBootstrap();
+            return;
+        }
 
-
-let appData = { 
-    counts: { // Inicializar contadores con valores por defecto
-        remindersCount: 0, 
-        shoppingPendingCount: 0, 
-        shoppingBoughtCount: 0, 
-        notesCount: 0, 
-        calendarTodayCount: 0, 
-        gastosMesActual: '0,00', 
-        mesesActivosGastos: [],
-        cuentasClarasCount: 0 // <-- CONTADOR AÑADIDO
-    },
-    remindersList: [], 
-    shoppingList: [], 
-    notesList: [], 
-    calendarEvents: [], 
-    settings: {}, 
-    isPremium: false 
+        try {
+            if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                window.db = firebase.firestore();
+            }
+            const userDoc = await db.collection('users').doc(chatId).get();
+            if (userDoc.exists && userDoc.data().activo === true) {
+                console.log("Usuario activo verificado en Firestore. Iniciando app.");
+                checkVersionAndBootstrap();
+            } else {
+                failApp("Tu cuenta no se encuentra activa.<br><small>Por favor, contacta con soporte.</small>", true);
+            }
+        } catch (error) {
+            console.error("Error al verificar el estado del usuario:", error);
+            failApp("Error al verificar tu cuenta.<br><small>Inténtalo de nuevo más tarde.</small>", true);
+        }
+    })();
 };
-let initialUserSettings = {};
-let secondaryDataPromise = null;
-const mainContentArea = document.getElementById('main-content-area');
-const spinner = document.getElementById('spinner');
+
+// PUNTO DE ENTRADA CORRECTO Y OFICIAL PARA MINI APPS
+// Este código espera a que Telegram esté listo antes de ejecutar la lógica de la app.
+if (tg && tg.ready) {
+    tg.ready();
+    startApp();
+} else {
+    // Fallback para desarrollo fuera de Telegram
+    startApp();
+}
+
 
 function showSpinner(message = '') { 
     spinner.innerHTML = message ? `<div style="color:var(--text); margin-top:50px; font-size:1rem;">${message}</div>` : ''; 
@@ -1613,6 +1558,7 @@ async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) 
 }
 
 let isInitializing = false;
+let versionCheckPerformed = false;
 // ==================================================
 // --- MÓDULO: GESTOR DE TEMAS (VERSIÓN CON CALENDARIO) ---
 // ==================================================
@@ -4045,6 +3991,7 @@ async function saveSettings() {
             nombre: document.getElementById('settings-nombre').value,
             ciudad: capitalize(document.getElementById('settings-ciudad').value.trim()),
             pais: capitalize(document.getElementById('settings-pais').value.trim()),
+			alertaInventario: document.getElementById('settings-alerta-inventario').checked,
 			
             // Enviamos un objeto 'informesConfig' que la Cloud Function ya sabe cómo interpretar.
             informesConfig: {
@@ -4179,19 +4126,45 @@ async function executeExport() {
     showSpinner("Generando exportación...");
     const startDate = document.getElementById('export-start-date').value;
     const endDate = document.getElementById('export-end-date').value;
+
     if (!startDate || !endDate) {
         hideSpinner();
         showToast("Por favor, selecciona ambas fechas.", true);
         return;
     }
+
+    // URL correcta de la Cloud Function
+    const exportFunctionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/exportarGastos';
+
     try {
-        const payload = { Type: 'export_gastos', chat_ID: chatId, startDate: startDate, endDate: endDate };
-        const res = await fetchWithTimeout(gasWebhookURL, payload);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        showToast(data.message || "Petición de exportación enviada. Revisa tu email.");
-        renderDashboard();
+        // Payload con la estructura que espera el backend
+        const payload = {
+            data: {
+                chatId: chatId,
+                startDate: startDate,
+                endDate: endDate
+            }
+        };
+
+        const response = await fetch(exportFunctionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            // Si el servidor devuelve un error, lo mostramos
+            throw new Error(result.error.message || `Error del servidor: ${response.status}`);
+        }
+        
+        // Mostramos el mensaje de éxito del servidor
+        showToast(result.result.message || "Petición enviada. Revisa tu email.");
+        renderDashboard(); // Volver al dashboard tras el éxito
+
     } catch (err) {
+        // Mostramos el error capturado
         showToast(`Error al exportar: ${err.message}`, true);
     } finally {
         hideSpinner();
@@ -5554,30 +5527,30 @@ const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolved
     return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 };
 
-	const fpEnd = flatpickr("#event-end-date", {
+	// --- LÓGICA DE FECHAS CORREGIDA (V3) ---
+const nowInUserZone = new Date(getNowInUserTimeZone());
+const defaultStartDate = isEditing ? event.fechaInicio : (prefilledStartDate || nowInUserZone);
+const defaultEndDate = isEditing ? event.fechaFin : (prefilledEndDate || new Date(defaultStartDate.getTime() + 60 * 60 * 1000));
+
+const fpEnd = flatpickr("#event-end-date", {
     disableMobile: true,
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-    defaultDate: isEditing ? event.fechaFin : (prefilledEndDate || new Date(new Date().getTime() + 60 * 60 * 1000))
+    defaultDate: defaultEndDate,
+    minDate: defaultStartDate
 });
 
-	const fpStart = flatpickr("#event-start-date", {
+const fpStart = flatpickr("#event-start-date", {
     disableMobile: true,
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
-    defaultDate: isEditing ? event.fechaInicio : (prefilledStartDate || getNowInUserTimeZone()),
-    onReady: function(selectedDates) {
-// --- FIN: Lógica robusta ---
-            if (selectedDates.length > 0) { initialStartDate = new Date(selectedDates[0].getTime()); }
-        },
-        onChange: function(selectedDates) {
-            const newStartDate = selectedDates[0];
-            if (!newStartDate || !initialStartDate || newStartDate.getTime() === initialStartDate.getTime()) { return; }
-            initialStartDate = new Date(newStartDate.getTime());
-            const currentEndDate = fpEnd.selectedDates[0];
-            if (!currentEndDate || newStartDate >= currentEndDate) {
-                fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
-            }
-        }
-    });
+    defaultDate: defaultStartDate,
+    minDate: isEditing ? null : nowInUserZone, // Usamos la misma referencia de 'ahora'
+    onChange: function(selectedDates) {
+        const newStartDate = selectedDates[0];
+        if (!newStartDate) return;
+        fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
+        fpEnd.set('minDate', newStartDate);
+    }
+});
 
     const toggleTimePickers = () => {
         const isAllDay = allDayCheckbox.checked;
@@ -5647,29 +5620,13 @@ const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolved
     titleInput.oninput = validate;
     validate();
     
-    // --- LÓGICA DE GUARDADO CON SPINNER INTEGRADO ---
-    saveBtn.onclick = async () => {
-        const originalBtnHTML = saveBtn.innerHTML;
-        const otherBtn = document.getElementById('delete-event-btn') || document.getElementById('cancel-event-btn');
-
-        saveBtn.disabled = true;
-        if (otherBtn) otherBtn.disabled = true;
-        saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;
-
-        try {
-            const finalEventData = isEditing ? { ...event } : {};
-            finalEventData.notificaciones = currentNotifications;
-            await saveCalendarEvent(finalEventData);
-            // Si tiene éxito, saveCalendarEvent navega y no necesitamos hacer nada más aquí.
-        } catch (error) {
-            // Si saveCalendarEvent falla, lanza un error que capturamos aquí.
-            // El toast de error ya se muestra dentro de saveCalendarEvent.
-            // Solo necesitamos restaurar los botones.
-            saveBtn.disabled = false;
-            if (otherBtn) otherBtn.disabled = false;
-            saveBtn.innerHTML = originalBtnHTML;
-        }
-    };
+    // --- LÓGICA DE GUARDADO CORREGIDA (V2) ---
+saveBtn.onclick = () => {
+    const eventId = isEditing ? event.id : null;
+    const notifications = currentNotifications.map(n => ({...n})); // Pasamos una copia segura para evitar mutaciones
+    // La llamada a saveCalendarEvent ahora es directa y maneja su propia UI.
+    saveCalendarEvent(eventId, notifications);
+};
 
     if (isEditing) {
         const deleteBtn = document.getElementById('delete-event-btn');
@@ -5816,13 +5773,14 @@ function showNotificationModal(currentNotificationsRef, renderChipsCallback) {
     modal.style.display = 'flex';
     setTimeout(() => { modal.classList.add('show'); }, 10);
 }
-async function saveCalendarEvent(eventData) {
+async function saveCalendarEvent(eventId, notifications) {
     const title = document.getElementById('event-title').value.trim();
-    const isEditing = eventData && eventData.id;
+    const isEditing = !!eventId;
+	let notificationsToSave = [];
 
     if (!title) {
         showToast("El título es obligatorio.", true);
-        throw new Error("El título es obligatorio.");
+        return; // Salimos directamente
     }
 
     const saveBtn = document.getElementById('save-event-btn');
@@ -5834,36 +5792,22 @@ async function saveCalendarEvent(eventData) {
     saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Guardando...`;
 
     try {
-        // --- INICIO: LÓGICA DE CORRECCIÓN DE ZONA HORARIA ---
-
-        // Función de ayuda para convertir una fecha "ingenua" a un timestamp UTC verdadero
         const getTrueUTCTimestamp = (dateFromPicker, userTimeZone) => {
-            // 1. Extraemos los componentes numéricos de la fecha seleccionada.
-            // Esto representa la intención del usuario en su hora local.
             const year = dateFromPicker.getFullYear();
             const month = dateFromPicker.getMonth();
             const day = dateFromPicker.getDate();
             const hour = dateFromPicker.getHours();
             const minute = dateFromPicker.getMinutes();
-
-            // 2. Creamos un timestamp como si la hora local del usuario fuera UTC.
             const timestampAsUTC = Date.UTC(year, month, day, hour, minute);
-
-            // 3. Usamos Intl para calcular el offset de la zona horaria del usuario en esa fecha.
             const tempDate = new Date(timestampAsUTC);
             const utcParts = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric' }).formatToParts(tempDate).reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
             const userParts = new Intl.DateTimeFormat('en-US', { timeZone: userTimeZone, hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric' }).formatToParts(tempDate).reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
-
-            // Comparamos la diferencia de horas y días para calcular el offset.
             const hourDiff = (parseInt(userParts.hour, 10) % 24) - (parseInt(utcParts.hour, 10) % 24);
             let dayDiff = 0;
             if (parseInt(userParts.day, 10) > parseInt(utcParts.day, 10) || (parseInt(userParts.day, 10) === 1 && parseInt(utcParts.day, 10) > 20)) dayDiff = 1;
             if (parseInt(userParts.day, 10) < parseInt(utcParts.day, 10) || (parseInt(userParts.day, 10) > 20 && parseInt(utcParts.day, 10) === 1)) dayDiff = -1;
-            
             const offsetInHours = hourDiff + (dayDiff * 24);
             const offsetMilliseconds = offsetInHours * 60 * 60 * 1000;
-
-            // 4. Restamos el offset para obtener el timestamp UTC verdadero.
             return timestampAsUTC - offsetMilliseconds;
         };
 
@@ -5883,24 +5827,29 @@ async function saveCalendarEvent(eventData) {
             throw new Error("La fecha de fin no puede ser anterior a la de inicio.");
         }
 
-        // Convertimos las fechas al UTC correcto
         const finalStartDate = new Date(getTrueUTCTimestamp(startDateFromPicker, userTimeZone));
         const finalEndDate = new Date(getTrueUTCTimestamp(endDateFromPicker, userTimeZone));
 
-        // --- FIN: LÓGICA DE CORRECCIÓN ---
-
-        const notificationsToSave = (eventData.notificaciones || []).map(notif => ({
-            metodo: notif.metodo,
-            minutosAntes: notif.minutosAntes,
-            status: 'pending_creation'
-        }));
+        if (isEditing) {
+    notificationsToSave = (notifications || []).map(notif => ({
+        metodo: notif.metodo,
+        minutosAntes: notif.minutosAntes,
+        status: notif.status || 'pending_creation' // Conserva el estado si existe, si no, lo crea
+    }));
+	} else {
+    notificationsToSave = (notifications || []).map(notif => ({
+        metodo: notif.metodo,
+        minutosAntes: notif.minutosAntes,
+        status: 'pending_creation' // Siempre se crean al ser un evento nuevo
+    }));
+}
 
         const dataToSave = {
             titulo: title,
             descripcion: document.getElementById('event-description').value.trim(),
             color: document.getElementById('event-color-value').value,
-            fechaInicio: firebase.firestore.Timestamp.fromDate(finalStartDate), // <-- Usamos la fecha corregida
-            fechaFin: firebase.firestore.Timestamp.fromDate(finalEndDate),       // <-- Usamos la fecha corregida
+            fechaInicio: firebase.firestore.Timestamp.fromDate(finalStartDate),
+            fechaFin: firebase.firestore.Timestamp.fromDate(finalEndDate),
             esTodoElDia: isAllDay,
             notificaciones: notificationsToSave,
             status: 'pending_creation'
@@ -5909,7 +5858,7 @@ async function saveCalendarEvent(eventData) {
         const collectionRef = db.collection('users').doc(chatId).collection(FIRESTORE_EVENTOS_CALENDARIO_SUBCOLLECTION);
 
         if (isEditing) {
-            await collectionRef.doc(eventData.id).set(dataToSave, { merge: true });
+            await collectionRef.doc(eventId).set(dataToSave, { merge: true });
         } else {
             await collectionRef.add(dataToSave);
         }
@@ -5924,7 +5873,6 @@ async function saveCalendarEvent(eventData) {
         saveBtn.disabled = false;
         if (otherBtn) otherBtn.disabled = false;
         saveBtn.innerHTML = originalBtnHTML;
-        throw err;
     }
 }
 
@@ -6092,40 +6040,35 @@ document.getElementById('tab-chef').onclick = () => {
 // --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
 // =========================================================================
 async function checkVersionAndBootstrap() {
-    console.log("Iniciando guardián de versión...");
+    console.log("▶️ [Arranque] Paso 1: Verificando versión de la app...");
     try {
-        // Usamos parseFloat para manejar versiones con decimales como "99.1"
         const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
-        
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
+        const versionDocRef = db.collection('app_config').doc('version_info');
+        const versionDoc = await versionDocRef.get();
 
-        if (serverVersion > localVersion) {
-            // -- FLUJO DE ACTUALIZACIÓN --
-            console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}.`);
-            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            
-            // ¡Clave! Ocultamos el splash ANTES de mostrar el modal.
-            hideSplashScreen(); 
-            showChangelogModal(serverVersion, changelogText);
-            // No hacemos nada más. El modal se encargará del resto.
+        if (versionDoc.exists) {
+            const serverVersionData = versionDoc.data();
+            const serverVersion = parseFloat(serverVersionData.current_version) || 0;
 
-        } else {
-            // -- FLUJO NORMAL DE LA APP --
-            if (localVersion === 0 && serverVersion > 0) {
-                localStorage.setItem('app_version', serverVersion);
+            if (serverVersion > localVersion) {
+                // HAY ACTUALIZACIÓN: Mostramos el modal y detenemos el arranque.
+                console.log(`[Arranque] Actualización encontrada (Servidor: ${serverVersion} > Local: ${localVersion}). Mostrando modal.`);
+                const changelogText = serverVersionData.changelog || "* Se han realizado mejoras y correcciones de errores.";
+                showChangelogModal(serverVersion, changelogText);
+                return; // ¡IMPORTANTE! Detiene la ejecución aquí.
             }
-            console.log("Versión correcta. Arrancando la aplicación principal...");
-            initializeApp(); // Llamamos a la inicialización principal
         }
+        
+        // NO HAY ACTUALIZACIÓN: Procedemos con el arranque normal de la app.
+        console.log("[Arranque] La app está actualizada. Iniciando carga principal...");
+        initializeApp();
 
     } catch (err) {
-        console.error("Error crítico en el guardián de versión:", err);
-        // Si hay un error de red, intentamos arrancar la app igualmente (modo offline).
+        console.error("Error crítico durante la verificación de versión. Iniciando app en modo fallback:", err);
+        // En caso de error, iniciamos la app para no bloquear al usuario.
         initializeApp();
     }
 }
-checkVersionAndBootstrap();
 });
 </script>
 </body>
