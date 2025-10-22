@@ -1315,34 +1315,52 @@ const tg = window.Telegram?.WebApp;
 let emojiDictionary = [];
 const EMOJIS_DB_FILENAME = 'emoji-articulos-v1.json'; // Nombre del archivo JSON
 // ---
-if (tg) { 
-    tg.expand(); 
-    if (tg.isVersionAtLeast('6.1') && tg.BackButton) { tg.BackButton.onClick(goBack); }
-    
-    // =========================================================================
-    // --- LÓGICA DE SINCRONIZACIÓN (VERSIÓN ARQUITECTÓNICAMENTE CORRECTA) ---
-    // =========================================================================
-}
-const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
-let selectedImageFile = null;
-    let chatId; // Solo declaramos la variable aquí.
-    
-    // --- LISTA BLANCA DE USUARIOS AUTORIZADOS (SOLO PARA DESARROLLO) ---
-    
-	const authorizedUsers = ["6840956330", "7200016", "8004110685"]; // <<<--- AÑADE AQUÍ MÁS IDs DE PRUEBA SI ES NECESARIO
 
-    // Función auxiliar para gestionar el error de forma centralizada
-    function failApp(message, canClose = false) {
-        document.body.innerHTML = `<div class="no-data-msg">❌<br>${message}</div>`;
-        // Si es un error que permite cierre, y la API de Telegram está disponible, cerramos la Mini App.
-        if (canClose && tg && tg.close) {
-            setTimeout(() => tg.close(), 2500); // Dar tiempo al usuario para leer el mensaje.
-        }
-        throw new Error(message); // Detener la ejecución del script
+// Nueva variable "guardián" para asegurar una única ejecución
+let versionCheckPerformed = false;
+
+if (tg) {
+    tg.expand();
+    if (tg.isVersionAtLeast('6.1') && tg.BackButton) {
+        tg.BackButton.onClick(goBack);
     }
 
-    // --- NUEVO FLUJO DE INICIALIZACIÓN CON LISTA BLANCA ---
-    const startApp = () => {
+    // DISPARADOR PRINCIPAL DE LA APP: Se ejecuta cuando la app está maximizada y estable.
+    tg.onEvent('viewportChanged', async (event) => {
+        const isAppMaximized = event.isStateStable && tg.isExpanded;
+
+        // Guardián: solo actuar si la app está maximizada y la verificación no se ha hecho.
+        if (!isAppMaximized || versionCheckPerformed) {
+            return;
+        }
+        
+        // Marcar que la verificación se va a realizar para que no se repita.
+        versionCheckPerformed = true;
+        
+        // Iniciar la secuencia de arranque controlada.
+        checkVersionAndBootstrap();
+    });
+}
+
+const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
+let selectedImageFile = null;
+let chatId; // Solo declaramos la variable aquí.
+
+// --- LISTA BLANCA DE USUARIOS AUTORIZADOS (SOLO PARA DESARROLLO) ---
+const authorizedUsers = ["6840956330", "7200016", "8004110685"]; // <<<--- AÑADE AQUÍ MÁS IDs DE PRUEBA SI ES NECESARIO
+
+// Función auxiliar para gestionar el error de forma centralizada
+function failApp(message, canClose = false) {
+    document.body.innerHTML = `<div class="no-data-msg">❌<br>${message}</div>`;
+    // Si es un error que permite cierre, y la API de Telegram está disponible, cerramos la Mini App.
+    if (canClose && tg && tg.close) {
+        setTimeout(() => tg.close(), 2500); // Dar tiempo al usuario para leer el mensaje.
+    }
+    throw new Error(message); // Detener la ejecución del script
+}
+
+// --- Flujo de inicialización que SOLO PREPARA la app ---
+const startApp = () => {
     // --- NUEVO FLUJO DE INICIALIZACIÓN CON LISTA BLANCA ---
     if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
         chatId = tg.initDataUnsafe.user.id.toString();
@@ -1366,9 +1384,8 @@ let selectedImageFile = null;
     // --- VERIFICACIÓN DE ACCESO (DESARROLLO Y ESTADO ACTIVO) ---
     (async () => {
         if (authorizedUsers.includes(chatId)) {
-            console.log("Acceso de desarrollador concedido. Omitiendo verificación de estado.");
-            checkVersionAndBootstrap();
-            return;
+            console.log("Acceso de desarrollador concedido. Esperando a viewportChanged...");
+            return; // No hace nada más, espera al evento.
         }
 
         try {
@@ -1378,8 +1395,7 @@ let selectedImageFile = null;
             }
             const userDoc = await db.collection('users').doc(chatId).get();
             if (userDoc.exists && userDoc.data().activo === true) {
-                console.log("Usuario activo verificado en Firestore. Iniciando app.");
-                checkVersionAndBootstrap();
+                console.log("Usuario activo verificado en Firestore. Esperando a viewportChanged...");
             } else {
                 failApp("Tu cuenta no se encuentra activa.<br><small>Por favor, contacta con soporte.</small>", true);
             }
@@ -1398,6 +1414,13 @@ if (tg && tg.ready) {
 } else {
     // Fallback para desarrollo fuera de Telegram
     startApp();
+    // En navegador, viewportChanged puede no dispararse, así que forzamos la verificación tras 1 segundo.
+    setTimeout(() => {
+        if (!versionCheckPerformed) {
+            console.warn("Fallback de desarrollo: Forzando checkVersionAndBootstrap() porque viewportChanged no se disparó.");
+            checkVersionAndBootstrap();
+        }
+    }, 1000);
 }
 
 
