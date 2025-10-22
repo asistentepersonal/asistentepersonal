@@ -1383,6 +1383,8 @@ let selectedImageFile = null;
     }
 
     // --- NUEVO FLUJO DE INICIALIZACIÓN CON LISTA BLANCA ---
+    const startApp = () => {
+    // --- NUEVO FLUJO DE INICIALIZACIÓN CON LISTA BLANCA ---
     if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
         chatId = tg.initDataUnsafe.user.id.toString();
         console.log("Chat ID obtenido de Telegram:", chatId);
@@ -1403,39 +1405,41 @@ let selectedImageFile = null;
     }
     
     // --- VERIFICACIÓN DE ACCESO (DESARROLLO Y ESTADO ACTIVO) ---
-// --- VERIFICACIÓN DE ACCESO (DESARROLLO Y ESTADO ACTIVO) ---
-(async () => {
-    // 1. Bypass para desarrolladores
-    if (authorizedUsers.includes(chatId)) {
-        console.log("Acceso de desarrollador concedido. Omitiendo verificación de estado.");
-        // ¡CAMBIO CLAVE! Ahora llamamos a la verificación de versión DESPUÉS de tener chatId.
-        checkVersionAndBootstrap(); 
-        return;
-    }
-
-    // 2. Verificación en Firestore para usuarios normales
-    try {
-        // Asegurarse de que Firebase está inicializado para esta consulta temprana
-        if (typeof firebase !== 'undefined' && !firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-            window.db = firebase.firestore();
+    (async () => {
+        if (authorizedUsers.includes(chatId)) {
+            console.log("Acceso de desarrollador concedido. Omitiendo verificación de estado.");
+            checkVersionAndBootstrap();
+            return;
         }
 
-        const userDoc = await db.collection('users').doc(chatId).get();
-
-        if (userDoc.exists && userDoc.data().activo === true) {
-            console.log("Usuario activo verificado en Firestore. Iniciando app.");
-            // ¡CAMBIO CLAVE! Ahora llamamos a la verificación de versión DESPUÉS de tener chatId.
-            checkVersionAndBootstrap(); 
-        } else {
-            // El usuario no existe o no está activo
-            failApp("Tu cuenta no se encuentra activa.<br><small>Por favor, contacta con soporte.</small>", true);
+        try {
+            if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                window.db = firebase.firestore();
+            }
+            const userDoc = await db.collection('users').doc(chatId).get();
+            if (userDoc.exists && userDoc.data().activo === true) {
+                console.log("Usuario activo verificado en Firestore. Iniciando app.");
+                checkVersionAndBootstrap();
+            } else {
+                failApp("Tu cuenta no se encuentra activa.<br><small>Por favor, contacta con soporte.</small>", true);
+            }
+        } catch (error) {
+            console.error("Error al verificar el estado del usuario:", error);
+            failApp("Error al verificar tu cuenta.<br><small>Inténtalo de nuevo más tarde.</small>", true);
         }
-    } catch (error) {
-        console.error("Error al verificar el estado del usuario:", error);
-        failApp("Error al verificar tu cuenta.<br><small>Inténtalo de nuevo más tarde.</small>", true);
-    }
-})();
+    })();
+};
+
+// PUNTO DE ENTRADA CORRECTO Y OFICIAL PARA MINI APPS
+// Este código espera a que Telegram esté listo antes de ejecutar la lógica de la app.
+if (tg && tg.ready) {
+    tg.ready();
+    startApp();
+} else {
+    // Fallback para desarrollo fuera de Telegram
+    startApp();
+}
 
 
 let appData = { 
