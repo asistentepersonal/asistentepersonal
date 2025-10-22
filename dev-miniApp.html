@@ -1262,22 +1262,6 @@ function showChangelogModal(version, changelogText) {
     // Mostramos el modal
     overlay.classList.add('show');
 }
-async function checkAppVersion() {
-    try {
-        const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
-        
-        if (serverVersion > localVersion) {
-            console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}.`);
-            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            showChangelogModal(serverVersion, changelogText);
-            return; // Detenemos la ejecución si hay actualización.
-        }
-    } catch (err) {
-        console.error("Error verificando la versión:", err);
-    }
-}
 
 // --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
@@ -1324,14 +1308,25 @@ tg.onEvent('viewportChanged', async (event) => {
 
     // --- INICIO: VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR ---
     // Se llama a la misma función que se usa al arrancar, pero ahora dentro del evento.
-    await checkAppVersion();
-
-    // Si el modal de actualización es visible, detenemos cualquier otra acción.
-    // La recarga se gestionará al pulsar "Continuar" en el modal.
-    if (document.getElementById('changelog-overlay')?.classList.contains('show')) {
-        return;
+    // --- INICIO: VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR (CORREGIDO) ---
+    try {
+        const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
+        
+        if (serverVersion > localVersion) {
+            console.log(`[Viewport] Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}.`);
+            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
+            
+            hideSplashScreen(); // Oculta el splash por si aún estuviera visible
+            showChangelogModal(serverVersion, changelogText);
+            
+            // IMPORTANTE: Detenemos aquí para no ejecutar la sincronización de datos.
+            return; 
+        }
+    } catch (err) {
+        console.error("Error verificando la versión al maximizar:", err);
     }
-    
     // --- FIN: VERIFICACIÓN DE VERSIÓN ---
 
     // Si no hay actualización, la sincronización de datos continúa como antes.
