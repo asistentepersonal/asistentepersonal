@@ -1255,7 +1255,7 @@ function showChangelogModal(version, changelogText) {
             // 1. Guardamos la nueva versión en el almacenamiento local.
             localStorage.setItem('app_version', version);
             // 2. Forzamos una recarga completa para obtener el nuevo HTML.
-            window.location.reload(true);
+            window.location.href = window.location.pathname + '?v=' + new Date().getTime();
         }, 300);
     };
 
@@ -1321,7 +1321,7 @@ tg.onEvent('viewportChanged', async (event) => {
             hideSplashScreen(); // Oculta el splash por si aún estuviera visible
             showChangelogModal(serverVersion, changelogText);
             
-            // IMPORTANTE: Detenemos aquí para no ejecutar la sincronización de datos..
+            // IMPORTANTE: Detenemos aquí para no ejecutar la sincronización de datos.
             return; 
         }
     } catch (err) {
