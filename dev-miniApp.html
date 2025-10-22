@@ -1201,8 +1201,7 @@ async function runApp() {
         updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
-		checkAppVersion(); // Realizamos una comprobación inicial de la versión al cargar.
-        hideSplashScreen();
+		hideSplashScreen();
         
     } catch (err) {
         console.error("Error crítico en runApp:", err);
@@ -1282,33 +1281,6 @@ async function checkAppVersion() {
         setTimeout(() => { window.isCheckingVersion = false; }, 5000); // Permitir otra verificación tras 5s
     }
 }
-
-// --- INICIO: NUEVA FUNCIÓN PARA VERIFICAR VERSIÓN AL MAXIMIZAR ---
-async function checkVersionOnFocus() {
-    // Usamos una bandera global para evitar múltiples verificaciones si el evento se dispara rápido
-    if (window.isCheckingVersion) return;
-    window.isCheckingVersion = true;
-
-    console.log("Verificando versión al maximizar la app...");
-    try {
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        if (versionDoc.exists) {
-            const serverVersion = versionDoc.data().current_version;
-            // Si la versión del servidor es diferente a la del cliente, forzamos una recarga completa
-            if (String(serverVersion) !== String(HTML_VERSION)) {
-                console.log(`Nueva versión detectada. Servidor: ${serverVersion}, Cliente: ${HTML_VERSION}. ¡Recargando!`);
-                window.location.reload(true); // El 'true' fuerza la recarga desde el servidor
-            }
-        }
-    } catch (err) {
-        // En caso de error (ej. sin conexión), no hacemos nada para no interrumpir al usuario.
-        console.error("Error durante la verificación de versión en foco:", err);
-    } finally {
-        // Reseteamos la bandera después de unos segundos para permitir futuras verificaciones
-        setTimeout(() => { window.isCheckingVersion = false; }, 5000);
-    }
-}
-// --- FIN: NUEVA FUNCIÓN ---
 
 // --- SISTEMA DE NAVEGACIÓN (HISTORIAL) ---
 let navigationHistory = [];
