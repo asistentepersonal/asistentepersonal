@@ -1318,7 +1318,7 @@ tg.onEvent('viewportChanged', async (event) => {
         const versionDoc = await db.collection('app_config').doc('version_info').get();
         const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
 
-        if (serverVersion > localVersion) {
+        if (serverVersion >= localVersion) {
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
             showChangelogModal(serverVersion, changelogText);
             return; // Detener todo si hay una actualización.
@@ -6054,7 +6054,7 @@ async function checkVersionAndBootstrap() {
         const versionDoc = await db.collection('app_config').doc('version_info').get();
         const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
         
-        if (serverVersion > localVersion) {
+        if (serverVersion >= localVersion) {
             // Si hay actualización, mostramos modal y detenemos el arranque.
             console.log(`[Arranque] Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}.`);
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
