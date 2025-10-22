@@ -1403,11 +1403,13 @@ let selectedImageFile = null;
     }
     
     // --- VERIFICACIÓN DE ACCESO (DESARROLLO Y ESTADO ACTIVO) ---
+// --- VERIFICACIÓN DE ACCESO (DESARROLLO Y ESTADO ACTIVO) ---
 (async () => {
     // 1. Bypass para desarrolladores
     if (authorizedUsers.includes(chatId)) {
         console.log("Acceso de desarrollador concedido. Omitiendo verificación de estado.");
-        checkVersionAndBootstrap(); // Inicia la app para el desarrollador
+        // ¡CAMBIO CLAVE! Ahora llamamos a la verificación de versión DESPUÉS de tener chatId.
+        checkVersionAndBootstrap(); 
         return;
     }
 
@@ -1423,7 +1425,8 @@ let selectedImageFile = null;
 
         if (userDoc.exists && userDoc.data().activo === true) {
             console.log("Usuario activo verificado en Firestore. Iniciando app.");
-            checkVersionAndBootstrap(); // Inicia la app para el usuario verificado
+            // ¡CAMBIO CLAVE! Ahora llamamos a la verificación de versión DESPUÉS de tener chatId.
+            checkVersionAndBootstrap(); 
         } else {
             // El usuario no existe o no está activo
             failApp("Tu cuenta no se encuentra activa.<br><small>Por favor, contacta con soporte.</small>", true);
