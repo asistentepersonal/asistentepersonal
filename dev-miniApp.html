@@ -1381,13 +1381,17 @@ const startApp = () => {
 function bootstrapApp() {
     // Esta función solo se ejecuta una vez gracias al guardián
     if (versionCheckPerformed) return;
-	showToast("Punto 1: Arranque iniciado.", false, true);
+    showToast("Punto 1: Arranque iniciado.", false, true);
     versionCheckPerformed = true;
 
-    // Prepara la app (obtiene chatId, etc.)
+    // Prepara la app (obtiene chatId, etc.), esto es rápido.
     startApp();
-    // Lanza la secuencia de verificación que decidirá si muestra modal o la app
-    checkVersionAndBootstrap();
+    
+    // AÑADIMOS UNA PAUSA QUIRÚRGICA ANTES DE VERIFICAR LA VERSIÓN
+    setTimeout(() => {
+        // Lanza la secuencia de verificación después de la pausa
+        checkVersionAndBootstrap();
+    }, 500); // Pausa de 500ms
 }
 
 if (tg) {
