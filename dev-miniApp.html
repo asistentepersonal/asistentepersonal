@@ -1231,23 +1231,23 @@ function showChangelogModal(version, changelogText) {
     const contentUl = document.getElementById('changelog-content');
     const continueBtn = document.getElementById('changelog-continue-btn');
 
+    // Si los elementos no se encuentran por alguna razón, simplemente no mostramos el modal
+    // y lo reportamos en la consola, evitando la recarga.
     if (!overlay || !versionSpan || !contentUl || !continueBtn) {
-        // Si algo falla, forzamos la recarga para no bloquear al usuario
-        console.error("No se encontraron los elementos del modal de changelog. Forzando actualización.");
-        window.location.reload(true);
-        return;
+        console.error("No se encontraron los elementos del modal de changelog. La actualización no se puede mostrar visualmente.");
+        return; // Detenemos la función para evitar errores.
     }
 
     // Llenamos el modal con los datos de Firestore
     versionSpan.textContent = version;
     contentUl.innerHTML = changelogText
-        .split('*') // Separamos por el asterisco
+        .split('*')
         .map(line => line.trim())
         .filter(line => line.length > 0)
         .map(line => `<li>${line}</li>`)
         .join('');
 
-    // Definimos la acción del botón con la nueva lógica de localStorage
+    // Definimos la acción del botón con la lógica de localStorage y recarga forzada
     continueBtn.onclick = () => {
         overlay.classList.remove('show');
         setTimeout(() => {
