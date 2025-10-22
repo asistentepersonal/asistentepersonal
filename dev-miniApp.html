@@ -1318,7 +1318,7 @@ tg.onEvent('viewportChanged', async (event) => {
         const versionDoc = await db.collection('app_config').doc('version_info').get();
         const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
 
-        if (serverVersion >= localVersion) {
+        if (serverVersion > localVersion) {
             const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
             showChangelogModal(serverVersion, changelogText);
             return; // Detener todo si hay una actualización.
@@ -6046,32 +6046,10 @@ document.getElementById('tab-chef').onclick = () => {
 // --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
 // =========================================================================
 async function checkVersionAndBootstrap() {
-    console.log("Iniciando punto de entrada único de la app...");
-    
-    try {
-        // Verificamos la versión aquí también, al inicio.
-        const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
-        const versionDoc = await db.collection('app_config').doc('version_info').get();
-        const serverVersion = versionDoc.exists ? (parseFloat(versionDoc.data().current_version) || 0) : 0;
-        
-        if (serverVersion >= localVersion) {
-            // Si hay actualización, mostramos modal y detenemos el arranque.
-            console.log(`[Arranque] Nueva versión detectada. Servidor: ${serverVersion}, Local: ${localVersion}.`);
-            const changelogText = versionDoc.data().changelog || "* Se han realizado mejoras y correcciones de errores.";
-            hideSplashScreen();
-            showChangelogModal(serverVersion, changelogText);
-            return; // IMPORTANTE: Detenemos la ejecución.
-        }
-    } catch (err) {
-        console.error("Error verificando la versión en el arranque:", err);
-        // Si hay un error, continuamos para que la app intente cargar igualmente.
-    }
-
-    // Si no hay actualización, la app arranca normalmente.
-    console.log("Versión correcta. Arrancando la aplicación principal...");
+    // Esta función ahora solo se encarga de iniciar la app.
+    console.log("Iniciando la carga de la aplicación...");
     initializeApp();
 }
-
 });
 </script>
 </body>
