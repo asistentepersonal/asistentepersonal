@@ -1327,7 +1327,7 @@ if (tg) {
 
     // DISPARADOR PRINCIPAL DE LA APP: Se ejecuta cuando la app está maximizada y estable.
     tg.onEvent('viewportChanged', async (event) => {
-        const isAppMaximized = event.isStateStable && tg.isExpanded;
+        const isAppMaximized = event.isStateStable;
 
         // Guardián: solo actuar si la app está maximizada y la verificación no se ha hecho.
         if (!isAppMaximized || versionCheckPerformed) {
