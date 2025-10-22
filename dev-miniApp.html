@@ -1318,27 +1318,26 @@ if (tg) {
 
 tg.onEvent('viewportChanged', async (event) => {
     const isAppMaximized = event.isStateStable && tg.isExpanded;
-    // Si la app no está lista, no está maximizada, o ya estamos en medio de una verificación, no hacemos nada.
-    if (!isAppReady || !isAppMaximized || window.isCheckingVersion) {
+    if (!isAppReady || !isAppMaximized) {
+        return;
+    }
+
+    // --- INICIO: VERIFICACIÓN DE VERSIÓN AL MAXIMIZAR ---
+    // Se llama a la misma función que se usa al arrancar, pero ahora dentro del evento.
+    await checkAppVersion();
+
+    // Si el modal de actualización es visible, detenemos cualquier otra acción.
+    // La recarga se gestionará al pulsar "Continuar" en el modal.
+    if (document.getElementById('changelog-overlay')?.classList.contains('show')) {
         return;
     }
     
-    // Activamos la bandera para evitar verificaciones múltiples
-    window.isCheckingVersion = true;
+    // --- FIN: VERIFICACIÓN DE VERSIÓN ---
 
+    // Si no hay actualización, la sincronización de datos continúa como antes.
+    console.log("App maximizada y lista. Comprobando cambios de datos...");
+    
     try {
-        // 1. Llamamos a la función de verificación de versión.
-        await checkAppVersion();
-
-        // 2. Si el modal de actualización es visible, detenemos cualquier otra acción.
-        // La recarga se gestionará al pulsar "Continuar" en el modal.
-        if (document.getElementById('changelog-overlay')?.classList.contains('show')) {
-            return; 
-        }
-
-        // 3. Si no hay actualización, procedemos a sincronizar los datos de la app.
-        console.log("App maximizada y lista. Comprobando cambios de datos...");
-        
         const countsDoc = await db.collection('users').doc(chatId).collection('_metadata').doc('counts').get();
         if (!countsDoc.exists) {
             console.warn("No se encontró el documento de contadores durante la sincronización.");
@@ -1359,12 +1358,9 @@ tg.onEvent('viewportChanged', async (event) => {
             console.log("Sin cambios detectados en los contadores.");
         }
 
-    } catch (err) {
+    } catch (err)
+    {
         console.error("Error en la sincronización al maximizar:", err);
-    } finally {
-        // 4. MUY IMPORTANTE: Reseteamos la bandera después de un breve tiempo
-        // para permitir futuras verificaciones, incluso si algo falla.
-        setTimeout(() => { window.isCheckingVersion = false; }, 3000); 
     }
 });
 }
