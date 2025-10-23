@@ -6075,26 +6075,25 @@ async function checkVersionAndBootstrap() {
         if (versionDoc.exists) {
             const serverVersionData = versionDoc.data();
             const serverVersion = parseFloat(serverVersionData.current_version) || 0;
-			showToast(`Punto 2: Comparando. Servidor: ${serverVersion}, Local: ${localVersion}`, false, true);
+            
+            // ESTE TOAST AHORA ES PERSISTENTE. No se irá hasta que pulses la 'X'.
+            showToast(`Punto 2 -> ¿${serverVersion} > ${localVersion}?`, false, true);
 
             if (serverVersion > localVersion) {
-			showToast("Punto 3: Resultado - HAY actualización.", false, true);
-                // HAY ACTUALIZACIÓN: Mostramos el modal y detenemos el arranque.
+                showToast("Punto 3A: HAY actualización.", false, true);
                 console.log(`[Arranque] Actualización encontrada (Servidor: ${serverVersion} > Local: ${localVersion}). Mostrando modal.`);
                 const changelogText = serverVersionData.changelog || "* Se han realizado mejoras y correcciones de errores.";
                 showChangelogModal(serverVersion, changelogText);
-                return; // ¡IMPORTANTE! Detiene la ejecución aquí.
+                return; 
             }
         }
         
-        // NO HAY ACTUALIZACIÓN: Procedemos con el arranque normal de la app.
-		showToast("Punto 3: Resultado - NO hay actualización.", false, true);
+        showToast("Punto 3B: NO hay actualización.", false, true);
         console.log("[Arranque] La app está actualizada. Iniciando carga principal...");
         initializeApp();
 
     } catch (err) {
         console.error("Error crítico durante la verificación de versión. Iniciando app en modo fallback:", err);
-        // En caso de error, iniciamos la app para no bloquear al usuario.
         initializeApp();
     }
 }
