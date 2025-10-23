@@ -2112,14 +2112,10 @@ async function renderRemindersList() {
                 .orderBy('fecha_universal', 'asc');
     
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-    // 1. Guardamos los recordatorios pendientes que solo existen localmente.
-    const pendingReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
-    
-    // 2. Procesamos la lista "oficial" que viene de Firestore.
-    const firestoreReminders = [];
+    const reminders = [];
     snapshot.forEach(doc => {
         const data = doc.data();
-        firestoreReminders.push({
+        reminders.push({
             tracking_code: doc.id,
             Descripcion: data.descripcion,
             Categoria: data.categoria_recordatorio,
@@ -2128,16 +2124,10 @@ async function renderRemindersList() {
         });
     });
     
-    // 3. Unimos las dos listas: los pendientes y los confirmados de Firestore.
-    // Usamos un Map para evitar duplicados si un pendiente ya fue confirmado.
-    const combinedMap = new Map();
-    [...pendingReminders, ...firestoreReminders].forEach(r => combinedMap.set(r.tracking_code, r));
-    
-    // 4. Actualizamos la lista local y los contadores con la verdad combinada.
-    appData.remindersList = Array.from(combinedMap.values());
-    appData.counts.remindersCount = appData.remindersList.length;
+    appData.remindersList = reminders;
+    appData.counts.remindersCount = reminders.length;
     if (document.getElementById('reminders-badge')) {
-        document.getElementById('reminders-badge').textContent = appData.remindersList.length;
+        document.getElementById('reminders-badge').textContent = reminders.length;
     }
 
     drawRemindersList();
