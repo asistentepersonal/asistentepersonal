@@ -6082,9 +6082,6 @@ async function performVersionCheck(isResumeCheck = false) {
         return true; // Indicamos que el flujo de "actualización" ya está en proceso.
     }
 
-    const toastPrefix = isResumeCheck ? "[Reanudación] " : "[Arranque] ";
-    showToast(toastPrefix + "Verificando versión...", false, true);
-
     try {
         const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
         const versionDocRef = db.collection('app_config').doc('version_info');
@@ -6104,7 +6101,6 @@ async function performVersionCheck(isResumeCheck = false) {
         return false; // Devuelve FALSE porque no se necesita actualizar.
     } catch (err) {
         console.error("Error en performVersionCheck:", err);
-        showToast(toastPrefix + "Error al verificar.", true, true);
         return false; // En caso de error, asumimos que no hay actualización para no bloquear al usuario.
     }
 }
