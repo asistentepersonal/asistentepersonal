@@ -1223,6 +1223,16 @@ async function runApp() {
         updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
+		// --- INICIO: Listener para re-verificar versión al reanudar la app ---
+		if (tg) {
+		tg.onEvent('viewportChanged', (event) => {
+        if (event.isStateStable) {
+            console.log("[Reanudación] Vista estable, re-verificando versión...");
+            performVersionCheck(true); // true indica que es una verificación en reanudación
+        }
+    });
+}
+// --- FIN: Listener para re-verificar versión ---
 		hideSplashScreen();
         
     } catch (err) {
@@ -6065,47 +6075,54 @@ document.getElementById('tab-chef').onclick = () => {
 // =========================================================================
 // --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
 // =========================================================================
-async function checkVersionAndBootstrap() {
-    // Log para verificar si el guardián está siendo llamado más de una vez.
-    console.log(`[Arranque Guardián] Chequeando guardián. versionCheckPerformed = ${versionCheckPerformed}`);
-    
-    console.log("▶️ [Arranque] Paso 1: Verificando versión de la app...");
+// --- NUEVA FUNCIÓN REUTILIZABLE PARA VERIFICAR VERSIÓN ---
+async function performVersionCheck(isResumeCheck = false) {
+    // Guardián: si el modal ya está visible, no hacemos nada para no molestar.
+    const isModalVisible = document.getElementById('changelog-overlay')?.classList.contains('show');
+    if (isModalVisible) {
+        console.log("[Version Check] Modal ya visible, omitiendo re-verificación.");
+        return true; // Indicamos que el flujo de "actualización" ya está en proceso.
+    }
+
+    const toastPrefix = isResumeCheck ? "[Reanudación] " : "[Arranque] ";
+    showToast(toastPrefix + "Verificando versión...", false, true);
+
     try {
         const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
         const versionDocRef = db.collection('app_config').doc('version_info');
         const versionDoc = await versionDocRef.get();
 
-        let debugInfo = `Local: ${localVersion}`; // Mostramos la versión local
-        let serverVersion = 0;
-        let needsUpdate = false;
-
         if (versionDoc.exists) {
             const serverVersionData = versionDoc.data();
-            serverVersion = parseFloat(serverVersionData.current_version) || 0;
-            needsUpdate = serverVersion > localVersion;
-            debugInfo += `, Server: ${serverVersion}\n¿Update?: ${needsUpdate}`; // Añadimos la del server y el resultado
-        }
-        
-        if (needsUpdate) {
-            debugInfo += `\n-> Ruta: 3A (HAY actualización)`;
-            showToast(debugInfo, false, true); // Mostramos el toast único y persistente
-            
-            console.log(`[Arranque] Actualización encontrada (${serverVersion} > ${localVersion}). Mostrando modal.`);
-            const changelogText = versionDoc.data().changelog || "* Mejoras y correcciones.";
-            showChangelogModal(serverVersion, changelogText);
-            return;
-        }
-        
-        // Si llegamos aquí, no hay actualización.
-        debugInfo += `\n-> Ruta: 3B (NO hay actualización)`;
-        showToast(debugInfo, false, true); // Mostramos el toast único y persistente
-        console.log("[Arranque] La app está actualizada. Iniciando carga principal...");
-        initializeApp();
+            const serverVersion = parseFloat(serverVersionData.current_version) || 0;
 
+            if (serverVersion > localVersion) {
+                showToast(toastPrefix + `¡Nueva versión ${serverVersion} encontrada!`, false, true);
+                const changelogText = serverVersionData.changelog || "* Mejoras y correcciones.";
+                showChangelogModal(serverVersion, changelogText);
+                return true; // Devuelve TRUE porque se encontró y mostró una actualización.
+            }
+        }
+        // Si llegamos aquí, no hay actualización.
+        showToast(toastPrefix + "App ya actualizada.", false, true);
+        return false; // Devuelve FALSE porque no se necesita actualizar.
     } catch (err) {
-        console.error("Error crítico durante la verificación de versión:", err);
-        showToast(`Error en checkVersion: ${err.message}`, true, true);
-        initializeApp(); // Arrancamos en modo fallo
+        console.error("Error en performVersionCheck:", err);
+        showToast(toastPrefix + "Error al verificar.", true, true);
+        return false; // En caso de error, asumimos que no hay actualización para no bloquear al usuario.
+    }
+}
+async function checkVersionAndBootstrap() {
+    // Log para verificar si el guardián está siendo llamado más de una vez.
+    console.log(`[Arranque Guardián] Chequeando guardián. versionCheckPerformed = ${versionCheckPerformed}`);
+
+    // Llamamos a nuestra nueva función. Ella se encarga de todo.
+    const updateFound = await performVersionCheck(false); // false indica que es el arranque inicial
+
+    // Si la función nos dice que NO encontró una actualización, entonces iniciamos la app.
+    if (!updateFound) {
+        console.log("[Arranque] No se encontró actualización. Iniciando carga principal...");
+        initializeApp();
     }
 }
 });
