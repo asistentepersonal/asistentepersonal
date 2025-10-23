@@ -6066,35 +6066,46 @@ document.getElementById('tab-chef').onclick = () => {
 // --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
 // =========================================================================
 async function checkVersionAndBootstrap() {
+    // Log para verificar si el guardián está siendo llamado más de una vez.
+    console.log(`[Arranque Guardián] Chequeando guardián. versionCheckPerformed = ${versionCheckPerformed}`);
+    
     console.log("▶️ [Arranque] Paso 1: Verificando versión de la app...");
     try {
         const localVersion = parseFloat(localStorage.getItem('app_version') || '0');
         const versionDocRef = db.collection('app_config').doc('version_info');
         const versionDoc = await versionDocRef.get();
 
+        let debugInfo = `Local: ${localVersion}`; // Mostramos la versión local
+        let serverVersion = 0;
+        let needsUpdate = false;
+
         if (versionDoc.exists) {
             const serverVersionData = versionDoc.data();
-            const serverVersion = parseFloat(serverVersionData.current_version) || 0;
-            
-            // ESTE TOAST AHORA ES PERSISTENTE. No se irá hasta que pulses la 'X'.
-            showToast(`Punto 2 -> ¿${serverVersion} > ${localVersion}?`, false, true);
-
-            if (serverVersion > localVersion) {
-                showToast("Punto 3A: HAY actualización.", false, true);
-                console.log(`[Arranque] Actualización encontrada (Servidor: ${serverVersion} > Local: ${localVersion}). Mostrando modal.`);
-                const changelogText = serverVersionData.changelog || "* Se han realizado mejoras y correcciones de errores.";
-                showChangelogModal(serverVersion, changelogText);
-                return; 
-            }
+            serverVersion = parseFloat(serverVersionData.current_version) || 0;
+            needsUpdate = serverVersion > localVersion;
+            debugInfo += `, Server: ${serverVersion}\n¿Update?: ${needsUpdate}`; // Añadimos la del server y el resultado
         }
         
-        showToast("Punto 3B: NO hay actualización.", false, true);
+        if (needsUpdate) {
+            debugInfo += `\n-> Ruta: 3A (HAY actualización)`;
+            showToast(debugInfo, false, true); // Mostramos el toast único y persistente
+            
+            console.log(`[Arranque] Actualización encontrada (${serverVersion} > ${localVersion}). Mostrando modal.`);
+            const changelogText = versionDoc.data().changelog || "* Mejoras y correcciones.";
+            showChangelogModal(serverVersion, changelogText);
+            return;
+        }
+        
+        // Si llegamos aquí, no hay actualización.
+        debugInfo += `\n-> Ruta: 3B (NO hay actualización)`;
+        showToast(debugInfo, false, true); // Mostramos el toast único y persistente
         console.log("[Arranque] La app está actualizada. Iniciando carga principal...");
         initializeApp();
 
     } catch (err) {
-        console.error("Error crítico durante la verificación de versión. Iniciando app en modo fallback:", err);
-        initializeApp();
+        console.error("Error crítico durante la verificación de versión:", err);
+        showToast(`Error en checkVersion: ${err.message}`, true, true);
+        initializeApp(); // Arrancamos en modo fallo
     }
 }
 });
