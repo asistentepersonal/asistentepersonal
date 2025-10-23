@@ -6075,6 +6075,31 @@ function renderCombustibleView() {
             </div>
         </div>
     `;
+	// --- INICIO: Lógica de inicialización del mapa ---
+const mapContainer = document.getElementById('combustible-map');
+
+// Verificamos que tenemos los datos de ubicación del usuario antes de intentar crear el mapa.
+if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
+    const userLat = appData.settings.ubicacion.lat;
+    const userLon = appData.settings.ubicacion.lon;
+
+    // 1. Inicializamos el mapa en el div 'combustible-map', centrado en la ubicación del usuario.
+    const map = L.map('combustible-map').setView([userLat, userLon], 13); // 13 es un buen nivel de zoom para una ciudad.
+
+    // 2. Añadimos la capa de teselas de OpenStreetMap para que el mapa se vea.
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // 3. (Opcional pero recomendado) Añadimos un marcador para la ubicación del usuario.
+    L.marker([userLat, userLon]).addTo(map)
+        .bindPopup('Tu ubicación guardada')
+        .openPopup();
+} else {
+    // Si no hay datos de ubicación, mostramos un mensaje de error en el contenedor del mapa.
+    mapContainer.innerHTML = '<div class="no-data-msg" style="padding:20px;">📍<br>No se encontró tu ubicación. Por favor, configúrala en Ajustes.</div>';
+}
+// --- FIN: Lógica de inicialización del mapa ---
 }
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
