@@ -1142,6 +1142,47 @@ async function initializeApp() {
 }
 
 // --- FUNCIÓN QUE CONTIENE LA LÓGICA PRINCIPAL DE LA APP ---
+// --- NUEVA FUNCIÓN PARA ACTUALIZAR EL LISTENER DEL BADGE DEL CALENDARIO ---
+let unsubscribeCalendarBadge = null; // Guardián para el listener
+let listeningDate = null; // Para saber para qué día estamos escuchando
+
+function updateCalendarBadgeListener() {
+    const today = new Date();
+    const todayString = today.toDateString(); // "Mon Oct 23 2025"
+
+    // Si ya estamos escuchando para el día de hoy, no hacemos nada.
+    if (listeningDate === todayString) {
+        return;
+    }
+
+    // Si hay un listener antiguo, lo desconectamos.
+    if (unsubscribeCalendarBadge) {
+        unsubscribeCalendarBadge();
+    }
+
+    console.log(`[Badge Calendario] Estableciendo nuevo listener para: ${todayString}`);
+    listeningDate = todayString;
+
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+
+    const startOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
+    const endOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
+
+    const query = db.collection('users').doc(chatId).collection('eventos_calendario')
+        .where('fechaInicio', '>=', startOfTodayTimestamp)
+        .where('fechaInicio', '<=', endOfTodayTimestamp);
+
+    unsubscribeCalendarBadge = query.onSnapshot(snapshot => {
+        appData.counts.calendarTodayCount = snapshot.size;
+        const calendarBadge = document.getElementById('calendar-badge');
+        if (calendarBadge) {
+            calendarBadge.textContent = snapshot.size;
+        }
+    }, error => {
+        console.error("Error en listener de eventos de hoy:", error);
+    });
+}
 async function runApp() {
     try {
         console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
@@ -1196,43 +1237,23 @@ async function runApp() {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        // Listener para el badge del calendario en tiempo real (CORREGIDO Y OPTIMIZADO)
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-        const endOfToday = new Date();
-        endOfToday.setHours(23, 59, 59, 999);
-        
-        // Convertimos las fechas de JS al formato Timestamp de Firestore para una consulta 100% precisa.
-        const startOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(startOfToday);
-        const endOfTodayTimestamp = firebase.firestore.Timestamp.fromDate(endOfToday);
-
-        db.collection('users').doc(chatId).collection('eventos_calendario')
-          .where('fechaInicio', '>=', startOfTodayTimestamp) // Usamos la fecha convertida
-          .where('fechaInicio', '<=', endOfTodayTimestamp) // Usamos la fecha convertida
-          .onSnapshot(snapshot => {
-              appData.counts.calendarTodayCount = snapshot.size;
-              const calendarBadge = document.getElementById('calendar-badge');
-              if (calendarBadge) {
-                  calendarBadge.textContent = snapshot.size;
-              }
-          }, error => {
-              console.error("Error en listener de eventos de hoy:", error);
-          });
+        updateCalendarBadgeListener(); // Llamada inicial al arrancar la app.
         
         // 4. Dibujar la UI con los datos ya cargados (sin cambios)
         updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
-		// --- INICIO: Listener para re-verificar versión al reanudar la app ---
-		if (tg) {
-		tg.onEvent('viewportChanged', (event) => {
+		// --- INICIO: Listener para re-verificar versión y contadores al reanudar la app ---
+if (tg) {
+    tg.onEvent('viewportChanged', (event) => {
         if (event.isStateStable) {
-            console.log("[Reanudación] Vista estable, re-verificando versión...");
-            performVersionCheck(true); // true indica que es una verificación en reanudación
+            console.log("[Reanudación] Vista estable, re-verificando servicios...");
+            performVersionCheck(true); // Re-verifica la versión
+            updateCalendarBadgeListener(); // Re-verifica el badge del calendario
         }
     });
 }
-// --- FIN: Listener para re-verificar versión ---
+// --- FIN: Listener para re-verificar versión y contadores ---
 		hideSplashScreen();
         
     } catch (err) {
