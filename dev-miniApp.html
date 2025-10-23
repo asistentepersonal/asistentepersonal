@@ -6109,20 +6109,25 @@ function renderDashboard() {
     if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
   }
 
-  // --- CÓDIGO DE MENÚS CORREGIDO (ANTI-CONFLICTO) ---
+  // --- CÓDIGO DE MENÚS FINAL (v2) ---
 document.querySelectorAll('.clickable-card').forEach(card => {
-    // Buscamos si la card tiene un menú ANTES de añadir el listener.
-    const menuBtn = card.querySelector('.card-menu-btn');
-    
-    // Si la card NO tiene menú, no le añadimos este listener general.
-    if (!menuBtn) return;
-
-    // Si SÍ tiene menú, le añadimos el listener para gestionar su apertura.
     card.addEventListener('click', (e) => {
-        if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
-        if (e.currentTarget.id === 'chef-card' && !isPremium) return;
-        
-        console.log(`[UI Event] Clic en card CON MENÚ: ${card.id}`);
+        // Buscamos si la card tiene un botón de menú.
+        const menuBtn = card.querySelector('.card-menu-btn');
+
+        // Si la card NO tiene un menú, este listener no debe hacer NADA.
+        // Simplemente salimos y dejamos que otros listeners (como el .onclick) funcionen.
+        if (!menuBtn) {
+            return;
+        }
+
+        // Si el clic fue directamente en el botón de menú o dentro del menú, no hacemos nada aquí.
+        if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) {
+            return;
+        }
+
+        // Si llegamos aquí, significa que se hizo clic en el cuerpo de una card CON menú.
+        // AHORA SÍ podemos detener el evento y gestionar la apertura/cierre del menú.
         e.stopPropagation();
         
         const menuId = menuBtn.dataset.menuId;
