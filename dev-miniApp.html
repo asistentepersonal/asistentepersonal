@@ -6099,6 +6099,7 @@ function renderDashboard() {
 
   document.getElementById('calendar-card').onclick = renderCalendarView;
   document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
+  document.getElementById('combustible-card').onclick = renderCombustibleView; // <-- LÍNEA AÑADIDA Y REUBICADA
   
   if (isPremium) {
     const chefCard = document.getElementById('chef-card');
