@@ -6109,39 +6109,44 @@ function renderDashboard() {
     if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
   }
 
-  // --- CÓDIGO RESTAURADO PARA LOS MENÚS ---
-  document.querySelectorAll('.clickable-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-          if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
-          if (e.currentTarget.id === 'chef-card' && !isPremium) return;
-          // [LOG Estratégico] Confirmamos que el clic en la card se ha registrado.
-          console.log(`[UI Event] Clic en la card: ${e.currentTarget.querySelector('.card-title')?.textContent || e.currentTarget.id}`);
-          e.stopPropagation();
-          const menuBtn = card.querySelector('.card-menu-btn');
-          if (menuBtn) {
-            const menuId = menuBtn.dataset.menuId;
-            const menu = document.getElementById(menuId);
-            if (menu) {
-                const isShown = menu.classList.contains('show');
-                document.querySelectorAll('.dropdown-menu.show').forEach(m => {
-                    if (m.id !== menuId) m.classList.remove('show');
-                });
-                if (isShown) {
-                    menu.classList.remove('show');
+  // --- CÓDIGO DE MENÚS CORREGIDO (ANTI-CONFLICTO) ---
+document.querySelectorAll('.clickable-card').forEach(card => {
+    // Buscamos si la card tiene un menú ANTES de añadir el listener.
+    const menuBtn = card.querySelector('.card-menu-btn');
+    
+    // Si la card NO tiene menú, no le añadimos este listener general.
+    if (!menuBtn) return;
+
+    // Si SÍ tiene menú, le añadimos el listener para gestionar su apertura.
+    card.addEventListener('click', (e) => {
+        if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
+        if (e.currentTarget.id === 'chef-card' && !isPremium) return;
+        
+        console.log(`[UI Event] Clic en card CON MENÚ: ${card.id}`);
+        e.stopPropagation();
+        
+        const menuId = menuBtn.dataset.menuId;
+        const menu = document.getElementById(menuId);
+        if (menu) {
+            const isShown = menu.classList.contains('show');
+            document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                if (m.id !== menuId) m.classList.remove('show');
+            });
+            if (isShown) {
+                menu.classList.remove('show');
+            } else {
+                const buttonRect = menuBtn.getBoundingClientRect();
+                const windowHeight = window.innerHeight;
+                if (buttonRect.top > (windowHeight / 2)) {
+                    menu.classList.add('up');
                 } else {
-                    const buttonRect = menuBtn.getBoundingClientRect();
-                    const windowHeight = window.innerHeight;
-                    if (buttonRect.top > (windowHeight / 2)) {
-                        menu.classList.add('up');
-                    } else {
-                        menu.classList.remove('up');
-                    }
-                    menu.classList.add('show');
+                    menu.classList.remove('up');
                 }
+                menu.classList.add('show');
             }
-          }
-      });
-  });
+        }
+    });
+});
 }
 
 // Lógica de pestañas
