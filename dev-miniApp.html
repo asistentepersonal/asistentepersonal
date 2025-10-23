@@ -2062,12 +2062,12 @@ async function saveReminder() {
         };
 
         const payload = {
-            chatId: chatId,
-            tipo: 'recordatorioSimple',
-            fechaLocal: fechaLocalString,
-            datos: datosRecordatorio
-            // El customId no lo enviaremos por ahora para no modificar el backend.
-        };
+		chatId: chatId,
+		tipo: 'recordatorioSimple',
+		fechaLocal: fechaLocalString,
+		datos: datosRecordatorio,
+		customId: customId // <-- AÑADIMOS EL ID PARA SINCRONIZAR
+};
         
         const functions = firebase.app().functions('europe-west1');
         const createNotificationFunction = functions.httpsCallable('createNotification');
