@@ -1378,6 +1378,7 @@ const startApp = () => {
 };
 
 // --- PUNTO DE ENTRADA DEFINITIVO Y ROBUSTO ---
+// --- PUNTO DE ENTRADA DEFINITIVO Y ROBUSTO ---
 function bootstrapApp() {
     // Esta función solo se ejecuta una vez gracias al guardián
     if (versionCheckPerformed) return;
@@ -1387,11 +1388,8 @@ function bootstrapApp() {
     // Prepara la app (obtiene chatId, etc.), esto es rápido.
     startApp();
     
-    // AÑADIMOS UNA PAUSA QUIRÚRGICA ANTES DE VERIFICAR LA VERSIÓN
-    setTimeout(() => {
-        // Lanza la secuencia de verificación después de la pausa
-        checkVersionAndBootstrap();
-    }, 2000); // Pausa de 2000ms
+    // Inmediatamente después de preparar la app, verificamos la versión.
+    checkVersionAndBootstrap();
 }
 
 if (tg) {
@@ -1399,24 +1397,26 @@ if (tg) {
     if (tg.isVersionAtLeast('6.1') && tg.BackButton) {
         tg.BackButton.onClick(goBack);
     }
-    
-    // 1. Esperamos a que la API de Telegram esté lista.
+
+    // Definimos una función manejadora que se auto-eliminará
+    const onViewportStable = (event) => {
+        showToast("Punto 0: Evento viewportChanged detectado.", false, true);
+        if (event.isStateStable) {
+            // Una vez que el estado es estable, quitamos el listener
+            tg.offEvent('viewportChanged', onViewportStable);
+            // Y arrancamos la aplicación
+            bootstrapApp();
+        }
+    };
+
     tg.ready();
 
-    // 2. Comprobamos si la app ya está estable y visible.
     if (tg.isExpanded) {
-        // Si ya está expandida, lanzamos el arranque inmediatamente.
         console.log("[Arranque Rápido] La app ya está expandida. Iniciando...");
         bootstrapApp();
     } else {
-        // 3. Si no, escuchamos el evento para cuando termine de expandirse.
-        console.log("[Arranque Estándar] La app no está expandida. Esperando a viewportChanged...");
-        tg.onEvent('viewportChanged', (event) => {
-		showToast("Punto 0: Evento viewportChanged detectado.", false, true);
-            if (event.isStateStable) {
-                bootstrapApp();
-            }
-        });
+        console.log("[Arranque Estándar] Esperando a que la vista se estabilice...");
+        tg.onEvent('viewportChanged', onViewportStable);
     }
 
 } else {
