@@ -1392,7 +1392,6 @@ const startApp = () => {
 function bootstrapApp() {
     // Esta función solo se ejecuta una vez gracias al guardián
     if (versionCheckPerformed) return;
-    showToast("Punto 1: Arranque iniciado.", false, true);
     versionCheckPerformed = true;
 
     // Prepara la app (obtiene chatId, etc.), esto es rápido.
@@ -1410,7 +1409,6 @@ if (tg) {
 
     // Definimos una función manejadora que se auto-eliminará
     const onViewportStable = (event) => {
-        showToast("Punto 0: Evento viewportChanged detectado.", false, true);
         if (event.isStateStable) {
             // Una vez que el estado es estable, quitamos el listener
             tg.offEvent('viewportChanged', onViewportStable);
@@ -6097,14 +6095,12 @@ async function performVersionCheck(isResumeCheck = false) {
             const serverVersion = parseFloat(serverVersionData.current_version) || 0;
 
             if (serverVersion > localVersion) {
-                showToast(toastPrefix + `¡Nueva versión ${serverVersion} encontrada!`, false, true);
                 const changelogText = serverVersionData.changelog || "* Mejoras y correcciones.";
                 showChangelogModal(serverVersion, changelogText);
                 return true; // Devuelve TRUE porque se encontró y mostró una actualización.
             }
         }
         // Si llegamos aquí, no hay actualización.
-        showToast(toastPrefix + "App ya actualizada.", false, true);
         return false; // Devuelve FALSE porque no se necesita actualizar.
     } catch (err) {
         console.error("Error en performVersionCheck:", err);
