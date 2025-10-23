@@ -6101,6 +6101,80 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
 }
 // --- FIN: Lógica de inicialización del mapa ---
 }
+
+// --- INICIO: Lógica para obtener y mostrar datos de gasolineras ---
+
+// Función de ayuda para ejecutar la búsqueda
+const fetchStations = async (lat, lon, radius) => {
+    showSpinner("Buscando gasolineras...");
+    try {
+        const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/getFuelStations';
+        const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: { lat, lon, radius } })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error.message || 'Error en la respuesta del servidor.');
+        }
+        
+        const { stations } = await response.json();
+        return stations;
+
+    } catch (error) {
+        console.error("Error al llamar a getFuelStations:", error);
+        showToast(`Error: ${error.message}`, true);
+        return []; // Devolvemos un array vacío en caso de error
+    } finally {
+        hideSpinner();
+    }
+};
+
+// Función para dibujar los pines en el mapa
+const drawStationMarkers = (stations) => {
+    if (!map) return; // Si el mapa no se inicializó, no hacemos nada
+
+    // Limpiamos marcadores antiguos si los hubiera
+    map.eachLayer(layer => {
+        if (layer instanceof L.Marker) {
+            map.removeLayer(layer);
+        }
+    });
+
+    if (stations.length === 0) {
+        document.getElementById('combustible-list').innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
+        return;
+    }
+
+    stations.forEach(station => {
+        const popupContent = `
+            <b>${station.label}</b><br>
+            ${station.address}<br>
+            Gasolina 95: <b>${station.prices.gasolina_95_e5 || 'N/D'}€</b><br>
+            Diésel A: <b>${station.prices.gasoleo_a || 'N/D'}€</b>
+        `;
+        L.marker([station.lat, station.lon]).addTo(map)
+            .bindPopup(popupContent);
+    });
+    
+    // Aquí actualizaremos la lista, por ahora solo un placeholder
+    document.getElementById('combustible-list').innerHTML = `<div class="no-data-msg">Se encontraron ${stations.length} gasolineras.</div>`;
+};
+
+// Ejecutamos la búsqueda inicial con la ubicación de los ajustes
+if (appData.settings.ubicacion && appData.settings.ubicacion.lat) {
+    const initialLat = appData.settings.ubicacion.lat;
+    const initialLon = appData.settings.ubicacion.lon;
+    
+    (async () => {
+        const stations = await fetchStations(initialLat, initialLon, 20); // Búsqueda inicial de 20 km
+        drawStationMarkers(stations);
+    })();
+}
+// --- FIN: Lógica para obtener y mostrar datos ---
+
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
