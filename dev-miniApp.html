@@ -1970,30 +1970,38 @@ function renderReminderForm() {
     </div>`;
   const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
   
-  // --- INICIO: Lógica robusta de fecha por defecto para Recordatorios ---
+  // --- INICIO: Lógica de fecha por defecto precisa (v2.1) ---
 const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+// Función para obtener la fecha/hora actual real en la zona del usuario
 const getNowInUserTimeZone = () => {
-    const now = new Date();
+    const now = new Date(); // Obtiene la hora actual universal (UTC)
+    // Usamos Intl.DateTimeFormat para convertir la hora UTC a la zona horaria del usuario
+    // 'en-CA' nos da el formato YYYY-MM-DD, ideal para flatpickr
     const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: userTimeZone,
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
     }).formatToParts(now).reduce((acc, part) => ({ ...acc, [part.type]: part.value }), {});
-    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+    
+    // Devolvemos la fecha como un objeto Date, que es lo que flatpickr maneja mejor
+    // para evitar ambigüedades de zona horaria.
+    return new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`);
 };
 
-	flatpickr("#time", {
-	disableMobile: true,
-	enableTime: true,
-	altInput: true,
-	altFormat: "d/m/Y H:i",
-	dateFormat: "Y-m-d H:i",
-	defaultDate: getNowInUserTimeZone(),
-	locale: "es",
-	minDate: new Date()
+const nowInUserZone = getNowInUserTimeZone();
+
+flatpickr("#time", {
+    disableMobile: true,
+    enableTime: true,
+    altInput: true,
+    altFormat: "d/m/Y H:i",
+    dateFormat: "Y-m-d H:i",
+    defaultDate: nowInUserZone, // Usamos el objeto Date preciso
+    locale: "es",
+    minDate: nowInUserZone // Bloqueamos la selección de cualquier momento anterior al actual
 });
-// --- FIN: Lógica robusta ---
+// --- FIN: Lógica de fecha por defecto precisa ---
 
   function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
   function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
