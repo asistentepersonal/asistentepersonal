@@ -1174,14 +1174,32 @@ function updateCalendarBadgeListener() {
         .where('fechaInicio', '<=', endOfTodayTimestamp);
 
     unsubscribeCalendarBadge = query.onSnapshot(snapshot => {
-        appData.counts.calendarTodayCount = snapshot.size;
-        const calendarBadge = document.getElementById('calendar-badge');
-        if (calendarBadge) {
-            calendarBadge.textContent = snapshot.size;
-        }
-    }, error => {
-        console.error("Error en listener de eventos de hoy:", error);
-    });
+    const newCount = snapshot.size;
+    const oldCount = appData.counts.calendarTodayCount;
+
+    // 1. Actualizamos siempre la UI y los datos locales.
+    appData.counts.calendarTodayCount = newCount;
+    const calendarBadge = document.getElementById('calendar-badge');
+    if (calendarBadge) {
+        calendarBadge.textContent = newCount;
+    }
+
+    // 2. Sincronizamos con Firestore SOLO si el valor ha cambiado.
+    if (newCount !== oldCount) {
+        console.log(`[Badge Sync] El contador ha cambiado. Sincronizando con Firestore. Viejo: ${oldCount}, Nuevo: ${newCount}`);
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        
+        // Actualizamos el documento en segundo plano.
+        countsRef.update({
+            calendarTodayCount: newCount
+        }).catch(err => {
+            // Este error no es crítico para el usuario, solo lo registramos.
+            console.error("Error al sincronizar el contador del badge con Firestore:", err);
+        });
+    }
+}, error => {
+    console.error("Error en listener de eventos de hoy:", error);
+});
 }
 async function runApp() {
     try {
@@ -5918,7 +5936,15 @@ async function saveCalendarEvent(eventId, notifications) {
             await collectionRef.add(dataToSave);
         }
         
-        await recalculateAndSyncCalendarCount();
+        // --- INICIO: Lógica de actualización condicional del badge ---
+		// Comprobamos si el evento guardado ocurre hoy según la zona horaria del usuario.
+			const eventoGuardadoEsHoy = finalStartDate.toDateString() === new Date().toDateString();
+
+		if (eventoGuardadoEsHoy) {
+    // Si es para hoy, forzamos la resincronización completa.
+    await recalculateAndSyncCalendarCount();
+}
+// --- FIN: Lógica de actualización condicional del badge ---
         
         goBack();
 
@@ -5956,9 +5982,19 @@ async function recalculateAndSyncCalendarCount() {
 
         // Actualizamos el documento maestro de contadores
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-        await countsRef.update({
-            calendarTodayCount: todayCount
-        });
+        // --- INICIO: Lógica de actualización instantánea ---
+		// 1. Actualizamos los datos y la UI localmente al instante.
+		appData.counts.calendarTodayCount = todayCount;
+		const calendarBadge = document.getElementById('calendar-badge');
+		if (calendarBadge) {
+		calendarBadge.textContent = todayCount;
+}
+
+// 2. Actualizamos Firestore en segundo plano.
+await countsRef.update({
+    calendarTodayCount: todayCount
+});
+// --- FIN: Lógica de actualización instantánea ---
 
         console.log(`Contador del calendario sincronizado en Firestore. Total para hoy: ${todayCount}`);
     } catch (error) {
