@@ -6044,6 +6044,38 @@ async function handleDeleteCalendarEvent(eventId) {
     } 
     // Se elimina el 'finally' porque ya no hay spinner global que ocultar.
 }
+
+// ==================================================
+// --- MÓDULO: RADAR COMBUSTIBLE ---
+// ==================================================
+function renderCombustibleView() {
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header" style="justify-content: space-between; align-items: center;">
+                <h2>⛽ Radar Combustible</h2>
+                <button class="add-article-btn enabled" id="combustible-update-btn" style="width: auto; padding: 8px 15px; font-size: 1rem; margin-top: 0;">
+                    Buscar cerca de mí 📍
+                </button>
+            </div>
+
+            <div id="combustible-map" style="height: 300px; background-color: #e9e9e9; margin: 10px; border-radius: 12px;">
+                <!-- El mapa interactivo se cargará aquí -->
+            </div>
+
+            <div id="combustible-filters" style="padding: 0 10px; margin-bottom: 15px;">
+                <!-- Los filtros de combustible se cargarán aquí -->
+                <p style="text-align: center; color: var(--muted);">Cargando filtros...</p>
+            </div>
+
+            <div id="combustible-list">
+                <div class="no-data-msg">Obteniendo precios...</div>
+            </div>
+        </div>
+    `;
+}
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
@@ -6211,37 +6243,6 @@ async function checkVersionAndBootstrap() {
     }
 }
 });
-// ==================================================
-// --- MÓDULO: RADAR COMBUSTIBLE ---
-// ==================================================
-function renderCombustibleView() {
-    navigationHistory.push(renderDashboard);
-    updateBackButton();
-
-    mainContentArea.innerHTML = `
-        <div class="list-container">
-            <div class="list-header" style="justify-content: space-between; align-items: center;">
-                <h2>⛽ Radar Combustible</h2>
-                <button class="add-article-btn enabled" id="combustible-update-btn" style="width: auto; padding: 8px 15px; font-size: 1rem; margin-top: 0;">
-                    Buscar cerca de mí 📍
-                </button>
-            </div>
-
-            <div id="combustible-map" style="height: 300px; background-color: #e9e9e9; margin: 10px; border-radius: 12px;">
-                <!-- El mapa interactivo se cargará aquí -->
-            </div>
-
-            <div id="combustible-filters" style="padding: 0 10px; margin-bottom: 15px;">
-                <!-- Los filtros de combustible se cargarán aquí -->
-                <p style="text-align: center; color: var(--muted);">Cargando filtros...</p>
-            </div>
-
-            <div id="combustible-list">
-                <div class="no-data-msg">Obteniendo precios...</div>
-            </div>
-        </div>
-    `;
-}
 </script>
 </body>
 </html>
