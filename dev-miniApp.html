@@ -2039,6 +2039,13 @@ async function saveReminder() {
             Status: 'pending_creation' // <-- Estado inicial con reloj de arena
         };
         appData.remindersList.unshift(tempReminder); // 'unshift' lo añade al principio
+		// --- INICIO: Actualización optimista del contador ---
+		appData.counts.remindersCount++;
+		const reminderBadge = document.getElementById('reminders-badge');
+		if (reminderBadge) {
+		reminderBadge.textContent = appData.counts.remindersCount;
+}
+// --- FIN: Actualización optimista del contador ---
 
         // 2. Navegamos y redibujamos la UI instantáneamente.
         renderRemindersList();
@@ -2105,31 +2112,42 @@ async function renderRemindersList() {
                 .orderBy('fecha_universal', 'asc');
     
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-        const reminders = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            reminders.push({
-                tracking_code: doc.id,
-                Descripcion: data.descripcion,
-                Categoria: data.categoria_recordatorio,
-                Fecha: data.hora_local,
-                Status: data.status
-            });
+    // 1. Guardamos los recordatorios pendientes que solo existen localmente.
+    const pendingReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
+    
+    // 2. Procesamos la lista "oficial" que viene de Firestore.
+    const firestoreReminders = [];
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        firestoreReminders.push({
+            tracking_code: doc.id,
+            Descripcion: data.descripcion,
+            Categoria: data.categoria_recordatorio,
+            Fecha: data.hora_local,
+            Status: data.status
         });
-        
-        appData.remindersList = reminders;
-        appData.counts.remindersCount = reminders.length;
-        if (document.getElementById('reminders-badge')) {
-            document.getElementById('reminders-badge').textContent = reminders.length;
-        }
-
-        drawRemindersList();
-
-    }, error => {
-        console.error("Error en el listener de recordatorios:", error);
-        showToast("Error de conexión con la lista.", true);
-        if(listElement) listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
     });
+    
+    // 3. Unimos las dos listas: los pendientes y los confirmados de Firestore.
+    // Usamos un Map para evitar duplicados si un pendiente ya fue confirmado.
+    const combinedMap = new Map();
+    [...pendingReminders, ...firestoreReminders].forEach(r => combinedMap.set(r.tracking_code, r));
+    
+    // 4. Actualizamos la lista local y los contadores con la verdad combinada.
+    appData.remindersList = Array.from(combinedMap.values());
+    appData.counts.remindersCount = appData.remindersList.length;
+    if (document.getElementById('reminders-badge')) {
+        document.getElementById('reminders-badge').textContent = appData.remindersList.length;
+    }
+
+    drawRemindersList();
+
+}, error => {
+    console.error("Error en el listener de recordatorios:", error);
+    showToast("Error de conexión con la lista.", true);
+    const listElement = document.getElementById('reminders-list');
+    if(listElement) listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
+});
 }
 
 function drawRemindersList() {
