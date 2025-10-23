@@ -4212,28 +4212,28 @@ function renderExportPage() {
 }
 
 async function executeExport() {
-    showSpinner("Generando exportación...");
+    const exportBtn = document.getElementById('export-confirm-btn');
+    const originalBtnHTML = exportBtn.innerHTML;
+    
+    // 1. Cambiamos el estado del botón a "cargando"
+    exportBtn.disabled = true;
+    exportBtn.innerHTML = `<span class="spinner btn-spinner"></span> Generando...`;
+
     const startDate = document.getElementById('export-start-date').value;
     const endDate = document.getElementById('export-end-date').value;
 
     if (!startDate || !endDate) {
-        hideSpinner();
         showToast("Por favor, selecciona ambas fechas.", true);
+        // Restauramos el botón si hay un error de validación
+        exportBtn.disabled = false;
+        exportBtn.innerHTML = originalBtnHTML;
         return;
     }
 
-    // URL correcta de la Cloud Function
     const exportFunctionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/exportarGastos';
 
     try {
-        // Payload con la estructura que espera el backend
-        const payload = {
-            data: {
-                chatId: chatId,
-                startDate: startDate,
-                endDate: endDate
-            }
-        };
+        const payload = { data: { chatId, startDate, endDate } };
 
         const response = await fetch(exportFunctionUrl, {
             method: 'POST',
@@ -4244,20 +4244,24 @@ async function executeExport() {
         const result = await response.json();
 
         if (!response.ok) {
-            // Si el servidor devuelve un error, lo mostramos
             throw new Error(result.error.message || `Error del servidor: ${response.status}`);
         }
         
-        // Mostramos el mensaje de éxito del servidor
+        // 2. Lógica anti-doble-toast
         showToast(result.result.message || "Petición enviada. Revisa tu email.");
-        renderDashboard(); // Volver al dashboard tras el éxito
+        
+        // Hacemos una pequeña pausa ANTES de navegar al Home
+        setTimeout(() => {
+            renderDashboard(); 
+        }, 300); // 300ms es suficiente para que la animación del toast se vea bien
 
     } catch (err) {
-        // Mostramos el error capturado
         showToast(`Error al exportar: ${err.message}`, true);
-    } finally {
-        hideSpinner();
+        // 3. Restauramos el botón SOLO si hay un error, para que el usuario pueda reintentar
+        exportBtn.disabled = false;
+        exportBtn.innerHTML = originalBtnHTML;
     }
+    // Nota: No hay 'finally' para que el botón no reaparezca brevemente antes de navegar.
 }
 
 // ==================================================
