@@ -6049,7 +6049,12 @@ async function handleDeleteCalendarEvent(eventId) {
 // --- MÓDULO: RADAR COMBUSTIBLE ---
 // ==================================================
 function renderCombustibleView() {
-    navigationHistory.push(renderDashboard);
+    navigationHistory.push(() => {
+    if (tg && tg.MainButton.isVisible) {
+        tg.MainButton.hide();
+    }
+    renderDashboard();
+});
     updateBackButton();
 
     mainContentArea.innerHTML = `
@@ -6100,19 +6105,28 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
     mapContainer.innerHTML = '<div class="no-data-msg" style="padding:20px;">📍<br>No se encontró tu ubicación. Por favor, configúrala en Ajustes.</div>';
 }
 // --- FIN: Lógica de inicialización del mapa ---
-// --- INICIO: Lógica del botón de actualización (CORREGIDA) ---
+// --- INICIO: Lógica del botón de actualización con MainButton (v3.5) ---
 const updateBtn = document.getElementById('combustible-update-btn');
 updateBtn.onclick = () => {
-    // La forma correcta de verificar si la función está disponible.
-    if (tg && tg.isVersionAtLeast('6.9') && tg.CloudStorage) {
-         showSpinner("Obteniendo tu ubicación precisa...");
+    if (!tg || !tg.MainButton) {
+        showToast("Tu versión de Telegram no es compatible.", true);
+        return;
+    }
+
+    // 1. Definimos qué hará el MainButton cuando el usuario lo pulse.
+    const mainButtonClickHandler = () => {
+        // Mostramos nuestro spinner mientras Telegram pide la ubicación.
+        showSpinner("Solicitando ubicación...");
         
-        // Usamos una promesa para manejar la respuesta de forma más limpia.
         tg.requestLocation((location) => {
+            hideSpinner();
+            // Ocultamos el MainButton inmediatamente después de la acción.
+            tg.MainButton.hide();
+            // Dejamos de escuchar el evento de clic para no volver a ejecutarlo.
+            tg.MainButton.offClick(mainButtonClickHandler);
+
             if (location && location.latitude) {
-                hideSpinner();
                 console.log("Ubicación precisa obtenida:", location);
-                
                 map.setView([location.latitude, location.longitude], 14);
                 
                 (async () => {
@@ -6120,15 +6134,18 @@ updateBtn.onclick = () => {
                     drawStationMarkers(stations);
                 })();
             } else {
-                hideSpinner();
-                // Este callback se ejecuta si el usuario rechaza el permiso.
                 showToast("Permiso de ubicación denegado.", true);
             }
         });
-    } else {
-        // Este mensaje ahora solo aparecerá si la versión de Telegram del usuario es muy antigua.
-        showToast("Tu versión de Telegram no es compatible con esta función. Por favor, actualiza la app.", true);
-    }
+    };
+
+    // 2. Configuramos y mostramos el MainButton.
+    tg.MainButton.setText("CONFIRMAR PARA COMPARTIR UBICACIÓN");
+    tg.MainButton.onClick(mainButtonClickHandler);
+    tg.MainButton.show();
+
+    // 3. (Opcional pero recomendado) Guiamos al usuario.
+    showToast("Por favor, pulsa el botón que ha aparecido abajo para confirmar.");
 };
 // --- FIN: Lógica del botón de actualización ---
 }
