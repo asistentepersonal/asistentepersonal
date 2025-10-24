@@ -6048,91 +6048,92 @@ async function handleDeleteCalendarEvent(eventId) {
 // ==================================================
 // --- MÓDULO: RADAR COMBUSTIBLE ---
 // ==================================================
-function renderCombustibleView() {
+function renderCombustibleView() function renderCombustibleView() {
+    // Al volver atrás, nos aseguramos de ocultar el botón principal
     navigationHistory.push(() => {
-    if (tg && tg.MainButton.isVisible) {
-        tg.MainButton.hide();
-    }
-    renderDashboard();
-});
+        if (tg && tg.MainButton.isVisible) {
+            tg.MainButton.hide();
+        }
+        renderDashboard();
+    });
     updateBackButton();
 
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header" style="justify-content: space-between; align-items: center;">
+            <div class="list-header">
                 <h2>⛽ Radar Combustible</h2>
-                style="width: auto; padding: 8px 15px; font-size: 1rem; margin-top: 0;">
-                    Buscar cerca de mí 📍
-                </button>
             </div>
-
-            <div id="combustible-map" style="height: 300px; background-color: #e9e9e9; margin: 10px; border-radius: 12px;">
-                <!-- El mapa interactivo se cargará aquí -->
-            </div>
-
+            <div id="combustible-map" style="height: 300px; background-color: #e9e9e9; margin: 10px; border-radius: 12px;"></div>
             <div id="combustible-filters" style="padding: 0 10px; margin-bottom: 15px;">
-                <!-- Los filtros de combustible se cargarán aquí -->
-                <p style="text-align: center; color: var(--muted);">Cargando filtros...</p>
+                 <p style="text-align: center; color: var(--muted);">Usa el botón de abajo para buscar cerca de ti.</p>
             </div>
-
             <div id="combustible-list">
-                <div class="no-data-msg">Obteniendo precios...</div>
+                <div class="no-data-msg">Esperando ubicación...</div>
             </div>
         </div>
     `;
-	// --- INICIO: Lógica de inicialización del mapa ---
-const mapContainer = document.getElementById('combustible-map');
-// --- INICIO: Lógica del MainButton Nativo para Ubicación (v1.4) ---
-if (tg && tg.MainButton) {
-    tg.MainButton.setText("Buscar cerca de mí 📍");
-    tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
 
-    const onMainButtonClick = () => {
-        showSpinner("Esperando permiso de ubicación...");
-        tg.requestLocation((location) => {
-            hideSpinner();
-            if (location && location.latitude) {
-                map.setView([location.latitude, location.longitude], 14);
-                (async () => {
-                    const stations = await fetchStations(location.latitude, location.longitude, 5);
-                    drawStationMarkers(stations);
-                })();
-            } else {
-                showToast("Permiso de ubicación denegado.", true);
-            }
+    const mapContainer = document.getElementById('combustible-map');
+    let map = null; // Declaramos la variable 'map' aquí
+
+    if (tg && tg.MainButton) {
+        tg.MainButton.setText("Buscar cerca de mí 📍");
+        tg.MainButton.setParams({
+            text_color: '#ffffff',
+            color: '#4a76f3'
         });
-    };
+        
+        // 1. Mostramos el MainButton y le damos feedback al usuario
+        tg.MainButton.show();
+        tg.MainButton.enable();
+        tg.MainButton.showProgress(false); // Nos aseguramos de que no tenga un spinner al inicio
 
-    tg.MainButton.onClick(onMainButtonClick);
-    tg.MainButton.show();
-}
-// --- FIN: Lógica del MainButton Nativo ---
+        const onMainButtonClick = () => {
+            // **PUNTO DE CONTROL 1: VERIFICAR QUE EL BOTÓN FUNCIONA**
+            showToast('1. Solicitando permiso de ubicación...', false, true);
+            tg.MainButton.showProgress(true); // Mostramos el spinner NATIVO del botón
+            tg.MainButton.disable();
 
-// Verificamos que tenemos los datos de ubicación del usuario antes de intentar crear el mapa.
-if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
-    const userLat = appData.settings.ubicacion.lat;
-    const userLon = appData.settings.ubicacion.lon;
+            // Llamamos al método obsoleto, pero ahora controlamos todos los posibles resultados
+            tg.requestLocation((location) => {
+                tg.MainButton.hideProgress();
+                tg.MainButton.enable();
 
-    // 1. Inicializamos el mapa en el div 'combustible-map', centrado en la ubicación del usuario.
-    map = L.map('combustible-map').setView([userLat, userLon], 13); // 13 es un buen nivel de zoom para una ciudad.
+                if (location && location.latitude) {
+                    // **PUNTO DE CONTROL 2: VERIFICAR QUE RECIBIMOS LA UBICACIÓN**
+                    showToast('2. ✅ Ubicación recibida. Buscando...', false, true);
+                    
+                    if (map) {
+                        map.setView([location.latitude, location.longitude], 14);
+                    } else {
+                        map = L.map('combustible-map').setView([location.latitude, location.longitude], 14);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    }
+                    
+                    (async () => {
+                        const stations = await fetchStations(location.latitude, location.longitude, 5);
+                        drawStationMarkers(stations, map); 
+                        // **PUNTO DE CONTROL 3: VERIFICAR QUE LA BÚSQUEDA FUE EXITOSA**
+                        showToast('3. ✅ Búsqueda completada.', false, true);
+                    })();
 
-    // 2. Añadimos la capa de teselas de OpenStreetMap para que el mapa se vea.
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
+                } else {
+                    showToast("Permiso de ubicación denegado por el usuario.", true, true);
+                }
+            });
+        };
 
-    // 3. (Opcional pero recomendado) Añadimos un marcador para la ubicación del usuario.
-    L.marker([userLat, userLon]).addTo(map)
-        .bindPopup('Tu ubicación guardada')
-        .openPopup();
-} else {
-    // Si no hay datos de ubicación, mostramos un mensaje de error en el contenedor del mapa.
-    mapContainer.innerHTML = '<div class="no-data-msg" style="padding:20px;">📍<br>No se encontró tu ubicación. Por favor, configúrala en Ajustes.</div>';
-}
-// --- FIN: Lógica de inicialización del mapa ---
-// --- INICIO: Lógica del botón de actualización con Plan de Rescate (v3.6) ---
-const updateBtn = document.getElementById('combustible-update-btn');
-
+        tg.MainButton.onClick(onMainButtonClick);
+    }
+    
+    // Mostramos el mapa centrado en la ubicación guardada (si existe)
+    if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
+        map = L.map('combustible-map').setView([appData.settings.ubicacion.lat, appData.settings.ubicacion.lon], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        L.marker([appData.settings.ubicacion.lat, appData.settings.ubicacion.lon]).addTo(map).bindPopup('Tu ubicación guardada');
+    } else {
+        mapContainer.innerHTML = '<div class="no-data-msg">Pulsa el botón de abajo para encontrar tu ubicación.</div>';
+    }
 }
 
 // --- INICIO: Lógica para obtener y mostrar datos de gasolineras ---
@@ -6166,8 +6167,8 @@ const fetchStations = async (lat, lon, radius) => {
 };
 
 // Función para dibujar los pines en el mapa
-const drawStationMarkers = (stations) => {
-    if (!map) return; // Si el mapa no se inicializó, no hacemos nada
+const drawStationMarkers = (stations, map) => {
+    if (!map) return; 
 
     // Limpiamos marcadores antiguos si los hubiera
     map.eachLayer(layer => {
@@ -6194,6 +6195,9 @@ const drawStationMarkers = (stations) => {
     
     // Aquí actualizaremos la lista, por ahora solo un placeholder
     document.getElementById('combustible-list').innerHTML = `<div class="no-data-msg">Se encontraron ${stations.length} gasolineras.</div>`;
+    
+    // **PUNTO DE CONTROL 4: VERIFICAR QUE LOS MARCADORES SE HAN DIBUJADO**
+    showToast('4. ✅ Marcadores dibujados en el mapa.', false, true);
 };
 
 // Ejecutamos la búsqueda inicial con la ubicación de los ajustes
