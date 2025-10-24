@@ -6061,7 +6061,7 @@ function renderCombustibleView() {
         <div class="list-container">
             <div class="list-header" style="justify-content: space-between; align-items: center;">
                 <h2>⛽ Radar Combustible</h2>
-                <button class="add-article-btn enabled" id="combustible-update-btn" style="width: auto; padding: 8px 15px; font-size: 1rem; margin-top: 0;">
+                style="width: auto; padding: 8px 15px; font-size: 1rem; margin-top: 0;">
                     Buscar cerca de mí 📍
                 </button>
             </div>
@@ -6082,6 +6082,31 @@ function renderCombustibleView() {
     `;
 	// --- INICIO: Lógica de inicialización del mapa ---
 const mapContainer = document.getElementById('combustible-map');
+// --- INICIO: Lógica del MainButton Nativo para Ubicación (v1.4) ---
+if (tg && tg.MainButton) {
+    tg.MainButton.setText("Buscar cerca de mí 📍");
+    tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+
+    const onMainButtonClick = () => {
+        showSpinner("Esperando permiso de ubicación...");
+        tg.requestLocation((location) => {
+            hideSpinner();
+            if (location && location.latitude) {
+                map.setView([location.latitude, location.longitude], 14);
+                (async () => {
+                    const stations = await fetchStations(location.latitude, location.longitude, 5);
+                    drawStationMarkers(stations);
+                })();
+            } else {
+                showToast("Permiso de ubicación denegado.", true);
+            }
+        });
+    };
+
+    tg.MainButton.onClick(onMainButtonClick);
+    tg.MainButton.show();
+}
+// --- FIN: Lógica del MainButton Nativo ---
 
 // Verificamos que tenemos los datos de ubicación del usuario antes de intentar crear el mapa.
 if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
@@ -6107,55 +6132,7 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
 // --- FIN: Lógica de inicialización del mapa ---
 // --- INICIO: Lógica del botón de actualización con Plan de Rescate (v3.6) ---
 const updateBtn = document.getElementById('combustible-update-btn');
-// --- INICIO: Lógica del botón de actualización con Diagnóstico por Toasts (v1.2) ---
-updateBtn.onclick = () => {
-    showToast("Toast 1: Botón pulsado.");
 
-    if (!tg) {
-        showToast("ERROR: Objeto 'tg' no encontrado.", true, true);
-        return;
-    }
-    showToast("Toast 2: Objeto 'tg' OK.");
-
-    if (typeof tg.requestLocation !== 'function') {
-        showToast("ERROR: Función 'requestLocation' no encontrada.", true, true);
-        return;
-    }
-    showToast("Toast 3: Función 'requestLocation' OK.");
-
-    let locationTimeout = setTimeout(() => {
-        hideSpinner();
-        showToast("Toast ERROR: Petición de ubicación agotada (15s).", true, true);
-        locationTimeout = null; 
-    }, 15000);
-
-    showSpinner("Esperando permiso de ubicación...");
-    showToast("Toast 4: Llamando a Telegram...");
-
-    tg.requestLocation((location) => {
-        showToast("Toast 5: Telegram ha respondido.");
-        
-        if (locationTimeout) {
-            clearTimeout(locationTimeout);
-        } else {
-            return; 
-        }
-
-        hideSpinner();
-
-        if (location && location.latitude) {
-            map.setView([location.latitude, location.longitude], 14);
-            (async () => {
-                const stations = await fetchStations(location.latitude, location.longitude, 5);
-                drawStationMarkers(stations);
-            })();
-        } else {
-            showToast("Toast INFO: Permiso denegado.", true);
-        }
-    });
-};
-// --- FIN: Lógica del botón de actualización con Diagnóstico por Toasts ---
-// --- FIN: Lógica del botón de actualización ---
 }
 
 // --- INICIO: Lógica para obtener y mostrar datos de gasolineras ---
