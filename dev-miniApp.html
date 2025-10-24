@@ -6107,50 +6107,55 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
 // --- FIN: Lógica de inicialización del mapa ---
 // --- INICIO: Lógica del botón de actualización con Plan de Rescate (v3.6) ---
 const updateBtn = document.getElementById('combustible-update-btn');
+// --- INICIO: Lógica del botón de actualización con Diagnóstico por Toasts (v1.2) ---
+const updateBtn = document.getElementById('combustible-update-btn');
 updateBtn.onclick = () => {
-    if (!tg || typeof tg.requestLocation !== 'function') {
-        showToast("La solicitud de ubicación no es compatible en este entorno.", true);
+    showToast("Toast 1: Botón pulsado.");
+
+    if (!tg) {
+        showToast("ERROR: Objeto 'tg' no encontrado.", true, true);
         return;
     }
+    showToast("Toast 2: Objeto 'tg' OK.");
 
-    // 1. Preparamos nuestro temporizador de rescate.
+    if (typeof tg.requestLocation !== 'function') {
+        showToast("ERROR: Función 'requestLocation' no encontrada.", true, true);
+        return;
+    }
+    showToast("Toast 3: Función 'requestLocation' OK.");
+
     let locationTimeout = setTimeout(() => {
-        // Si este código se ejecuta, es porque Telegram no respondió.
         hideSpinner();
-        showToast("No se pudo obtener la ubicación (tiempo de espera agotado).", true);
-        // Anulamos la variable para que el callback de éxito no haga nada si llega tarde.
+        showToast("Toast ERROR: Petición de ubicación agotada (15s).", true, true);
         locationTimeout = null; 
-    }, 15000); // 15 segundos de tiempo de espera.
+    }, 15000);
 
-    // 2. Mostramos el spinner y llamamos a la función de Telegram.
     showSpinner("Esperando permiso de ubicación...");
-    
+    showToast("Toast 4: Llamando a Telegram...");
+
     tg.requestLocation((location) => {
-        // 3. ÉXITO: Recibimos una respuesta de Telegram.
+        showToast("Toast 5: Telegram ha respondido.");
         
-        // Si el temporizador de rescate todavía está activo, lo desactivamos.
         if (locationTimeout) {
             clearTimeout(locationTimeout);
         } else {
-            // Si locationTimeout es nulo, significa que el rescate ya se activó. No hacemos nada.
             return; 
         }
 
         hideSpinner();
 
         if (location && location.latitude) {
-            console.log("Ubicación precisa obtenida:", location);
             map.setView([location.latitude, location.longitude], 14);
-            
             (async () => {
                 const stations = await fetchStations(location.latitude, location.longitude, 5);
                 drawStationMarkers(stations);
             })();
         } else {
-            showToast("Permiso de ubicación denegado.", true);
+            showToast("Toast INFO: Permiso denegado.", true);
         }
     });
 };
+// --- FIN: Lógica del botón de actualización con Diagnóstico por Toasts ---
 // --- FIN: Lógica del botón de actualización ---
 }
 
