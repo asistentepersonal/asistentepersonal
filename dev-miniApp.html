@@ -6219,29 +6219,32 @@ function renderDashboard() {
     const counts = appData.counts;
     const isPremium = appData.isPremium === true;
 
-    // --- LÓGICA DE LA CARD DE COMBUSTIBLE INTELIGENTE ---
+    // --- LÓGICA DE LA CARD DE COMBUSTIBLE INTELIGENTE (VERSIÓN FINAL) ---
     let combustibleCardHtml = '';
     const fuelData = counts.fuelWidgetData;
 
     if (fuelData) { // Caso 1: Hay datos inteligentes (Usuario de España)
         const getTrendIcon = (trend) => {
-            if (trend === 'up') return ' <span style="color: #e74c3c;">↗︎</span>';
-            if (trend === 'down') return ' <span style="color: #28a745;">↘︎</span>';
-            return '';
+            if (trend === 'up') return ' <span style="font-size: 0.7em; color: #e74c3c;">▲</span>';
+            if (trend === 'down') return ' <span style="font-size: 0.7em; color: #28a745;">▼</span>';
+            return ''; // No mostramos nada si es 'same'
         };
         
+        // Estilo unificado para las píldoras
+        const pillStyle = "cursor: pointer; font-size: 0.8rem; padding: 4px 8px; line-height: 1.2;";
+
         const gasolinePill = fuelData.gasolinePrice
-            ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="cursor: pointer;">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>`
+            ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="${pillStyle}">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>`
             : '';
         const dieselPill = fuelData.dieselPrice
-            ? `<div class="card-badge card-badge-pill" id="diesel-pill" style="cursor: pointer;">⚫ ${fuelData.dieselPrice.toFixed(3)}${getTrendIcon(fuelData.dieselTrend)}</div>`
+            ? `<div class="card-badge card-badge-pill" id="diesel-pill" style="${pillStyle}">⚫ ${fuelData.dieselPrice.toFixed(3)}${getTrendIcon(fuelData.dieselTrend)}</div>`
             : '';
 
         combustibleCardHtml = `
             <div id="combustible-card" class="card clickable-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;">
                 <div class="card-badge-group">${gasolinePill}${dieselPill}</div>
-                <div style="position: absolute; bottom: 8px; font-size: 0.7rem; color: #fff; background-color: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px;">
-                    Actualizado: ${fuelData.lastUpdated.split(',')[0]}
+                <div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.7rem; color: #fff; background-color: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px;">
+                    ${fuelData.lastUpdated.split(',')[0]}
                 </div>
             </div>`;
 
@@ -6290,11 +6293,9 @@ function renderDashboard() {
     document.getElementById('calendar-card').onclick = renderCalendarView;
     document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
     
-    // --- ASIGNACIÓN DE EVENTOS PARA LAS NUEVAS CARDS ---
     const combustibleCard = document.getElementById('combustible-card');
     if (combustibleCard) {
         combustibleCard.onclick = (e) => {
-            // Si el clic es en las píldoras, no navegamos
             if (e.target.closest('#gasoline-pill') || e.target.closest('#diesel-pill')) return;
             renderCombustibleView();
         };
