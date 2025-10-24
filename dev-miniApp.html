@@ -6084,7 +6084,7 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
     const userLon = appData.settings.ubicacion.lon;
 
     // 1. Inicializamos el mapa en el div 'combustible-map', centrado en la ubicación del usuario.
-    const map = L.map('combustible-map').setView([userLat, userLon], 13); // 13 es un buen nivel de zoom para una ciudad.
+    map = L.map('combustible-map').setView([userLat, userLon], 13); // 13 es un buen nivel de zoom para una ciudad.
 
     // 2. Añadimos la capa de teselas de OpenStreetMap para que el mapa se vea.
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -6100,6 +6100,32 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
     mapContainer.innerHTML = '<div class="no-data-msg" style="padding:20px;">📍<br>No se encontró tu ubicación. Por favor, configúrala en Ajustes.</div>';
 }
 // --- FIN: Lógica de inicialización del mapa ---
+// --- INICIO: Lógica del botón de actualización ---
+const updateBtn = document.getElementById('combustible-update-btn');
+updateBtn.onclick = () => {
+    if (tg && tg.requestLocation) {
+        showSpinner("Obteniendo tu ubicación precisa...");
+        tg.requestLocation((location) => {
+            if (location) {
+                console.log("Ubicación precisa obtenida:", location);
+                // Una vez obtenida la ubicación, centramos el mapa y hacemos la búsqueda precisa
+                map.setView([location.latitude, location.longitude], 14); // Zoom más cercano (14)
+                
+                (async () => {
+                    const stations = await fetchStations(location.latitude, location.longitude, 5); // Búsqueda precisa de 5 km
+                    drawStationMarkers(stations);
+                })();
+
+            } else {
+                hideSpinner();
+                showToast("No se pudo obtener tu ubicación.", true);
+            }
+        });
+    } else {
+        showToast("La solicitud de ubicación no es compatible en este entorno.", true);
+    }
+};
+// --- FIN: Lógica del botón de actualización ---
 }
 
 // --- INICIO: Lógica para obtener y mostrar datos de gasolineras ---
@@ -6223,6 +6249,7 @@ function renderDashboard() {
   document.getElementById('combustible-card').onclick = renderCombustibleView;
   document.getElementById('list-gastos-link').onclick = () => {
       navigationHistory.push(renderDashboard);
+	  let map = null; // Declaramos la variable 'map' aquí para que sea accesible en toda la función.
       updateBackButton();
       renderGastosSearchScreen();
   };
