@@ -6049,12 +6049,11 @@ async function handleDeleteCalendarEvent(eventId) {
 // --- MÓDULO: RADAR COMBUSTIBLE ---
 // ==================================================
 function renderCombustibleView() {
-    let onMainButtonClick; // Declarar aquí para que sea accesible en el cleanup
-    
+    let onMainButtonClick; 
+
     navigationHistory.push(() => {
         if (tg && tg.MainButton.isVisible) {
             tg.MainButton.hide();
-            // Limpiamos el evento para evitar fugas de memoria si se navega mucho
             if (onMainButtonClick) {
                 tg.MainButton.offClick(onMainButtonClick);
             }
@@ -6078,50 +6077,50 @@ function renderCombustibleView() {
         onMainButtonClick = () => {
             tg.MainButton.showProgress(true);
             tg.MainButton.disable();
-            let locationReceived = false;
 
-            const locationTimeout = setTimeout(() => {
-                if (!locationReceived) {
+            // --- INICIO: LLAMADA A LA API WEB ESTÁNDAR ---
+            navigator.geolocation.getCurrentPosition(
+                // Función de ÉXITO
+                (position) => {
                     tg.MainButton.hideProgress();
                     tg.MainButton.enable();
-                    showToast("La solicitud de ubicación tardó demasiado. Inténtalo de nuevo.", true, true);
-                }
-            }, 10000); // Timeout de 10 segundos
 
-            tg.requestLocation((location) => {
-                locationReceived = true;
-                clearTimeout(locationTimeout);
-                tg.MainButton.hideProgress();
-                tg.MainButton.enable();
-
-                if (location && location.latitude) {
+                    const { latitude, longitude } = position.coords;
+                    
                     if (!map) {
                         map = L.map('combustible-map');
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
                     }
-                    map.setView([location.latitude, location.longitude], 14);
+                    map.setView([latitude, longitude], 14);
                     
                     (async () => {
-                        const stations = await fetchStations(location.latitude, location.longitude, 5);
+                        const stations = await fetchStations(latitude, longitude, 5);
                         drawStationMarkers(stations, map);
                     })();
-                } else {
-                    showToast("Permiso de ubicación denegado.", true, true);
-                }
-            });
+                },
+                // Función de ERROR
+                (error) => {
+                    tg.MainButton.hideProgress();
+                    tg.MainButton.enable();
+                    let errorMsg = "No se pudo obtener la ubicación.";
+                    if (error.code === 1) { // PERMISSION_DENIED
+                        errorMsg = "Permiso de ubicación denegado.";
+                    }
+                    showToast(errorMsg, true, true);
+                },
+                // Opciones
+                { timeout: 10000, enableHighAccuracy: true }
+            );
+            // --- FIN: LLAMADA A LA API WEB ESTÁNDAR ---
         };
         
-        // --- INICIO: SECUENCIA DE RESETEO DEFENSIVO ---
-        tg.MainButton.offClick(onMainButtonClick); // Limpia cualquier handler anterior
-        tg.MainButton.hideProgress();             // FUERZA la detención del spinner
-        tg.MainButton.enable();                   // Habilita el botón
-        tg.MainButton.setText("Buscar cerca de mí 📍"); // Establece el texto correcto
-        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' }); // Establece los colores
-        
-        // Una vez reseteado, asignamos el nuevo evento y lo mostramos
+        tg.MainButton.offClick(onMainButtonClick);
+        tg.MainButton.hideProgress();
+        tg.MainButton.enable();
+        tg.MainButton.setText("Buscar cerca de mí 📍");
+        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
         tg.MainButton.onClick(onMainButtonClick);
         tg.MainButton.show();
-        // --- FIN: SECUENCIA DE RESETEO DEFENSIVO ---
     }
     
     if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
