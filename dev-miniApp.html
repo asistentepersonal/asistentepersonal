@@ -6105,47 +6105,42 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
     mapContainer.innerHTML = '<div class="no-data-msg" style="padding:20px;">📍<br>No se encontró tu ubicación. Por favor, configúrala en Ajustes.</div>';
 }
 // --- FIN: Lógica de inicialización del mapa ---
-// --- INICIO: Lógica del botón de actualización con MainButton (v3.5) ---
+// --- INICIO: Lógica del botón de actualización (v3.6 - Definitiva) ---
 const updateBtn = document.getElementById('combustible-update-btn');
 updateBtn.onclick = () => {
-    if (!tg || !tg.MainButton) {
-        showToast("Tu versión de Telegram no es compatible.", true);
+    if (!tg) {
+        showToast("Función no disponible fuera de Telegram.", true);
         return;
     }
 
-    // 1. Definimos qué hará el MainButton cuando el usuario lo pulse.
-    const mainButtonClickHandler = () => {
-        // Mostramos nuestro spinner mientras Telegram pide la ubicación.
-        showSpinner("Solicitando ubicación...");
-        
-        tg.requestLocation((location) => {
-            hideSpinner();
-            // Ocultamos el MainButton inmediatamente después de la acción.
-            tg.MainButton.hide();
-            // Dejamos de escuchar el evento de clic para no volver a ejecutarlo.
-            tg.MainButton.offClick(mainButtonClickHandler);
+    // 1. Mostramos nuestro spinner INMEDIATAMENTE.
+    showSpinner("Solicitando ubicación...");
 
-            if (location && location.latitude) {
-                console.log("Ubicación precisa obtenida:", location);
-                map.setView([location.latitude, location.longitude], 14);
-                
-                (async () => {
-                    const stations = await fetchStations(location.latitude, location.longitude, 5);
-                    drawStationMarkers(stations);
-                })();
-            } else {
-                showToast("Permiso de ubicación denegado.", true);
-            }
-        });
-    };
+    // 2. Llamamos directamente a requestLocation.
+    // El segundo parámetro es el callback en caso de que el usuario cancele o haya un error.
+    tg.requestLocation((location) => {
+        // ÉXITO: El usuario compartió la ubicación.
+        hideSpinner(); // Ocultamos el spinner tan pronto como tenemos respuesta.
 
-    // 2. Configuramos y mostramos el MainButton.
-    tg.MainButton.setText("CONFIRMAR PARA COMPARTIR UBICACIÓN");
-    tg.MainButton.onClick(mainButtonClickHandler);
-    tg.MainButton.show();
-
-    // 3. (Opcional pero recomendado) Guiamos al usuario.
-    showToast("Por favor, pulsa el botón que ha aparecido abajo para confirmar.");
+        if (location && location.latitude) {
+            console.log("Ubicación precisa obtenida:", location);
+            map.setView([location.latitude, location.longitude], 14);
+            
+            (async () => {
+                const stations = await fetchStations(location.latitude, location.longitude, 5);
+                drawStationMarkers(stations);
+            })();
+        } else {
+            // El callback se ejecutó pero sin datos, lo cual es raro.
+            showToast("No se recibieron datos de ubicación.", true);
+        }
+    }, 
+    (error) => {
+        // FALLO: El usuario canceló, denegó el permiso, o hubo un error de la API.
+        hideSpinner(); // Ocultamos el spinner.
+        console.log("Callback de error de requestLocation ejecutado:", error);
+        showToast("No se pudo obtener la ubicación.", true);
+    });
 };
 // --- FIN: Lógica del botón de actualización ---
 }
