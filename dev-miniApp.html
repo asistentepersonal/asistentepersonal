@@ -6100,29 +6100,34 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
     mapContainer.innerHTML = '<div class="no-data-msg" style="padding:20px;">📍<br>No se encontró tu ubicación. Por favor, configúrala en Ajustes.</div>';
 }
 // --- FIN: Lógica de inicialización del mapa ---
-// --- INICIO: Lógica del botón de actualización ---
+// --- INICIO: Lógica del botón de actualización (CORREGIDA) ---
 const updateBtn = document.getElementById('combustible-update-btn');
 updateBtn.onclick = () => {
-    if (tg && tg.requestLocation) {
-        showSpinner("Obteniendo tu ubicación precisa...");
+    // La forma correcta de verificar si la función está disponible.
+    if (tg && tg.isVersionAtLeast('6.9') && tg.CloudStorage) {
+         showSpinner("Obteniendo tu ubicación precisa...");
+        
+        // Usamos una promesa para manejar la respuesta de forma más limpia.
         tg.requestLocation((location) => {
-            if (location) {
+            if (location && location.latitude) {
+                hideSpinner();
                 console.log("Ubicación precisa obtenida:", location);
-                // Una vez obtenida la ubicación, centramos el mapa y hacemos la búsqueda precisa
-                map.setView([location.latitude, location.longitude], 14); // Zoom más cercano (14)
+                
+                map.setView([location.latitude, location.longitude], 14);
                 
                 (async () => {
-                    const stations = await fetchStations(location.latitude, location.longitude, 5); // Búsqueda precisa de 5 km
+                    const stations = await fetchStations(location.latitude, location.longitude, 5);
                     drawStationMarkers(stations);
                 })();
-
             } else {
                 hideSpinner();
-                showToast("No se pudo obtener tu ubicación.", true);
+                // Este callback se ejecuta si el usuario rechaza el permiso.
+                showToast("Permiso de ubicación denegado.", true);
             }
         });
     } else {
-        showToast("La solicitud de ubicación no es compatible en este entorno.", true);
+        // Este mensaje ahora solo aparecerá si la versión de Telegram del usuario es muy antigua.
+        showToast("Tu versión de Telegram no es compatible con esta función. Por favor, actualiza la app.", true);
     }
 };
 // --- FIN: Lógica del botón de actualización ---
