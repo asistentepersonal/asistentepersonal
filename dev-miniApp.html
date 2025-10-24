@@ -6105,22 +6105,38 @@ if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat
     mapContainer.innerHTML = '<div class="no-data-msg" style="padding:20px;">📍<br>No se encontró tu ubicación. Por favor, configúrala en Ajustes.</div>';
 }
 // --- FIN: Lógica de inicialización del mapa ---
-// --- INICIO: Lógica del botón de actualización (v3.6 - Definitiva) ---
+// --- INICIO: Lógica del botón de actualización con Plan de Rescate (v3.6) ---
 const updateBtn = document.getElementById('combustible-update-btn');
 updateBtn.onclick = () => {
-    if (!tg) {
-        showToast("Función no disponible fuera de Telegram.", true);
+    if (!tg || typeof tg.requestLocation !== 'function') {
+        showToast("La solicitud de ubicación no es compatible en este entorno.", true);
         return;
     }
 
-    // 1. Mostramos nuestro spinner INMEDIATAMENTE.
-    showSpinner("Solicitando ubicación...");
+    // 1. Preparamos nuestro temporizador de rescate.
+    let locationTimeout = setTimeout(() => {
+        // Si este código se ejecuta, es porque Telegram no respondió.
+        hideSpinner();
+        showToast("No se pudo obtener la ubicación (tiempo de espera agotado).", true);
+        // Anulamos la variable para que el callback de éxito no haga nada si llega tarde.
+        locationTimeout = null; 
+    }, 15000); // 15 segundos de tiempo de espera.
 
-    // 2. Llamamos directamente a requestLocation.
-    // El segundo parámetro es el callback en caso de que el usuario cancele o haya un error.
+    // 2. Mostramos el spinner y llamamos a la función de Telegram.
+    showSpinner("Esperando permiso de ubicación...");
+    
     tg.requestLocation((location) => {
-        // ÉXITO: El usuario compartió la ubicación.
-        hideSpinner(); // Ocultamos el spinner tan pronto como tenemos respuesta.
+        // 3. ÉXITO: Recibimos una respuesta de Telegram.
+        
+        // Si el temporizador de rescate todavía está activo, lo desactivamos.
+        if (locationTimeout) {
+            clearTimeout(locationTimeout);
+        } else {
+            // Si locationTimeout es nulo, significa que el rescate ya se activó. No hacemos nada.
+            return; 
+        }
+
+        hideSpinner();
 
         if (location && location.latitude) {
             console.log("Ubicación precisa obtenida:", location);
@@ -6131,15 +6147,8 @@ updateBtn.onclick = () => {
                 drawStationMarkers(stations);
             })();
         } else {
-            // El callback se ejecutó pero sin datos, lo cual es raro.
-            showToast("No se recibieron datos de ubicación.", true);
+            showToast("Permiso de ubicación denegado.", true);
         }
-    }, 
-    (error) => {
-        // FALLO: El usuario canceló, denegó el permiso, o hubo un error de la API.
-        hideSpinner(); // Ocultamos el spinner.
-        console.log("Callback de error de requestLocation ejecutado:", error);
-        showToast("No se pudo obtener la ubicación.", true);
     });
 };
 // --- FIN: Lógica del botón de actualización ---
