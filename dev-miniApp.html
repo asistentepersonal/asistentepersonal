@@ -469,6 +469,31 @@
 .combustible-list-item.cheapest .combustible-item-price {
     color: #2ecc71; /* Verde para el más barato */
 }
+/* --- INICIO: ESTILOS PARA CONTROL DE ORDENACIÓN DE COMBUSTIBLE --- */
+.combustible-sort-controls {
+    display: flex;
+    justify-content: center;
+    padding: 10px;
+    gap: 8px;
+    border-bottom: 1px solid var(--bg);
+}
+.sort-btn {
+    padding: 8px 16px;
+    border: 1px solid var(--muted);
+    background-color: transparent;
+    color: var(--muted);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.sort-btn.active {
+    background-color: var(--primary);
+    color: var(--action-text);
+    border-color: var(--primary);
+}
+/* --- FIN: ESTILOS PARA CONTROL DE ORDENACIÓN --- */
 /* --- FIN: ESTILOS PARA LISTA INTELIGENTE --- */
 /* --- FIN: ESTILO PARA ESTADO DE CARGA LOCALIZADO --- */
 /* --- FIN ESTILOS SPINNER DE PUNTOS --- */
@@ -6114,77 +6139,51 @@ function renderCombustibleView() {
     });
     updateBackButton();
 
+    // --- CAMBIO CLAVE: AÑADIR EL HTML DE LOS CONTROLES DE ORDENACIÓN ---
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>⛽ Radar Combustible</h2></div>
             <div id="combustible-map" style="height: 300px; background-color: #e9e9e9; margin: 10px; border-radius: 12px;"></div>
+            <div id="combustible-controls-container"></div>
             <div id="combustible-list"><div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div></div>
         </div>
     `;
 
     const mapContainer = document.getElementById('combustible-map');
     const listContainer = document.getElementById('combustible-list');
+    const controlsContainer = document.getElementById('combustible-controls-container');
     let map = null;
+    let currentStations = []; // Almacenará los datos de las estaciones
+    let markers = new Map();   // Almacenará los marcadores del mapa
 
-    // --- Nueva función de ayuda para calcular distancia ---
     const getDistance = (lat1, lon1, lat2, lon2) => {
         const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = 0.5 - Math.cos(dLat) / 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * (1 - Math.cos(dLon)) / 2;
         return R * 2 * Math.asin(Math.sqrt(a));
     };
-
-    if (tg && tg.MainButton) {
-        onMainButtonClick = () => {
-            tg.MainButton.showProgress(true);
-            tg.MainButton.disable();
-
-            navigator.geolocation.getCurrentPosition(
-                // Función de ÉXITO
-(position) => {
     
-    // --- INICIO DEL CAMBIO CLAVE: EL "FLIP" DE ÓRDENES ---
-    
-    // 1. PRIMERO, le ordenamos a NUESTRA app que muestre el spinner local. Esto es inmediato.
-    listContainer.innerHTML = `
-        <div class="combustible-loading-state">
-            <p>Buscando gasolineras...</p>
-            <div class="dot-spinner">
-                <div class="dot-spinner__dot"></div>
-                <div class="dot-spinner__dot"></div>
-                <div class="dot-spinner__dot"></div>
-            </div>
-        </div>`;
+    // --- CAMBIO CLAVE: NUEVA FUNCIÓN PARA RENDERIZAR LA LISTA (REUTILIZABLE) ---
+    const renderSortedListAndMap = (sortBy) => {
+        if (currentStations.length === 0) return;
 
-    // 2. SEGUNDO, le decimos a TELEGRAM que oculte el suyo.
-    tg.MainButton.hideProgress();
-    tg.MainButton.enable();
+        // 1. Lógica de ordenación dinámica
+        currentStations.sort((a, b) => {
+            if (sortBy === 'distancia') {
+                return a.distance - b.distance;
+            }
+            // Para 'gasolina' o 'diesel', usamos precio y luego distancia
+            const priceKey = sortBy === 'gasolina' ? 'gasolina_95_e5' : 'gasoleo_a';
+            const priceA = a.prices[priceKey] || 999;
+            const priceB = b.prices[priceKey] || 999;
+            const priceDifference = priceA - priceB;
+            if (priceDifference !== 0) return priceDifference;
+            return a.distance - b.distance;
+        });
 
-    // --- FIN DEL CAMBIO CLAVE ---
+        // 2. Limpiar y volver a dibujar todo
+        markers = drawStationsAndList(currentStations, map, sortBy);
 
-    const { latitude, longitude } = position.coords;
-    
-    if (!map) {
-        map = L.map('combustible-map');
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    }
-    map.setView([latitude, longitude], 14);
-    
-    (async () => {
-        let stations = await fetchStations(latitude, longitude, 5);
-        
-        if (stations.length > 0) {
-            stations.forEach(s => {
-                s.distance = getDistance(latitude, longitude, s.lat, s.lon);
-            });
-            stations.sort((a, b) => {
-                const priceA = a.prices.gasolina_95_e5 || 999;
-                const priceB = b.prices.gasolina_95_e5 || 999;
-                return priceA - priceB;
-            });
-        }
-        
-        const markers = drawStationsAndList(stations, map);
-        
+        // 3. Añadir de nuevo los listeners de clic
         listContainer.querySelectorAll('.combustible-list-item').forEach(item => {
             item.addEventListener('click', () => {
                 const stationId = item.dataset.id;
@@ -6195,8 +6194,66 @@ function renderCombustibleView() {
                 }
             });
         });
-    })();
-},
+        
+        // 4. Actualizar el botón activo
+        controlsContainer.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.sort === sortBy);
+        });
+    };
+
+    if (tg && tg.MainButton) {
+        onMainButtonClick = () => {
+            tg.MainButton.showProgress(true);
+            tg.MainButton.disable();
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    listContainer.innerHTML = `<div class="combustible-loading-state"><p>Buscando gasolineras...</p><div class="dot-spinner"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
+                    controlsContainer.innerHTML = ''; // Ocultar controles mientras se carga
+
+                    tg.MainButton.hideProgress();
+                    tg.MainButton.enable();
+
+                    const { latitude, longitude } = position.coords;
+                    
+                    if (!map) {
+                        map = L.map('combustible-map');
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    }
+                    map.setView([latitude, longitude], 14);
+                    
+                    (async () => {
+                        currentStations = await fetchStations(latitude, longitude, 5);
+                        
+                        if (currentStations.length > 0) {
+                            // Inyectar el HTML de los controles
+                            controlsContainer.innerHTML = `
+                                <div class="combustible-sort-controls">
+                                    <button class="sort-btn" data-sort="gasolina">⛽ Gasolina</button>
+                                    <button class="sort-btn" data-sort="diesel">⚫ Diésel</button>
+                                    <button class="sort-btn" data-sort="distancia">📍 Distancia</button>
+                                </div>
+                            `;
+
+                            // Añadir los listeners a los nuevos botones
+                            controlsContainer.querySelectorAll('.sort-btn').forEach(btn => {
+                                btn.addEventListener('click', (e) => {
+                                    renderSortedListAndMap(e.target.dataset.sort);
+                                });
+                            });
+
+                            currentStations.forEach(s => {
+                                s.distance = getDistance(latitude, longitude, s.lat, s.lon);
+                            });
+                            
+                            // Renderizado inicial ordenado por gasolina
+                            renderSortedListAndMap('gasolina');
+                        } else {
+                            // Si no hay estaciones, simplemente mostrar el mensaje
+                            listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
+                        }
+                    })();
+                },
                 (error) => {
                     tg.MainButton.hideProgress();
                     tg.MainButton.enable();
@@ -6255,20 +6312,18 @@ const fetchStations = async (lat, lon, radius) => {
 };
 
 // Función para dibujar los pines en el mapa
-const drawStationsAndList = (stations, map) => {
+const drawStationsAndList = (stations, map, sortBy = 'gasolina') => {
     if (!map) return;
 
-    // Limpiamos capas y preparamos el mapa de marcadores
     map.eachLayer(layer => { if (layer instanceof L.Marker) map.removeLayer(layer); });
     const listContainer = document.getElementById('combustible-list');
     const markersMap = new Map();
 
     if (stations.length === 0) {
         listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
-        return markersMap; // Devolvemos el mapa vacío
+        return markersMap;
     }
 
-    // --- Definimos los iconos que usaremos ---
     const blueIcon = new L.Icon.Default();
     const greenIcon = L.icon({
         iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
@@ -6278,27 +6333,27 @@ const drawStationsAndList = (stations, map) => {
 
     let listHtml = '';
     stations.forEach((station, index) => {
-        const isCheapest = index === 0;
+        // El más barato solo se resalta si se ordena por precio
+        const isCheapest = index === 0 && sortBy !== 'distancia';
         const iconToUse = isCheapest ? greenIcon : blueIcon;
+        
+        const priceKey = sortBy === 'diesel' ? 'gasoleo_a' : 'gasolina_95_e5';
+        const priceToShow = station.prices[priceKey];
 
-        // --- Popup con botón de "Cómo llegar" ---
         const popupContent = `
             <b>${station.label}</b><br>
             ${station.address}<br>
             Gasolina 95: <b>${station.prices.gasolina_95_e5 ? station.prices.gasolina_95_e5.toFixed(3) + '€' : 'N/D'}</b><br>
             Diésel A: <b>${station.prices.gasoleo_a ? station.prices.gasoleo_a.toFixed(3) + '€' : 'N/D'}</b>
-            <br><br><a href="https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lon}" target="_blank" style="padding: 5px 10px; background-color: #4a76f3; color: white; text-decoration: none; border-radius: 5px;">Cómo llegar</a>
+            <br><br><a href="javascript:void(0);" onclick="Telegram.WebApp.openLink('https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lon}')" style="padding: 5px 10px; background-color: #4a76f3; color: white; text-decoration: none; border-radius: 5px;">Cómo llegar</a>
         `;
 
         const marker = L.marker([station.lat, station.lon], { icon: iconToUse })
             .addTo(map)
             .bindPopup(popupContent);
         
-        // Guardamos el marcador en nuestro mapa para poder abrirlo desde la lista
         markersMap.set(station.id, marker);
 
-        // --- Construimos el HTML para cada elemento de la lista ---
-        const priceToShow = station.prices.gasolina_95_e5 || station.prices.gasoleo_a;
         listHtml += `
             <div class="combustible-list-item ${isCheapest ? 'cheapest' : ''}" data-id="${station.id}">
                 <div class="combustible-item-info">
@@ -6311,7 +6366,7 @@ const drawStationsAndList = (stations, map) => {
     });
     
     listContainer.innerHTML = listHtml;
-    return markersMap; // Devolvemos el mapa con los marcadores para la interactividad
+    return markersMap;
 };
 
 // Ejecutamos la búsqueda inicial con la ubicación de los ajustes
