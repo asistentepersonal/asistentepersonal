@@ -6191,9 +6191,7 @@ const drawStationMarkers = (stations, map) => {
     
     // Aquí actualizaremos la lista, por ahora solo un placeholder
     document.getElementById('combustible-list').innerHTML = `<div class="no-data-msg">Se encontraron ${stations.length} gasolineras.</div>`;
-    
-    // **PUNTO DE CONTROL 4: VERIFICAR QUE LOS MARCADORES SE HAN DIBUJADO**
-    showToast('4. ✅ Marcadores dibujados en el mapa.', false, true);
+
 };
 
 // Ejecutamos la búsqueda inicial con la ubicación de los ajustes
@@ -6212,145 +6210,144 @@ if (appData.settings.ubicacion && appData.settings.ubicacion.lat) {
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
 function renderDashboard() {
-    removeCalendarFAB();
-    setActiveTab('tab-home');
-    navigationHistory = [];
-    updateBackButton();
-    const counts = appData.counts;
-    const isPremium = appData.isPremium === true;
+removeCalendarFAB();
+setActiveTab('tab-home');
+navigationHistory = [];
+updateBackButton();
+const counts = appData.counts;
+const isPremium = appData.isPremium === true;
 
-    // --- LÓGICA DE LA CARD DE COMBUSTIBLE INTELIGENTE (VERSIÓN FINAL) ---
-    let combustibleCardHtml = '';
-    const fuelData = counts.fuelWidgetData;
+// --- LÓGICA DE LA CARD DE COMBUSTIBLE INTELIGENTE (VERSIÓN FINAL PULIDA) ---
+let combustibleCardHtml = '';
+const fuelData = counts.fuelWidgetData;
 
-    if (fuelData) { // Caso 1: Hay datos inteligentes (Usuario de España)
-        const getTrendIcon = (trend) => {
-            if (trend === 'up') return ' <span style="font-size: 0.7em; color: #e74c3c;">▲</span>';
-            if (trend === 'down') return ' <span style="font-size: 0.7em; color: #28a745;">▼</span>';
-            return ''; // No mostramos nada si es 'same'
-        };
-        
-        // Estilo unificado para las píldoras
-        const pillStyle = "cursor: pointer; font-size: 0.8rem; padding: 4px 8px; line-height: 1.2;";
+if (fuelData) {
+    const getTrendIcon = (trend) => {
+        if (trend === 'up') return ' <span style="font-size: 0.8em; color: #ffcccc;">▲</span>';
+        if (trend === 'down') return ' <span style="font-size: 0.8em; color: #ccffcc;">▼</span>';
+        return '';
+    };
 
-        const gasolinePill = fuelData.gasolinePrice
-            ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="${pillStyle}">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>`
-            : '';
-        const dieselPill = fuelData.dieselPrice
-            ? `<div class="card-badge card-badge-pill" id="diesel-pill" style="${pillStyle}">⚫ ${fuelData.dieselPrice.toFixed(3)}${getTrendIcon(fuelData.dieselTrend)}</div>`
-            : '';
-
-        combustibleCardHtml = `
-            <div id="combustible-card" class="card clickable-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;">
-                <div class="card-badge-group">${gasolinePill}${dieselPill}</div>
-                <div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.7rem; color: #fff; background-color: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px;">
-                    ${fuelData.lastUpdated.split(',')[0]}
-                </div>
-            </div>`;
-
-    } else if (appData.settings.pais && appData.settings.pais !== 'España') { // Caso 2: Usuario internacional
-        combustibleCardHtml = `
-            <div class="card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;">
-                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">
-                    Próximamente en ${appData.settings.pais}
-                </div>
-            </div>`;
-    } else { // Caso 3: Default (Usuario de España sin datos, o sin país configurado)
-        combustibleCardHtml = `<div id="combustible-card" class="card clickable-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
-    }
-
-    let chefCardHtml = isPremium
-        ? `<div class="card clickable-card" id="chef-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>`
-        : `<div class="card disabled-card" id="chef-card-locked" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>`;
+    const pillStyle = "cursor: pointer; font-size: 0.8rem; padding: 4px 8px; line-height: 1.2; color: white; background-color: var(--badge-color);";
     
-    const calendarCardHtml = `<div class="card clickable-card" id="calendar-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/calendario512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="calendar-badge">${counts.calendarTodayCount || 0}</div></div>`;
-    const cuentasClarasCardHtml = `<div class="card clickable-card" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/cuentasclaras512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="cuentas-claras-badge">${counts.cuentasClarasCount || 0}</div></div>`;
+    const gasolinePill = fuelData.gasolinePrice
+        ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="${pillStyle}">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>`
+        : '';
 
-    mainContentArea.innerHTML = `
-        <div class="grid">
-            <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
-            <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/listadeCompras512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
-            <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/notas512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
-            ${calendarCardHtml}
-            <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/Gastos512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge card-badge-pill red" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
-            ${cuentasClarasCardHtml}
-            ${chefCardHtml}
-            ${combustibleCardHtml}
-            <div id="guia-tv-card" class="card disabled-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
+    const dieselPriceText = fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D';
+    const dieselTrendIcon = fuelData.dieselPrice ? getTrendIcon(fuelData.dieselTrend) : '';
+    const dieselPillStyle = fuelData.dieselPrice ? pillStyle : "cursor: default; font-size: 0.8rem; padding: 4px 8px; line-height: 1.2; background-color: var(--muted); color: white; opacity: 0.8;";
+    const dieselPillId = fuelData.dieselPrice ? 'id="diesel-pill"' : '';
+    const dieselPill = `<div class="card-badge card-badge-pill" ${dieselPillId} style="${dieselPillStyle}">⚫ ${dieselPriceText}${dieselTrendIcon}</div>`;
+    
+    combustibleCardHtml = `
+        <div id="combustible-card" class="card clickable-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;">
+            <div class="card-badge-group">${gasolinePill}${dieselPill}</div>
+            <div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.7rem; color: #fff; background-color: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px;">
+                ${fuelData.lastUpdated.split(',')[0]}
+            </div>
         </div>`;
 
-    document.getElementById('add-reminder-link').onclick = renderReminderForm;
-    document.getElementById('list-reminders-link').onclick = renderRemindersList;
-    document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-    document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
-    document.getElementById('add-note-link').onclick = () => renderNoteForm();
-    document.getElementById('list-notes-link').onclick = renderNotesList;
-    document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
-    document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
-    document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
-    document.getElementById('list-gastos-link').onclick = () => { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); };
-    document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-    document.getElementById('calendar-card').onclick = renderCalendarView;
-    document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
-    
-    const combustibleCard = document.getElementById('combustible-card');
-    if (combustibleCard) {
-        combustibleCard.onclick = (e) => {
-            if (e.target.closest('#gasoline-pill') || e.target.closest('#diesel-pill')) return;
-            renderCombustibleView();
+} else if (appData.settings.pais && appData.settings.pais !== 'España') {
+    combustibleCardHtml = `
+        <div class="card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">
+                Próximamente en ${appData.settings.pais}
+            </div>
+        </div>`;
+} else {
+    combustibleCardHtml = `<div id="combustible-card" class="card clickable-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
+}
+
+let chefCardHtml = isPremium ? `<div class="card clickable-card" id="chef-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>` : `<div class="card disabled-card" id="chef-card-locked" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>`;
+const calendarCardHtml = `<div class="card clickable-card" id="calendar-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/calendario512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="calendar-badge">${counts.calendarTodayCount || 0}</div></div>`;
+const cuentasClarasCardHtml = `<div class="card clickable-card" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/cuentasclaras512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="cuentas-claras-badge">${counts.cuentasClarasCount || 0}</div></div>`;
+
+mainContentArea.innerHTML = `
+    <div class="grid">
+        <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
+        <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/listadeCompras512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
+        <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/notas512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
+        ${calendarCardHtml}
+        <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/Gastos512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge card-badge-pill red" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
+        ${cuentasClarasCardHtml}
+        ${chefCardHtml}
+        ${combustibleCardHtml}
+        <div id="guia-tv-card" class="card disabled-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
+    </div>`;
+
+document.getElementById('add-reminder-link').onclick = renderReminderForm;
+document.getElementById('list-reminders-link').onclick = renderRemindersList;
+document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
+document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
+document.getElementById('add-note-link').onclick = () => renderNoteForm();
+document.getElementById('list-notes-link').onclick = renderNotesList;
+document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
+document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
+document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
+document.getElementById('list-gastos-link').onclick = () => { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); };
+document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
+document.getElementById('calendar-card').onclick = renderCalendarView;
+document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
+
+const combustibleCard = document.getElementById('combustible-card');
+if (combustibleCard) {
+    combustibleCard.onclick = (e) => {
+        if (e.target.closest('#gasoline-pill') || e.target.closest('#diesel-pill')) return;
+        renderCombustibleView();
+    };
+}
+
+if (fuelData) {
+    const gasolinePill = document.getElementById('gasoline-pill');
+    if (gasolinePill) {
+        gasolinePill.onclick = () => {
+            tg.showPopup({
+                title: fuelData.gasolineStation,
+                message: `${fuelData.gasolineAddress}\nHorario: ${fuelData.gasolineSchedule}`,
+                buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
+            }, (buttonId) => {
+                if (buttonId === 'navigate' && fuelData.gasolineMapUrl) {
+                    tg.openLink(fuelData.gasolineMapUrl);
+                }
+            });
         };
     }
-    
-    if (fuelData) {
-        const gasolinePill = document.getElementById('gasoline-pill');
-        if (gasolinePill) {
-            gasolinePill.onclick = () => {
-                tg.showPopup({
-                    title: fuelData.gasolineStation,
-                    message: `${fuelData.gasolineAddress}\nHorario: ${fuelData.gasolineSchedule}`,
-                    buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
-                }, (buttonId) => {
-                    if (buttonId === 'navigate' && fuelData.gasolineMapUrl) {
-                        tg.openLink(fuelData.gasolineMapUrl);
-                    }
-                });
-            };
-        }
-        const dieselPill = document.getElementById('diesel-pill');
-        if (dieselPill) {
-            dieselPill.onclick = () => {
-                tg.showPopup({
-                    title: fuelData.dieselStation,
-                    message: `${fuelData.dieselAddress}\nHorario: ${fuelData.dieselSchedule}`,
-                    buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
-                }, (buttonId) => {
-                    if (buttonId === 'navigate' && fuelData.dieselMapUrl) {
-                        tg.openLink(fuelData.dieselMapUrl);
-                    }
-                });
-            };
-        }
+    const dieselPill = document.getElementById('diesel-pill');
+    if (dieselPill && fuelData.dieselPrice) { // Solo asigna el onclick si hay precio
+        dieselPill.onclick = () => {
+            tg.showPopup({
+                title: fuelData.dieselStation,
+                message: `${fuelData.dieselAddress}\nHorario: ${fuelData.dieselSchedule}`,
+                buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
+            }, (buttonId) => {
+                if (buttonId === 'navigate' && fuelData.dieselMapUrl) {
+                    tg.openLink(fuelData.dieselMapUrl);
+                }
+            });
+        };
     }
+}
 
-    if (isPremium) {
-        document.getElementById('chef-card').onclick = renderChefPage;
-    } else {
-        document.getElementById('chef-card-locked').onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
-    }
+if (isPremium) {
+    document.getElementById('chef-card').onclick = renderChefPage;
+} else {
+    document.getElementById('chef-card-locked').onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
+}
 
-    document.querySelectorAll('.clickable-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            const menuBtn = card.querySelector('.card-menu-btn');
-            if (!menuBtn || e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
-            e.stopPropagation();
-            const menu = document.getElementById(menuBtn.dataset.menuId);
-            if (menu) {
-                const isShown = menu.classList.contains('show');
-                document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m !== menu) m.classList.remove('show'); });
-                menu.classList.toggle('show');
-            }
-        });
+document.querySelectorAll('.clickable-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+        const menuBtn = card.querySelector('.card-menu-btn');
+        if (!menuBtn || e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
+        e.stopPropagation();
+        const menu = document.getElementById(menuBtn.dataset.menuId);
+        if (menu) {
+            const isShown = menu.classList.contains('show');
+            document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m !== menu) m.classList.remove('show'); });
+            menu.classList.toggle('show');
+        }
     });
+});
 }
 
 // Lógica de pestañas
