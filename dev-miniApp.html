@@ -120,26 +120,16 @@
 }    .toast.error{background:var(--error-bg);}
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
     /* --- SPINNER MEJORADO (MÁS FLUIDO Y REUTILIZABLE) --- */
-    .spinner {
-        display: none;
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid var(--primary);
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite; /* Usamos 'linear' para una rotación constante */
-        z-index: 1001;
-    }
-    /* La animación ahora solo se encarga de rotar, haciendo el spinner reutilizable */
-    @keyframes spin {
-        0% { transform: translate(-50%, -50%) rotate(0deg); }
-        100% { transform: translate(-50%, -50%) rotate(360deg); }
-    }
-    /* --- FIN SPINNER MEJORADO --- */
-
+    /* --- ESTILOS PARA EL CONTENEDOR DEL SPINNER GENERAL --- */
+#spinner {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Centrado perfecto */
+    z-index: 1001;
+}
+    
     /* --- ESTILOS PARA SPINNER DENTRO DE BOTONES --- */
     .btn-spinner {
         animation: spin-button 0.8s linear infinite;
@@ -1008,7 +998,13 @@
     </div>
 </div>
 <!-- --- FIN MODAL DE CHANGELOG --- -->
-  <div id="spinner" class="spinner"></div>
+  <div id="spinner" style="display: none;">
+    <div class="dot-spinner">
+        <div class="dot-spinner__dot"></div>
+        <div class="dot-spinner__dot"></div>
+        <div class="dot-spinner__dot"></div>
+    </div>
+</div>
   <div id="main-content-area">
   </div>
   <div id="toast" class="toast"></div>
