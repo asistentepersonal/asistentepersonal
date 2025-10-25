@@ -424,6 +424,16 @@
     opacity: 1;
   }
 }
+/* --- INICIO: ESTILO PARA ESTADO DE CARGA LOCALIZADO --- */
+.combustible-loading-state {
+    text-align: center;
+    padding: 20px 0;
+    color: var(--muted);
+}
+.combustible-loading-state .dot-spinner {
+    margin-top: 15px; /* Espacio entre el texto y los puntos */
+}
+/* --- FIN: ESTILO PARA ESTADO DE CARGA LOCALIZADO --- */
 /* --- FIN ESTILOS SPINNER DE PUNTOS --- */
 /* --- INICIO ESTILOS GUÍA TV --- */
 .guia-tv-container { padding: 10px; max-width: 100%; overflow: hidden; }
@@ -6076,6 +6086,7 @@ function renderCombustibleView() {
     `;
 
     const mapContainer = document.getElementById('combustible-map');
+    const listContainer = document.getElementById('combustible-list'); // <-- Obtenemos el div de la lista
     let map = null;
 
     if (tg && tg.MainButton) {
@@ -6088,7 +6099,18 @@ function renderCombustibleView() {
                 (position) => {
                     tg.MainButton.hideProgress();
                     tg.MainButton.enable();
-                    showSpinner("Buscando gasolineras..."); // <-- INICIA EL SPINNER INTERNO (EL HANDOFF)
+                    
+                    // --- CAMBIO CLAVE: INYECTAR EL ESTADO DE CARGA LOCALIZADO ---
+                    listContainer.innerHTML = `
+                        <div class="combustible-loading-state">
+                            <p>Buscando gasolineras...</p>
+                            <div class="dot-spinner">
+                                <div class="dot-spinner__dot"></div>
+                                <div class="dot-spinner__dot"></div>
+                                <div class="dot-spinner__dot"></div>
+                            </div>
+                        </div>`;
+                    // --- FIN DEL CAMBIO CLAVE ---
 
                     const { latitude, longitude } = position.coords;
                     
@@ -6098,14 +6120,11 @@ function renderCombustibleView() {
                     }
                     map.setView([latitude, longitude], 14);
                     
-                    // <-- INICIA EL BLOQUE ASÍNCRONO CON CONTROL DEL SPINNER
+                    // La llamada ahora es más simple: no necesita gestionar spinners.
                     (async () => {
-                        try {
-                            const stations = await fetchStations(latitude, longitude, 5);
-                            drawStationMarkers(stations, map);
-                        } finally {
-                            hideSpinner(); // <-- SE ASEGURA DE OCULTAR EL SPINNER AL FINALIZAR
-                        }
+                        const stations = await fetchStations(latitude, longitude, 5);
+                        // La función drawStationMarkers reemplazará el estado de carga con los resultados.
+                        drawStationMarkers(stations, map);
                     })();
                 },
                 // Función de ERROR
@@ -6117,6 +6136,8 @@ function renderCombustibleView() {
                         errorMsg = "Permiso de ubicación denegado.";
                     }
                     showToast(errorMsg, true, true);
+                    // Restauramos el mensaje inicial si hay un error de GPS
+                    listContainer.innerHTML = `<div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div>`;
                 },
                 { timeout: 10000, enableHighAccuracy: true }
             );
