@@ -6231,18 +6231,19 @@ function renderDashboard() {
     const fuelData = counts.fuelWidgetData;
 
     if (fuelData) {
-        // --- FUNCIÓN DE AYUDA PARA ICONOS (SIMPLIFICADA) ---
+        // --- FUNCIÓN DE AYUDA PARA ICONOS (ACTUALIZADA) ---
         const getTrendIcon = (trend) => {
             if (trend === 'up') return `<span class="trend-icon">▲</span>`;
             if (trend === 'down') return `<span class="trend-icon">▼</span>`;
-            return ''; // No devuelve nada si la tendencia es 'same'
+            if (trend === 'same') return `<span class="trend-icon">=</span>`; // <-- TU MEJORA
+            return '';
         };
 
-        // --- NUEVA FUNCIÓN DE AYUDA PARA COLOR DE FONDO ---
+        // --- FUNCIÓN DE AYUDA PARA COLOR DE FONDO (ACTUALIZADA) ---
         const getTrendBackgroundColor = (trend) => {
             if (trend === 'up') return '#e74c3c';   // Rojo
             if (trend === 'down') return '#2ecc71'; // Verde
-            return '#555555';                       // Gris para 'same'
+            return '#f39c12';                       // Ámbar para 'same' <-- TU MEJORA
         };
 
         const formatLastUpdated = (datetime) => {
@@ -6254,17 +6255,14 @@ function renderDashboard() {
             return `${day}/${month} ${hour}:${minute}`;
         };
         
-        // --- LÓGICA DE PÍLDORAS CON FONDO DINÁMICO ---
         const basePillStyle = `cursor: pointer;`;
 
-        // Píldora de Gasolina
         const gasolinePill = fuelData.gasolinePrice
             ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="${basePillStyle} background-color: ${getTrendBackgroundColor(fuelData.gasolineTrend)};">
                    ⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}
                </div>`
             : '';
             
-        // Píldora de Diésel
         const dieselPriceText = fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D';
         const dieselPillId = fuelData.dieselPrice ? 'id="diesel-pill"' : '';
         const dieselPillStyle = fuelData.dieselPrice 
