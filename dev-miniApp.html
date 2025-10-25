@@ -37,16 +37,17 @@
     height: auto;
     min-width: 0;
     border-radius: 999px;
-    /* --- AJUSTES --- */
-    padding: 4px 9px; /* Menos espacio interno */
-    font-size: 0.85rem; /* Fuente ligeramente más pequeña */
+    padding: 4px 9px;
+    font-size: 0.85rem;
     line-height: 1.2;
-    display: flex; /* Para alinear bien el icono y el texto */
+    display: flex;
     align-items: center;
-    gap: 4px; /* Espacio entre el icono ⛽ y el precio */
+    gap: 4px;
+    /* --- LÍNEA AÑADIDA --- */
+    color: var(--action-text, #fff) !important; /* Asegura que el texto e iconos sean siempre blancos */
 }
     .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
-	.trend-icon { font-size: 0.9em; vertical-align: middle; margin-left: 4px; font-weight: bold; }
+	.trend-icon { font-size: 0.9em; vertical-align: middle; margin-left: 2px; font-weight: bold; }
 	.trend-up { color: #e74c3c; }
 	.trend-down { color: #2ecc71; }
     .card-badge.green{background-color:#28a745;}
@@ -6230,35 +6231,48 @@ function renderDashboard() {
     const fuelData = counts.fuelWidgetData;
 
     if (fuelData) {
-        // --- NUEVA FUNCIÓN DE AYUDA PARA ICONOS ---
+        // --- FUNCIÓN DE AYUDA PARA ICONOS (SIMPLIFICADA) ---
         const getTrendIcon = (trend) => {
-            if (trend === 'up') return `<span class="trend-icon trend-up">▲</span>`;
-            if (trend === 'down') return `<span class="trend-icon trend-down">▼</span>`;
-            return '';
+            if (trend === 'up') return `<span class="trend-icon">▲</span>`;
+            if (trend === 'down') return `<span class="trend-icon">▼</span>`;
+            return ''; // No devuelve nada si la tendencia es 'same'
         };
 
-        // --- NUEVA FUNCIÓN DE AYUDA PARA FORMATEAR FECHA ---
+        // --- NUEVA FUNCIÓN DE AYUDA PARA COLOR DE FONDO ---
+        const getTrendBackgroundColor = (trend) => {
+            if (trend === 'up') return '#e74c3c';   // Rojo
+            if (trend === 'down') return '#2ecc71'; // Verde
+            return '#555555';                       // Gris para 'same'
+        };
+
         const formatLastUpdated = (datetime) => {
             if (!datetime) return '';
             const [datePart, timePart] = datetime.split(',');
-            if (!datePart || !timePart) return datePart || ''; // Fallback
+            if (!datePart || !timePart) return datePart || '';
             const [day, month] = datePart.split('/');
             const [hour, minute] = timePart.trim().split(':');
             return `${day}/${month} ${hour}:${minute}`;
         };
         
-        // --- LÓGICA DE PÍLDORAS ACTUALIZADA ---
-        const pillStyle = "cursor: pointer; font-size: 0.85rem; padding: 4px 9px; line-height: 1.2; color: white; background-color: var(--badge-color);";
+        // --- LÓGICA DE PÍLDORAS CON FONDO DINÁMICO ---
+        const basePillStyle = `cursor: pointer;`;
 
+        // Píldora de Gasolina
         const gasolinePill = fuelData.gasolinePrice
-            ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="${pillStyle}">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>`
+            ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="${basePillStyle} background-color: ${getTrendBackgroundColor(fuelData.gasolineTrend)};">
+                   ⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}
+               </div>`
             : '';
             
+        // Píldora de Diésel
         const dieselPriceText = fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D';
-        const dieselTrendIcon = fuelData.dieselPrice ? getTrendIcon(fuelData.dieselTrend) : '';
-        const dieselPillStyle = fuelData.dieselPrice ? pillStyle : "cursor: default; font-size: 0.8rem; padding: 4px 8px; line-height: 1.2; background-color: var(--muted); color: white; opacity: 0.8;";
         const dieselPillId = fuelData.dieselPrice ? 'id="diesel-pill"' : '';
-        const dieselPill = `<div class="card-badge card-badge-pill" ${dieselPillId} style="${dieselPillStyle}">⚫ ${dieselPriceText}${dieselTrendIcon}</div>`;
+        const dieselPillStyle = fuelData.dieselPrice 
+            ? `${basePillStyle} background-color: ${getTrendBackgroundColor(fuelData.dieselTrend)};`
+            : `cursor: default; background-color: var(--muted); opacity: 0.8;`;
+        const dieselPill = `<div class="card-badge card-badge-pill" ${dieselPillId} style="${dieselPillStyle}">
+                               ⚫ ${dieselPriceText}${getTrendIcon(fuelData.dieselTrend)}
+                           </div>`;
         
         combustibleCardHtml = `
             <div id="combustible-card" class="card clickable-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;">
