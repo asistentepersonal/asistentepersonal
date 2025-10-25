@@ -6139,61 +6139,64 @@ function renderCombustibleView() {
             tg.MainButton.disable();
 
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    tg.MainButton.hideProgress();
-                    tg.MainButton.enable();
-                    
-                    listContainer.innerHTML = `
-                        <div class="combustible-loading-state">
-                            <p>Buscando gasolineras...</p>
-                            <div class="dot-spinner">
-                                <div class="dot-spinner__dot"></div>
-                                <div class="dot-spinner__dot"></div>
-                                <div class="dot-spinner__dot"></div>
-                            </div>
-                        </div>`;
+                // Función de ÉXITO
+(position) => {
+    
+    // --- INICIO DEL CAMBIO CLAVE: EL "FLIP" DE ÓRDENES ---
+    
+    // 1. PRIMERO, le ordenamos a NUESTRA app que muestre el spinner local. Esto es inmediato.
+    listContainer.innerHTML = `
+        <div class="combustible-loading-state">
+            <p>Buscando gasolineras...</p>
+            <div class="dot-spinner">
+                <div class="dot-spinner__dot"></div>
+                <div class="dot-spinner__dot"></div>
+                <div class="dot-spinner__dot"></div>
+            </div>
+        </div>`;
 
-                    const { latitude, longitude } = position.coords;
-                    
-                    if (!map) {
-                        map = L.map('combustible-map');
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                    }
-                    map.setView([latitude, longitude], 14);
-                    
-                    (async () => {
-                        let stations = await fetchStations(latitude, longitude, 5);
-                        
-                        // --- LÓGICA DE ORDENACIÓN E INTERACTIVIDAD ---
-                        if (stations.length > 0) {
-                            // 1. Calcular distancia y añadirla a cada objeto
-                            stations.forEach(s => {
-                                s.distance = getDistance(latitude, longitude, s.lat, s.lon);
-                            });
-                            // 2. Ordenar por precio de gasolina 95 (más barata primero)
-                            stations.sort((a, b) => {
-                                const priceA = a.prices.gasolina_95_e5 || 999;
-                                const priceB = b.prices.gasolina_95_e5 || 999;
-                                return priceA - priceB;
-                            });
-                        }
-                        
-                        // 3. Dibujar todo y obtener los marcadores
-                        const markers = drawStationsAndList(stations, map);
-                        
-                        // 4. Añadir el listener para la interactividad
-                        listContainer.querySelectorAll('.combustible-list-item').forEach(item => {
-                            item.addEventListener('click', () => {
-                                const stationId = item.dataset.id;
-                                const marker = markers.get(stationId);
-                                if (marker) {
-                                    map.flyTo(marker.getLatLng(), 15);
-                                    marker.openPopup();
-                                }
-                            });
-                        });
-                    })();
-                },
+    // 2. SEGUNDO, le decimos a TELEGRAM que oculte el suyo.
+    tg.MainButton.hideProgress();
+    tg.MainButton.enable();
+
+    // --- FIN DEL CAMBIO CLAVE ---
+
+    const { latitude, longitude } = position.coords;
+    
+    if (!map) {
+        map = L.map('combustible-map');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    }
+    map.setView([latitude, longitude], 14);
+    
+    (async () => {
+        let stations = await fetchStations(latitude, longitude, 5);
+        
+        if (stations.length > 0) {
+            stations.forEach(s => {
+                s.distance = getDistance(latitude, longitude, s.lat, s.lon);
+            });
+            stations.sort((a, b) => {
+                const priceA = a.prices.gasolina_95_e5 || 999;
+                const priceB = b.prices.gasolina_95_e5 || 999;
+                return priceA - priceB;
+            });
+        }
+        
+        const markers = drawStationsAndList(stations, map);
+        
+        listContainer.querySelectorAll('.combustible-list-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const stationId = item.dataset.id;
+                const marker = markers.get(stationId);
+                if (marker) {
+                    map.flyTo(marker.getLatLng(), 15);
+                    marker.openPopup();
+                }
+            });
+        });
+    })();
+},
                 (error) => {
                     tg.MainButton.hideProgress();
                     tg.MainButton.enable();
