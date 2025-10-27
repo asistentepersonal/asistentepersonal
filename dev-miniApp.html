@@ -1592,25 +1592,49 @@ function showSpinner(message = '') {
     spinner.style.display = 'block'; 
 }
 async function loadEmojiDictionary() {
-    const cacheKey = `emojiCache-${EMOJIS_DB_FILENAME}`; // Usa el nuevo nombre
-    try {
-        const cachedData = localStorage.getItem(cacheKey);
-        if (cachedData) {
-            console.log("Cargando diccionario de emojis desde el caché local.");
-            emojiDictionary = JSON.parse(cachedData);
-            return;
-        }
+    // 1. Definimos los nombres de las claves que usaremos en el localStorage.
+    const EMOJI_DATA_CACHE_KEY = 'emoji_dictionary_data';
+    const EMOJI_VERSION_CACHE_KEY = 'emoji_dictionary_version';
 
-        console.log("Descargando diccionario de emojis por primera vez...");
-        const response = await fetch(EMOJIS_DB_FILENAME); // Usa el nuevo nombre
-        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-        
-        const data = await response.json();
-        emojiDictionary = data;
-        localStorage.setItem(cacheKey, JSON.stringify(data));
+    try {
+        // 2. Obtenemos la versión más reciente del diccionario desde Firestore.
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        const serverVersion = versionDoc.exists ? (versionDoc.data().emoji_dictionary_version || 1) : 1;
+
+        // 3. Obtenemos la versión y los datos que el usuario tiene guardados localmente.
+        const localVersion = parseInt(localStorage.getItem(EMOJI_VERSION_CACHE_KEY) || '0', 10);
+        const cachedData = localStorage.getItem(EMOJI_DATA_CACHE_KEY);
+
+        // 4. Comparamos. Descargamos solo si la versión del servidor es más nueva O si no hay datos en caché.
+        if (serverVersion > localVersion || !cachedData) {
+            console.log(`[Emoji] Actualizando diccionario. Servidor: v${serverVersion}, Local: v${localVersion}`);
+            
+            const response = await fetch(EMOJIS_DB_FILENAME);
+            if (!response.ok) throw new Error(`Error HTTP al descargar diccionario: ${response.status}`);
+            
+            const data = await response.json();
+            emojiDictionary = data;
+
+            // 5. Guardamos los nuevos datos Y la nueva versión en el localStorage.
+            localStorage.setItem(EMOJI_DATA_CACHE_KEY, JSON.stringify(data));
+            localStorage.setItem(EMOJI_VERSION_CACHE_KEY, serverVersion.toString());
+
+        } else {
+            // Si las versiones coinciden y hay datos, cargamos desde la caché local.
+            console.log(`[Emoji] Diccionario local (v${localVersion}) está actualizado.`);
+            emojiDictionary = JSON.parse(cachedData);
+        }
 
     } catch (error) {
         console.error("No se pudo cargar el diccionario de emojis:", error);
+        // Plan B: Si todo falla, intentamos usar la última versión que tengamos guardada.
+        const fallbackData = localStorage.getItem(EMOJI_DATA_CACHE_KEY);
+        if (fallbackData) {
+            console.warn("[Emoji] Usando versión de respaldo del diccionario desde caché.");
+            emojiDictionary = JSON.parse(fallbackData);
+        } else {
+            emojiDictionary = []; // Si no hay nada, lo dejamos vacío para no romper la app.
+        }
     }
 }
 function generateCustomId(prefix) {
