@@ -2097,7 +2097,7 @@ async function saveReminder() {
         appData.remindersList.unshift(tempReminder); // 'unshift' lo añade al principio
 		
         // 2. Navegamos y redibujamos la UI instantáneamente.
-        goBack();
+        renderRemindersList();
 
         // --- FIN: LÓGICA OPTIMISTA ---
 
@@ -2159,6 +2159,7 @@ async function renderRemindersList() {
     const listElement = document.getElementById('reminders-list');
     listElement.removeEventListener('click', handleReminderListClick); // Previene duplicados
     listElement.addEventListener('click', handleReminderListClick);
+	drawRemindersList(); // <-- Dibuja la lista inmediatamente desde la memoria local
 
     if (typeof unsubscribeRemindersList === 'function') {
         unsubscribeRemindersList();
