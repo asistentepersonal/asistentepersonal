@@ -2097,7 +2097,7 @@ async function saveReminder() {
         appData.remindersList.unshift(tempReminder); // 'unshift' lo añade al principio
 		
         // 2. Navegamos y redibujamos la UI instantáneamente.
-        renderRemindersList();
+        goBack();
 
         // --- FIN: LÓGICA OPTIMISTA ---
 
