@@ -1043,6 +1043,12 @@
     margin-top: 0; /* Anulamos el margen superior del button-group */
 }
 /* --- FIN: Estilos para el Modal de Changelog --- */
+
+/* --- INICIO: CORRECCIÓN DE VISIBILIDAD DE BOTONES DE CALENDARIO --- */
+	.flatpickr-calendar {
+    z-index: 9999 !important; /* Asegura que el calendario flote por encima de todo */
+}
+/* --- FIN: CORRECCIÓN --- */
   </style>
 
 </head>
@@ -1778,12 +1784,8 @@ function applyTheme(theme) {
     }
     
     console.log(`[Theme] Tema aplicado: ${theme}. Modo oscuro: ${isDarkMode}`);
-	/* --- INICIO: CORRECCIÓN DE VISIBILIDAD DE BOTONES DE CALENDARIO --- */
-	.flatpickr-calendar {
-    z-index: 9999 !important; /* Asegura que el calendario flote por encima de todo */
 }
-/* --- FIN: CORRECCIÓN --- */
-}
+
 // --- FIN GESTOR DE TEMAS ---
 let isAppReady = false;
 let activeFlatpickrInstance = null;
