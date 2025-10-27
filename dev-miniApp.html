@@ -2126,6 +2126,13 @@ async function saveReminder() {
 		reminderBadge.textContent = appData.counts.remindersCount;
 }
 // --- FIN: Actualización optimista del contador ---
+		// --- INICIO: Actualización optimista del contador ---
+		appData.counts.remindersCount++;
+		const reminderBadge = document.getElementById('reminders-badge');
+		if (reminderBadge) {
+		reminderBadge.textContent = appData.counts.remindersCount;
+}
+// --- FIN: Actualización optimista del contador ---
 
         // 2. Navegamos y redibujamos la UI instantáneamente.
         renderRemindersList();
@@ -2175,7 +2182,14 @@ async function renderRemindersList() {
     });
     updateBackButton();
     
-    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list"></ul></div>`;
+    mainContentArea.innerHTML = `<div class="list-container">
+                            <div class="list-header"><h2>Recordatorios</h2></div>
+                            <div class="add-article-btn-container">
+                                <button class="add-article-btn" id="add-new-reminder-btn">➕ Añadir Recordatorio</button>
+                            </div>
+                            <ul class="list-style-none" id="reminders-list"></ul>
+                         </div>`;
+						 document.getElementById('add-new-reminder-btn').onclick = renderReminderForm;
 
     // Dibuja la lista inmediatamente desde la memoria local para una carga optimista
     drawRemindersList();
@@ -2223,11 +2237,6 @@ async function renderRemindersList() {
 function drawRemindersList() {
     const listElement = document.getElementById('reminders-list');
     if (!listElement) return;
-
-    if (appData.remindersList.length === 0) {
-        listElement.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
-        return;
-    }
 
     const listHtml = appData.remindersList.map(item => `
         <li class="list-item" id="item-${item.tracking_code}">
