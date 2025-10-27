@@ -2157,7 +2157,7 @@ const getNowInUserTimeZone = () => {
 
 const nowInUserZone = getNowInUserTimeZone();
 
-flatpickr("#time", {
+flatpickr(document.querySelector("#time").parentElement, {
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true,
     altInput: true,
@@ -3145,7 +3145,7 @@ function renderAddGastoForm(initialData = null) {
             }
         }
     }
-    flatpickr("#gasto-fecha", { 
+    flatpickr(document.querySelector("#gasto-fecha").parentElement, { 
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     disableMobile: true, 
     defaultDate: defaultDate, 
@@ -3412,12 +3412,12 @@ function renderGastosSearchScreen(gastos = null) {
             <div id="gastos-search-results" style="margin-top: 10px;">${resultsHtml}</div>
         </div>`;
         
-    flatpickr("#gasto-fecha-inicio", {
+    flatpickr(document.querySelector("#gasto-fecha-inicio").parentElement, {
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     dateFormat: "d/m/Y",
     defaultDate: new Date(new Date().setDate(1))
 });
-	flatpickr("#gasto-fecha-fin", {
+	flatpickr(document.querySelector("#gasto-fecha-fin").parentElement, {
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     dateFormat: "d/m/Y",
     defaultDate: new Date()
@@ -3511,7 +3511,7 @@ function renderEditGastoForm(gasto) {
             </div>
         </div>`;
     
-    const fechaPicker = flatpickr("#gasto-fecha", { 
+    const fechaPicker = flatpickr(document.querySelector("#gasto-fecha").parentElement, { 
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     disableMobile: true, 
     defaultDate: gasto.Fecha, 
@@ -3686,7 +3686,7 @@ function renderChefPage() {
     const maxDateForChef = new Date();
     maxDateForChef.setDate(now.getDate() + 3);
 
-    flatpickr("#chef-fecha-comida", {
+    flatpickr(document.querySelector("#chef-fecha-comida").parentElement, {
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true,
     altInput: true,
@@ -4386,12 +4386,12 @@ function renderExportPage() {
             </div>
         </div>
     `;
-    flatpickr("#export-start-date", {
+    flatpickr(document.querySelector("#export-start-date").parentElement, {
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     dateFormat: "d/m/Y",
     defaultDate: new Date(new Date().getFullYear(), 0, 1)
 });
-flatpickr("#export-end-date", {
+flatpickr(document.querySelector("#export-end-date").parentElement, {
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     dateFormat: "d/m/Y",
     defaultDate: new Date()
@@ -5814,14 +5814,14 @@ const nowInUserZone = new Date(getNowInUserTimeZone());
 const defaultStartDate = isEditing ? event.fechaInicio : (prefilledStartDate || nowInUserZone);
 const defaultEndDate = isEditing ? event.fechaFin : (prefilledEndDate || new Date(defaultStartDate.getTime() + 60 * 60 * 1000));
 
-const fpEnd = flatpickr("#event-end-date", {
+const fpEnd = flatpickr(document.querySelector("#event-end-date").parentElement, {
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultEndDate,
     minDate: defaultStartDate
 });
 
-const fpStart = flatpickr("#event-start-date", {
+const fpStart = flatpickr(document.querySelector("#event-start-date").parentElement, {
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultStartDate,
