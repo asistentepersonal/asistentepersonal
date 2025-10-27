@@ -9,8 +9,10 @@
   <title>Dashboard - Mini App Telegram</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/plugins/confirmDate/confirmDate.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+  <script src="https://npmcdn.com/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
   <!-- Librería de Mapas (Leaflet.js) -->
@@ -1789,6 +1791,7 @@ function destroyActiveFlatpickr() {
 }
 
 // Función de ayuda para la configuración base de todos los calendarios
+// Función de ayuda para la configuración base de todos los calendarios
 function getFlatpickrBaseConfig() {
     return {
         disableMobile: true,
@@ -1803,7 +1806,16 @@ function getFlatpickrBaseConfig() {
             if (activeFlatpickrInstance === instance) {
                 activeFlatpickrInstance = null;
             }
-        }
+        },
+        // --- BLOQUE AÑADIDO ---
+        plugins: [
+            new confirmDatePlugin({
+                confirmText: "Establecer",
+                showAlways: true,
+                theme: "light" // Puedes cambiar a "dark" si quieres
+            })
+        ]
+        // --- FIN BLOQUE AÑADIDO ---
     };
 }
 let unsubscribeShoppingList = null;
