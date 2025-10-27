@@ -1083,7 +1083,6 @@
   </div>
     <div class="tabs">
     <div class="tab active" id="tab-home">🏠 Home</div>
-    <div class="tab" id="tab-chef">🧑‍🍳 Chef</div>
     <div class="tab" id="tab-export">📊 Exportar Gastos</div>
     <div class="tab" id="tab-settings">⚙️ Ajustes</div>
   </div>
@@ -1338,7 +1337,6 @@ async function runApp() {
         updateCalendarBadgeListener(); // Llamada inicial al arrancar la app.
         
         // 4. Dibujar la UI con los datos ya cargados (sin cambios)
-        updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
 		// --- INICIO: Listener para re-verificar versión y contadores al reanudar la app ---
@@ -1832,28 +1830,6 @@ document.body.addEventListener('click', (e) => {
     }
 });
 
-function updateChefTabStyle() {
-    const chefTab = document.getElementById('tab-chef');
-    if (!chefTab) return;
-    
-    const isPremium = appData.isPremium === true;
-    
-    if (isPremium) {
-        // Si es Premium, la pestaña es funcional y normal.
-        chefTab.classList.remove('tab-premium-locked');
-        chefTab.innerHTML = '🧑‍🍳 Chef';
-        chefTab.onclick = renderChefPage; // Asignamos la función para que se pueda hacer clic
-    } else {
-        // Si no es Premium, la pestaña se bloquea visualmente y funcionalmente.
-        chefTab.classList.add('tab-premium-locked');
-        chefTab.innerHTML = 'Chef ⭐';
-        // Asignamos una función que solo muestra el toast.
-        chefTab.onclick = () => {
-            showToast('⭐ Función exclusiva para usuarios Premium.');
-        };
-    }
-}
-
 window.confirmDelete = function(type, id) {
     const itemElement = document.getElementById(`item-${id}`);
     if (!itemElement) return;
@@ -2119,21 +2095,7 @@ async function saveReminder() {
             Status: 'pending_creation' // <-- Estado inicial con reloj de arena
         };
         appData.remindersList.unshift(tempReminder); // 'unshift' lo añade al principio
-		// --- INICIO: Actualización optimista del contador ---
-		appData.counts.remindersCount++;
-		const reminderBadge = document.getElementById('reminders-badge');
-		if (reminderBadge) {
-		reminderBadge.textContent = appData.counts.remindersCount;
-}
-// --- FIN: Actualización optimista del contador ---
-		// --- INICIO: Actualización optimista del contador ---
-		appData.counts.remindersCount++;
-		const reminderBadge = document.getElementById('reminders-badge');
-		if (reminderBadge) {
-		reminderBadge.textContent = appData.counts.remindersCount;
-}
-// --- FIN: Actualización optimista del contador ---
-
+		
         // 2. Navegamos y redibujamos la UI instantáneamente.
         renderRemindersList();
 
@@ -6561,11 +6523,7 @@ function renderDashboard() {
 document.getElementById('tab-home').onclick = renderDashboard;
 document.getElementById('tab-settings').onclick = renderSettings;
 document.getElementById('tab-export').onclick = renderExportPage;
-document.getElementById('tab-chef').onclick = () => {
-    if (String(appData.settings.Premium).toLowerCase() === 'si') {
-        renderChefPage();
-    }
-};
+
 // =========================================================================
 // --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
 // =========================================================================
