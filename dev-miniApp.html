@@ -1778,6 +1778,11 @@ function applyTheme(theme) {
     }
     
     console.log(`[Theme] Tema aplicado: ${theme}. Modo oscuro: ${isDarkMode}`);
+	/* --- INICIO: CORRECCIÓN DE VISIBILIDAD DE BOTONES DE CALENDARIO --- */
+	.flatpickr-calendar {
+    z-index: 9999 !important; /* Asegura que el calendario flote por encima de todo */
+}
+/* --- FIN: CORRECCIÓN --- */
 }
 // --- FIN GESTOR DE TEMAS ---
 let isAppReady = false;
@@ -1791,8 +1796,10 @@ function destroyActiveFlatpickr() {
 }
 
 // Función de ayuda para la configuración base de todos los calendarios
-// Función de ayuda para la configuración base de todos los calendarios
 function getFlatpickrBaseConfig() {
+    // Detección dinámica del tema actual de la app
+    const isDarkMode = !!document.getElementById('flatpickr-dark-theme');
+
     return {
         disableMobile: true,
         locale: "es",
@@ -1807,15 +1814,14 @@ function getFlatpickrBaseConfig() {
                 activeFlatpickrInstance = null;
             }
         },
-        // --- BLOQUE AÑADIDO ---
         plugins: [
             new confirmDatePlugin({
                 confirmText: "Establecer",
+                cancelText: "Cancelar", // <-- AÑADIDO: Muestra el botón de cancelar
                 showAlways: true,
-                theme: "light" // Puedes cambiar a "dark" si quieres
+                theme: isDarkMode ? "dark" : "light" // <-- CAMBIADO: Tema ahora es dinámico
             })
         ]
-        // --- FIN BLOQUE AÑADIDO ---
     };
 }
 let unsubscribeShoppingList = null;
