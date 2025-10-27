@@ -1043,6 +1043,33 @@
     margin-top: 0; /* Anulamos el margen superior del button-group */
 }
 /* --- FIN: Estilos para el Modal de Changelog --- */
+/* --- INICIO: Estilos para Botones de Calendario Personalizados --- */
+.flatpickr-calendar .fp-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px;
+    border-top: 1px solid var(--bg);
+    background-color: var(--card-bg);
+}
+.flatpickr-calendar .fp-button {
+    background-color: transparent;
+    border: 1px solid var(--muted);
+    color: var(--text);
+    border-radius: 5px;
+    padding: 6px 12px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.flatpickr-calendar .fp-button.fp-confirm-btn {
+    background-color: var(--primary);
+    color: var(--action-text);
+    border-color: var(--primary);
+}
+.dark-theme .fp-buttons {
+    border-top-color: var(--muted);
+}
+/* --- FIN: Estilos para Botones --- */
 
 /* --- INICIO: CORRECCIÓN DE VISIBILIDAD DE BOTONES DE CALENDARIO --- */
 	.flatpickr-calendar {
@@ -1799,31 +1826,66 @@ function destroyActiveFlatpickr() {
 
 // Función de ayuda para la configuración base de todos los calendarios
 function getFlatpickrBaseConfig() {
-    // Detección dinámica del tema actual de la app
-    const isDarkMode = !!document.getElementById('flatpickr-dark-theme');
+    let initialDate = null; // Guardará la fecha original al abrir
 
     return {
         disableMobile: true,
         locale: "es",
+        static: true, // CLAVE: Fija el calendario al input, solucionando el posicionamiento.
+        wrap: true,   // CLAVE: Necesario para que 'static: true' funcione.
+
         onOpen: function(selectedDates, dateStr, instance) {
             if (activeFlatpickrInstance && activeFlatpickrInstance !== instance) {
                 activeFlatpickrInstance.destroy();
             }
             activeFlatpickrInstance = instance;
+            // Guarda la fecha inicial para poder "cancelar"
+            initialDate = instance.selectedDates[0] || null;
         },
+
         onClose: function(selectedDates, dateStr, instance) {
             if (activeFlatpickrInstance === instance) {
                 activeFlatpickrInstance = null;
             }
         },
-        plugins: [
-            new confirmDatePlugin({
-                confirmText: "Establecer",
-                cancelText: "Cancelar", // <-- AÑADIDO: Muestra el botón de cancelar
-                showAlways: true,
-                theme: isDarkMode ? "dark" : "light" // <-- CAMBIADO: Tema ahora es dinámico
-            })
-        ]
+
+        // onReady es el hook oficial para añadir elementos al calendario ya construido
+        onReady: function(selectedDates, dateStr, instance) {
+            const isDarkMode = !!document.getElementById('flatpickr-dark-theme');
+            if (isDarkMode) {
+                instance.calendarContainer.classList.add("dark-theme");
+            }
+
+            // Crear el contenedor de botones
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'fp-buttons';
+
+            // Crear el botón de Cancelar
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'fp-button fp-cancel-btn';
+            cancelBtn.textContent = 'Cancelar';
+            cancelBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Restaura la fecha original y cierra
+                instance.setDate(initialDate, true);
+                instance.close();
+            });
+
+            // Crear el botón de Establecer
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'fp-button fp-confirm-btn';
+            confirmBtn.textContent = 'Establecer';
+            confirmBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Cierra, confirmando la fecha seleccionada
+                instance.close();
+            });
+
+            // Añadir los botones al contenedor, y el contenedor al calendario
+            btnContainer.appendChild(cancelBtn);
+            btnContainer.appendChild(confirmBtn);
+            instance.calendarContainer.appendChild(btnContainer);
+        }
     };
 }
 let unsubscribeShoppingList = null;
@@ -2058,7 +2120,7 @@ function renderReminderForm() {
       <div class="list-header"><h2>📝 Nuevo Recordatorio</h2></div>
       <div class="form-card">
         <label>Descripción</label><textarea id="text" rows="3" required></textarea>
-        <label>Fecha y hora</label><input type="text" id="time" required/>
+        <label>Fecha y hora</label><div class="flatpickr-wrapper"><input type="text" id="time" required data-input/></div>
         <label>Tipo</label>
         <div class="radio-group" id="reminder-type-group">
           <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
@@ -3049,7 +3111,7 @@ function renderAddGastoForm(initialData = null) {
                 <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
                 <label>Subcategoría</label>
                 <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona una subcategoría --</option></select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <label>Fecha</label> <div class="flatpickr-wrapper"><input type="text" id="gasto-fecha" required data-input/></div>
                 <div class="button-group">
                     <button id="cancel-gasto-btn" class="cancel">Cancelar</button>
                     <button id="save-gasto-btn" disabled>Registrar Gasto</button>
@@ -3342,8 +3404,8 @@ function renderGastosSearchScreen(gastos = null) {
         <div class="list-container">
             <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
             <div class="form-card">
-                <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
-                <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
+                <label>Fecha de Inicio</label> <div class="flatpickr-wrapper"><input type="text" id="gasto-fecha-inicio" required data-input/></div>
+                <label>Fecha de Fin</label> <div class="flatpickr-wrapper"><input type="text" id="gasto-fecha-fin" required data-input/></div>
                 <button id="search-gasto-btn" class="enabled">Buscar</button>
             </div>
             <p style="text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 15px; display: ${legendDisplay};">Pulsa sobre un gasto para ver/editarlo</p>
@@ -3441,7 +3503,7 @@ function renderEditGastoForm(gasto) {
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.establecimiento}" required />
                 <label>Categoría</label> <select id="gasto-categoria" required>${categoriasOptions}</select>
                 <label>Subcategoría</label> <select id="gasto-subcategoria" required>${subcategoriasOptions}</select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <label>Fecha</label> <div class="flatpickr-wrapper"><input type="text" id="gasto-fecha" required data-input/></div>
                 <div class="button-group">
                     <button id="delete-gasto-btn" class="cancel">Eliminar</button>
                     <button id="save-gasto-btn" disabled>Guardar Cambios</button>
@@ -3575,7 +3637,7 @@ function renderChefPage() {
                 </div>
                 <div class="chef-item">
                     <label>Fecha y Hora</label>
-                    <input type="text" id="chef-fecha-comida" style="width: 150px; text-align: center;"/>
+                    <div class="flatpickr-wrapper"><input type="text" id="chef-fecha-comida" style="width: 150px; text-align: center;" data-input/></div>
                 </div>
                 <div class="chef-item">
                     <label>Nº de Comensales</label>
@@ -4314,9 +4376,9 @@ function renderExportPage() {
             <div class="form-card">
                 <p style="font-size:0.9rem; color:var(--muted); margin-bottom:15px;">Selecciona el rango de fechas para la exportación. Recibirás el archivo en tu email.</p>
                 <label>Fecha de Inicio</label>
-                <input type="text" id="export-start-date" required />
+                <div class="flatpickr-wrapper"><input type="text" id="export-start-date" required data-input/></div>
                 <label>Fecha de Fin</label>
-                <input type="text" id="export-end-date" required />
+                <div class="flatpickr-wrapper"><input type="text" id="export-end-date" required data-input/></div>
                 <div class="button-group">
                     <button id="export-cancel-btn" class="cancel">Cancelar</button>
                     <button id="export-confirm-btn" class="enabled">Generar y Enviar</button>
@@ -5693,8 +5755,8 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
                 <label>Descripción</label><textarea id="event-description" rows="5">${isEditing ? event.descripcion : ''}</textarea>
                 <div class="settings-item"><span class="settings-item-label">Todo el día</span><label class="switch"><input type="checkbox" id="event-all-day" ${isEditing && event.esTodoElDia ? 'checked' : ''}><span class="slider"></span></label></div>
                 <div id="time-pickers">
-                    <label>Inicio</label><input type="text" id="event-start-date" required/>
-                    <label>Fin</label><input type="text" id="event-end-date" required/>
+                    <label>Inicio</label><div class="flatpickr-wrapper"><input type="text" id="event-start-date" required data-input/></div>
+                    <label>Fin</label><div class="flatpickr-wrapper"><input type="text" id="event-end-date" required data-input/></div>
                 </div>
                 
                 <label>Color</label>
