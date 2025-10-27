@@ -2048,8 +2048,6 @@ const getNowInUserTimeZone = () => {
 const nowInUserZone = getNowInUserTimeZone();
 
 flatpickr("#time", {
-	static: true,
-	appendTo: window.document.body.querySelector('#main-content-area'),
     disableMobile: true,
     enableTime: true,
     altInput: true,
@@ -3038,7 +3036,7 @@ function renderAddGastoForm(initialData = null) {
             }
         }
     }
-    flatpickr("#gasto-fecha", { static: true,appendTo: window.document.body.querySelector('#main-content-area'), disableMobile: true, defaultDate: defaultDate, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es", onChange: validateGastoForm });
+    flatpickr("#gasto-fecha", { disableMobile: true, defaultDate: defaultDate, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es", onChange: validateGastoForm });
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
@@ -3297,7 +3295,7 @@ function renderGastosSearchScreen(gastos = null) {
             <div id="gastos-search-results" style="margin-top: 10px;">${resultsHtml}</div>
         </div>`;
         
-    const fpConfig = { static: true,appendTo: window.document.body.querySelector('#main-content-area'), disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
+    const fpConfig = { disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
     flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
     
@@ -3389,7 +3387,7 @@ function renderEditGastoForm(gasto) {
             </div>
         </div>`;
     
-    const fechaPicker = flatpickr("#gasto-fecha", { static: true,appendTo: window.document.body.querySelector('#main-content-area'), disableMobile: true, defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
+    const fechaPicker = flatpickr("#gasto-fecha", { disableMobile: true, defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
     const categoriaSelect = document.getElementById('gasto-categoria');
     const subcategoriaSelect = document.getElementById('gasto-subcategoria');
     const importeInput = document.getElementById('gasto-importe');
@@ -4258,7 +4256,7 @@ function renderExportPage() {
             </div>
         </div>
     `;
-    const fpConfig = { static: true,appendTo: window.document.body.querySelector('#main-content-area'), disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
+    const fpConfig = { disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
     flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
     flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
     document.getElementById('export-cancel-btn').onclick = goBack;
