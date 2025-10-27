@@ -1417,6 +1417,7 @@ function showChangelogModal(version, changelogText) {
 let navigationHistory = [];
 
 function goBack() {
+	destroyActiveFlatpickr();
     if (navigationHistory.length > 0) {
         const previousStep = navigationHistory.pop();
         if (typeof previousStep === 'function') {
@@ -1778,6 +1779,33 @@ function applyTheme(theme) {
 }
 // --- FIN GESTOR DE TEMAS ---
 let isAppReady = false;
+let activeFlatpickrInstance = null;
+
+function destroyActiveFlatpickr() {
+  if (activeFlatpickrInstance) {
+    activeFlatpickrInstance.destroy();
+    activeFlatpickrInstance = null;
+  }
+}
+
+// Función de ayuda para la configuración base de todos los calendarios
+function getFlatpickrBaseConfig() {
+    return {
+        disableMobile: true,
+        locale: "es",
+        onOpen: function(selectedDates, dateStr, instance) {
+            if (activeFlatpickrInstance && activeFlatpickrInstance !== instance) {
+                activeFlatpickrInstance.destroy();
+            }
+            activeFlatpickrInstance = instance;
+        },
+        onClose: function(selectedDates, dateStr, instance) {
+            if (activeFlatpickrInstance === instance) {
+                activeFlatpickrInstance = null;
+            }
+        }
+    };
+}
 let unsubscribeShoppingList = null;
 let unsubscribeNotesList = null;
 let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
@@ -2048,13 +2076,12 @@ const getNowInUserTimeZone = () => {
 const nowInUserZone = getNowInUserTimeZone();
 
 flatpickr("#time", {
-    disableMobile: true,
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true,
     altInput: true,
     altFormat: "d/m/Y H:i",
     dateFormat: "Y-m-d H:i",
     defaultDate: nowInUserZone, // Usamos el objeto Date preciso
-    locale: "es",
     minDate: nowInUserZone // Bloqueamos la selección de cualquier momento anterior al actual
 });
 // --- FIN: Lógica de fecha por defecto precisa ---
@@ -3036,7 +3063,15 @@ function renderAddGastoForm(initialData = null) {
             }
         }
     }
-    flatpickr("#gasto-fecha", { disableMobile: true, defaultDate: defaultDate, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es", onChange: validateGastoForm });
+    flatpickr("#gasto-fecha", { 
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    disableMobile: true, 
+    defaultDate: defaultDate, 
+    dateFormat: "d/m/Y H:i", 
+    enableTime: true, 
+    locale: "es", 
+    onChange: validateGastoForm 
+});
     elementsToValidate.forEach(el => el.oninput = validateGastoForm);
     categoriaSelect.onchange = () => {
         const selectedCategory = categoriaSelect.value;
@@ -3295,9 +3330,16 @@ function renderGastosSearchScreen(gastos = null) {
             <div id="gastos-search-results" style="margin-top: 10px;">${resultsHtml}</div>
         </div>`;
         
-    const fpConfig = { disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
-    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
-    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
+    flatpickr("#gasto-fecha-inicio", {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    dateFormat: "d/m/Y",
+    defaultDate: new Date(new Date().setDate(1))
+});
+	flatpickr("#gasto-fecha-fin", {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    dateFormat: "d/m/Y",
+    defaultDate: new Date()
+});
     
     document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
     
@@ -3387,7 +3429,14 @@ function renderEditGastoForm(gasto) {
             </div>
         </div>`;
     
-    const fechaPicker = flatpickr("#gasto-fecha", { disableMobile: true, defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
+    const fechaPicker = flatpickr("#gasto-fecha", { 
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    disableMobile: true, 
+    defaultDate: gasto.Fecha, 
+    dateFormat: "d/m/Y H:i", 
+    enableTime: true, 
+    locale: "es" 
+});
     const categoriaSelect = document.getElementById('gasto-categoria');
     const subcategoriaSelect = document.getElementById('gasto-subcategoria');
     const importeInput = document.getElementById('gasto-importe');
@@ -3556,17 +3605,16 @@ function renderChefPage() {
     maxDateForChef.setDate(now.getDate() + 3);
 
     flatpickr("#chef-fecha-comida", {
-        disableMobile: true,
-        enableTime: true,
-        locale: "es",
-        altInput: true,
-        altFormat: "D, j M H:i",
-        dateFormat: "Z",
-        time_24hr: true,
-        defaultDate: now,
-        minDate: now,
-        maxDate: maxDateForChef
-    });
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    enableTime: true,
+    altInput: true,
+    altFormat: "D, j M H:i",
+    dateFormat: "Z",
+    time_24hr: true,
+    defaultDate: now,
+    minDate: now,
+    maxDate: maxDateForChef
+});
 
     document.getElementById('chef-cancel-btn').onclick = goBack;
     
@@ -4256,9 +4304,16 @@ function renderExportPage() {
             </div>
         </div>
     `;
-    const fpConfig = { disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
-    flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
-    flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
+    flatpickr("#export-start-date", {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    dateFormat: "d/m/Y",
+    defaultDate: new Date(new Date().getFullYear(), 0, 1)
+});
+flatpickr("#export-end-date", {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    dateFormat: "d/m/Y",
+    defaultDate: new Date()
+});
     document.getElementById('export-cancel-btn').onclick = goBack;
     document.getElementById('export-confirm-btn').onclick = executeExport;
 }
@@ -5678,15 +5733,15 @@ const defaultStartDate = isEditing ? event.fechaInicio : (prefilledStartDate || 
 const defaultEndDate = isEditing ? event.fechaFin : (prefilledEndDate || new Date(defaultStartDate.getTime() + 60 * 60 * 1000));
 
 const fpEnd = flatpickr("#event-end-date", {
-    disableMobile: true,
-    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultEndDate,
     minDate: defaultStartDate
 });
 
 const fpStart = flatpickr("#event-start-date", {
-    disableMobile: true,
-    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultStartDate,
     minDate: isEditing ? null : nowInUserZone, // Usamos la misma referencia de 'ahora'
     onChange: function(selectedDates) {
@@ -6521,9 +6576,9 @@ function renderDashboard() {
 }
 
 // Lógica de pestañas
-document.getElementById('tab-home').onclick = renderDashboard;
-document.getElementById('tab-settings').onclick = renderSettings;
-document.getElementById('tab-export').onclick = renderExportPage;
+document.getElementById('tab-home').onclick = () => { destroyActiveFlatpickr(); renderDashboard(); };
+document.getElementById('tab-settings').onclick = () => { destroyActiveFlatpickr(); renderSettings(); };
+document.getElementById('tab-export').onclick = () => { destroyActiveFlatpickr(); renderExportPage(); };
 
 // =========================================================================
 // --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
