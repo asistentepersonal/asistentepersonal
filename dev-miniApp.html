@@ -1076,6 +1076,51 @@
     z-index: 9999 !important; /* Asegura que el calendario flote por encima de todo */
 }
 /* --- FIN: CORRECCIÓN --- */
+/* --- INICIO ESTILOS MODAL UBICACIÓN --- */
+.fuel-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    z-index: 1500;
+    display: none; /* Oculto por defecto */
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.fuel-modal-overlay.show {
+    display: flex;
+    opacity: 1;
+}
+.fuel-modal-content {
+    background-color: var(--card-bg);
+    padding: 24px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 400px;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+.fuel-modal-overlay.show .fuel-modal-content {
+    transform: scale(1);
+}
+.fuel-modal-checkbox-container {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+    padding: 10px;
+    background-color: var(--bg);
+    border-radius: 8px;
+}
+.fuel-modal-checkbox-container input {
+    width: 18px;
+    height: 18px;
+    margin-right: 12px;
+}
+/* --- FIN ESTILOS MODAL UBICACIÓN --- */
   </style>
 
 </head>
@@ -1188,6 +1233,25 @@
     </div>
 </div>
 <!-- FIN MODAL DE NOTIFICACIONES -->
+
+<!-- INICIO MODAL AVISO UBICACIÓN COMBUSTIBLE -->
+<div class="fuel-modal-overlay" id="fuel-location-modal">
+    <div class="fuel-modal-content">
+        <h3>Activa tu Ubicación</h3>
+        <p style="line-height: 1.5; color: var(--muted); margin-top: 10px;">
+            Para buscar, asegúrate de tener activado el GPS o los servicios de ubicación en los ajustes de tu móvil y concede el permiso cuando se te pida.
+        </p>
+        <div class="fuel-modal-checkbox-container">
+            <input type="checkbox" id="fuel-modal-checkbox">
+            <label for="fuel-modal-checkbox">No volver a mostrar este aviso</label>
+        </div>
+        <div class="button-group" style="margin-top: 20px;">
+            <button id="fuel-modal-cancel" class="cancel">Cancelar</button>
+            <button id="fuel-modal-continue" class="enabled">Continuar</button>
+        </div>
+    </div>
+</div>
+<!-- FIN MODAL AVISO UBICACIÓN COMBUSTIBLE -->
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -6335,10 +6399,37 @@ function renderCombustibleView() {
     };
 
     if (tg && tg.MainButton) {
+        
+        // --- INICIO: LÓGICA MEJORADA Y DEFINITIVA ---
 
-        // --- INICIO: NUEVA LÓGICA ROBUSTA ---
+        // Función de ayuda para manejar ERRORES con un POPUP INTERACTIVO
+        const handleLocationError = (error) => {
+            tg.MainButton.hideProgress();
+            tg.MainButton.enable();
+            
+            let errorMsg = "No pudimos obtener tu ubicación. Asegúrate de que el GPS de tu móvil esté activado y tengas buena señal.";
+            if (error && error.code === 1) { // PERMISSION_DENIED
+                errorMsg = "Permiso de ubicación denegado. Por favor, revisa los ajustes de tu móvil y los permisos para Telegram.";
+            }
 
-        // Función que contiene la lógica de geolocalización y el manejo de errores
+            tg.showPopup({
+                title: "Ubicación no Encontrada",
+                message: errorMsg,
+                buttons: [
+                    { id: 'retry', type: 'default', text: 'Reintentar' },
+                    { id: 'cancel', type: 'cancel', text: 'Cancelar' }
+                ]
+            }, (buttonId) => {
+                if (buttonId === 'retry') {
+                    // Si el usuario reintenta, llamamos directamente a la búsqueda.
+                    requestLocationAndFetchStations();
+                }
+            });
+
+            listContainer.innerHTML = `<div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div>`;
+        };
+        
+        // Función que contiene la lógica de geolocalización
         const requestLocationAndFetchStations = () => {
             tg.MainButton.showProgress(true);
             tg.MainButton.disable();
@@ -6358,89 +6449,64 @@ function renderCombustibleView() {
                     map.setView([latitude, longitude], 14);
                     
                     (async () => {
-                        currentStations = await fetchStations(latitude, longitude, 5);
-                        
-                        if (currentStations.length > 0) {
-                            controlsContainer.innerHTML = `
-                                <div class="combustible-sort-controls">
-                                    <button class="sort-btn" data-sort="gasolina">⛽ Gasolina</button>
-                                    <button class="sort-btn" data-sort="diesel">⚫ Diésel</button>
-                                    <button class="sort-btn" data-sort="distancia">📍 Distancia</button>
-                                </div>`;
-                            controlsContainer.querySelectorAll('.sort-btn').forEach(btn => {
-                                btn.addEventListener('click', (e) => renderSortedListAndMap(e.target.dataset.sort));
-                            });
-                            currentStations.forEach(s => {
-                                s.distance = getDistance(latitude, longitude, s.lat, s.lon);
-                            });
-                            renderSortedListAndMap('gasolina');
-                        } else {
-                            listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
+                        try {
+                            currentStations = await fetchStations(latitude, longitude, 5);
+                            
+                            if (currentStations.length > 0) {
+                                controlsContainer.innerHTML = `<div class="combustible-sort-controls"><button class="sort-btn" data-sort="gasolina">⛽ Gasolina</button><button class="sort-btn" data-sort="diesel">⚫ Diésel</button><button class="sort-btn" data-sort="distancia">📍 Distancia</button></div>`;
+                                controlsContainer.querySelectorAll('.sort-btn').forEach(btn => btn.addEventListener('click', (e) => renderSortedListAndMap(e.target.dataset.sort)));
+                                currentStations.forEach(s => { s.distance = getDistance(latitude, longitude, s.lat, s.lon); });
+                                renderSortedListAndMap('gasolina');
+                            } else {
+                                listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
+                            }
+                        } catch (fetchError) {
+                            handleLocationError(null); // Usamos el manejador de errores genérico si la API falla
+                        } finally {
+                            tg.MainButton.hideProgress();
+                            tg.MainButton.enable();
                         }
-                        // Aseguramos que el botón se restaure al final
-                        tg.MainButton.hideProgress();
-                        tg.MainButton.enable();
                     })();
                 },
-                // Callback de ERROR (mejorado)
-                (error) => {
-                    tg.MainButton.hideProgress();
-                    tg.MainButton.enable();
-                    let errorMsg = "Error desconocido al obtener la ubicación.";
-                    switch(error.code) {
-                        case 1: // PERMISSION_DENIED
-                            errorMsg = "Permiso de ubicación denegado. Revisa los ajustes de tu móvil y de Telegram.";
-                            break;
-                        case 2: // POSITION_UNAVAILABLE
-                            errorMsg = "No pudimos determinar tu posición. Asegúrate de tener buena señal.";
-                            break;
-                        case 3: // TIMEOUT
-                            errorMsg = "La búsqueda tardó demasiado. Comprueba que el GPS de tu móvil esté activado y tengas buena señal.";
-                            break;
-                    }
-                    showToast(errorMsg, true, true);
-                    listContainer.innerHTML = `<div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div>`;
-                },
+                // Callback de ERROR
+                handleLocationError,
                 // Opciones
                 { timeout: 12000, enableHighAccuracy: true }
             );
         };
 
-        // Función principal que se asigna al clic del botón
+        // Función principal que se asigna al clic del botón (el "guardián")
         onMainButtonClick = () => {
-            const hasSeenLocationInfo = localStorage.getItem('hasSeenFuelLocationInfo');
+            const fuelModalShown = localStorage.getItem('fuelModalShown');
 
-            if (!hasSeenLocationInfo) {
-                // Si es la primera vez, mostramos el popup educativo
-                tg.showPopup({
-                    title: "Activa tu Ubicación",
-                    message: "Para buscar, asegúrate de tener activado el GPS o los servicios de ubicación en los ajustes de tu móvil y concede el permiso cuando se te pida.",
-                    buttons: [
-                        { id: 'continue', type: 'default', text: 'Entendido, ¡a buscar!' },
-                        { id: 'cancel', type: 'destructive', text: 'Cancelar' }
-                    ]
-                }, (buttonId) => {
-                    if (buttonId === 'continue') {
-                        localStorage.setItem('hasSeenFuelLocationInfo', 'true');
-                        requestLocationAndFetchStations();
-                    }
-                });
-            } else {
-                // Si ya lo ha visto, vamos directos a la acción
+            if (fuelModalShown === 'true') {
                 requestLocationAndFetchStations();
+            } else {
+                const modal = document.getElementById('fuel-location-modal');
+                const continueBtn = document.getElementById('fuel-modal-continue');
+                const cancelBtn = document.getElementById('fuel-modal-cancel');
+                const checkbox = document.getElementById('fuel-modal-checkbox');
+
+                const hideModal = () => {
+                    modal.classList.remove('show');
+                    setTimeout(() => { modal.style.display = 'none'; }, 300);
+                };
+
+                continueBtn.onclick = () => {
+                    if (checkbox.checked) {
+                        localStorage.setItem('fuelModalShown', 'true');
+                    }
+                    hideModal();
+                    requestLocationAndFetchStations();
+                };
+
+                cancelBtn.onclick = hideModal;
+
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('show'), 10);
             }
         };
-
-        // --- FIN: NUEVA LÓGICA ROBUSTA ---
-        
-        tg.MainButton.offClick(onMainButtonClick);
-        tg.MainButton.hideProgress();
-        tg.MainButton.enable();
-        tg.MainButton.setText("Buscar cerca de mí 📍");
-        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
-        tg.MainButton.onClick(onMainButtonClick);
-        tg.MainButton.show();
-    }
+        // --- FIN: LÓGICA MEJORADA Y DEFINITIVA ---
     
     if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
         map = L.map('combustible-map').setView([appData.settings.ubicacion.lat, appData.settings.ubicacion.lon], 13);
