@@ -6336,7 +6336,6 @@ function renderCombustibleView() {
     });
     updateBackButton();
 
-    // --- CAMBIO CLAVE: AÑADIR EL HTML DE LOS CONTROLES DE ORDENACIÓN ---
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>⛽ Radar Combustible</h2></div>
@@ -6350,8 +6349,8 @@ function renderCombustibleView() {
     const listContainer = document.getElementById('combustible-list');
     const controlsContainer = document.getElementById('combustible-controls-container');
     let map = null;
-    let currentStations = []; // Almacenará los datos de las estaciones
-    let markers = new Map();   // Almacenará los marcadores del mapa
+    let currentStations = [];
+    let markers = new Map();
 
     const getDistance = (lat1, lon1, lat2, lon2) => {
         const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -6359,16 +6358,13 @@ function renderCombustibleView() {
         return R * 2 * Math.asin(Math.sqrt(a));
     };
     
-    // --- CAMBIO CLAVE: NUEVA FUNCIÓN PARA RENDERIZAR LA LISTA (REUTILIZABLE) ---
     const renderSortedListAndMap = (sortBy) => {
         if (currentStations.length === 0) return;
 
-        // 1. Lógica de ordenación dinámica
         currentStations.sort((a, b) => {
             if (sortBy === 'distancia') {
                 return a.distance - b.distance;
             }
-            // Para 'gasolina' o 'diesel', usamos precio y luego distancia
             const priceKey = sortBy === 'gasolina' ? 'gasolina_95_e5' : 'gasoleo_a';
             const priceA = a.prices[priceKey] || 999;
             const priceB = b.prices[priceKey] || 999;
@@ -6377,10 +6373,8 @@ function renderCombustibleView() {
             return a.distance - b.distance;
         });
 
-        // 2. Limpiar y volver a dibujar todo
         markers = drawStationsAndList(currentStations, map, sortBy);
 
-        // 3. Añadir de nuevo los listeners de clic
         listContainer.querySelectorAll('.combustible-list-item').forEach(item => {
             item.addEventListener('click', () => {
                 const stationId = item.dataset.id;
@@ -6392,7 +6386,6 @@ function renderCombustibleView() {
             });
         });
         
-        // 4. Actualizar el botón activo
         controlsContainer.querySelectorAll('.sort-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.sort === sortBy);
         });
@@ -6400,15 +6393,12 @@ function renderCombustibleView() {
 
     if (tg && tg.MainButton) {
         
-        // --- INICIO: LÓGICA MEJORADA Y DEFINITIVA ---
-
-        // Función de ayuda para manejar ERRORES con un POPUP INTERACTIVO
         const handleLocationError = (error) => {
             tg.MainButton.hideProgress();
             tg.MainButton.enable();
             
             let errorMsg = "No pudimos obtener tu ubicación. Asegúrate de que el GPS de tu móvil esté activado y tengas buena señal.";
-            if (error && error.code === 1) { // PERMISSION_DENIED
+            if (error && error.code === 1) {
                 errorMsg = "Permiso de ubicación denegado. Por favor, revisa los ajustes de tu móvil y los permisos para Telegram.";
             }
 
@@ -6421,7 +6411,6 @@ function renderCombustibleView() {
                 ]
             }, (buttonId) => {
                 if (buttonId === 'retry') {
-                    // Si el usuario reintenta, llamamos directamente a la búsqueda.
                     requestLocationAndFetchStations();
                 }
             });
@@ -6429,13 +6418,11 @@ function renderCombustibleView() {
             listContainer.innerHTML = `<div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div>`;
         };
         
-        // Función que contiene la lógica de geolocalización
         const requestLocationAndFetchStations = () => {
             tg.MainButton.showProgress(true);
             tg.MainButton.disable();
 
             navigator.geolocation.getCurrentPosition(
-                // Callback de ÉXITO
                 (position) => {
                     listContainer.innerHTML = `<div class="combustible-loading-state"><p>Buscando gasolineras...</p><div class="dot-spinner"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
                     controlsContainer.innerHTML = '';
@@ -6461,21 +6448,18 @@ function renderCombustibleView() {
                                 listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
                             }
                         } catch (fetchError) {
-                            handleLocationError(null); // Usamos el manejador de errores genérico si la API falla
+                            handleLocationError(null);
                         } finally {
                             tg.MainButton.hideProgress();
                             tg.MainButton.enable();
                         }
                     })();
                 },
-                // Callback de ERROR
                 handleLocationError,
-                // Opciones
                 { timeout: 12000, enableHighAccuracy: true }
             );
         };
 
-        // Función principal que se asigna al clic del botón (el "guardián")
         onMainButtonClick = () => {
             const fuelModalShown = localStorage.getItem('fuelModalShown');
 
@@ -6506,7 +6490,15 @@ function renderCombustibleView() {
                 setTimeout(() => modal.classList.add('show'), 10);
             }
         };
-        // --- FIN: LÓGICA MEJORADA Y DEFINITIVA ---
+
+        tg.MainButton.offClick(onMainButtonClick);
+        tg.MainButton.hideProgress();
+        tg.MainButton.enable();
+        tg.MainButton.setText("Buscar cerca de mí 📍");
+        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+        tg.MainButton.onClick(onMainButtonClick);
+        tg.MainButton.show();
+    }
     
     if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
         map = L.map('combustible-map').setView([appData.settings.ubicacion.lat, appData.settings.ubicacion.lon], 13);
@@ -6516,103 +6508,6 @@ function renderCombustibleView() {
         mapContainer.innerHTML = '<div class="no-data-msg">Configura una ubicación en Ajustes o usa el botón de abajo.</div>';
     }
 }
-
-// --- INICIO: Lógica para obtener y mostrar datos de gasolineras ---
-
-// Función de ayuda para ejecutar la búsqueda
-const fetchStations = async (lat, lon, radius) => {
-    try {
-        const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/getFuelStations';
-        const response = await fetch(functionUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: { lat, lon, radius } })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error.message || 'Error en la respuesta del servidor.');
-        }
-        
-        const { stations } = await response.json();
-        return stations;
-
-    } catch (error) {
-        console.error("Error al llamar a getFuelStations:", error);
-        showToast(`Error: ${error.message}`, true);
-        return []; // Devolvemos un array vacío en caso de error
-    }
-};
-
-// Función para dibujar los pines en el mapa
-const drawStationsAndList = (stations, map, sortBy = 'gasolina') => {
-    if (!map) return;
-
-    map.eachLayer(layer => { if (layer instanceof L.Marker) map.removeLayer(layer); });
-    const listContainer = document.getElementById('combustible-list');
-    const markersMap = new Map();
-
-    if (stations.length === 0) {
-        listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
-        return markersMap;
-    }
-
-    const blueIcon = new L.Icon.Default();
-    const greenIcon = L.icon({
-        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-    });
-
-    let listHtml = '';
-    stations.forEach((station, index) => {
-        // El más barato solo se resalta si se ordena por precio
-        const isCheapest = index === 0 && sortBy !== 'distancia';
-        const iconToUse = isCheapest ? greenIcon : blueIcon;
-        
-        const priceKey = sortBy === 'diesel' ? 'gasoleo_a' : 'gasolina_95_e5';
-        const priceToShow = station.prices[priceKey];
-
-        const popupContent = `
-            <b>${station.label}</b><br>
-            ${station.address}<br>
-            Gasolina 95: <b>${station.prices.gasolina_95_e5 ? station.prices.gasolina_95_e5.toFixed(3) + '€' : 'N/D'}</b><br>
-            Diésel A: <b>${station.prices.gasoleo_a ? station.prices.gasoleo_a.toFixed(3) + '€' : 'N/D'}</b>
-            <br><br><a href="javascript:void(0);" onclick="Telegram.WebApp.openLink('https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lon}')" style="padding: 5px 10px; background-color: #4a76f3; color: white; text-decoration: none; border-radius: 5px;">Cómo llegar</a>
-        `;
-
-        const marker = L.marker([station.lat, station.lon], { icon: iconToUse })
-            .addTo(map)
-            .bindPopup(popupContent);
-        
-        markersMap.set(station.id, marker);
-
-        listHtml += `
-            <div class="combustible-list-item ${isCheapest ? 'cheapest' : ''}" data-id="${station.id}">
-                <div class="combustible-item-info">
-                    <span class="combustible-item-name">${station.label}</span>
-                    <span class="combustible-item-distance">a ${station.distance.toFixed(1)} km</span>
-                </div>
-                ${priceToShow ? `<span class="combustible-item-price">${priceToShow.toFixed(3)}€</span>` : ''}
-            </div>
-        `;
-    });
-    
-    listContainer.innerHTML = listHtml;
-    return markersMap;
-};
-
-// Ejecutamos la búsqueda inicial con la ubicación de los ajustes
-if (appData.settings.ubicacion && appData.settings.ubicacion.lat) {
-    const initialLat = appData.settings.ubicacion.lat;
-    const initialLon = appData.settings.ubicacion.lon;
-    
-    (async () => {
-        const stations = await fetchStations(initialLat, initialLon, 20); // Búsqueda inicial de 20 km
-        drawStationMarkers(stations);
-    })();
-}
-// --- FIN: Lógica para obtener y mostrar datos ---
 
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
