@@ -1076,7 +1076,8 @@
     z-index: 9999 !important; /* Asegura que el calendario flote por encima de todo */
 }
 /* --- FIN: CORRECCIÓN --- */
-/* --- INICIO ESTILOS MODAL UBICACIÓN --- */
+
+/* --- INICIO: ESTILOS PARA MODAL DE UBICACIÓN Y MAPA AMPLIABLE --- */
 .fuel-modal-overlay {
     position: fixed;
     top: 0;
@@ -1084,8 +1085,8 @@
     width: 100%;
     height: 100%;
     background-color: rgba(0,0,0,0.6);
-    z-index: 1500;
-    display: none; /* Oculto por defecto */
+    z-index: 2100; /* Prioridad alta */
+    display: none;
     align-items: center;
     justify-content: center;
     opacity: 0;
@@ -1114,13 +1115,55 @@
     padding: 10px;
     background-color: var(--bg);
     border-radius: 8px;
+    cursor: pointer;
 }
 .fuel-modal-checkbox-container input {
     width: 18px;
     height: 18px;
     margin-right: 12px;
 }
-/* --- FIN ESTILOS MODAL UBICACIÓN --- */
+.map-fullscreen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg);
+    z-index: 2050; /* Prioridad muy alta */
+    display: none; /* Oculto por defecto */
+    flex-direction: column;
+}
+.map-fullscreen-header {
+    flex-shrink: 0;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--muted);
+}
+#fullscreen-map-container {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+}
+.map-expand-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 401; /* Justo encima del mapa */
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+/* --- FIN: ESTILOS PARA MODAL DE UBICACIÓN Y MAPA AMPLIABLE --- */
   </style>
 
 </head>
@@ -1241,7 +1284,7 @@
         <p style="line-height: 1.5; color: var(--muted); margin-top: 10px;">
             Para buscar, asegúrate de tener activado el GPS o los servicios de ubicación en los ajustes de tu móvil y concede el permiso cuando se te pida.
         </p>
-        <div class="fuel-modal-checkbox-container">
+        <div class="fuel-modal-checkbox-container" onclick="document.getElementById('fuel-modal-checkbox').click();">
             <input type="checkbox" id="fuel-modal-checkbox">
             <label for="fuel-modal-checkbox">No volver a mostrar este aviso</label>
         </div>
@@ -1252,6 +1295,16 @@
     </div>
 </div>
 <!-- FIN MODAL AVISO UBICACIÓN COMBUSTIBLE -->
+
+<!-- INICIO VISTA MAPA PANTALLA COMPLETA -->
+<div class="map-fullscreen-overlay" id="map-fullscreen-view">
+    <div class="map-fullscreen-header">
+        <h3 id="fullscreen-map-title" style="margin: 0;">Gasolineras Cercanas</h3>
+        <button id="map-close-fullscreen-btn" class="back-btn" style="font-size: 1.5rem; padding: 5px;">✖</button>
+    </div>
+    <div id="fullscreen-map-container"></div>
+</div>
+<!-- FIN VISTA MAPA PANTALLA COMPLETA -->
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -6320,10 +6373,15 @@ async function handleDeleteCalendarEvent(eventId) {
 }
 
 // ==================================================
-// --- MÓDULO: RADAR COMBUSTIBLE ---
+// --- MÓDULO: RADAR COMBUSTIBLE (VERSIÓN 2.0) ---
 // ==================================================
 function renderCombustibleView() {
     let onMainButtonClick; 
+    let map = null;
+    let fullscreenMap = null;
+    let currentStations = [];
+    let markers = new Map();
+    let fullscreenMarkers = new Map();
 
     navigationHistory.push(() => {
         if (tg && tg.MainButton.isVisible) {
@@ -6332,15 +6390,19 @@ function renderCombustibleView() {
                 tg.MainButton.offClick(onMainButtonClick);
             }
         }
+        // Limpiar mapas al salir
+        if (map) map.remove();
+        if (fullscreenMap) fullscreenMap.remove();
         renderDashboard();
     });
     updateBackButton();
 
-    // --- CAMBIO CLAVE: AÑADIR EL HTML DE LOS CONTROLES DE ORDENACIÓN ---
     mainContentArea.innerHTML = `
         <div class="list-container">
             <div class="list-header"><h2>⛽ Radar Combustible</h2></div>
-            <div id="combustible-map" style="height: 300px; background-color: #e9e9e9; margin: 10px; border-radius: 12px;"></div>
+            <div id="combustible-map-wrapper" style="position: relative; margin: 10px;">
+                <div id="combustible-map" style="height: 300px; background-color: #e9e9e9; border-radius: 12px;"></div>
+            </div>
             <div id="combustible-controls-container"></div>
             <div id="combustible-list"><div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div></div>
         </div>
@@ -6349,50 +6411,65 @@ function renderCombustibleView() {
     const mapContainer = document.getElementById('combustible-map');
     const listContainer = document.getElementById('combustible-list');
     const controlsContainer = document.getElementById('combustible-controls-container');
-    let map = null;
-    let currentStations = []; // Almacenará los datos de las estaciones
-    let markers = new Map();   // Almacenará los marcadores del mapa
 
     const getDistance = (lat1, lon1, lat2, lon2) => {
         const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = 0.5 - Math.cos(dLat) / 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * (1 - Math.cos(dLon)) / 2;
         return R * 2 * Math.asin(Math.sqrt(a));
     };
-    
-    // --- CAMBIO CLAVE: NUEVA FUNCIÓN PARA RENDERIZAR LA LISTA (REUTILIZABLE) ---
+
+    const openFullscreenMap = () => {
+        const view = document.getElementById('map-fullscreen-view');
+        const fullscreenMapContainer = document.getElementById('fullscreen-map-container');
+        view.style.display = 'flex';
+
+        if (!fullscreenMap) {
+            fullscreenMap = L.map(fullscreenMapContainer);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(fullscreenMap);
+        }
+
+        setTimeout(() => {
+            fullscreenMap.invalidateSize(); // ¡Clave! Ajusta el tamaño del mapa al contenedor visible
+            if (map) {
+                fullscreenMap.setView(map.getCenter(), map.getZoom() + 1);
+            }
+            fullscreenMarkers = drawStationsAndList(currentStations, fullscreenMap, document.querySelector('.sort-btn.active')?.dataset.sort || 'gasolina', true);
+        }, 50); // Pequeño delay para asegurar que el contenedor es visible
+
+        document.getElementById('map-close-fullscreen-btn').onclick = () => {
+            view.style.display = 'none';
+        };
+    };
+
     const renderSortedListAndMap = (sortBy) => {
         if (currentStations.length === 0) return;
 
-        // 1. Lógica de ordenación dinámica
         currentStations.sort((a, b) => {
-            if (sortBy === 'distancia') {
-                return a.distance - b.distance;
-            }
-            // Para 'gasolina' o 'diesel', usamos precio y luego distancia
+            if (sortBy === 'distancia') return a.distance - b.distance;
             const priceKey = sortBy === 'gasolina' ? 'gasolina_95_e5' : 'gasoleo_a';
             const priceA = a.prices[priceKey] || 999;
             const priceB = b.prices[priceKey] || 999;
             const priceDifference = priceA - priceB;
-            if (priceDifference !== 0) return priceDifference;
-            return a.distance - b.distance;
+            return priceDifference !== 0 ? priceDifference : a.distance - b.distance;
         });
 
-        // 2. Limpiar y volver a dibujar todo
         markers = drawStationsAndList(currentStations, map, sortBy);
 
-        // 3. Añadir de nuevo los listeners de clic
-        listContainer.querySelectorAll('.combustible-list-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const stationId = item.dataset.id;
-                const marker = markers.get(stationId);
-                if (marker) {
-                    map.flyTo(marker.getLatLng(), 15);
-                    marker.openPopup();
-                }
+        const handleItemClick = (container, markersMap) => {
+            container.querySelectorAll('.combustible-list-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const stationId = item.dataset.id;
+                    const marker = markersMap.get(stationId);
+                    const targetMap = container === listContainer ? map : fullscreenMap;
+                    if (marker && targetMap) {
+                        targetMap.flyTo(marker.getLatLng(), 15);
+                        marker.openPopup();
+                    }
+                });
             });
-        });
-        
-        // 4. Actualizar el botón activo
+        };
+        handleItemClick(listContainer, markers);
+
         controlsContainer.querySelectorAll('.sort-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.sort === sortBy);
         });
@@ -6400,46 +6477,26 @@ function renderCombustibleView() {
 
     if (tg && tg.MainButton) {
         
-        // --- INICIO: LÓGICA MEJORADA Y DEFINITIVA ---
-
-        // Función de ayuda para manejar ERRORES con un POPUP INTERACTIVO
         const handleLocationError = (error) => {
-            tg.MainButton.hideProgress();
-            tg.MainButton.enable();
-            
+            tg.MainButton.hideProgress(); tg.MainButton.enable();
             let errorMsg = "No pudimos obtener tu ubicación. Asegúrate de que el GPS de tu móvil esté activado y tengas buena señal.";
-            if (error && error.code === 1) { // PERMISSION_DENIED
-                errorMsg = "Permiso de ubicación denegado. Por favor, revisa los ajustes de tu móvil y los permisos para Telegram.";
-            }
-
+            if (error && error.code === 1) errorMsg = "Permiso de ubicación denegado. Revisa los ajustes de tu móvil y de Telegram.";
+            
             tg.showPopup({
-                title: "Ubicación no Encontrada",
-                message: errorMsg,
-                buttons: [
-                    { id: 'retry', type: 'default', text: 'Reintentar' },
-                    { id: 'cancel', type: 'cancel', text: 'Cancelar' }
-                ]
-            }, (buttonId) => {
-                if (buttonId === 'retry') {
-                    // Si el usuario reintenta, llamamos directamente a la búsqueda.
-                    requestLocationAndFetchStations();
-                }
-            });
-
+                title: "Ubicación no Encontrada", message: errorMsg,
+                buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel', text: 'Cancelar' }]
+            }, (buttonId) => { if (buttonId === 'retry') requestLocationAndFetchStations(); });
+            
             listContainer.innerHTML = `<div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div>`;
         };
         
-        // Función que contiene la lógica de geolocalización
         const requestLocationAndFetchStations = () => {
-            tg.MainButton.showProgress(true);
-            tg.MainButton.disable();
+            tg.MainButton.showProgress(true); tg.MainButton.disable();
 
             navigator.geolocation.getCurrentPosition(
-                // Callback de ÉXITO
                 (position) => {
                     listContainer.innerHTML = `<div class="combustible-loading-state"><p>Buscando gasolineras...</p><div class="dot-spinner"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
                     controlsContainer.innerHTML = '';
-
                     const { latitude, longitude } = position.coords;
                     
                     if (!map) {
@@ -6448,10 +6505,20 @@ function renderCombustibleView() {
                     }
                     map.setView([latitude, longitude], 14);
                     
+                    // Añadir botón de expandir mapa
+                    const mapWrapper = document.getElementById('combustible-map-wrapper');
+                    if (!document.getElementById('map-expand-btn')) {
+                        const expandBtn = document.createElement('button');
+                        expandBtn.id = 'map-expand-btn';
+                        expandBtn.className = 'map-expand-btn';
+                        expandBtn.innerHTML = '⛶';
+                        expandBtn.onclick = openFullscreenMap;
+                        mapWrapper.appendChild(expandBtn);
+                    }
+                    
                     (async () => {
                         try {
                             currentStations = await fetchStations(latitude, longitude, 5);
-                            
                             if (currentStations.length > 0) {
                                 controlsContainer.innerHTML = `<div class="combustible-sort-controls"><button class="sort-btn" data-sort="gasolina">⛽ Gasolina</button><button class="sort-btn" data-sort="diesel">⚫ Diésel</button><button class="sort-btn" data-sort="distancia">📍 Distancia</button></div>`;
                                 controlsContainer.querySelectorAll('.sort-btn').forEach(btn => btn.addEventListener('click', (e) => renderSortedListAndMap(e.target.dataset.sort)));
@@ -6460,25 +6527,17 @@ function renderCombustibleView() {
                             } else {
                                 listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
                             }
-                        } catch (fetchError) {
-                            handleLocationError(null); // Usamos el manejador de errores genérico si la API falla
-                        } finally {
-                            tg.MainButton.hideProgress();
-                            tg.MainButton.enable();
-                        }
+                        } catch (fetchError) { handleLocationError(null); } 
+                        finally { tg.MainButton.hideProgress(); tg.MainButton.enable(); }
                     })();
                 },
-                // Callback de ERROR
                 handleLocationError,
-                // Opciones
                 { timeout: 12000, enableHighAccuracy: true }
             );
         };
 
-        // Función principal que se asigna al clic del botón (el "guardián")
         onMainButtonClick = () => {
             const fuelModalShown = localStorage.getItem('fuelModalShown');
-
             if (fuelModalShown === 'true') {
                 requestLocationAndFetchStations();
             } else {
@@ -6486,27 +6545,14 @@ function renderCombustibleView() {
                 const continueBtn = document.getElementById('fuel-modal-continue');
                 const cancelBtn = document.getElementById('fuel-modal-cancel');
                 const checkbox = document.getElementById('fuel-modal-checkbox');
-
-                const hideModal = () => {
-                    modal.classList.remove('show');
-                    setTimeout(() => { modal.style.display = 'none'; }, 300);
-                };
-
-                continueBtn.onclick = () => {
-                    if (checkbox.checked) {
-                        localStorage.setItem('fuelModalShown', 'true');
-                    }
-                    hideModal();
-                    requestLocationAndFetchStations();
-                };
-
+                const hideModal = () => { modal.classList.remove('show'); setTimeout(() => { modal.style.display = 'none'; }, 300); };
+                continueBtn.onclick = () => { if (checkbox.checked) localStorage.setItem('fuelModalShown', 'true'); hideModal(); requestLocationAndFetchStations(); };
                 cancelBtn.onclick = hideModal;
-
                 modal.style.display = 'flex';
                 setTimeout(() => modal.classList.add('show'), 10);
             }
         };
-		// Este es el bloque que faltaba para configurar y mostrar el botón
+        
         tg.MainButton.offClick(onMainButtonClick);
         tg.MainButton.hideProgress();
         tg.MainButton.enable();
@@ -6514,7 +6560,7 @@ function renderCombustibleView() {
         tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
         tg.MainButton.onClick(onMainButtonClick);
         tg.MainButton.show();
-        // --- FIN: LÓGICA MEJORADA Y DEFINITIVA ---
+    }
     
     if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
         map = L.map('combustible-map').setView([appData.settings.ubicacion.lat, appData.settings.ubicacion.lon], 13);
