@@ -6335,17 +6335,19 @@ function renderCombustibleView() {
     };
 
     if (tg && tg.MainButton) {
-        onMainButtonClick = () => {
+
+        // --- INICIO: NUEVA LÓGICA ROBUSTA ---
+
+        // Función que contiene la lógica de geolocalización y el manejo de errores
+        const requestLocationAndFetchStations = () => {
             tg.MainButton.showProgress(true);
             tg.MainButton.disable();
 
             navigator.geolocation.getCurrentPosition(
+                // Callback de ÉXITO
                 (position) => {
                     listContainer.innerHTML = `<div class="combustible-loading-state"><p>Buscando gasolineras...</p><div class="dot-spinner"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
-                    controlsContainer.innerHTML = ''; // Ocultar controles mientras se carga
-
-                    tg.MainButton.hideProgress();
-                    tg.MainButton.enable();
+                    controlsContainer.innerHTML = '';
 
                     const { latitude, longitude } = position.coords;
                     
@@ -6359,45 +6361,77 @@ function renderCombustibleView() {
                         currentStations = await fetchStations(latitude, longitude, 5);
                         
                         if (currentStations.length > 0) {
-                            // Inyectar el HTML de los controles
                             controlsContainer.innerHTML = `
                                 <div class="combustible-sort-controls">
                                     <button class="sort-btn" data-sort="gasolina">⛽ Gasolina</button>
                                     <button class="sort-btn" data-sort="diesel">⚫ Diésel</button>
                                     <button class="sort-btn" data-sort="distancia">📍 Distancia</button>
-                                </div>
-                            `;
-
-                            // Añadir los listeners a los nuevos botones
+                                </div>`;
                             controlsContainer.querySelectorAll('.sort-btn').forEach(btn => {
-                                btn.addEventListener('click', (e) => {
-                                    renderSortedListAndMap(e.target.dataset.sort);
-                                });
+                                btn.addEventListener('click', (e) => renderSortedListAndMap(e.target.dataset.sort));
                             });
-
                             currentStations.forEach(s => {
                                 s.distance = getDistance(latitude, longitude, s.lat, s.lon);
                             });
-                            
-                            // Renderizado inicial ordenado por gasolina
                             renderSortedListAndMap('gasolina');
                         } else {
-                            // Si no hay estaciones, simplemente mostrar el mensaje
                             listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
                         }
+                        // Aseguramos que el botón se restaure al final
+                        tg.MainButton.hideProgress();
+                        tg.MainButton.enable();
                     })();
                 },
+                // Callback de ERROR (mejorado)
                 (error) => {
                     tg.MainButton.hideProgress();
                     tg.MainButton.enable();
-                    let errorMsg = "No se pudo obtener la ubicación.";
-                    if (error.code === 1) { errorMsg = "Permiso de ubicación denegado."; }
+                    let errorMsg = "Error desconocido al obtener la ubicación.";
+                    switch(error.code) {
+                        case 1: // PERMISSION_DENIED
+                            errorMsg = "Permiso de ubicación denegado. Revisa los ajustes de tu móvil y de Telegram.";
+                            break;
+                        case 2: // POSITION_UNAVAILABLE
+                            errorMsg = "No pudimos determinar tu posición. Asegúrate de tener buena señal.";
+                            break;
+                        case 3: // TIMEOUT
+                            errorMsg = "La búsqueda tardó demasiado. Comprueba que el GPS de tu móvil esté activado y tengas buena señal.";
+                            break;
+                    }
                     showToast(errorMsg, true, true);
                     listContainer.innerHTML = `<div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div>`;
                 },
-                { timeout: 10000, enableHighAccuracy: true }
+                // Opciones
+                { timeout: 12000, enableHighAccuracy: true }
             );
         };
+
+        // Función principal que se asigna al clic del botón
+        onMainButtonClick = () => {
+            const hasSeenLocationInfo = localStorage.getItem('hasSeenFuelLocationInfo');
+
+            if (!hasSeenLocationInfo) {
+                // Si es la primera vez, mostramos el popup educativo
+                tg.showPopup({
+                    title: "Activa tu Ubicación",
+                    message: "Para buscar, asegúrate de tener activado el GPS o los servicios de ubicación en los ajustes de tu móvil y concede el permiso cuando se te pida.",
+                    buttons: [
+                        { id: 'continue', type: 'default', text: 'Entendido, ¡a buscar!' },
+                        { id: 'cancel', type: 'destructive', text: 'Cancelar' }
+                    ]
+                }, (buttonId) => {
+                    if (buttonId === 'continue') {
+                        localStorage.setItem('hasSeenFuelLocationInfo', 'true');
+                        requestLocationAndFetchStations();
+                    }
+                });
+            } else {
+                // Si ya lo ha visto, vamos directos a la acción
+                requestLocationAndFetchStations();
+            }
+        };
+
+        // --- FIN: NUEVA LÓGICA ROBUSTA ---
         
         tg.MainButton.offClick(onMainButtonClick);
         tg.MainButton.hideProgress();
