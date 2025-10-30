@@ -6687,6 +6687,9 @@ function renderDashboard() {
     const counts = appData.counts;
     const isPremium = appData.isPremium === true;
 
+    // Limpiamos cualquier listener de clics anterior para evitar duplicados
+    mainContentArea.onclick = null;
+
     const cardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || [
         'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
         'cuentasClaras', 'chef', 'combustible', 'guiaTV'
@@ -6737,13 +6740,11 @@ function renderDashboard() {
                     if (!dt) return '';
                     const parts = dt.split(',');
                     if (parts.length < 2) return dt;
-                    const datePart = parts[0];
-                    const timePart = parts[1].trim().slice(0, 5);
-                    return `${datePart} ${timePart}`;
+                    return `${parts[0]} ${parts[1].trim().slice(0, 5)}`;
                 };
-                const gasolinePill = fuelData.gasolinePrice ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="cursor: pointer; background-color: ${getTrendBgColor(fuelData.gasolineTrend)};">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>` : '';
-                const dieselPill = `<div class="card-badge card-badge-pill" id="diesel-pill" style="cursor: ${fuelData.dieselPrice ? 'pointer' : 'default'}; background-color: ${getTrendBgColor(fuelData.dieselTrend)};">⚫ ${fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D'}${getTrendIcon(fuelData.dieselTrend)}</div>`;
-                return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;"><div class="card-badge-group">${gasolinePill}${dieselPill}</div><div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.75rem; color: #fff; background-color: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 4px;">${formatLastUpdated(fuelData.lastUpdated)}</div></div>`;
+                const gasolinePill = fuelData.gasolinePrice ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="background-color: ${getTrendBgColor(fuelData.gasolineTrend)};">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>` : '';
+                const dieselPill = `<div class="card-badge card-badge-pill" id="diesel-pill" style="background-color: ${getTrendBgColor(fuelData.dieselTrend)};">⚫ ${fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D'}${getTrendIcon(fuelData.dieselTrend)}</div>`;
+                return `<div class="card" data-card-id="combustible" id="combustible-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;"><div class="card-badge-group">${gasolinePill}${dieselPill}</div><div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.75rem; color: #fff; background-color: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 4px;">${formatLastUpdated(fuelData.lastUpdated)}</div></div>`;
             }
             if (appData.settings.pais && appData.settings.pais !== 'España') return `<div class="card" data-card-id="combustible" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;"><div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">Próximamente en ${appData.settings.pais}</div></div>`;
             return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
@@ -6753,50 +6754,74 @@ function renderDashboard() {
 
     mainContentArea.innerHTML = `<div class="grid" id="dashboard-grid">${cardOrder.map(id => cards[id] || '').join('')}</div>`;
     
+    // --- INICIO DE LA LÓGICA DEFINITIVA ---
     const grid = document.getElementById('dashboard-grid');
     if (grid) {
         new Sortable(grid, {
             animation: 150,
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
-            delay: 200, // <-- CORRECCIÓN #1: Añadida demora para la pulsación larga
-            delayOnTouchOnly: false, // <-- CORRECCIÓN #1: Asegura que la demora funcione también con el ratón
+            delay: 200, 
+            delayOnTouchOnly: false,
             onEnd: function (evt) {
                 const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
                 localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
+            },
+            // El evento onTap se activa solo en un clic/toque rápido que NO es un arrastre
+            onTap: function (evt) {
+                const target = evt.originalEvent.target;
+                const card = evt.item; // La tarjeta sobre la que se hizo clic
+
+                // Prioridad 1: Si se hace clic en una píldora de combustible, gestionar el popup y detener.
+                const fuelPill = target.closest('.card-badge-pill');
+                if (fuelPill) {
+                    const fuelData = counts.fuelWidgetData;
+                    if (!fuelData) return;
+                    
+                    const pillId = fuelPill.id;
+                    let stationData = {};
+                    if (pillId === 'gasoline-pill' && fuelData.gasolinePrice) {
+                        stationData = { station: fuelData.gasolineStation, address: fuelData.gasolineAddress, schedule: fuelData.gasolineSchedule, mapUrl: fuelData.gasolineMapUrl };
+                    } else if (pillId === 'diesel-pill' && fuelData.dieselPrice) {
+                        stationData = { station: fuelData.dieselStation, address: fuelData.dieselAddress, schedule: fuelData.dieselSchedule, mapUrl: fuelData.dieselMapUrl };
+                    }
+
+                    if (stationData.station) {
+                         tg.showPopup({
+                            title: stationData.station,
+                            message: `${stationData.address}\nHorario: ${stationData.schedule}`,
+                            buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
+                        }, (buttonId) => { if (buttonId === 'navigate' && stationData.mapUrl) tg.openLink(stationData.mapUrl); });
+                    }
+                    return; // Acción completada
+                }
+
+                // Prioridad 2: Si se hace clic en el botón de menú o su contenido, dejar que la lógica de menú actúe y no navegar.
+                if (target.closest('.card-menu-btn') || target.closest('.dropdown-menu')) {
+                    // La lógica para mostrar/ocultar el menú ya está en otro listener global, aquí solo evitamos la navegación.
+                    return;
+                }
+
+                // Si no fue una píldora ni el menú, es un clic de navegación en la tarjeta.
+                switch (card.id) {
+                    case 'card-reminders': renderRemindersList(); break;
+                    case 'card-shopping': renderShoppingList(); break;
+                    case 'card-notes': renderNotesList(); break;
+                    case 'calendar-card': renderCalendarView(); break;
+                    case 'card-gastos': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                    case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
+                    case 'chef-card': renderChefPage(); break;
+                    case 'chef-card-locked': showToast('⭐ Función exclusiva para usuarios Premium.'); break;
+                    case 'combustible-card': renderCombustibleView(); break;
+                }
             }
         });
     }
 
-    mainContentArea.onclick = (event) => {
-        const target = event.target;
-
-        // --- CORRECCIÓN #2: Se comprueba primero el elemento más específico (la píldora) ---
-        const fuelPill = target.closest('.card-badge-pill');
-        if (fuelPill) {
-            const fuelData = counts.fuelWidgetData;
-            if (!fuelData) return;
-
-            const setupPillPopup = (pillId, station, address, schedule, mapUrl) => {
-                if (fuelPill.id === pillId && station) {
-                    tg.showPopup({
-                        title: station,
-                        message: `${address}\nHorario: ${schedule}`,
-                        buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
-                    }, (buttonId) => { if (buttonId === 'navigate' && mapUrl) tg.openLink(mapUrl); });
-                }
-            };
-
-            setupPillPopup('gasoline-pill', fuelData.gasolineStation, fuelData.gasolineAddress, fuelData.gasolineSchedule, fuelData.gasolineMapUrl);
-            if (fuelData.dieselPrice) {
-                setupPillPopup('diesel-pill', fuelData.dieselStation, fuelData.dieselAddress, fuelData.dieselSchedule, fuelData.dieselMapUrl);
-            }
-            return; // Acción completada, no continuar
-        }
-
-        const dropdownItem = target.closest('.dropdown-item');
-        if (dropdownItem) {
-            switch (dropdownItem.id) {
+    // Lógica para los items del menú, ahora es segura porque el clic en el botón ya no navega.
+    document.querySelectorAll('.dropdown-item').forEach(item => {
+        item.onclick = (event) => {
+            switch (event.target.id) {
                 case 'add-reminder-link': renderReminderForm(); break;
                 case 'list-reminders-link': renderRemindersList(); break;
                 case 'add-shopping-item-link': renderAddArticleForm(); break;
@@ -6808,27 +6833,9 @@ function renderDashboard() {
                 case 'list-gastos-link': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
                 case 'view-gasto-chart-link': renderGastoChart(); break;
             }
-            return;
-        }
-
-        const card = target.closest('.card');
-        if (card) {
-            if (target.closest('.card-menu-btn')) return; // Si se pulsa el menú, no hacer nada más
-
-            switch (card.id) {
-                case 'card-reminders': renderRemindersList(); break;
-                case 'card-shopping': renderShoppingList(); break;
-                case 'card-notes': renderNotesList(); break;
-                case 'calendar-card': renderCalendarView(); break;
-                case 'card-gastos': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
-                case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
-                case 'chef-card': renderChefPage(); break;
-                case 'chef-card-locked': showToast('⭐ Función exclusiva para usuarios Premium.'); break;
-                case 'combustible-card': renderCombustibleView(); break;
-                // No hay caso para guia-tv-card porque está oculta
-            }
-        }
-    };
+        };
+    });
+    // --- FIN DE LA LÓGICA DEFINITIVA ---
 }
 
 // Lógica de pestañas
