@@ -6754,24 +6754,42 @@ function renderDashboard() {
 
 function activateDashboardListeners() {
     const grid = document.getElementById('dashboard-grid');
-    if (!grid) return; // Salida de seguridad si la cuadrícula no existe
+    if (!grid) return;
 
-    // 1. Activamos la librería de arrastre (ya corregida)
+    // NUEVO: Variable de control para saber si se está arrastrando
+    let isDragging = false;
+
+    // 1. Configuración de SortableJS con la lógica de la bandera
     new Sortable(grid, {
         animation: 150,
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
-        delay: 200, // Demora para la pulsación larga
+        delay: 200,
         filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu',
         preventOnFilter: true,
+        // NUEVO: Cuando empieza el arrastre, levantamos la bandera
+        onStart: function () {
+            isDragging = true;
+        },
         onEnd: function (evt) {
             const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
             localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
+            
+            // NUEVO: Damos un respiro mínimo al navegador antes de bajar la bandera.
+            // Esto asegura que el evento 'click' posterior se gestione correctamente.
+            setTimeout(() => {
+                isDragging = false;
+            }, 50);
         }
     });
 
-    // 2. Usamos un único "escuchador" de clics para todo el panel (Delegación de Eventos)
+    // 2. Escuchador de clics único y mejorado
     grid.addEventListener('click', (event) => {
+        // NUEVO: Si se estaba arrastrando, ignoramos este clic por completo.
+        if (isDragging) {
+            return;
+        }
+
         const target = event.target;
         const counts = appData.counts;
 
@@ -6790,7 +6808,7 @@ function activateDashboardListeners() {
                 case 'list-gastos-link': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
                 case 'view-gasto-chart-link': renderGastoChart(); break;
             }
-            return; // Acción ejecutada, no hacer nada más
+            return;
         }
 
         // --- Manejador para las PÍLDORAS DE COMBUSTIBLE ---
@@ -6812,24 +6830,20 @@ function activateDashboardListeners() {
                     buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
                 }, (buttonId) => { if (buttonId === 'navigate' && pillData.mapUrl) tg.openLink(pillData.mapUrl); });
             }
-            return; // Acción ejecutada
+            return;
         }
 
         // --- Manejador para las TARJETAS PRINCIPALES ---
         const card = target.closest('.card');
         if (card) {
-            // Ignorar el clic si se originó en un menú o botón interno
             if (target.closest('.card-menu-btn, .dropdown-menu, .card-badge-pill')) {
                 return;
             }
-
-            // Si la tarjeta está deshabilitada, muestra el aviso y no hagas nada más
             if (card.classList.contains('disabled-card')) {
                 showToast('⭐ Función exclusiva para usuarios Premium.');
                 return;
             }
             
-            // Navegación según la tarjeta pulsada
             switch (card.id) {
                 case 'card-reminders': renderRemindersList(); break;
                 case 'card-shopping': renderShoppingList(); break;
@@ -6839,7 +6853,6 @@ function activateDashboardListeners() {
                 case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
                 case 'chef-card': renderChefPage(); break;
                 case 'combustible-card': renderCombustibleView(); break;
-                // El caso de guia-tv-card no es necesario ya que está oculta.
             }
         }
     });
