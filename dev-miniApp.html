@@ -6753,76 +6753,96 @@ function renderDashboard() {
 }
 
 function activateDashboardListeners() {
-    const counts = appData.counts;
-    const isPremium = appData.isPremium === true;
-
-    // Activamos la librería de arrastre con la configuración correcta y segura.
     const grid = document.getElementById('dashboard-grid');
-    if (grid) {
-        new Sortable(grid, {
-    animation: 150,
-    ghostClass: 'sortable-ghost',
-    chosenClass: 'sortable-chosen',
-    delay: 200, // Demora para la pulsación larga
-    // delayOnTouchOnly: true, // ELIMINADO: El retardo ahora se aplica siempre.
-    filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu', // Ignora el arrastre si empieza en el menú o las píldoras
-    preventOnFilter: true, // Asegura que el clic en los elementos filtrados funcione
-    onEnd: function (evt) {
-        const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
-        localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
-    }
-});
-    }
+    if (!grid) return; // Salida de seguridad si la cuadrícula no existe
 
-    // Asignamos las acciones a los items de los menús
-    document.getElementById('add-reminder-link').onclick = renderReminderForm;
-    document.getElementById('list-reminders-link').onclick = renderRemindersList;
-    document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-    document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
-    document.getElementById('add-note-link').onclick = () => renderNoteForm();
-    document.getElementById('list-notes-link').onclick = renderNotesList;
-    document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
-    document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
-    document.getElementById('list-gastos-link').onclick = () => { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); };
-    document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-
-    // Asignamos acciones a las tarjetas principales (navegación)
-    document.getElementById('card-reminders').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderRemindersList(); };
-    document.getElementById('card-shopping').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderShoppingList(); };
-    document.getElementById('card-notes').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderNotesList(); };
-    document.getElementById('calendar-card').onclick = renderCalendarView;
-    document.getElementById('card-gastos').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); } };
-    document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
-    
-    const combustibleCard = document.getElementById('combustible-card');
-    if (combustibleCard) {
-        combustibleCard.onclick = (e) => { if (!e.target.closest('.card-badge-pill, .card-menu-btn, .dropdown-menu')) renderCombustibleView(); };
-    }
-    
-    const chefCard = document.getElementById('chef-card');
-    if (chefCard) chefCard.onclick = renderChefPage;
-    const chefCardLocked = document.getElementById('chef-card-locked');
-    if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
-
-    // Asignamos acciones a las píldoras de combustible
-    const fuelData = counts.fuelWidgetData;
-    if (fuelData) {
-        const setupPillPopup = (pillId, station, address, schedule, mapUrl) => {
-            const pill = document.getElementById(pillId);
-            if (pill) {
-                pill.onclick = () => {
-                    tg.showPopup({
-                        title: station, message: `${address}\nHorario: ${schedule}`,
-                        buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
-                    }, (buttonId) => { if (buttonId === 'navigate' && mapUrl) tg.openLink(mapUrl); });
-                };
-            }
-        };
-        setupPillPopup('gasoline-pill', fuelData.gasolineStation, fuelData.gasolineAddress, fuelData.gasolineSchedule, fuelData.gasolineMapUrl);
-        if (fuelData.dieselPrice) {
-            setupPillPopup('diesel-pill', fuelData.dieselStation, fuelData.dieselAddress, fuelData.dieselSchedule, fuelData.dieselMapUrl);
+    // 1. Activamos la librería de arrastre (ya corregida)
+    new Sortable(grid, {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        delay: 200, // Demora para la pulsación larga
+        filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu',
+        preventOnFilter: true,
+        onEnd: function (evt) {
+            const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
+            localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
         }
-    }
+    });
+
+    // 2. Usamos un único "escuchador" de clics para todo el panel (Delegación de Eventos)
+    grid.addEventListener('click', (event) => {
+        const target = event.target;
+        const counts = appData.counts;
+
+        // --- Manejador para los MENÚS ---
+        const menuItem = target.closest('.dropdown-item');
+        if (menuItem) {
+            switch (menuItem.id) {
+                case 'add-reminder-link': renderReminderForm(); break;
+                case 'list-reminders-link': renderRemindersList(); break;
+                case 'add-shopping-item-link': renderAddArticleForm(); break;
+                case 'view-shopping-list-link': renderShoppingList(); break;
+                case 'add-note-link': renderNoteForm(); break;
+                case 'list-notes-link': renderNotesList(); break;
+                case 'scan-gasto-link': renderInstructionScreen(); break;
+                case 'add-gasto-link': renderAddGastoForm(); break;
+                case 'list-gastos-link': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                case 'view-gasto-chart-link': renderGastoChart(); break;
+            }
+            return; // Acción ejecutada, no hacer nada más
+        }
+
+        // --- Manejador para las PÍLDORAS DE COMBUSTIBLE ---
+        const fuelPill = target.closest('.card-badge-pill[id$="-pill"]');
+        if (fuelPill && counts.fuelWidgetData) {
+            const fuelData = counts.fuelWidgetData;
+            let pillData = {};
+
+            if (fuelPill.id === 'gasoline-pill') {
+                pillData = { station: fuelData.gasolineStation, address: fuelData.gasolineAddress, schedule: fuelData.gasolineSchedule, mapUrl: fuelData.gasolineMapUrl };
+            } else if (fuelPill.id === 'diesel-pill') {
+                pillData = { station: fuelData.dieselStation, address: fuelData.dieselAddress, schedule: fuelData.dieselSchedule, mapUrl: fuelData.dieselMapUrl };
+            }
+
+            if (pillData.station) {
+                tg.showPopup({
+                    title: pillData.station,
+                    message: `${pillData.address}\nHorario: ${pillData.schedule}`,
+                    buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
+                }, (buttonId) => { if (buttonId === 'navigate' && pillData.mapUrl) tg.openLink(pillData.mapUrl); });
+            }
+            return; // Acción ejecutada
+        }
+
+        // --- Manejador para las TARJETAS PRINCIPALES ---
+        const card = target.closest('.card');
+        if (card) {
+            // Ignorar el clic si se originó en un menú o botón interno
+            if (target.closest('.card-menu-btn, .dropdown-menu, .card-badge-pill')) {
+                return;
+            }
+
+            // Si la tarjeta está deshabilitada, muestra el aviso y no hagas nada más
+            if (card.classList.contains('disabled-card')) {
+                showToast('⭐ Función exclusiva para usuarios Premium.');
+                return;
+            }
+            
+            // Navegación según la tarjeta pulsada
+            switch (card.id) {
+                case 'card-reminders': renderRemindersList(); break;
+                case 'card-shopping': renderShoppingList(); break;
+                case 'card-notes': renderNotesList(); break;
+                case 'calendar-card': renderCalendarView(); break;
+                case 'card-gastos': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
+                case 'chef-card': renderChefPage(); break;
+                case 'combustible-card': renderCombustibleView(); break;
+                // El caso de guia-tv-card no es necesario ya que está oculta.
+            }
+        }
+    });
 }
 
 // Lógica de pestañas
