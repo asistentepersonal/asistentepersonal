@@ -6687,7 +6687,6 @@ function renderDashboard() {
     const counts = appData.counts;
     const isPremium = appData.isPremium === true;
 
-    // --- INICIO DE LA LÓGICA DE ORDENACIÓN ---
     const cardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || [
         'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
         'cuentasClaras', 'chef', 'combustible', 'guiaTV'
@@ -6695,19 +6694,19 @@ function renderDashboard() {
 
     const cards = {
         reminders: `
-            <div class="card clickable-card" data-card-id="reminders" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;">
+            <div class="card clickable-card" data-card-id="reminders" id="card-reminders" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;">
                 <div class="card-badge red" id="reminders-badge">${counts.remindersCount || 0}</div>
                 <button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button>
                 <div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div>
             </div>`,
         shopping: `
-            <div class="card clickable-card" data-card-id="shopping" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/listadeCompras512x512.jpg?v=3'); background-size: cover; background-position: center;">
+            <div class="card clickable-card" data-card-id="shopping" id="card-shopping" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/listadeCompras512x512.jpg?v=3'); background-size: cover; background-position: center;">
                 <div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div>
                 <button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button>
                 <div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div>
             </div>`,
         notes: `
-            <div class="card clickable-card" data-card-id="notes" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/notas512x512.jpg?v=3'); background-size: cover; background-position: center;">
+            <div class="card clickable-card" data-card-id="notes" id="card-notes" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/notas512x512.jpg?v=3'); background-size: cover; background-position: center;">
                 <div class="card-badge red" id="notes-badge">${counts.notesCount || 0}</div>
                 <button class="card-menu-btn" data-menu-id="menu-notes">⋮</button>
                 <div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div>
@@ -6717,7 +6716,7 @@ function renderDashboard() {
                 <div class="card-badge red" id="calendar-badge">${counts.calendarTodayCount || 0}</div>
             </div>`,
         gastos: `
-            <div class="card clickable-card" data-card-id="gastos" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/Gastos512x512.jpg?v=3'); background-size: cover; background-position: center;">
+            <div class="card clickable-card" data-card-id="gastos" id="card-gastos" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/Gastos512x512.jpg?v=3'); background-size: cover; background-position: center;">
                 <div class="card-badge card-badge-pill red" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div>
                 <button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button>
                 <div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div>
@@ -6734,9 +6733,16 @@ function renderDashboard() {
             if (fuelData) {
                 const getTrendIcon = (trend) => (trend === 'up' ? '▲' : (trend === 'down' ? '▼' : '='));
                 const getTrendBgColor = (trend) => (trend === 'up' ? '#e74c3c' : (trend === 'down' ? '#2ecc71' : '#f39c12'));
-                const formatLastUpdated = (dt) => dt ? `${dt.split(',')[0]} ${dt.split(',')[1].trim().slice(0, 5)}` : '';
+                const formatLastUpdated = (dt) => {
+                    if (!dt) return '';
+                    const parts = dt.split(',');
+                    if (parts.length < 2) return dt;
+                    const datePart = parts[0];
+                    const timePart = parts[1].trim().slice(0, 5);
+                    return `${datePart} ${timePart}`;
+                };
                 const gasolinePill = fuelData.gasolinePrice ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="cursor: pointer; background-color: ${getTrendBgColor(fuelData.gasolineTrend)};">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>` : '';
-                const dieselPill = `<div class="card-badge card-badge-pill" id="diesel-pill" style="cursor: pointer; background-color: ${getTrendBgColor(fuelData.dieselTrend)};">⚫ ${fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D'}${getTrendIcon(fuelData.dieselTrend)}</div>`;
+                const dieselPill = `<div class="card-badge card-badge-pill" id="diesel-pill" style="cursor: ${fuelData.dieselPrice ? 'pointer' : 'default'}; background-color: ${getTrendBgColor(fuelData.dieselTrend)};">⚫ ${fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D'}${getTrendIcon(fuelData.dieselTrend)}</div>`;
                 return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;"><div class="card-badge-group">${gasolinePill}${dieselPill}</div><div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.75rem; color: #fff; background-color: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 4px;">${formatLastUpdated(fuelData.lastUpdated)}</div></div>`;
             }
             if (appData.settings.pais && appData.settings.pais !== 'España') return `<div class="card" data-card-id="combustible" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;"><div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">Próximamente en ${appData.settings.pais}</div></div>`;
@@ -6747,7 +6753,6 @@ function renderDashboard() {
 
     mainContentArea.innerHTML = `<div class="grid" id="dashboard-grid">${cardOrder.map(id => cards[id]).join('')}</div>`;
     
-    // --- ACTIVACIÓN DE SORTABLEJS ---
     const grid = document.getElementById('dashboard-grid');
     if (grid) {
         new Sortable(grid, {
@@ -6760,69 +6765,73 @@ function renderDashboard() {
             }
         });
     }
-    // --- FIN DE LA LÓGICA DE ORDENACIÓN ---
 
-    document.getElementById('add-reminder-link').onclick = renderReminderForm;
-    document.getElementById('list-reminders-link').onclick = renderRemindersList;
-    document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-    document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
-    document.getElementById('add-note-link').onclick = () => renderNoteForm();
-    document.getElementById('list-notes-link').onclick = renderNotesList;
-    document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
-    document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
-    document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
-    document.getElementById('list-gastos-link').onclick = () => { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); };
-    document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-    document.getElementById('calendar-card').onclick = renderCalendarView;
-    document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
+    // --- INICIO DE LA NUEVA GESTIÓN DE EVENTOS (DELEGACIÓN) ---
+    mainContentArea.onclick = (event) => {
+        const target = event.target;
+        const targetId = target.id;
 
-    const combustibleCard = document.getElementById('combustible-card');
-    if (combustibleCard) {
-        combustibleCard.onclick = (e) => {
-            if (e.target.closest('#gasoline-pill') || e.target.closest('#diesel-pill')) return;
-            renderCombustibleView();
-        };
-    }
+        // Manejador para los items de los menús desplegables
+        const dropdownItem = target.closest('.dropdown-item');
+        if (dropdownItem) {
+            switch (dropdownItem.id) {
+                case 'add-reminder-link': renderReminderForm(); break;
+                case 'list-reminders-link': renderRemindersList(); break;
+                case 'add-shopping-item-link': renderAddArticleForm(); break;
+                case 'view-shopping-list-link': renderShoppingList(); break;
+                case 'add-note-link': renderNoteForm(); break;
+                case 'list-notes-link': renderNotesList(); break;
+                case 'add-gasto-link': renderAddGastoForm(); break;
+                case 'scan-gasto-link': renderInstructionScreen(); break;
+                case 'list-gastos-link': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                case 'view-gasto-chart-link': renderGastoChart(); break;
+            }
+            return; // Evita que se procese el clic en la tarjeta también
+        }
 
-    const fuelData = counts.fuelWidgetData;
-    if (fuelData) {
-        const setupPillPopup = (pillId, station, address, schedule, mapUrl) => {
-            const pill = document.getElementById(pillId);
-            if (pill) {
-                pill.onclick = () => {
+        // Manejador para clics directos en las tarjetas
+        const card = target.closest('.card');
+        if (card) {
+            // Evita la acción si se está haciendo clic en el menú o en una píldora de combustible
+            if (target.closest('.card-menu-btn') || target.closest('.card-badge-pill')) return;
+
+            switch (card.id) {
+                case 'card-reminders': renderRemindersList(); break;
+                case 'card-shopping': renderShoppingList(); break;
+                case 'card-notes': renderNotesList(); break;
+                case 'calendar-card': renderCalendarView(); break;
+                case 'card-gastos': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
+                case 'chef-card': renderChefPage(); break;
+                case 'chef-card-locked': showToast('⭐ Función exclusiva para usuarios Premium.'); break;
+                case 'combustible-card': renderCombustibleView(); break;
+                case 'guia-tv-card': showToast('Función en desarrollo.'); break;
+            }
+        }
+
+        // Manejador para las píldoras de combustible
+        const fuelPill = target.closest('.card-badge-pill');
+        if (fuelPill) {
+            const fuelData = counts.fuelWidgetData;
+            if (!fuelData) return;
+
+            const setupPillPopup = (pillId, station, address, schedule, mapUrl) => {
+                if (fuelPill.id === pillId && station) {
                     tg.showPopup({
                         title: station,
                         message: `${address}\nHorario: ${schedule}`,
                         buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
                     }, (buttonId) => { if (buttonId === 'navigate' && mapUrl) tg.openLink(mapUrl); });
-                };
+                }
+            };
+
+            setupPillPopup('gasoline-pill', fuelData.gasolineStation, fuelData.gasolineAddress, fuelData.gasolineSchedule, fuelData.gasolineMapUrl);
+            if (fuelData.dieselPrice) {
+                setupPillPopup('diesel-pill', fuelData.dieselStation, fuelData.dieselAddress, fuelData.dieselSchedule, fuelData.dieselMapUrl);
             }
-        };
-        setupPillPopup('gasoline-pill', fuelData.gasolineStation, fuelData.gasolineAddress, fuelData.gasolineSchedule, fuelData.gasolineMapUrl);
-        if (fuelData.dieselPrice) {
-            setupPillPopup('diesel-pill', fuelData.dieselStation, fuelData.dieselAddress, fuelData.dieselSchedule, fuelData.dieselMapUrl);
         }
-    }
-
-    if (isPremium) {
-        document.getElementById('chef-card').onclick = renderChefPage;
-    } else {
-        document.getElementById('chef-card-locked').onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
-    }
-
-    document.querySelectorAll('.clickable-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            const menuBtn = card.querySelector('.card-menu-btn');
-            if (!menuBtn || e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
-            e.stopPropagation();
-            const menu = document.getElementById(menuBtn.dataset.menuId);
-            if (menu) {
-                const isShown = menu.classList.contains('show');
-                document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m !== menu) m.classList.remove('show'); });
-                menu.classList.toggle('show');
-            }
-        });
-    });
+    };
+    // --- FIN DE LA NUEVA GESTIÓN DE EVENTOS ---
 }
 
 // Lógica de pestañas
