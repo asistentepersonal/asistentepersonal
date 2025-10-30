@@ -1666,36 +1666,40 @@ function bootstrapApp() {
     checkVersionAndBootstrap();
 }
 
+// --- PUNTO DE ENTRADA DEFINITIVO Y ROBUSTO (VERSIÓN CORREGIDA ANTI-RACE CONDITION) ---
 if (tg) {
-    tg.expand();
-    if (tg.isVersionAtLeast('6.1') && tg.BackButton) {
-        tg.BackButton.onClick(goBack);
-    }
-
-    // Definimos una función manejadora que se auto-eliminará
-    const onViewportStable = (event) => {
-        if (event.isStateStable) {
-            // Una vez que el estado es estable, quitamos el listener
-            tg.offEvent('viewportChanged', onViewportStable);
-            // Y arrancamos la aplicación
-            bootstrapApp();
+    // La lógica de arranque de la aplicación se mueve DENTRO del callback de tg.ready()
+    tg.ready(() => {
+        console.log("[Arranque] Telegram.WebApp está listo.");
+        
+        tg.expand();
+        
+        if (tg.isVersionAtLeast('6.1') && tg.BackButton) {
+            tg.BackButton.onClick(goBack);
         }
-    };
 
-    tg.ready();
-
-    if (tg.isExpanded) {
-        console.log("[Arranque Rápido] La app ya está expandida. Iniciando...");
-        bootstrapApp();
-    } else {
-        console.log("[Arranque Estándar] Esperando a que la vista se estabilice...");
-        tg.onEvent('viewportChanged', onViewportStable);
-    }
-
+        // Definimos la función manejadora que se auto-eliminará
+        const onViewportStable = (event) => {
+            if (event.isStateStable) {
+                tg.offEvent('viewportChanged', onViewportStable);
+                bootstrapApp();
+            }
+        };
+        
+        // Comprobamos si la app ya está expandida para un arranque más rápido
+        if (tg.isExpanded) {
+            console.log("[Arranque Rápido] La app ya está expandida. Iniciando...");
+            bootstrapApp();
+        } else {
+            console.log("[Arranque Estándar] Esperando a que la vista se estabilice...");
+            tg.onEvent('viewportChanged', onViewportStable);
+        }
+    });
 } else {
     // Fallback para desarrollo fuera de un entorno Telegram.
     console.log("[Arranque Fallback] Entorno no-Telegram detectado.");
-    bootstrapApp();
+    // Usamos un pequeño timeout para simular la asincronía del entorno real
+    setTimeout(bootstrapApp, 100);
 }
 
 
