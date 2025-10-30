@@ -24,6 +24,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
   <!-- SDKs de Firebase para la Mini App -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
   <style>
     :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
@@ -32,6 +33,13 @@
     .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(135px, 1fr));gap:16px;padding:20px;}
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);position:relative;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;}
     .card.clickable-card { cursor: pointer; }
+	.card.sortable-ghost {
+    opacity: 0.4;
+    background: #c8ebfb;
+}
+	.card.sortable-chosen {
+    cursor: grabbing;
+}
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
     .card-badge{position:absolute;top:8px;left:8px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
@@ -6679,88 +6687,94 @@ function renderDashboard() {
     const counts = appData.counts;
     const isPremium = appData.isPremium === true;
 
-    // --- LÓGICA DE LA CARD DE COMBUSTIBLE INTELIGENTE (VERSIÓN FINAL PULIDA) ---
-    let combustibleCardHtml = '';
-    const fuelData = counts.fuelWidgetData;
+    const cardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || [
+        'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
+        'cuentasClaras', 'chef', 'combustible', 'guiaTV'
+    ];
 
-    if (fuelData) {
-        // --- FUNCIÓN DE AYUDA PARA ICONOS (ACTUALIZADA) ---
-        const getTrendIcon = (trend) => {
-            if (trend === 'up') return `<span class="trend-icon">▲</span>`;
-            if (trend === 'down') return `<span class="trend-icon">▼</span>`;
-            if (trend === 'same') return `<span class="trend-icon">=</span>`; // <-- TU MEJORA
-            return '';
-        };
+    const cards = {
+        reminders: `
+            <div class="card clickable-card" data-card-id="reminders" id="card-reminders" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge red" id="reminders-badge">${counts.remindersCount || 0}</div>
+                <button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button>
+                <div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div>
+            </div>`,
+        shopping: `
+            <div class="card clickable-card" data-card-id="shopping" id="card-shopping" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/listadeCompras512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div>
+                <button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button>
+                <div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div>
+            </div>`,
+        notes: `
+            <div class="card clickable-card" data-card-id="notes" id="card-notes" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/notas512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge red" id="notes-badge">${counts.notesCount || 0}</div>
+                <button class="card-menu-btn" data-menu-id="menu-notes">⋮</button>
+                <div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div>
+            </div>`,
+        calendar: `
+            <div class="card clickable-card" data-card-id="calendar" id="calendar-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/calendario512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge red" id="calendar-badge">${counts.calendarTodayCount || 0}</div>
+            </div>`,
+        gastos: `
+            <div class="card clickable-card" data-card-id="gastos" id="card-gastos" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/Gastos512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge card-badge-pill red" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div>
+                <button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button>
+                <div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div>
+            </div>`,
+        cuentasClaras: `
+            <div class="card clickable-card" data-card-id="cuentasClaras" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/cuentasclaras512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge red" id="cuentas-claras-badge">${counts.cuentasClarasCount || 0}</div>
+            </div>`,
+        chef: isPremium 
+            ? `<div class="card clickable-card" data-card-id="chef" id="chef-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>` 
+            : `<div class="card disabled-card" data-card-id="chef" id="chef-card-locked" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>`,
+        combustible: (() => {
+            const fuelData = counts.fuelWidgetData;
+            if (fuelData) {
+                const getTrendIcon = (trend) => (trend === 'up' ? '▲' : (trend === 'down' ? '▼' : '='));
+                const getTrendBgColor = (trend) => (trend === 'up' ? '#e74c3c' : (trend === 'down' ? '#2ecc71' : '#f39c12'));
+                const formatLastUpdated = (dt) => {
+                    if (!dt) return ''; const parts = dt.split(','); if (parts.length < 2) return dt; return `${parts[0]} ${parts[1].trim().slice(0, 5)}`;
+                };
+                const gasolinePill = fuelData.gasolinePrice ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="background-color: ${getTrendBgColor(fuelData.gasolineTrend)};">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>` : '';
+                const dieselPill = `<div class="card-badge card-badge-pill" id="diesel-pill" style="background-color: ${getTrendBgColor(fuelData.dieselTrend)};">⚫ ${fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D'}${getTrendIcon(fuelData.dieselTrend)}</div>`;
+                return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;"><div class="card-badge-group">${gasolinePill}${dieselPill}</div><div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.75rem; color: #fff; background-color: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 4px;">${formatLastUpdated(fuelData.lastUpdated)}</div></div>`;
+            }
+            if (appData.settings.pais && appData.settings.pais !== 'España') return `<div class="card" data-card-id="combustible" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;"><div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">Próximamente en ${appData.settings.pais}</div></div>`;
+            return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
+        })(),
+        guiaTV: `<div id="guia-tv-card" data-card-id="guiaTV" class="card disabled-card" style="display: none;"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>`
+    };
 
-        // --- FUNCIÓN DE AYUDA PARA COLOR DE FONDO (ACTUALIZADA) ---
-        const getTrendBackgroundColor = (trend) => {
-            if (trend === 'up') return '#e74c3c';   // Rojo
-            if (trend === 'down') return '#2ecc71'; // Verde
-            return '#f39c12';                       // Ámbar para 'same' <-- TU MEJORA
-        };
+    mainContentArea.innerHTML = `<div class="grid" id="dashboard-grid">${cardOrder.map(id => cards[id] || '').join('')}</div>`;
+    
+    // La clave: Llamamos a la función de activación después de un brevísimo instante.
+    setTimeout(() => activateDashboardListeners(), 0);
+}
 
-        const formatLastUpdated = (datetime) => {
-            if (!datetime) return '';
-            const [datePart, timePart] = datetime.split(',');
-            if (!datePart || !timePart) return datePart || '';
-            const [day, month] = datePart.split('/');
-            const [hour, minute] = timePart.trim().split(':');
-            return `${day}/${month} ${hour}:${minute}`;
-        };
-        
-        const basePillStyle = `cursor: pointer;`;
+function activateDashboardListeners() {
+    const counts = appData.counts;
+    const isPremium = appData.isPremium === true;
 
-        const gasolinePill = fuelData.gasolinePrice
-            ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="${basePillStyle} background-color: ${getTrendBackgroundColor(fuelData.gasolineTrend)};">
-                   ⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}
-               </div>`
-            : '';
-            
-        const dieselPriceText = fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D';
-        const dieselPillId = fuelData.dieselPrice ? 'id="diesel-pill"' : '';
-        const dieselPillStyle = fuelData.dieselPrice 
-            ? `${basePillStyle} background-color: ${getTrendBackgroundColor(fuelData.dieselTrend)};`
-            : `cursor: default; background-color: var(--muted); opacity: 0.8;`;
-        const dieselPill = `<div class="card-badge card-badge-pill" ${dieselPillId} style="${dieselPillStyle}">
-                               ⚫ ${dieselPriceText}${getTrendIcon(fuelData.dieselTrend)}
-                           </div>`;
-        
-        combustibleCardHtml = `
-            <div id="combustible-card" class="card clickable-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;">
-                <div class="card-badge-group">${gasolinePill}${dieselPill}</div>
-                <div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.75rem; color: #fff; background-color: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 4px;">
-                    ${formatLastUpdated(fuelData.lastUpdated)}
-                </div>
-            </div>`;
-
-    } else if (appData.settings.pais && appData.settings.pais !== 'España') {
-        combustibleCardHtml = `
-            <div class="card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;">
-                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">
-                    Próximamente en ${appData.settings.pais}
-                </div>
-            </div>`;
-    } else {
-        combustibleCardHtml = `<div id="combustible-card" class="card clickable-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
+    // Activamos la librería de arrastre con la configuración correcta y segura.
+    const grid = document.getElementById('dashboard-grid');
+    if (grid) {
+        new Sortable(grid, {
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    delay: 200, // Demora para la pulsación larga
+    // delayOnTouchOnly: true, // ELIMINADO: El retardo ahora se aplica siempre.
+    filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu', // Ignora el arrastre si empieza en el menú o las píldoras
+    preventOnFilter: true, // Asegura que el clic en los elementos filtrados funcione
+    onEnd: function (evt) {
+        const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
+        localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
+    }
+});
     }
 
-    let chefCardHtml = isPremium ? `<div class="card clickable-card" id="chef-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>` : `<div class="card disabled-card" id="chef-card-locked" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>`;
-    const calendarCardHtml = `<div class="card clickable-card" id="calendar-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/calendario512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="calendar-badge">${counts.calendarTodayCount || 0}</div></div>`;
-    const cuentasClarasCardHtml = `<div class="card clickable-card" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/cuentasclaras512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="cuentas-claras-badge">${counts.cuentasClarasCount || 0}</div></div>`;
-
-    mainContentArea.innerHTML = `
-        <div class="grid">
-            <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>
-            <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/listadeCompras512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
-            <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/notas512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge red" id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
-            ${calendarCardHtml}
-            <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/Gastos512x512.jpg?v=3'); background-size: cover; background-position: center;"><div class="card-badge card-badge-pill red" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
-            ${cuentasClarasCardHtml}
-            ${chefCardHtml}
-            ${combustibleCardHtml}
-            <div id="guia-tv-card" class="card disabled-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
-        </div>`;
-
+    // Asignamos las acciones a los items de los menús
     document.getElementById('add-reminder-link').onclick = renderReminderForm;
     document.getElementById('list-reminders-link').onclick = renderRemindersList;
     document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
@@ -6769,70 +6783,46 @@ function renderDashboard() {
     document.getElementById('list-notes-link').onclick = renderNotesList;
     document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
     document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
-    document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
     document.getElementById('list-gastos-link').onclick = () => { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); };
     document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-    document.getElementById('calendar-card').onclick = renderCalendarView;
-    document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
 
+    // Asignamos acciones a las tarjetas principales (navegación)
+    document.getElementById('card-reminders').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderRemindersList(); };
+    document.getElementById('card-shopping').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderShoppingList(); };
+    document.getElementById('card-notes').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderNotesList(); };
+    document.getElementById('calendar-card').onclick = renderCalendarView;
+    document.getElementById('card-gastos').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); } };
+    document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
+    
     const combustibleCard = document.getElementById('combustible-card');
     if (combustibleCard) {
-        combustibleCard.onclick = (e) => {
-            if (e.target.closest('#gasoline-pill') || e.target.closest('#diesel-pill')) return;
-            renderCombustibleView();
-        };
+        combustibleCard.onclick = (e) => { if (!e.target.closest('.card-badge-pill, .card-menu-btn, .dropdown-menu')) renderCombustibleView(); };
     }
+    
+    const chefCard = document.getElementById('chef-card');
+    if (chefCard) chefCard.onclick = renderChefPage;
+    const chefCardLocked = document.getElementById('chef-card-locked');
+    if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
 
+    // Asignamos acciones a las píldoras de combustible
+    const fuelData = counts.fuelWidgetData;
     if (fuelData) {
-        const gasolinePill = document.getElementById('gasoline-pill');
-        if (gasolinePill) {
-            gasolinePill.onclick = () => {
-                tg.showPopup({
-                    title: fuelData.gasolineStation,
-                    message: `${fuelData.gasolineAddress}\nHorario: ${fuelData.gasolineSchedule}`,
-                    buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
-                }, (buttonId) => {
-                    if (buttonId === 'navigate' && fuelData.gasolineMapUrl) {
-                        tg.openLink(fuelData.gasolineMapUrl);
-                    }
-                });
-            };
-        }
-        const dieselPill = document.getElementById('diesel-pill');
-        if (dieselPill && fuelData.dieselPrice) { // Solo asigna el onclick si hay precio
-            dieselPill.onclick = () => {
-                tg.showPopup({
-                    title: fuelData.dieselStation,
-                    message: `${fuelData.dieselAddress}\nHorario: ${fuelData.dieselSchedule}`,
-                    buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
-                }, (buttonId) => {
-                    if (buttonId === 'navigate' && fuelData.dieselMapUrl) {
-                        tg.openLink(fuelData.dieselMapUrl);
-                    }
-                });
-            };
-        }
-    }
-
-    if (isPremium) {
-        document.getElementById('chef-card').onclick = renderChefPage;
-    } else {
-        document.getElementById('chef-card-locked').onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
-    }
-
-    document.querySelectorAll('.clickable-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            const menuBtn = card.querySelector('.card-menu-btn');
-            if (!menuBtn || e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
-            e.stopPropagation();
-            const menu = document.getElementById(menuBtn.dataset.menuId);
-            if (menu) {
-                const isShown = menu.classList.contains('show');
-                document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m !== menu) m.classList.remove('show'); });
-                menu.classList.toggle('show');
+        const setupPillPopup = (pillId, station, address, schedule, mapUrl) => {
+            const pill = document.getElementById(pillId);
+            if (pill) {
+                pill.onclick = () => {
+                    tg.showPopup({
+                        title: station, message: `${address}\nHorario: ${schedule}`,
+                        buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
+                    }, (buttonId) => { if (buttonId === 'navigate' && mapUrl) tg.openLink(mapUrl); });
+                };
             }
-        });
-    });
+        };
+        setupPillPopup('gasoline-pill', fuelData.gasolineStation, fuelData.gasolineAddress, fuelData.gasolineSchedule, fuelData.gasolineMapUrl);
+        if (fuelData.dieselPrice) {
+            setupPillPopup('diesel-pill', fuelData.dieselStation, fuelData.dieselAddress, fuelData.dieselSchedule, fuelData.dieselMapUrl);
+        }
+    }
 }
 
 // Lógica de pestañas
