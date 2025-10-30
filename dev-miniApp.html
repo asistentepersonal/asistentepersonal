@@ -1436,7 +1436,6 @@ function updateCalendarBadgeListener() {
 async function runApp() {
     try {
         console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
-        // 1. Obtener los ajustes del usuario (sin cambios)
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
         if (!userSettingsDoc.exists) {
             failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
@@ -1447,25 +1446,27 @@ async function runApp() {
         appData.isPremium = appData.settings.plan_premium === true;
         console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
-        // 2. Configurar el listener ÚNICO para contadores
+        // Configurar el listener ÚNICO para contadores
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot(async (doc) => {
                 if (doc.exists) {
                     appData.counts = { ...appData.counts, ...doc.data() };
 
-                    // ¡Paso Clave MODIFICADO! No redibujar si se está arrastrando una card
-                    if (document.querySelector('.grid') && !document.body.classList.contains('is-dragging')) {
+                    // ¡Paso Clave MODIFICADO! No redibujar si el usuario está arrastrando una card
+                    if (document.body.classList.contains('is-dragging')) {
+                        console.log("🏁 [Listener] Contadores sincronizados, pero se omite el re-renderizado por 'is-dragging'.");
+                        return; // Detenemos la ejecución aquí para no redibujar
+                    }
+
+                    if (document.querySelector('.grid')) {
                         renderDashboard();
                     }
                     console.log("🏁 [Listener] Contadores sincronizados. UI actualizada.");
 
                 } else {
-                    // Caso 2: El documento NO existe (usuario nuevo). Lo creamos.
                     console.log("Documento 'counts' no existe. Creando estructura inicial completa...");
                     const now = new Date();
                     const mesAnioActual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
-                    
-                    // Definimos la estructura completa, incluyendo el caso especial de gastos.
                     const contadoresIniciales = {
                         gastosMesActual: 0,
                         mesesActivosGastos: [mesAnioActual],
@@ -1476,32 +1477,27 @@ async function runApp() {
                         calendarTodayCount: 0,
                         cuentasClarasCount: 0
                     };
-                    
-                    // Guardamos la estructura inicial. Esto disparará de nuevo el onSnapshot,
-                    // que entrará en el bloque `if (doc.exists)` y renderizará la UI.
                     await db.collection('users').doc(chatId).collection('_metadata').doc('counts').set(contadoresIniciales, { merge: true });
                 }
             }, (error) => {
                 console.error("Error en el listener de contadores: ", error);
             });
 
-        updateCalendarBadgeListener(); // Llamada inicial al arrancar la app.
+        updateCalendarBadgeListener();
         
-        // 4. Dibujar la UI con los datos ya cargados (sin cambios)
         renderDashboard();
         isAppReady = true;
-		// --- INICIO: Listener para re-verificar versión y contadores al reanudar la app ---
-if (tg) {
-    tg.onEvent('viewportChanged', (event) => {
-        if (event.isStateStable) {
-            console.log("[Reanudación] Vista estable, re-verificando servicios...");
-            performVersionCheck(true); // Re-verifica la versión
-            updateCalendarBadgeListener(); // Re-verifica el badge del calendario
+
+        if (tg) {
+            tg.onEvent('viewportChanged', (event) => {
+                if (event.isStateStable) {
+                    console.log("[Reanudación] Vista estable, re-verificando servicios...");
+                    performVersionCheck(true);
+                    updateCalendarBadgeListener();
+                }
+            });
         }
-    });
-}
-// --- FIN: Listener para re-verificar versión y contadores ---
-		hideSplashScreen();
+        hideSplashScreen();
         
     } catch (err) {
         console.error("Error crítico en runApp:", err);
