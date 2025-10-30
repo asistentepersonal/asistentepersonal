@@ -1451,12 +1451,10 @@ async function runApp() {
         db.collection('users').doc(chatId).collection('_metadata').doc('counts')
             .onSnapshot(async (doc) => {
                 if (doc.exists) {
-                    // Caso 1: El documento existe. Actualizamos los datos locales.
                     appData.counts = { ...appData.counts, ...doc.data() };
 
-                    // ¡Paso Clave! Siempre que recibimos datos, redibujamos el dashboard
-                    // si es la vista activa. Esto cubre la carga inicial y las actualizaciones.
-                    if (document.querySelector('.grid')) {
+                    // ¡Paso Clave MODIFICADO! No redibujar si se está arrastrando una card
+                    if (document.querySelector('.grid') && !document.body.classList.contains('is-dragging')) {
                         renderDashboard();
                     }
                     console.log("🏁 [Listener] Contadores sincronizados. UI actualizada.");
@@ -6756,20 +6754,35 @@ function renderDashboard() {
         if (dieselPill && counts.fuelWidgetData.dieselPrice) dieselPill.onclick = () => tg.showPopup({ title: counts.fuelWidgetData.dieselStation, message: `${counts.fuelWidgetData.dieselAddress}\nHorario: ${counts.fuelWidgetData.dieselSchedule}`, buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }] }, (buttonId) => { if (buttonId === 'navigate') tg.openLink(counts.fuelWidgetData.dieselMapUrl); });
     }
 
-    // 5. Inicializamos SortableJS en la parrilla
+    // 5. Inicializamos SortableJS de forma robusta
     const grid = document.getElementById('dashboard-grid');
-    if (sortableInstance) {
-        sortableInstance.destroy(); // Destruimos la instancia anterior para evitar conflictos
-    }
-    sortableInstance = new Sortable(grid, {
-        animation: 150, // Animación suave al mover
-        ghostClass: 'card-ghost', // Clase CSS para el fantasma (opcional)
-        onEnd: (evt) => {
-            // Cuando el usuario termina de arrastrar, guardamos el nuevo orden
-            const newOrder = Array.from(grid.children).map(card => card.id.replace('card-', ''));
-            localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
+    if (grid) { // Solo inicializar si la parrilla existe
+        if (sortableInstance) {
+            sortableInstance.destroy(); // Destruimos siempre la instancia anterior
         }
-    });
+        sortableInstance = new Sortable(grid, {
+            animation: 150,
+            // Evita conflictos con clics/taps accidentales al arrastrar
+            preventOnFilter: false, 
+            // Tiempo en ms que hay que mantener pulsado para iniciar el arrastre en móviles
+            delay: 100,
+            delayOnTouchOnly: true,
+            // Se activa cuando empieza el arrastre
+            onStart: function () {
+                // Truco para evitar el re-renderizado mientras se arrastra
+                // Añadimos una clase al body
+                document.body.classList.add('is-dragging');
+            },
+            onEnd: (evt) => {
+                // Se activa cuando se suelta el elemento
+                document.body.classList.remove('is-dragging'); // Quitamos la clase
+                
+                // Guardamos el nuevo orden
+                const newOrder = Array.from(evt.from.children).map(card => card.id.replace('card-', ''));
+                localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
+            }
+        });
+    }
 }
 
 // Lógica de pestañas
