@@ -6687,13 +6687,11 @@ function renderDashboard() {
     const counts = appData.counts;
     const isPremium = appData.isPremium === true;
 
-    // 1. Leemos el orden guardado o usamos el orden por defecto.
     const cardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || [
         'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
         'cuentasClaras', 'chef', 'combustible', 'guiaTV'
     ];
 
-    // 2. Definimos el HTML de cada tarjeta en un objeto para facilitar la ordenación.
     const cards = {
         reminders: `
             <div class="card clickable-card" data-card-id="reminders" id="card-reminders" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;">
@@ -6745,24 +6743,30 @@ function renderDashboard() {
             if (appData.settings.pais && appData.settings.pais !== 'España') return `<div class="card" data-card-id="combustible" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;"><div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">Próximamente en ${appData.settings.pais}</div></div>`;
             return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
         })(),
-        // --- CORRECCIÓN #3: Tarjeta Guía TV presente pero oculta. ---
         guiaTV: `<div id="guia-tv-card" data-card-id="guiaTV" class="card disabled-card" style="display: none;"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>`
     };
 
-    // 3. Dibujamos el HTML en el orden correcto.
     mainContentArea.innerHTML = `<div class="grid" id="dashboard-grid">${cardOrder.map(id => cards[id] || '').join('')}</div>`;
     
-    // 4. Activamos la librería de arrastre con la configuración correcta.
+    // La clave: Llamamos a la función de activación después de un brevísimo instante.
+    setTimeout(() => activateDashboardListeners(), 0);
+}
+
+function activateDashboardListeners() {
+    const counts = appData.counts;
+    const isPremium = appData.isPremium === true;
+
+    // Activamos la librería de arrastre con la configuración correcta y segura.
     const grid = document.getElementById('dashboard-grid');
     if (grid) {
         new Sortable(grid, {
             animation: 150,
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
-            delay: 200, // Demora para iniciar el arrastre (pulsación larga).
-            delayOnTouchOnly: true, // La demora se aplica solo en táctil para una mejor experiencia con ratón.
-            filter: '.card-menu-btn, .dropdown-menu', // --- CORRECCIÓN #1: Ignora el arrastre si se inicia en el botón de menú. ---
-            preventOnFilter: true, // Asegura que el clic normal en el menú funcione.
+            delay: 200, // Demora para la pulsación larga
+            delayOnTouchOnly: true, // Demora solo en táctil para mejor experiencia con ratón
+            filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu', // Ignora el arrastre si empieza en el menú o las píldoras
+            preventOnFilter: true, // Asegura que el clic en los elementos filtrados funcione
             onEnd: function (evt) {
                 const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
                 localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
@@ -6770,7 +6774,7 @@ function renderDashboard() {
         });
     }
 
-    // 5. Asignamos las acciones de clic de forma segura, ahora que todo está en pantalla.
+    // Asignamos las acciones a los items de los menús
     document.getElementById('add-reminder-link').onclick = renderReminderForm;
     document.getElementById('list-reminders-link').onclick = renderRemindersList;
     document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
@@ -6781,24 +6785,26 @@ function renderDashboard() {
     document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
     document.getElementById('list-gastos-link').onclick = () => { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); };
     document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-    
-    // Lógica para las tarjetas principales
+
+    // Asignamos acciones a las tarjetas principales (navegación)
     document.getElementById('card-reminders').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderRemindersList(); };
     document.getElementById('card-shopping').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderShoppingList(); };
     document.getElementById('card-notes').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) renderNotesList(); };
     document.getElementById('calendar-card').onclick = renderCalendarView;
     document.getElementById('card-gastos').onclick = (e) => { if (!e.target.closest('.card-menu-btn, .dropdown-menu')) { navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); } };
     document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
-
+    
     const combustibleCard = document.getElementById('combustible-card');
     if (combustibleCard) {
-        combustibleCard.onclick = (e) => {
-            // --- CORRECCIÓN #2: El clic en las píldoras se maneja por separado y aquí evitamos la navegación. ---
-            if (e.target.closest('.card-badge-pill, .card-menu-btn, .dropdown-menu')) return;
-            renderCombustibleView();
-        };
+        combustibleCard.onclick = (e) => { if (!e.target.closest('.card-badge-pill, .card-menu-btn, .dropdown-menu')) renderCombustibleView(); };
     }
+    
+    const chefCard = document.getElementById('chef-card');
+    if (chefCard) chefCard.onclick = renderChefPage;
+    const chefCardLocked = document.getElementById('chef-card-locked');
+    if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
 
+    // Asignamos acciones a las píldoras de combustible
     const fuelData = counts.fuelWidgetData;
     if (fuelData) {
         const setupPillPopup = (pillId, station, address, schedule, mapUrl) => {
@@ -6806,8 +6812,7 @@ function renderDashboard() {
             if (pill) {
                 pill.onclick = () => {
                     tg.showPopup({
-                        title: station,
-                        message: `${address}\nHorario: ${schedule}`,
+                        title: station, message: `${address}\nHorario: ${schedule}`,
                         buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
                     }, (buttonId) => { if (buttonId === 'navigate' && mapUrl) tg.openLink(mapUrl); });
                 };
@@ -6818,26 +6823,6 @@ function renderDashboard() {
             setupPillPopup('diesel-pill', fuelData.dieselStation, fuelData.dieselAddress, fuelData.dieselSchedule, fuelData.dieselMapUrl);
         }
     }
-
-    const chefCard = document.getElementById('chef-card');
-    if (chefCard) chefCard.onclick = renderChefPage;
-    const chefCardLocked = document.getElementById('chef-card-locked');
-    if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
-
-    // Se mantiene la lógica original para abrir el menú al hacer clic en cualquier parte de la tarjeta (excepto el botón).
-    document.querySelectorAll('.clickable-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            const menuBtn = card.querySelector('.card-menu-btn');
-            if (!menuBtn || e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
-            e.stopPropagation();
-            const menu = document.getElementById(menuBtn.dataset.menuId);
-            if (menu) {
-                const isShown = menu.classList.contains('show');
-                document.querySelectorAll('.dropdown-menu.show').forEach(m => { if (m !== menu) m.classList.remove('show'); });
-                menu.classList.toggle('show');
-            }
-        });
-    });
 }
 
 // Lógica de pestañas
