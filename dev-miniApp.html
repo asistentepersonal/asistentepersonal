@@ -6849,7 +6849,26 @@ function activateDashboardListeners() {
                 case 'card-shopping': renderShoppingList(); break;
                 case 'card-notes': renderNotesList(); break;
                 case 'calendar-card': renderCalendarView(); break;
-                case 'card-gastos': card.querySelector('.card-menu-btn')?.click(); break;
+                case 'card-gastos': {
+			const menuBtn = card.querySelector('.card-menu-btn');
+			if (menuBtn) {
+			const menuId = menuBtn.dataset.menuId;
+			const menu = document.getElementById(menuId);
+			if (menu) {
+            // 1. Cerrar otros menús abiertos
+            document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                if (m.id !== menuId) m.classList.remove('show');
+            });
+            // 2. Calcular posición (arriba/abajo)
+            const buttonRect = menuBtn.getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+            menu.classList.toggle('up', buttonRect.top > (windowHeight / 2));
+            // 3. Mostrar/ocultar este menú
+            menu.classList.toggle('show');
+        }
+    }
+    break;
+}
                 case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
                 case 'chef-card': renderChefPage(); break;
                 case 'combustible-card': renderCombustibleView(); break;
