@@ -6756,91 +6756,119 @@ function activateDashboardListeners() {
     const grid = document.getElementById('dashboard-grid');
     if (!grid) return;
 
-    // NUEVO: Variable de control para saber si se está arrastrando
     let isDragging = false;
 
-    // 1. Configuración de SortableJS con la lógica de la bandera
     new Sortable(grid, {
         animation: 150,
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
-        delay: 200, // Tiempo necesario para mantener presionado antes de arrastrar
+        delay: 200,
         filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu',
         preventOnFilter: true,
-        // NUEVO: Cuando empieza el arrastre, levantamos la bandera
         onStart: function () {
             isDragging = true;
         },
         onEnd: function (evt) {
             const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
             localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
-            
-            // NUEVO: Damos un respiro mínimo antes de bajar la bandera
-            // para que el evento 'click' que se dispara al soltar no se procese.
             setTimeout(() => {
                 isDragging = false;
             }, 50);
         }
     });
 
-    // 2. Escuchador de clics único y mejorado
     grid.addEventListener('click', (event) => {
-        // NUEVO: Si se estaba arrastrando, ignoramos este clic por completo.
         if (isDragging) {
             return;
         }
 
         const target = event.target;
+        const counts = appData.counts;
+
+        // --- Manejador para los MENÚS (Navegación) ---
+        const menuItem = target.closest('.dropdown-item');
+        if (menuItem) {
+            switch (menuItem.id) {
+                case 'add-reminder-link': renderReminderForm(); break;
+                case 'list-reminders-link': renderRemindersList(); break;
+                case 'add-shopping-item-link': renderAddArticleForm(); break;
+                case 'view-shopping-list-link': renderShoppingList(); break;
+                case 'add-note-link': renderNoteForm(); break;
+                case 'list-notes-link': renderNotesList(); break;
+                case 'scan-gasto-link': renderInstructionScreen(); break;
+                case 'add-gasto-link': renderAddGastoForm(); break;
+                case 'list-gastos-link': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                case 'view-gasto-chart-link': renderGastoChart(); break;
+            }
+            return;
+        }
+
+        // --- Manejador para las PÍLDORAS DE COMBUSTIBLE ---
+        const fuelPill = target.closest('.card-badge-pill[id$="-pill"]');
+        if (fuelPill && counts.fuelWidgetData) {
+            const fuelData = counts.fuelWidgetData;
+            let pillData = {};
+
+            if (fuelPill.id === 'gasoline-pill') {
+                pillData = { station: fuelData.gasolineStation, address: fuelData.gasolineAddress, schedule: fuelData.gasolineSchedule, mapUrl: fuelData.gasolineMapUrl };
+            } else if (fuelPill.id === 'diesel-pill') {
+                pillData = { station: fuelData.dieselStation, address: fuelData.dieselAddress, schedule: fuelData.dieselSchedule, mapUrl: fuelData.dieselMapUrl };
+            }
+
+            if (pillData.station) {
+                tg.showPopup({
+                    title: pillData.station,
+                    message: `${pillData.address}\nHorario: ${pillData.schedule}`,
+                    buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
+                }, (buttonId) => { if (buttonId === 'navigate' && pillData.mapUrl) tg.openLink(pillData.mapUrl); });
+            }
+            return;
+        }
+
+        // --- Manejador para las TARJETAS PRINCIPALES ---
         const card = target.closest('.card');
-        
-        // Si no se hizo clic dentro de una tarjeta, no hacemos nada.
-        if (!card) return;
-
-        // --- LÓGICA DE DECISIÓN ---
-        
-        // A. Si se hizo clic en el botón del menú, dejamos que el listener global
-        //    (que ya calcula la posición arriba/abajo) haga su trabajo y detenemos aquí.
-        if (target.closest('.card-menu-btn')) {
-            // La acción la maneja el listener del 'body', no necesitamos hacer nada.
-            return;
-        }
-        
-        // B. Si se hizo clic en un elemento de un menú ya abierto o una píldora, 
-        // no navegamos, solo ejecutamos la acción del elemento.
-        if (target.closest('.dropdown-item') || target.closest('.card-badge-pill')) {
-            // Aquí iría la lógica específica si la hubiera, pero por ahora solo prevenimos la navegación.
-            // En tu código actual, la lógica de estos elementos ya está en otro lado, así que está bien.
-            return;
-        }
-
-        // C. Si la tarjeta está deshabilitada, mostramos el mensaje y paramos.
-        if (card.classList.contains('disabled-card')) {
-            showToast('⭐ Función exclusiva para usuarios Premium.');
-            return;
-        }
-
-        // D. Lógica principal: si llegamos aquí, se hizo clic en el "cuerpo" de la tarjeta.
-        switch (card.id) {
-            // TARJETAS CON MENÚ: Un clic en ellas ahora abre el menú.
-            case 'card-reminders':
-            case 'card-shopping':
-            case 'card-notes':
-            case 'card-gastos': {
-                const menuBtn = card.querySelector('.card-menu-btn');
-                if (menuBtn) {
-                    // Simulamos un clic en el botón para reutilizar toda la lógica
-                    // de apertura y posicionamiento que ya tienes.
-                    menuBtn.click();
-                }
-                break;
+        if (card) {
+            // Si el clic es sobre el botón de menú, el listener global se encargará.
+            // Si es sobre una píldora o un item de menú, ya lo hemos manejado arriba.
+            // Por lo tanto, aquí solo nos preocupamos del clic en el cuerpo de la tarjeta.
+            if (target.closest('.card-menu-btn, .dropdown-menu, .card-badge-pill')) {
+                return;
+            }
+            if (card.classList.contains('disabled-card')) {
+                showToast('⭐ Función exclusiva para usuarios Premium.');
+                return;
             }
             
-            // TARJETAS SIN MENÚ: Navegan directamente.
-            case 'calendar-card': renderCalendarView(); break;
-            case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
-            case 'chef-card': renderChefPage(); break;
-            case 'combustible-card': renderCombustibleView(); break;
-            case 'guia-tv-card': renderGuiaTV(); break;
+            switch (card.id) {
+                case 'card-reminders':
+                case 'card-shopping':
+                case 'card-notes':
+                case 'card-gastos': {
+                    // LÓGICA DIRECTA Y SEGURA PARA ABRIR EL MENÚ
+                    const menuBtn = card.querySelector('.card-menu-btn');
+                    if (menuBtn) {
+                        const menuId = menuBtn.dataset.menuId;
+                        const menu = document.getElementById(menuId);
+                        if (menu) {
+                            // 1. Cerrar otros menús abiertos
+                            document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                                if (m.id !== menuId) m.classList.remove('show');
+                            });
+                            // 2. Calcular posición (arriba/abajo)
+                            const buttonRect = menuBtn.getBoundingClientRect();
+                            const windowHeight = window.innerHeight;
+                            menu.classList.toggle('up', buttonRect.top > (windowHeight / 2));
+                            // 3. Mostrar/ocultar este menú
+                            menu.classList.toggle('show');
+                        }
+                    }
+                    break;
+                }
+                case 'calendar-card': renderCalendarView(); break;
+                case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
+                case 'chef-card': renderChefPage(); break;
+                case 'combustible-card': renderCombustibleView(); break;
+            }
         }
     });
 }
