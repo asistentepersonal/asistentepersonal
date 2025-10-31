@@ -1503,50 +1503,9 @@ async function runApp() {
 if (tg) {
     tg.onEvent('viewportChanged', (event) => {
         if (event.isStateStable) {
-            console.log("[Reanudación] Vista estable, procesando reanudación...");
-
-            // --- INICIO: Lógica de recepción de imagen (No Invasiva) ---
-            const imageData = localStorage.getItem('pendingImageFromCapture');
-            if (imageData) {
-                console.log("[Captura] Imagen recibida desde localStorage. Procesando...");
-                localStorage.removeItem('pendingImageFromCapture'); // Limpieza inmediata
-
-                // Mostramos la previsualización
-                document.getElementById('image-preview-element').src = imageData;
-                document.getElementById('image-preview-overlay').style.display = 'flex';
-                
-                const sendBtn = document.getElementById('preview-send-btn');
-                const cancelBtn = document.getElementById('preview-cancel-btn');
-                
-                // Función de limpieza para restaurar los botones a su estado original
-                const cleanupPreview = () => {
-                    document.getElementById('image-preview-overlay').style.display = 'none';
-                    sendBtn.onclick = handleImageScan; // Restaura el handler original
-                    cancelBtn.onclick = () => {
-                        document.getElementById('image-preview-overlay').style.display = 'none';
-                        selectedImageFile = null;
-                    };
-                };
-
-                // Asignamos las nuevas acciones temporales a los botones
-                sendBtn.onclick = () => handleImageScan(imageData);
-                cancelBtn.onclick = cleanupPreview;
-
-                // IMPORTANTE: Detenemos la ejecución aquí para no hacer otras tareas de fondo.
-                // El foco del usuario está en la imagen.
-                return; 
-            }
-            // --- FIN: Lógica de recepción de imagen ---
-
-            // Si el código llega hasta aquí, significa que NO había una imagen pendiente.
-            // Por lo tanto, ejecutamos las tareas de fondo normales sin interferencia.
-            console.log("[Reanudación] No hay imagen pendiente. Ejecutando tareas de fondo...");
-            performVersionCheck(true);
-
-            // CORRECCIÓN SUTIL: La actualización del badge ya se hace al reanudar la app
-            // por la lógica interna, llamarla aquí de nuevo es redundante. La eliminamos para
-            // mantener el código más limpio.
-            // updateCalendarBadgeListener(); 
+            console.log("[Reanudación] Vista estable, re-verificando servicios...");
+            performVersionCheck(true); // Re-verifica la versión
+            updateCalendarBadgeListener(); // Re-verifica el badge del calendario
         }
     });
 }
@@ -3197,9 +3156,7 @@ function renderInstructionScreen() {
         </div>`;
     
     // Asignamos la acción directamente al botón, que ahora abre la galería.
-    document.getElementById('scan-ticket-button').onclick = () => {
-    Telegram.WebApp.openTelegramLink('https://asistentepersonal-4ad2b.web.app/captura.html');
-};
+    document.getElementById('scan-ticket-button').onclick = triggerFileInput;
 }
 function triggerFileInput() {
     const fileInput = document.createElement('input');
@@ -3230,8 +3187,8 @@ function triggerFileInput() {
     }, { once: true });
 }
 
-async function handleImageScan(imageBase64FromCapture = null) {
-    if (!selectedImageFile && !imageBase64FromCapture) {
+async function handleImageScan() {
+    if (!selectedImageFile) {
         showToast('No se ha seleccionado ninguna imagen.', true);
         return;
     }
@@ -3239,6 +3196,7 @@ async function handleImageScan(imageBase64FromCapture = null) {
     const sendBtn = document.getElementById('preview-send-btn');
     const originalBtnHTML = sendBtn.innerHTML;
     
+    // Activamos el spinner en el botón. El overlay de previsualización NO se cierra.
     sendBtn.disabled = true;
     sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Procesando...`;
 
@@ -3250,23 +3208,21 @@ async function handleImageScan(imageBase64FromCapture = null) {
     });
 
     try {
-        // Decidimos si usar la imagen del input o la que viene de la página de captura
-        const imageBase64 = imageBase64FromCapture 
-            ? imageBase64FromCapture.split(',')[1] 
-            : await toBase64(selectedImageFile);
-
+        const imageBase64 = await toBase64(selectedImageFile);
         const functions = firebase.app().functions('europe-west1');
         const scanTicketFunction = functions.httpsCallable('processTicketScan');
         
         const result = await scanTicketFunction({ imageBase64: imageBase64 });
         const resultData = result.data;
 
+        // Si la respuesta es un gasto válido, cerramos el overlay y renderizamos el formulario
         if (resultData && resultData.tipo && resultData.tipo.toUpperCase() === 'GASTO') {
-            document.getElementById('image-preview-overlay').style.display = 'none';
+            document.getElementById('image-preview-overlay').style.display = 'none'; // <-- Cierre del modal aquí
             renderAddGastoForm(resultData);
         } else {
             const errorMessage = resultData?.datos?.motivo || "El ticket no parece ser un gasto válido.";
             showToast(errorMessage, true);
+            // Si hay un error, restauramos el botón para que el usuario pueda intentarlo de nuevo
             sendBtn.disabled = false;
             sendBtn.innerHTML = originalBtnHTML;
         }
@@ -3274,10 +3230,11 @@ async function handleImageScan(imageBase64FromCapture = null) {
     } catch (error) {
         console.error('Error al escanear el ticket vía Cloud Function:', error);
         showToast(`Error al procesar: ${error.message}`, true);
+        // Si hay un error, también restauramos el botón
         sendBtn.disabled = false;
         sendBtn.innerHTML = originalBtnHTML;
     } finally {
-        // Limpiamos la variable global
+        // Limpiamos la variable de la imagen seleccionada
         selectedImageFile = null;
     }
 }
@@ -6892,7 +6849,7 @@ function activateDashboardListeners() {
                 case 'card-shopping': renderShoppingList(); break;
                 case 'card-notes': renderNotesList(); break;
                 case 'calendar-card': renderCalendarView(); break;
-                case 'card-gastos': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                case 'card-gastos': card.querySelector('.card-menu-btn')?.click(); break;
                 case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
                 case 'chef-card': renderChefPage(); break;
                 case 'combustible-card': renderCombustibleView(); break;
