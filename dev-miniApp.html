@@ -6756,8 +6756,10 @@ function activateDashboardListeners() {
     const grid = document.getElementById('dashboard-grid');
     if (!grid) return;
 
+    // NUEVO: Variable de control para saber si se está arrastrando
     let isDragging = false;
 
+    // 1. Configuración de SortableJS con la lógica de la bandera
     new Sortable(grid, {
         animation: 150,
         ghostClass: 'sortable-ghost',
@@ -6765,19 +6767,25 @@ function activateDashboardListeners() {
         delay: 200,
         filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu',
         preventOnFilter: true,
+        // NUEVO: Cuando empieza el arrastre, levantamos la bandera
         onStart: function () {
             isDragging = true;
         },
         onEnd: function (evt) {
             const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
             localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
+            
+            // NUEVO: Damos un respiro mínimo al navegador antes de bajar la bandera.
+            // Esto asegura que el evento 'click' posterior se gestione correctamente.
             setTimeout(() => {
                 isDragging = false;
             }, 50);
         }
     });
 
+    // 2. Escuchador de clics único y mejorado
     grid.addEventListener('click', (event) => {
+        // NUEVO: Si se estaba arrastrando, ignoramos este clic por completo.
         if (isDragging) {
             return;
         }
@@ -6785,7 +6793,7 @@ function activateDashboardListeners() {
         const target = event.target;
         const counts = appData.counts;
 
-        // --- Manejador para los MENÚS (Navegación) ---
+        // --- Manejador para los MENÚS ---
         const menuItem = target.closest('.dropdown-item');
         if (menuItem) {
             switch (menuItem.id) {
@@ -6828,9 +6836,6 @@ function activateDashboardListeners() {
         // --- Manejador para las TARJETAS PRINCIPALES ---
         const card = target.closest('.card');
         if (card) {
-            // Si el clic es sobre el botón de menú, el listener global se encargará.
-            // Si es sobre una píldora o un item de menú, ya lo hemos manejado arriba.
-            // Por lo tanto, aquí solo nos preocupamos del clic en el cuerpo de la tarjeta.
             if (target.closest('.card-menu-btn, .dropdown-menu, .card-badge-pill')) {
                 return;
             }
@@ -6840,31 +6845,11 @@ function activateDashboardListeners() {
             }
             
             switch (card.id) {
-                case 'card-reminders':
-                case 'card-shopping':
-                case 'card-notes':
-                case 'card-gastos': {
-                    // LÓGICA DIRECTA Y SEGURA PARA ABRIR EL MENÚ
-                    const menuBtn = card.querySelector('.card-menu-btn');
-                    if (menuBtn) {
-                        const menuId = menuBtn.dataset.menuId;
-                        const menu = document.getElementById(menuId);
-                        if (menu) {
-                            // 1. Cerrar otros menús abiertos
-                            document.querySelectorAll('.dropdown-menu.show').forEach(m => {
-                                if (m.id !== menuId) m.classList.remove('show');
-                            });
-                            // 2. Calcular posición (arriba/abajo)
-                            const buttonRect = menuBtn.getBoundingClientRect();
-                            const windowHeight = window.innerHeight;
-                            menu.classList.toggle('up', buttonRect.top > (windowHeight / 2));
-                            // 3. Mostrar/ocultar este menú
-                            menu.classList.toggle('show');
-                        }
-                    }
-                    break;
-                }
+                case 'card-reminders': renderRemindersList(); break;
+                case 'card-shopping': renderShoppingList(); break;
+                case 'card-notes': renderNotesList(); break;
                 case 'calendar-card': renderCalendarView(); break;
+                case 'card-gastos': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
                 case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
                 case 'chef-card': renderChefPage(); break;
                 case 'combustible-card': renderCombustibleView(); break;
