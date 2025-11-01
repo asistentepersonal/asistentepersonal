@@ -6832,6 +6832,7 @@ function activateDashboardListeners() {
         if (menuButton) {
             // Si la tarjeta TIENE un menú, lo abrimos
             menuButton.click();
+			event.stopPropagation();
         } else {
             // Si la tarjeta NO tiene menú, navegamos
             switch (card.id) {
