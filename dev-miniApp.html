@@ -6764,22 +6764,49 @@ function activateDashboardListeners() {
     animation: 150,
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
-    delay: 200,
-    filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu',
+    delay: isMobileDevice() ? 150 : 0, // Un pequeño delay en móvil para no confundir scroll con drag
+    filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu', // Elementos que NO inician el arrastre
     preventOnFilter: false,
-    // NUEVO: Cuando empieza el arrastre, levantamos la bandera
-    onStart: function () {
-        isDragging = true;
-    },
+
     onEnd: function (evt) {
+        // Guarda el nuevo orden de las tarjetas
         const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
         localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
-        
-        // NUEVO: Damos un respiro mínimo al navegador antes de bajar la bandera.
-        // Esto asegura que el evento 'click' posterior se gestione correctamente.
-        setTimeout(() => {
-            isDragging = false;
-        }, 50);
+    },
+
+    onTap: function (evt) {
+        const card = evt.item; // La tarjeta que recibió el "toque"
+        const originalTarget = evt.originalEvent.target; // El elemento exacto que se tocó
+
+        // Si el toque fue sobre un elemento que ya tiene acción (menú, badge), no hacemos nada más.
+        if (originalTarget.closest('.card-menu-btn, .dropdown-menu, .card-badge-pill')) {
+            return;
+        }
+
+        // Si es una tarjeta deshabilitada, mostramos el aviso
+        if (card.classList.contains('disabled-card')) {
+            showToast('⭐ Función exclusiva para usuarios Premium.');
+            return;
+        }
+
+        // --- LÓGICA DE CLIC INTELIGENTE MEJORADA ---
+        const menuButton = card.querySelector('.card-menu-btn');
+        if (menuButton) {
+            // Si la tarjeta tiene un menú, lo abrimos
+            menuButton.click();
+        } else {
+            // Si no tiene menú, es una tarjeta de navegación directa
+            switch (card.id) {
+                case 'card-reminders': renderRemindersList(); break;
+                case 'card-shopping': renderShoppingList(); break;
+                case 'card-notes': renderNotesList(); break;
+                case 'calendar-card': renderCalendarView(); break;
+                case 'card-gastos': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
+                case 'chef-card': renderChefPage(); break;
+                case 'combustible-card': renderCombustibleView(); break;
+            }
+        }
     }
 });
 
