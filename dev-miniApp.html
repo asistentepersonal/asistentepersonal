@@ -6754,34 +6754,35 @@ function renderDashboard() {
 
 function activateDashboardListeners() {
     const grid = document.getElementById('dashboard-grid');
+	let isDragging = false;
     if (!grid) return;
 
     // NUEVO: Variable de control para saber si se está arrastrando
     let isDragging = false;
 
     // 1. Configuración de SortableJS con la lógica de la bandera
-    new Sortable(grid, {
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        delay: 200,
-        filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu',
-        preventOnFilter: true,
-        // NUEVO: Cuando empieza el arrastre, levantamos la bandera
-        onStart: function () {
-            isDragging = true;
-        },
-        onEnd: function (evt) {
-            const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
-            localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
-            
-            // NUEVO: Damos un respiro mínimo al navegador antes de bajar la bandera.
-            // Esto asegura que el evento 'click' posterior se gestione correctamente.
-            setTimeout(() => {
-                isDragging = false;
-            }, 50);
-        }
-    });
+	new Sortable(grid, {
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    delay: 200,
+    filter: '.card-menu-btn, .card-badge-pill, .dropdown-menu',
+    preventOnFilter: false,
+    // NUEVO: Cuando empieza el arrastre, levantamos la bandera
+    onStart: function () {
+        isDragging = true;
+    },
+    onEnd: function (evt) {
+        const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
+        localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
+        
+        // NUEVO: Damos un respiro mínimo al navegador antes de bajar la bandera.
+        // Esto asegura que el evento 'click' posterior se gestione correctamente.
+        setTimeout(() => {
+            isDragging = false;
+        }, 50);
+    }
+});
 
     // 2. Escuchador de clics único y mejorado
     grid.addEventListener('click', (event) => {
