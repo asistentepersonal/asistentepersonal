@@ -6785,56 +6785,58 @@ function activateDashboardListeners() {
         }
     });
 
-    // 2. LISTENER DE CLIC (SOLO PARA TOQUES)
-    grid.addEventListener('click', (event) => {
-        // Si se está arrastrando, no hacer NADA. Esta es la clave.
-        if (isDragging) {
+    // 2. LISTENER DE CLIC (CORREGIDO Y DEFINITIVO)
+grid.addEventListener('click', (event) => {
+    // Si se está arrastrando, no hacer NADA.
+    if (isDragging) {
+        return;
+    }
+
+    const target = event.target;
+
+    // --- LÓGICA 1: ¿SE HIZO CLIC EN UN ITEM DE MENÚ? (LA MÁS IMPORTANTE) ---
+    // Se procesa primero para asegurar que siempre funcione.
+    const menuItem = target.closest('.dropdown-item');
+    if (menuItem) {
+        switch (menuItem.id) {
+            case 'add-reminder-link': renderReminderForm(); break;
+            case 'list-reminders-link': renderRemindersList(); break;
+            case 'add-shopping-item-link': renderAddArticleForm(); break;
+            case 'view-shopping-list-link': renderShoppingList(); break;
+            case 'add-note-link': renderNoteForm(); break;
+            case 'list-notes-link': renderNotesList(); break;
+            case 'scan-gasto-link': renderInstructionScreen(); break;
+            case 'add-gasto-link': renderAddGastoForm(); break;
+            case 'list-gastos-link': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+            case 'view-gasto-chart-link': renderGastoChart(); break;
+        }
+        return; // Se ha manejado la acción, no hacer nada más.
+    }
+
+    // --- LÓGICA 2: ¿SE HIZO CLIC EN UNA TARJETA? ---
+    const card = target.closest('.card');
+    if (card) {
+        // Si el clic fue en un elemento interactivo que ya funciona, no interferir.
+        if (target.closest('.card-menu-btn, .card-badge-pill')) {
+             // Aquí se podría añadir la lógica de las píldoras de combustible si se necesitara,
+             // pero como ya las gestiona otro listener, simplemente retornamos.
             return;
         }
-
-        const target = event.target;
-        const card = target.closest('.card');
-
-        if (!card) return; // Si el clic no fue dentro de una tarjeta, no hacemos nada
-
-        // Si se hizo clic en un elemento interactivo, dejar que funcione por su cuenta
-        if (target.closest('.card-menu-btn, .dropdown-item, .card-badge-pill')) {
-            // Manejo de píldoras de combustible, que sí necesitan lógica aquí
-            const fuelPill = target.closest('.card-badge-pill[id$="-pill"]');
-            if (fuelPill && appData.counts.fuelWidgetData) {
-                const fuelData = appData.counts.fuelWidgetData;
-                let pillData = {};
-
-                if (fuelPill.id === 'gasoline-pill') pillData = { station: fuelData.gasolineStation, address: fuelData.gasolineAddress, schedule: fuelData.gasolineSchedule, mapUrl: fuelData.gasolineMapUrl };
-                if (fuelPill.id === 'diesel-pill') pillData = { station: fuelData.dieselStation, address: fuelData.dieselAddress, schedule: fuelData.dieselSchedule, mapUrl: fuelData.dieselMapUrl };
-                
-                if (pillData.station) {
-                    tg.showPopup({
-                        title: pillData.station,
-                        message: `${pillData.address}\nHorario: ${pillData.schedule}`,
-                        buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
-                    }, (buttonId) => { if (buttonId === 'navigate' && pillData.mapUrl) tg.openLink(pillData.mapUrl); });
-                }
-            }
-            // Para el resto de elementos interactivos (.card-menu-btn, .dropdown-item), no hacemos nada
-            // porque su comportamiento por defecto ya funciona.
-            return;
-        }
-
+        
         // Si es una tarjeta deshabilitada
         if (card.classList.contains('disabled-card')) {
             showToast('⭐ Función exclusiva para usuarios Premium.');
             return;
         }
 
-        // --- LÓGICA DE CLIC INTELIGENTE DEFINITIVA ---
+        // Lógica para abrir menú o navegar
         const menuButton = card.querySelector('.card-menu-btn');
         if (menuButton) {
-            // Si la tarjeta TIENE un menú, lo abrimos
+            // Si la tarjeta TIENE un menú, lo abrimos y detenemos el evento.
             menuButton.click();
-			event.stopPropagation();
+            event.stopPropagation();
         } else {
-            // Si la tarjeta NO tiene menú, navegamos
+            // Si la tarjeta NO tiene menú, navegamos.
             switch (card.id) {
                 case 'card-reminders': renderRemindersList(); break;
                 case 'card-shopping': renderShoppingList(); break;
@@ -6846,7 +6848,8 @@ function activateDashboardListeners() {
                 case 'combustible-card': renderCombustibleView(); break;
             }
         }
-    });
+    }
+});
 }
 
 // Lógica de pestañas
