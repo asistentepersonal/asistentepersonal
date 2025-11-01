@@ -6816,12 +6816,28 @@ grid.addEventListener('click', (event) => {
     // --- LÓGICA 2: ¿SE HIZO CLIC EN UNA TARJETA? ---
     const card = target.closest('.card');
     if (card) {
-        // Si el clic fue en un elemento interactivo que ya funciona, no interferir.
-        if (target.closest('.card-menu-btn, .card-badge-pill')) {
-             // Aquí se podría añadir la lógica de las píldoras de combustible si se necesitara,
-             // pero como ya las gestiona otro listener, simplemente retornamos.
-            return;
+        // Si el clic fue en un elemento interactivo que ya funciona O necesita lógica especial
+if (target.closest('.card-menu-btn, .card-badge-pill')) {
+    const fuelPill = target.closest('.card-badge-pill[id$="-pill"]');
+    if (fuelPill && appData.counts.fuelWidgetData) {
+        // LÓGICA DE LAS PÍLDORAS DE COMBUSTIBLE RESTAURADA
+        const fuelData = appData.counts.fuelWidgetData;
+        let pillData = {};
+
+        if (fuelPill.id === 'gasoline-pill') pillData = { station: fuelData.gasolineStation, address: fuelData.gasolineAddress, schedule: fuelData.gasolineSchedule, mapUrl: fuelData.gasolineMapUrl };
+        if (fuelPill.id === 'diesel-pill') pillData = { station: fuelData.dieselStation, address: fuelData.dieselAddress, schedule: fuelData.dieselSchedule, mapUrl: fuelData.dieselMapUrl };
+        
+        if (pillData.station) {
+            tg.showPopup({
+                title: pillData.station,
+                message: `${pillData.address}\nHorario: ${pillData.schedule}`,
+                buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
+            }, (buttonId) => { if (buttonId === 'navigate' && pillData.mapUrl) tg.openLink(pillData.mapUrl); });
         }
+    }
+    // Para .card-menu-btn y otros elementos que no sean de combustible, simplemente detenemos la ejecución aquí.
+    return;
+}
         
         // Si es una tarjeta deshabilitada
         if (card.classList.contains('disabled-card')) {
