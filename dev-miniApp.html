@@ -3293,23 +3293,33 @@ async function saveGasto() {
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
         const newGastoRef = db.collection('users').doc(chatId).collection('gastos').doc(generateCustomId('G-'));
 
-        // Transacción simplificada: asume que 'counts' ya existe.
-        await db.runTransaction(async (transaction) => {
-            const countsDoc = await transaction.get(countsRef);
-            const currentCounts = countsDoc.data();
+        // Transacción robusta: crea o actualiza el documento de contadores.
+await db.runTransaction(async (transaction) => {
+    const countsDoc = await transaction.get(countsRef);
 
-            const nuevoTotalGastos = (currentCounts.gastosMesActual || 0) + importe;
-            const mesesActivos = currentCounts.mesesActivosGastos || [];
-            if (!mesesActivos.includes(mesAnio)) {
-                mesesActivos.push(mesAnio);
-            }
+    // Primero, siempre creamos el nuevo gasto.
+    transaction.set(newGastoRef, gastoData);
 
-            transaction.set(newGastoRef, gastoData);
-            transaction.update(countsRef, { 
-                gastosMesActual: nuevoTotalGastos, 
-                mesesActivosGastos: mesesActivos 
-            });
+    if (countsDoc.exists) {
+        // Si el documento de contadores EXISTE, lo actualizamos.
+        const currentCounts = countsDoc.data();
+        const nuevoTotalGastos = (currentCounts.gastosMesActual || 0) + importe;
+        const mesesActivos = currentCounts.mesesActivosGastos || [];
+        if (!mesesActivos.includes(mesAnio)) {
+            mesesActivos.push(mesAnio);
+        }
+        transaction.update(countsRef, { 
+            gastosMesActual: nuevoTotalGastos, 
+            mesesActivosGastos: mesesActivos 
         });
+    } else {
+        // Si el documento NO EXISTE, lo creamos con los valores iniciales.
+        transaction.set(countsRef, {
+            gastosMesActual: importe,
+            mesesActivosGastos: [mesAnio]
+        });
+    }
+});
 
         // Se actualiza la UI local SOLO si la transacción tuvo éxito.
         appData.counts.gastosMesActual = (parseFloat(appData.counts.gastosMesActual) || 0) + importe;
