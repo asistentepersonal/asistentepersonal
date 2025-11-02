@@ -1627,8 +1627,6 @@ const EMOJIS_DB_FILENAME = 'https://asistentepersonal-4ad2b.web.app/emoji-articu
 
 // Variable "guardián" para asegurar una única ejecución
 let versionCheckPerformed = false;
-
-const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
 let selectedImageFile = null;
 let chatId;
 
@@ -1845,73 +1843,6 @@ function showToast(msg, isError = false, persistent = false) {
     
     // Mostramos el toast
     t.classList.add('show');
-}
-
-/**
- * Realiza una petición fetch con un tiempo de espera.
- * VERSIÓN FINAL Y ROBUSTA: Usa siempre el método FormData para las peticiones a Apps Script
- * para evitar errores de CORS, independientemente de los parámetros.
- */
-/**
- * [VERSIÓN CORREGIDA Y DEFINITIVA]
- * Realiza una petición fetch con un tiempo de espera.
- * Forza el uso de FormData para todas las llamadas a Apps Script para evitar errores de CORS.
- */
-/**
- * [VERSIÓN FINAL Y ROBUSTA]
- * Realiza una petición fetch con un tiempo de espera, manejando diferentes formatos
- * según si el destino es Apps Script (anti-CORS) o Make.com (para imágenes).
- */
-async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) {
-  const controller = new AbortController();
-  // Aumentamos el timeout para Make, ya que el procesamiento de imágenes puede tardar.
-  const timeout = isMakeWebhook ? 60000 : 30000;
-  const id = setTimeout(() => controller.abort(), timeout);
-  
-  let options = {
-    method: 'POST',
-    signal: controller.signal
-  };
-
-  // --- LÓGICA DE ENRUTAMIENTO DE FORMATO ---
-  if (isMakeWebhook) {
-      // Si es para Make.com, construimos un FormData específico para imágenes,
-      // que es el formato que originalmente funcionaba.
-      const formData = new FormData();
-      // Añadimos el prompt y el conteo de imágenes como campos de texto.
-      formData.append('prompt', payloadObject.prompt);
-      if (payloadObject.image_count !== undefined) {
-          formData.append('image_count', payloadObject.image_count);
-      }
-      // Añadimos cada archivo de imagen.
-      if (payloadObject.images && payloadObject.images.length > 0) {
-          payloadObject.images.forEach(imageFile => {
-              formData.append('images', imageFile, imageFile.name);
-          });
-      }
-      options.body = formData;
-      // IMPORTANTE: Al usar FormData para subir archivos, NO se debe especificar
-      // el 'Content-Type' en las cabeceras. El navegador lo hace automáticamente
-      // con el 'boundary' correcto, lo cual es esencial para que funcione.
-  } else {
-      // Para TODAS las demás peticiones (a Apps Script), usamos el método
-      // FormData simple que evita el error de CORS.
-      const formData = new FormData();
-      formData.append("postData", JSON.stringify(payloadObject));
-      options.body = formData;
-  }
-  // --- FIN DE LA LÓGICA DE ENRUTAMIENTO ---
-  
-  try {
-    const response = await fetch(resource, options);
-    clearTimeout(id);
-    if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
-    return response; // Devuelve la respuesta para que la función que llama la procese
-  } catch (error) {
-    clearTimeout(id);
-    if (error.name === 'AbortError') throw new Error('La solicitud tardó demasiado.');
-    throw error;
-  }
 }
 
 let isInitializing = false;
