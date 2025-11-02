@@ -1932,29 +1932,14 @@ function getFlatpickrBaseConfig() {
     return {
         disableMobile: true,
         locale: "es",
-        static: true, // CLAVE: Fija el calendario al input, solucionando el posicionamiento.
-        wrap: true,   // CLAVE: Necesario para que 'static: true' funcione.
 
         onOpen: function(selectedDates, dateStr, instance) {
             if (activeFlatpickrInstance && activeFlatpickrInstance !== instance) {
                 activeFlatpickrInstance.destroy();
             }
             activeFlatpickrInstance = instance;
+            // Guarda la fecha inicial para poder "cancelar"
             initialDate = instance.selectedDates[0] || null;
-
-            // --- INICIO: LÓGICA DE POSICIONAMIENTO INTELIGENTE ---
-            const inputRect = instance.input.getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-
-            // Si el campo está en la mitad inferior de la pantalla
-            if (inputRect.top > (viewportHeight / 2)) {
-                // Añade la clase 'above' para que se abra hacia arriba
-                instance.calendarContainer.classList.add('above');
-            } else {
-                // Asegúrate de que no tenga la clase si se abre en la mitad superior
-                instance.calendarContainer.classList.remove('above');
-            }
-            // --- FIN: LÓGICA DE POSICIONAMIENTO INTELIGENTE ---
         },
 
         onClose: function(selectedDates, dateStr, instance) {
@@ -1970,11 +1955,12 @@ function getFlatpickrBaseConfig() {
                 instance.calendarContainer.classList.add("dark-theme");
             }
 
-            // Crear el contenedor de botones
+            // Si los botones ya existen, no los volvemos a crear
+            if (instance.calendarContainer.querySelector('.fp-buttons')) return;
+
             const btnContainer = document.createElement('div');
             btnContainer.className = 'fp-buttons';
 
-            // Crear el botón de Cancelar
             const cancelBtn = document.createElement('button');
             cancelBtn.className = 'fp-button fp-cancel-btn';
             cancelBtn.textContent = 'Cancelar';
@@ -1984,7 +1970,6 @@ function getFlatpickrBaseConfig() {
                 instance.close();
             });
 
-            // Crear el botón de Establecer
             const confirmBtn = document.createElement('button');
             confirmBtn.className = 'fp-button fp-confirm-btn';
             confirmBtn.textContent = 'Establecer';
