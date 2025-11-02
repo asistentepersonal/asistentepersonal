@@ -2279,7 +2279,7 @@ async function saveReminder() {
     try {
         const category = document.querySelector('input[name="category"]:checked').value;
         const description = document.getElementById('text').value.trim();
-        const timePicker = document.getElementById('time')._flatpickr;
+        const timePicker = document.getElementById('time').parentElement._flatpickr;
         const selectedDate = timePicker.selectedDates[0];
         const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
 
@@ -3923,7 +3923,7 @@ async function executeChefRequest(files) {
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
     try {
-        const fechaComidaSeleccionada = document.getElementById('chef-fecha-comida')._flatpickr.selectedDates[0];
+        const fechaComidaSeleccionada = document.getElementById('chef-fecha-comida').parentElement._flatpickr.selectedDates[0];
         
         if (!fechaComidaSeleccionada) {
             throw new Error("Por favor, selecciona una fecha y hora válidas.");
@@ -6207,8 +6207,8 @@ async function saveCalendarEvent(eventId, notifications) {
         const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
         const isAllDay = document.getElementById('event-all-day').checked;
 
-        let startDateFromPicker = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-        let endDateFromPicker = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
+        let startDateFromPicker = document.getElementById('event-start-date').parentElement._flatpickr.selectedDates[0];
+		let endDateFromPicker = document.getElementById('event-end-date').parentElement._flatpickr.selectedDates[0];
 
         if (isAllDay) {
             startDateFromPicker.setHours(0, 0, 0, 0);
