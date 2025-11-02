@@ -1445,15 +1445,17 @@ async function runApp() {
         console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
         // 1. Obtener los ajustes del usuario (sin cambios)
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
-        if (!userSettingsDoc.exists) {
-            failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
-            return;
-        }
-        appData.settings = userSettingsDoc.data() || {};
-        const userConfig = appData.settings.configuracion || {};
+if (!userSettingsDoc.exists) {
+    failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
+    return;
+}
+appData.settings = userSettingsDoc.data() || {};
+
+// Lógica de tema corregida y unificada
 		const userConfig = appData.settings.configuracion || {};
 		applyTheme(appData.settings.tema || userConfig.tema || 'auto');
-        appData.isPremium = appData.settings.plan_premium === true;
+
+		appData.isPremium = appData.settings.plan_premium === true;
         console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
         // 2. Configurar el listener ÚNICO para contadores
