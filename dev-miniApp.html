@@ -1932,6 +1932,7 @@ function getFlatpickrBaseConfig() {
     return {
         disableMobile: true,
         locale: "es",
+        wrap: true,   // CLAVE: Necesario para que detecte el <input> dentro del <div>
 
         onOpen: function(selectedDates, dateStr, instance) {
             if (activeFlatpickrInstance && activeFlatpickrInstance !== instance) {
