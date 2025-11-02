@@ -3281,7 +3281,7 @@ async function saveGasto() {
     saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Registrando...`;
 
     try {
-        const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+        const fechaGastoObj = document.getElementById('gasto-fecha').parentElement._flatpickr.selectedDates[0];
         const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
         const establecimiento = document.getElementById('gasto-establecimiento').value;
         const categoria = document.getElementById('gasto-categoria').value;
@@ -3674,7 +3674,7 @@ async function saveEditedGasto(idUnico) {
         const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
         const nuevaCategoria = document.getElementById('gasto-categoria').value;
         const nuevaSubcategoria = document.getElementById('gasto-subcategoria').value;
-        const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+        const fechaGastoObj = document.getElementById('gasto-fecha').parentElement._flatpickr.selectedDates[0];
         const mesAnio = `${(fechaGastoObj.getMonth() + 1).toString().padStart(2, '0')}/${fechaGastoObj.getFullYear()}`;
 
         const gastoActualizado = { 
