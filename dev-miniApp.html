@@ -1940,8 +1940,21 @@ function getFlatpickrBaseConfig() {
                 activeFlatpickrInstance.destroy();
             }
             activeFlatpickrInstance = instance;
-            // Guarda la fecha inicial para poder "cancelar"
             initialDate = instance.selectedDates[0] || null;
+
+            // --- INICIO: LÓGICA DE POSICIONAMIENTO INTELIGENTE ---
+            const inputRect = instance.input.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+
+            // Si el campo está en la mitad inferior de la pantalla
+            if (inputRect.top > (viewportHeight / 2)) {
+                // Añade la clase 'above' para que se abra hacia arriba
+                instance.calendarContainer.classList.add('above');
+            } else {
+                // Asegúrate de que no tenga la clase si se abre en la mitad superior
+                instance.calendarContainer.classList.remove('above');
+            }
+            // --- FIN: LÓGICA DE POSICIONAMIENTO INTELIGENTE ---
         },
 
         onClose: function(selectedDates, dateStr, instance) {
@@ -1967,7 +1980,6 @@ function getFlatpickrBaseConfig() {
             cancelBtn.textContent = 'Cancelar';
             cancelBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                // Restaura la fecha original y cierra
                 instance.setDate(initialDate, true);
                 instance.close();
             });
@@ -1978,11 +1990,9 @@ function getFlatpickrBaseConfig() {
             confirmBtn.textContent = 'Establecer';
             confirmBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                // Cierra, confirmando la fecha seleccionada
                 instance.close();
             });
 
-            // Añadir los botones al contenedor, y el contenedor al calendario
             btnContainer.appendChild(cancelBtn);
             btnContainer.appendChild(confirmBtn);
             instance.calendarContainer.appendChild(btnContainer);
