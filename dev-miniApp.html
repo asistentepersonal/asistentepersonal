@@ -4735,7 +4735,14 @@ function renderTimelineGrid(canales, programas) {
 // --- MÓDULO: EMERGENCIAS ---
 // ==================================================
 function renderEmergenciasView() {
-    navigationHistory.push(renderDashboard);
+    navigationHistory.push(() => {
+        // Lógica de limpieza al navegar atrás
+        if (tg && tg.MainButton.isVisible) {
+            tg.MainButton.hide();
+        }
+        mainContentArea.removeEventListener('click', handleEmergenciasClick);
+        renderDashboard();
+    });
     updateBackButton();
 
     mainContentArea.innerHTML = `
@@ -4770,6 +4777,102 @@ function renderEmergenciasView() {
             </div>
         </div>
     `;
+
+    // Conectamos la vista con nuestra nueva función de manejo de clics
+    mainContentArea.addEventListener('click', handleEmergenciasClick);
+}
+function handleEmergenciasClick(event) {
+    const card = event.target.closest('.card[data-search-term]');
+    if (!card) return;
+
+    const searchTerm = card.dataset.searchTerm;
+    const categoryTitle = card.querySelector('.card-title').textContent;
+    const mainButtonText = `Buscar ${categoryTitle} cerca 📍`;
+    
+    // Desactivamos temporalmente las tarjetas para evitar clics múltiples
+    document.querySelectorAll('.emergencias-grid .card').forEach(c => c.style.pointerEvents = 'none');
+
+    if (tg && tg.MainButton) {
+        
+        const handleLocationError = (error, retryCallback) => {
+            tg.MainButton.hideProgress();
+            tg.MainButton.enable();
+            let msg = "No se pudo obtener tu ubicación. Revisa los permisos y la señal de GPS.";
+            if (error && error.code === 1) msg = "Has denegado el permiso de ubicación.";
+
+            tg.showPopup({
+                title: "Ubicación no encontrada", message: msg,
+                buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel' }]
+            }, (buttonId) => {
+                if (buttonId === 'retry') {
+                    retryCallback();
+                } else {
+                    tg.MainButton.hide();
+                }
+            });
+        };
+
+        const requestLocationAndSearch = () => {
+            tg.MainButton.showProgress(true);
+            tg.MainButton.disable();
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => { // Éxito
+                    const { latitude, longitude } = position.coords;
+                    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}/@${latitude},${longitude},15z`;
+
+                    tg.MainButton.hideProgress();
+                    tg.MainButton.enable();
+                    tg.MainButton.hide();
+
+                    tg.showPopup({
+                        title: "Búsqueda Lista",
+                        message: `Pulsa el botón para ver los resultados de "${categoryTitle}" en Google Maps.`,
+                        buttons: [{ id: 'open_map', type: 'default', text: '🗺️ Ver en Google Maps' }, { type: 'cancel' }]
+                    }, (buttonId) => {
+                        if (buttonId === 'open_map') {
+                            tg.openLink(mapsUrl);
+                        }
+                    });
+                },
+                (error) => { // Error
+                    handleLocationError(error, requestLocationAndSearch);
+                },
+                { timeout: 12000, enableHighAccuracy: true }
+            );
+        };
+
+        const onMainButtonClick = () => {
+            const modalShown = localStorage.getItem('fuelModalShown'); // Reutilizamos la misma clave
+            if (modalShown === 'true') {
+                requestLocationAndSearch();
+            } else {
+                const modal = document.getElementById('fuel-location-modal');
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('show'), 10);
+
+                document.getElementById('fuel-modal-continue').onclick = () => {
+                    if (document.getElementById('fuel-modal-checkbox').checked) {
+                        localStorage.setItem('fuelModalShown', 'true');
+                    }
+                    modal.classList.remove('show');
+                    setTimeout(() => { modal.style.display = 'none'; }, 300);
+                    requestLocationAndSearch();
+                };
+                document.getElementById('fuel-modal-cancel').onclick = () => {
+                     modal.classList.remove('show');
+                     setTimeout(() => { modal.style.display = 'none'; }, 300);
+                     tg.MainButton.hide();
+                };
+            }
+        };
+
+        // Configurar y mostrar el botón principal
+        tg.MainButton.setText(mainButtonText);
+        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+        tg.MainButton.onClick(onMainButtonClick);
+        tg.MainButton.show();
+    }
 }
 
 // ==================================================
