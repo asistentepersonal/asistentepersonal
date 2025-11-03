@@ -6689,33 +6689,7 @@ function renderDashboard() {
     updateBackButton();
     const counts = appData.counts;
     const isPremium = appData.isPremium === true;
-	
-    // --- Lógica de Reconciliación Automática del Dashboard ---
-const masterCardList = Object.keys(cards); // La "Fuente de la Verdad" de todas las cards existentes
-const defaultCardOrder = [
-    'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
-    'cuentasClaras', 'chef', 'combustible', 'guiaTV', 'emergencias'
-];
-let userCardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || defaultCardOrder;
-
-// 1. Limpieza: Eliminar cards obsoletas del orden del usuario
-userCardOrder = userCardOrder.filter(cardId => masterCardList.includes(cardId));
-
-// 2. Detección de Novedades: Añadir cards nuevas al final
-masterCardList.forEach(cardId => {
-    if (!userCardOrder.includes(cardId)) {
-        userCardOrder.push(cardId);
-    }
-});
-
-// Guardamos el orden reconciliado para la próxima vez
-localStorage.setItem('dashboardCardOrder', JSON.stringify(userCardOrder));
-
-// Usamos el orden final y reconciliado
-const cardOrder = userCardOrder;
-// --- Fin de la Lógica de Reconciliación ---
-
-    const cards = {
+	const cards = {
         reminders: `
             <div class="card clickable-card" data-card-id="reminders" id="card-reminders" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;">
                 <div class="card-badge red" id="reminders-badge">${counts.remindersCount || 0}</div>
@@ -6769,11 +6743,36 @@ const cardOrder = userCardOrder;
         guiaTV: `<div id="guia-tv-card" data-card-id="guiaTV" class="card disabled-card" style="display: none;"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>`,
 		
 		emergencias: `
-		<div class="card clickable-card" data-card-id="emergencias" id="emergencias-card" style="background-color: #c0392b; color: white;">
-        <div class="card-icon" style="font-size: 3rem;">🆘</div>
+    <div class="card clickable-card" data-card-id="emergencias" id="emergencias-card">
+        <div class="card-icon" style="font-size: 3.5rem; line-height: 1;">🆘</div>
         <div class="card-title">Emergencias</div>
-		</div>`
+    </div>``
     };
+	
+    // --- Lógica de Reconciliación Automática del Dashboard ---
+const masterCardList = Object.keys(cards); // La "Fuente de la Verdad" de todas las cards existentes
+const defaultCardOrder = [
+    'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
+    'cuentasClaras', 'chef', 'combustible', 'guiaTV', 'emergencias'
+];
+let userCardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || defaultCardOrder;
+
+// 1. Limpieza: Eliminar cards obsoletas del orden del usuario
+userCardOrder = userCardOrder.filter(cardId => masterCardList.includes(cardId));
+
+// 2. Detección de Novedades: Añadir cards nuevas al final
+masterCardList.forEach(cardId => {
+    if (!userCardOrder.includes(cardId)) {
+        userCardOrder.push(cardId);
+    }
+});
+
+// Guardamos el orden reconciliado para la próxima vez
+localStorage.setItem('dashboardCardOrder', JSON.stringify(userCardOrder));
+
+// Usamos el orden final y reconciliado
+const cardOrder = userCardOrder;
+// --- Fin de la Lógica de Reconciliación ---
 
     mainContentArea.innerHTML = `<div class="grid" id="dashboard-grid">${cardOrder.map(id => cards[id] || '').join('')}</div>`;
     
