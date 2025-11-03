@@ -6689,7 +6689,7 @@ function renderDashboard() {
     updateBackButton();
     const counts = appData.counts;
     const isPremium = appData.isPremium === true;
-
+	localStorage.removeItem('dashboardCardOrder'); // Reseteo temporal
     const cardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || [
     'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
     'cuentasClaras', 'chef', 'combustible', 'guiaTV', 'emergencias'
