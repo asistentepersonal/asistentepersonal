@@ -4904,23 +4904,19 @@ function handleEmergenciasClick(event) {
     const card = event.target.closest('.card.clickable-card');
     if (!card) return;
 
-    // --- INICIO: Lógica para la nueva tarjeta "Mi Ubicación" ---
+    // --- Lógica separada para la tarjeta "Mi Ubicación" ---
     if (card.dataset.cardId === 'my-location') {
         renderMyLocationView();
-        return; // Detenemos la ejecución aquí para esta tarjeta específica
+        return; // Detenemos la ejecución aquí para esta tarjeta específica.
     }
-    // --- FIN: Lógica para la nueva tarjeta ---
+    
+    // --- Lógica para TODAS las demás tarjetas de búsqueda ---
 
-    // --- INICIO: NUEVA LÓGICA DE FEEDBACK VISUAL CON CLASES CSS ---
+    // 1. Feedback visual
     const grid = document.getElementById('emergency-searches-grid');
-    
-    // 1. Limpiamos cualquier selección anterior en el grid
     grid.querySelectorAll('.card').forEach(c => c.classList.remove('emergency-selected'));
-    
-    // 2. Aplicamos las clases a la tarjeta seleccionada y al contenedor
     card.classList.add('emergency-selected');
     grid.classList.add('emergency-dimmed');
-    // --- FIN: NUEVA LÓGICA DE FEEDBACK VISUAL ---
     
     const searchTerm = card.dataset.searchTerm;
     const categoryTitle = card.querySelector('.card-title').textContent;
@@ -4928,7 +4924,6 @@ function handleEmergenciasClick(event) {
     
     if (tg && tg.MainButton) {
         
-        // La función de restauración ahora solo necesita eliminar las clases
         const restoreCards = () => {
             const grid = document.getElementById('emergency-searches-grid');
             const selectedCard = grid.querySelector('.emergency-selected');
@@ -4988,32 +4983,9 @@ function handleEmergenciasClick(event) {
         };
 
         const onMainButtonClick = () => {
-            const modalShown = localStorage.getItem('fuelModalShown');
-            if (modalShown === 'true') {
-                requestLocationAndSearch();
-            } else {
-                const modal = document.getElementById('fuel-location-modal');
-                if(modal){
-                    modal.style.display = 'flex';
-                    setTimeout(() => modal.classList.add('show'), 10);
-                    document.getElementById('fuel-modal-continue').onclick = () => {
-                        if (document.getElementById('fuel-modal-checkbox').checked) {
-                            localStorage.setItem('fuelModalShown', 'true');
-                        }
-                        modal.classList.remove('show');
-                        setTimeout(() => { modal.style.display = 'none'; }, 300);
-                        requestLocationAndSearch();
-                    };
-                    document.getElementById('fuel-modal-cancel').onclick = () => {
-                         modal.classList.remove('show');
-                         setTimeout(() => { modal.style.display = 'none'; }, 300);
-                         tg.MainButton.hide();
-                         restoreCards();
-                    };
-                } else {
-                    requestLocationAndSearch();
-                }
-            }
+            // La lógica del modal de combustible que estaba aquí no pertenece a emergencias y ha sido eliminada
+            // para evitar comportamientos inesperados. Esta función ahora va directo a la búsqueda.
+            requestLocationAndSearch();
         };
 
         // Configurar y mostrar el botón principal
