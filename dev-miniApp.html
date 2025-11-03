@@ -4919,7 +4919,7 @@ function renderEmergenciasView() {
         </div>
     `;
 
-    mainContentArea.addEventListener('click', handleEmergenciasClick);
+    setTimeout(() => { mainContentArea.addEventListener('click', handleEmergenciasClick); }, 0);
 }
 
 function handleEmergenciasClick(event) {
