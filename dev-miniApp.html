@@ -1316,6 +1316,24 @@
     </div>
 </div>
 <!-- FIN MODAL AVISO UBICACIÓN COMBUSTIBLE -->
+<!-- INICIO MODAL AVISO UBICACIÓN EMERGENCIAS -->
+<div class="fuel-modal-overlay" id="emergency-location-modal">
+    <div class="fuel-modal-content">
+        <h3>Permiso de Ubicación</h3>
+        <p style="line-height: 1.5; color: var(--muted); margin-top: 10px;">
+            Para realizar una búsqueda de emergencia, necesitamos acceder a tu ubicación. Por favor, activa el GPS y concede el permiso cuando se te pida.
+        </p>
+        <div class="fuel-modal-checkbox-container" onclick="document.getElementById('emergency-modal-checkbox').click();">
+            <input type="checkbox" id="emergency-modal-checkbox">
+            <label for="emergency-modal-checkbox">No volver a mostrar este aviso</label>
+        </div>
+        <div class="button-group" style="margin-top: 20px;">
+            <button id="emergency-modal-cancel" class="cancel">Cancelar</button>
+            <button id="emergency-modal-continue" class="enabled">Continuar</button>
+        </div>
+    </div>
+</div>
+<!-- FIN MODAL AVISO UBICACIÓN EMERGENCIAS -->
 
 <!-- INICIO VISTA MAPA PANTALLA COMPLETA -->
 <div class="map-fullscreen-overlay" id="map-fullscreen-view">
@@ -4904,15 +4922,11 @@ function handleEmergenciasClick(event) {
     const card = event.target.closest('.card.clickable-card');
     if (!card) return;
 
-    // --- Lógica para la nueva tarjeta "Mi Ubicación" ---
     if (card.dataset.cardId === 'my-location') {
         renderMyLocationView();
-        return; // Detenemos la ejecución aquí para esta tarjeta específica
+        return;
     }
     
-    // --- Lógica para TODAS las demás tarjetas de búsqueda ---
-
-    // 1. Feedback visual
     const grid = document.getElementById('emergency-searches-grid');
     grid.querySelectorAll('.card').forEach(c => c.classList.remove('emergency-selected'));
     card.classList.add('emergency-selected');
@@ -4926,95 +4940,92 @@ function handleEmergenciasClick(event) {
         
         const restoreCards = () => {
             const grid = document.getElementById('emergency-searches-grid');
-            if (!grid) return;
-            const selectedCard = grid.querySelector('.emergency-selected');
-            
-            grid.classList.remove('emergency-dimmed');
-            if (selectedCard) selectedCard.classList.remove('emergency-selected');
+            if (grid) {
+                grid.classList.remove('emergency-dimmed');
+                const selectedCard = grid.querySelector('.emergency-selected');
+                if (selectedCard) selectedCard.classList.remove('emergency-selected');
+            }
         };
 
-        const handleLocationError = (error, retryCallback) => {
-            tg.MainButton.hideProgress();
-            tg.MainButton.enable();
-            let msg = "No se pudo obtener tu ubicación. Revisa los permisos y la señal de GPS.";
-            if (error && error.code === 1) msg = "Has denegado el permiso de ubicación.";
-
-            tg.showPopup({
-                title: "Ubicación no encontrada", message: msg,
-                buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel' }]
-            }, (buttonId) => {
-                restoreCards();
-                if (buttonId === 'retry') {
-                    retryCallback();
-                } else {
-                    tg.MainButton.hide();
-                }
-            });
-        };
-
+        // Función que realmente hace el trabajo de buscar
         const requestLocationAndSearch = () => {
             tg.MainButton.showProgress(true);
             tg.MainButton.disable();
 
             navigator.geolocation.getCurrentPosition(
-                (position) => { // Éxito
+                (position) => {
                     const { latitude, longitude } = position.coords;
                     const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}/@${latitude},${longitude},15z`;
 
                     tg.MainButton.hideProgress();
-                    tg.MainButton.enable();
                     tg.MainButton.hide();
                     restoreCards();
 
                     tg.showPopup({
                         title: "Búsqueda Lista",
-                        message: `Pulsa el botón para ver los resultados de "${categoryTitle}" en Google Maps.`,
+                        message: `Pulsa para ver los resultados de "${categoryTitle}" en Google Maps.`,
                         buttons: [{ id: 'open_map', type: 'default', text: '🗺️ Ver en Google Maps' }, { type: 'cancel' }]
                     }, (buttonId) => {
-                        if (buttonId === 'open_map') {
-                            tg.openLink(mapsUrl);
-                        }
+                        if (buttonId === 'open_map') tg.openLink(mapsUrl);
                     });
                 },
-                (error) => { // Error
-                    handleLocationError(error, requestLocationAndSearch);
+                (error) => { // Error al obtener ubicación
+                    tg.MainButton.hideProgress();
+                    tg.MainButton.enable();
+                    let msg = "No se pudo obtener tu ubicación. Revisa los permisos y la señal de GPS.";
+                    if (error && error.code === 1) msg = "Has denegado el permiso de ubicación.";
+
+                    tg.showPopup({
+                        title: "Ubicación no encontrada", message: msg,
+                        buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel' }]
+                    }, (buttonId) => {
+                        restoreCards();
+                        if (buttonId === 'retry') {
+                            requestLocationAndSearch();
+                        } else {
+                            tg.MainButton.hide();
+                        }
+                    });
                 },
                 { timeout: 12000, enableHighAccuracy: true }
             );
         };
 
+        // Lógica del modal de aviso
         const onMainButtonClick = () => {
-            const modalShown = localStorage.getItem('fuelModalShown');
+            const modalShown = localStorage.getItem('emergencyModalShown');
             if (modalShown === 'true') {
                 requestLocationAndSearch();
             } else {
-                const modal = document.getElementById('fuel-location-modal');
-                if(modal){
+                const modal = document.getElementById('emergency-location-modal');
+                if (modal) {
                     modal.style.display = 'flex';
                     setTimeout(() => modal.classList.add('show'), 10);
-                    document.getElementById('fuel-modal-continue').onclick = () => {
-                        if (document.getElementById('fuel-modal-checkbox').checked) {
-                            localStorage.setItem('fuelModalShown', 'true');
+                    
+                    document.getElementById('emergency-modal-continue').onclick = () => {
+                        if (document.getElementById('emergency-modal-checkbox').checked) {
+                            localStorage.setItem('emergencyModalShown', 'true');
                         }
                         modal.classList.remove('show');
                         setTimeout(() => { modal.style.display = 'none'; }, 300);
                         requestLocationAndSearch();
                     };
-                    document.getElementById('fuel-modal-cancel').onclick = () => {
+                    
+                    document.getElementById('emergency-modal-cancel').onclick = () => {
                          modal.classList.remove('show');
                          setTimeout(() => { modal.style.display = 'none'; }, 300);
                          tg.MainButton.hide();
                          restoreCards();
                     };
                 } else {
+                    // Fallback si el modal no existiera por alguna razón
                     requestLocationAndSearch();
                 }
             }
         };
 
-        // Configurar y mostrar el botón principal
         tg.MainButton.setText(mainButtonText);
-        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+        tg.MainButton.setParams({ text_color: '#ffffff', color: '#e74c3c' }); // Color rojo para emergencias
         tg.MainButton.onClick(onMainButtonClick);
         tg.MainButton.show();
     }
