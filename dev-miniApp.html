@@ -4789,6 +4789,7 @@ function handleEmergenciasClick(event) {
     // Resaltamos solo la tarjeta seleccionada
     card.style.transform = 'scale(1.05)';
     card.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)';
+	void card.offsetHeight; // Fuerza al navegador a aplicar los estilos antes de continuar
     // --- FIN: LÓGICA DE FEEDBACK VISUAL ---
     
     const searchTerm = card.dataset.searchTerm;
