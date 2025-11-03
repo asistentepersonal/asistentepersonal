@@ -4875,11 +4875,13 @@ function handleEmergenciasClick(event) {
             }
         };
 
-        // Configurar y mostrar el botón principal
-        tg.MainButton.setText(mainButtonText);
-        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
-        tg.MainButton.onClick(onMainButtonClick);
-        tg.MainButton.show();
+        // Configurar y mostrar el botón principal con un pequeño delay
+setTimeout(() => {
+    tg.MainButton.setText(mainButtonText);
+    tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+    tg.MainButton.onClick(onMainButtonClick);
+    tg.MainButton.show();
+}, 10); // Pequeño delay para permitir que el navegador renderice el efecto visual
     }
 }
 
