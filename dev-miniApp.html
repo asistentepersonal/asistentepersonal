@@ -4778,21 +4778,33 @@ function handleEmergenciasClick(event) {
     const card = event.target.closest('.card[data-search-term]');
     if (!card) return;
 
+    // --- INICIO: LÓGICA DE FEEDBACK VISUAL MEJORADA ---
+    // Desactivamos todas las tarjetas para evitar clics múltiples
+    document.querySelectorAll('#emergency-searches-grid .card').forEach(c => {
+        c.style.pointerEvents = 'none'; // Previene más clics
+        c.style.transform = 'scale(1)';
+        c.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+    });
+
+    // Resaltamos solo la tarjeta seleccionada
+    card.style.transform = 'scale(1.05)';
+    card.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)';
+    // --- FIN: LÓGICA DE FEEDBACK VISUAL ---
+    
     const searchTerm = card.dataset.searchTerm;
     const categoryTitle = card.querySelector('.card-title').textContent;
     const mainButtonText = `Buscar ${categoryTitle} cerca 📍`;
     
-    // --- INICIO: FEEDBACK VISUAL ---
-    document.querySelectorAll('#emergency-searches-grid .card').forEach(c => {
-        c.style.transform = 'scale(1)';
-        c.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
-    });
-    card.style.transform = 'scale(1.05)';
-    card.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)';
-    // --- FIN: FEEDBACK VISUAL ---
-
     if (tg && tg.MainButton) {
         
+        const restoreCards = () => {
+             document.querySelectorAll('#emergency-searches-grid .card').forEach(c => {
+                c.style.pointerEvents = 'auto'; // Reactiva los clics
+                c.style.transform = 'scale(1)';
+                c.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+            });
+        };
+
         const handleLocationError = (error, retryCallback) => {
             tg.MainButton.hideProgress();
             tg.MainButton.enable();
@@ -4803,8 +4815,7 @@ function handleEmergenciasClick(event) {
                 title: "Ubicación no encontrada", message: msg,
                 buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel' }]
             }, (buttonId) => {
-                card.style.transform = 'scale(1)';
-                card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                restoreCards();
                 if (buttonId === 'retry') {
                     retryCallback();
                 } else {
@@ -4825,8 +4836,7 @@ function handleEmergenciasClick(event) {
                     tg.MainButton.hideProgress();
                     tg.MainButton.enable();
                     tg.MainButton.hide();
-                    card.style.transform = 'scale(1)';
-                    card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                    restoreCards();
 
                     tg.showPopup({
                         title: "Búsqueda Lista",
@@ -4851,7 +4861,7 @@ function handleEmergenciasClick(event) {
                 requestLocationAndSearch();
             } else {
                 const modal = document.getElementById('fuel-location-modal');
-                if(modal){ // Comprobación de seguridad
+                if(modal){
                     modal.style.display = 'flex';
                     setTimeout(() => modal.classList.add('show'), 10);
                     document.getElementById('fuel-modal-continue').onclick = () => {
@@ -4866,22 +4876,19 @@ function handleEmergenciasClick(event) {
                          modal.classList.remove('show');
                          setTimeout(() => { modal.style.display = 'none'; }, 300);
                          tg.MainButton.hide();
-                         card.style.transform = 'scale(1)';
-                         card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                         restoreCards();
                     };
-                } else { // Fallback si el modal no existe por alguna razón
+                } else {
                     requestLocationAndSearch();
                 }
             }
         };
 
-        // Configurar y mostrar el botón principal con un pequeño delay
-setTimeout(() => {
-    tg.MainButton.setText(mainButtonText);
-    tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
-    tg.MainButton.onClick(onMainButtonClick);
-    tg.MainButton.show();
-}, 10); // Pequeño delay para permitir que el navegador renderice el efecto visual
+        // Configurar y mostrar el botón principal
+        tg.MainButton.setText(mainButtonText);
+        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+        tg.MainButton.onClick(onMainButtonClick);
+        tg.MainButton.show();
     }
 }
 
