@@ -4975,7 +4975,7 @@ function handleEmergenciasClick(event) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     const { latitude, longitude } = position.coords;
-                    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}/@${latitude},${longitude},15z`;
+                    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${categoryTitle} abierto ahora cerca de mí`)}`;
 
                     tg.MainButton.hideProgress();
                     tg.MainButton.enable();
