@@ -4746,14 +4746,8 @@ function renderEmergenciasView() {
 
     mainContentArea.innerHTML = `
         <div class="list-container">
-            <div class="list-header"><h2>🆘 ¿Qué necesitas?</h2></div>
-            
-            <h3 class="settings-section-title" style="margin-top: 0;">Llamadas de Emergencia</h3>
-            <div class="grid" id="emergency-calls-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
-                <!-- Los botones de llamada se añadirán aquí con JavaScript -->
-            </div>
+            <div class="list-header"><h2>🆘 Búsquedas de Emergencia</h2></div>
 
-            <h3 class="settings-section-title">Búsquedas Cercanas</h3>
             <div class="grid" id="emergency-searches-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
                 <div class="card clickable-card" data-search-term="hospital">
                     <div class="card-icon">🏥</div><div class="card-title">Hospitales</div>
@@ -4777,123 +4771,115 @@ function renderEmergenciasView() {
         </div>
     `;
 
-    // --- INICIO: Lógica para generar botones de llamada ---
-    const userCountry = (appData.settings.pais || 'DEFAULT').substring(0, 2).toUpperCase();
-    const numbers = emergencyNumbers[userCountry] || emergencyNumbers['DEFAULT'];
-
-    const callsGrid = document.getElementById('emergency-calls-grid');
-    callsGrid.innerHTML = `
-        <div class="card clickable-card" data-dial="${numbers.police}" style="background-color: #3498db; color: white;">
-            <div class="card-icon">🚓</div><div class="card-title">Policía (${numbers.police})</div>
-        </div>
-        <div class="card clickable-card" data-dial="${numbers.ambulance}" style="background-color: #e74c3c; color: white;">
-            <div class="card-icon">🚑</div><div class="card-title">Ambulancia (${numbers.ambulance})</div>
-        </div>
-        <div class="card clickable-card" data-dial="${numbers.firefighter}" style="background-color: #f39c12; color: white;">
-            <div class="card-icon">🚒</div><div class="card-title">Bomberos (${numbers.firefighter})</div>
-        </div>
-    `;
-    // --- FIN: Lógica para generar botones de llamada ---
-
     mainContentArea.addEventListener('click', handleEmergenciasClick);
 }
-// Base de datos de números de emergencia por país (ISO 3166-1 alpha-2)
-const emergencyNumbers = {
-    'ES': { police: '112', ambulance: '112', firefighter: '112' }, // España
-    'US': { police: '911', ambulance: '911', firefighter: '911' }, // Estados Unidos
-    'MX': { police: '911', ambulance: '911', firefighter: '911' }, // México
-    'AR': { police: '911', ambulance: '107', firefighter: '100' }, // Argentina
-    'CO': { police: '123', ambulance: '123', firefighter: '123' }, // Colombia
-    'GB': { police: '999', ambulance: '999', firefighter: '999' }, // Reino Unido
-    'DEFAULT': { police: '112', ambulance: '112', firefighter: '112' } // Universal
-};
+
 function handleEmergenciasClick(event) {
-    const card = event.target.closest('.card.clickable-card');
+    const card = event.target.closest('.card[data-search-term]');
     if (!card) return;
 
-    // --- LÓGICA DE DECISIÓN: LLAMAR VS. BUSCAR ---
-    const dialNumber = card.dataset.dial;
     const searchTerm = card.dataset.searchTerm;
+    const categoryTitle = card.querySelector('.card-title').textContent;
+    const mainButtonText = `Buscar ${categoryTitle} cerca 📍`;
+    
+    // --- INICIO: FEEDBACK VISUAL ---
+    document.querySelectorAll('#emergency-searches-grid .card').forEach(c => {
+        c.style.transform = 'scale(1)';
+        c.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+    });
+    card.style.transform = 'scale(1.05)';
+    card.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)';
+    // --- FIN: FEEDBACK VISUAL ---
 
-    if (dialNumber) {
-        // Acción: Abrir el marcador del teléfono
-        tg.openLink(`tel:${dialNumber}`);
-        return; // Termina la ejecución aquí
-    }
-
-    if (searchTerm) {
-        // Acción: Iniciar búsqueda por ubicación
-        const categoryTitle = card.querySelector('.card-title').textContent;
-        const mainButtonText = `Buscar ${categoryTitle} cerca 📍`;
+    if (tg && tg.MainButton) {
         
-        // --- INICIO: FEEDBACK VISUAL AÑADIDO ---
-        // Quitamos la selección de cualquier otra tarjeta y resaltamos la actual
-        document.querySelectorAll('#emergency-searches-grid .card').forEach(c => c.style.transform = 'scale(1)');
-        card.style.transform = 'scale(1.05)';
-        // --- FIN: FEEDBACK VISUAL ---
+        const handleLocationError = (error, retryCallback) => {
+            tg.MainButton.hideProgress();
+            tg.MainButton.enable();
+            let msg = "No se pudo obtener tu ubicación. Revisa los permisos y la señal de GPS.";
+            if (error && error.code === 1) msg = "Has denegado el permiso de ubicación.";
 
-        if (tg && tg.MainButton) {
-            
-            const handleLocationError = (error, retryCallback) => {
-                tg.MainButton.hideProgress();
-                tg.MainButton.enable();
-                let msg = "No se pudo obtener tu ubicación. Revisa los permisos y la señal de GPS.";
-                if (error && error.code === 1) msg = "Has denegado el permiso de ubicación.";
+            tg.showPopup({
+                title: "Ubicación no encontrada", message: msg,
+                buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel' }]
+            }, (buttonId) => {
+                card.style.transform = 'scale(1)';
+                card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                if (buttonId === 'retry') {
+                    retryCallback();
+                } else {
+                    tg.MainButton.hide();
+                }
+            });
+        };
 
-                tg.showPopup({
-                    title: "Ubicación no encontrada", message: msg,
-                    buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel' }]
-                }, (buttonId) => {
-                    card.style.transform = 'scale(1)'; // Restaura el tamaño al cerrar el popup
-                    if (buttonId === 'retry') {
-                        retryCallback();
-                    } else {
-                        tg.MainButton.hide();
-                    }
-                });
-            };
+        const requestLocationAndSearch = () => {
+            tg.MainButton.showProgress(true);
+            tg.MainButton.disable();
 
-            const requestLocationAndSearch = () => {
-                tg.MainButton.showProgress(true);
-                tg.MainButton.disable();
+            navigator.geolocation.getCurrentPosition(
+                (position) => { // Éxito
+                    const { latitude, longitude } = position.coords;
+                    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}/@${latitude},${longitude},15z`;
 
-                navigator.geolocation.getCurrentPosition(
-                    (position) => { // Éxito
-                        const { latitude, longitude } = position.coords;
-                        const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}/@${latitude},${longitude},15z`;
+                    tg.MainButton.hideProgress();
+                    tg.MainButton.enable();
+                    tg.MainButton.hide();
+                    card.style.transform = 'scale(1)';
+                    card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
 
-                        tg.MainButton.hideProgress();
-                        tg.MainButton.enable();
-                        tg.MainButton.hide();
-                        card.style.transform = 'scale(1)'; // Restaura el tamaño
+                    tg.showPopup({
+                        title: "Búsqueda Lista",
+                        message: `Pulsa el botón para ver los resultados de "${categoryTitle}" en Google Maps.`,
+                        buttons: [{ id: 'open_map', type: 'default', text: '🗺️ Ver en Google Maps' }, { type: 'cancel' }]
+                    }, (buttonId) => {
+                        if (buttonId === 'open_map') {
+                            tg.openLink(mapsUrl);
+                        }
+                    });
+                },
+                (error) => { // Error
+                    handleLocationError(error, requestLocationAndSearch);
+                },
+                { timeout: 12000, enableHighAccuracy: true }
+            );
+        };
 
-                        tg.showPopup({
-                            title: "Búsqueda Lista",
-                            message: `Pulsa el botón para ver los resultados de "${categoryTitle}" en Google Maps.`,
-                            buttons: [{ id: 'open_map', type: 'default', text: '🗺️ Ver en Google Maps' }, { type: 'cancel' }]
-                        }, (buttonId) => {
-                            if (buttonId === 'open_map') {
-                                tg.openLink(mapsUrl);
-                            }
-                        });
-                    },
-                    (error) => { // Error
-                        handleLocationError(error, requestLocationAndSearch);
-                    },
-                    { timeout: 12000, enableHighAccuracy: true }
-                );
-            };
+        const onMainButtonClick = () => {
+            const modalShown = localStorage.getItem('fuelModalShown');
+            if (modalShown === 'true') {
+                requestLocationAndSearch();
+            } else {
+                const modal = document.getElementById('fuel-location-modal');
+                if(modal){ // Comprobación de seguridad
+                    modal.style.display = 'flex';
+                    setTimeout(() => modal.classList.add('show'), 10);
+                    document.getElementById('fuel-modal-continue').onclick = () => {
+                        if (document.getElementById('fuel-modal-checkbox').checked) {
+                            localStorage.setItem('fuelModalShown', 'true');
+                        }
+                        modal.classList.remove('show');
+                        setTimeout(() => { modal.style.display = 'none'; }, 300);
+                        requestLocationAndSearch();
+                    };
+                    document.getElementById('fuel-modal-cancel').onclick = () => {
+                         modal.classList.remove('show');
+                         setTimeout(() => { modal.style.display = 'none'; }, 300);
+                         tg.MainButton.hide();
+                         card.style.transform = 'scale(1)';
+                         card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                    };
+                } else { // Fallback si el modal no existe por alguna razón
+                    requestLocationAndSearch();
+                }
+            }
+        };
 
-            const onMainButtonClick = () => {
-                // La lógica del modal de aviso se mantiene igual, no es necesario pegarla aquí de nuevo
-            };
-
-            // Configurar y mostrar el botón principal
-            tg.MainButton.setText(mainButtonText);
-            tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
-            tg.MainButton.onClick(requestLocationAndSearch); // Simplificado para ir directo a la búsqueda
-            tg.MainButton.show();
-        }
+        // Configurar y mostrar el botón principal
+        tg.MainButton.setText(mainButtonText);
+        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+        tg.MainButton.onClick(onMainButtonClick);
+        tg.MainButton.show();
     }
 }
 
