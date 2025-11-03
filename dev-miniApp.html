@@ -4732,6 +4732,47 @@ function renderTimelineGrid(canales, programas) {
 }
 
 // ==================================================
+// --- MÓDULO: EMERGENCIAS ---
+// ==================================================
+function renderEmergenciasView() {
+    navigationHistory.push(renderDashboard);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>🆘 ¿Qué necesitas?</h2></div>
+            
+            <h3 class="settings-section-title" style="margin-top: 0;">Llamadas de Emergencia</h3>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
+                <!-- Los botones de llamada se añadirán aquí con JavaScript -->
+            </div>
+
+            <h3 class="settings-section-title">Búsquedas Cercanas</h3>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
+                <div class="card clickable-card" data-search-term="hospital">
+                    <div class="card-icon">🏥</div><div class="card-title">Hospitales</div>
+                </div>
+                <div class="card clickable-card" data-search-term="pharmacy">
+                    <div class="card-icon">💊</div><div class="card-title">Farmacias</div>
+                </div>
+                <div class="card clickable-card" data-search-term="police">
+                    <div class="card-icon">🚓</div><div class="card-title">Policía</div>
+                </div>
+                <div class="card clickable-card" data-search-term="gas station">
+                    <div class="card-icon">⛽</div><div class="card-title">Gasolineras</div>
+                </div>
+                <div class="card clickable-card" data-search-term="car repair">
+                    <div class="card-icon">🔧</div><div class="card-title">Talleres</div>
+                </div>
+                <div class="card clickable-card" data-search-term="atm">
+                    <div class="card-icon">🏧</div><div class="card-title">Cajeros</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ==================================================
 // --- MÓDULO: CUENTAS CLARAS ---
 // ==================================================
 
@@ -6707,8 +6748,11 @@ function renderDashboard() {
         })(),
         guiaTV: `<div id="guia-tv-card" data-card-id="guiaTV" class="card disabled-card" style="display: none;"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>`,
 		
+		,
 		emergencias: `
-		<div class="card clickable-card" data-card-id="emergencias" id="emergencias-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/emergencias512x512.jpg?v=1'); background-size: cover; background-position: center;">
+		<div class="card clickable-card" data-card-id="emergencias" id="emergencias-card" style="background-color: #c0392b; color: white;">
+        <div class="card-icon" style="font-size: 3rem;">🆘</div>
+        <div class="card-title">Emergencias</div>
 		</div>`
     };
 
@@ -6820,6 +6864,7 @@ if (target.closest('.card-menu-btn, .card-badge-pill')) {
         } else {
             // Si la tarjeta NO tiene menú, navegamos.
             switch (card.id) {
+				case 'emergencias-card': renderEmergenciasView(); break;
                 case 'card-reminders': renderRemindersList(); break;
                 case 'card-shopping': renderShoppingList(); break;
                 case 'card-notes': renderNotesList(); break;
