@@ -4870,14 +4870,14 @@ function renderEmergenciasView() {
 
             <div class="grid" id="emergency-searches-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
                 <div class="card clickable-card" data-card-id="my-location" id="my-location-card">
-                    <div class="card-icon">📍</div><div class="card-title">Mi Ubicación</div>
-                </div>
-                <div class="card clickable-card" data-search-term="veterinario 24 horas">
-                    <div class="card-icon">🐾</div><div class="card-title">Veterinarias 24h</div>
-                </div>
-                <div class="card clickable-card" data-search-term="hospital">
-                    <div class="card-icon">🏥</div><div class="card-title">Hospitales</div>
-                </div>
+				<div class="card-icon">📍</div><div class="card-title">Mi Ubicación</div>
+				</div>
+				<div class="card clickable-card" data-search-term="veterinario 24 horas">
+				<div class="card-icon">🐾</div><div class="card-title">Veterinarias 24h</div>
+				</div>
+				<div class="card clickable-card" data-search-term="hospital">
+				<div class="card-icon">🏥</div><div class="card-title">Hospitales</div>
+				</div>
                 <div class="card clickable-card" data-search-term="pharmacy">
                     <div class="card-icon">💊</div><div class="card-title">Farmacias</div>
                 </div>
@@ -4926,9 +4926,10 @@ function handleEmergenciasClick(event) {
         
         const restoreCards = () => {
             const grid = document.getElementById('emergency-searches-grid');
+            if (!grid) return;
             const selectedCard = grid.querySelector('.emergency-selected');
             
-            if (grid) grid.classList.remove('emergency-dimmed');
+            grid.classList.remove('emergency-dimmed');
             if (selectedCard) selectedCard.classList.remove('emergency-selected');
         };
 
