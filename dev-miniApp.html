@@ -6650,9 +6650,9 @@ function renderDashboard() {
     const isPremium = appData.isPremium === true;
 
     const cardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || [
-        'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
-        'cuentasClaras', 'chef', 'combustible', 'guiaTV'
-    ];
+    'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
+    'cuentasClaras', 'chef', 'combustible', 'guiaTV', 'emergencias'
+];
 
     const cards = {
         reminders: `
@@ -6705,7 +6705,11 @@ function renderDashboard() {
             if (appData.settings.pais && appData.settings.pais !== 'España') return `<div class="card" data-card-id="combustible" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;"><div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">Próximamente en ${appData.settings.pais}</div></div>`;
             return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
         })(),
-        guiaTV: `<div id="guia-tv-card" data-card-id="guiaTV" class="card disabled-card" style="display: none;"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>`
+        guiaTV: `<div id="guia-tv-card" data-card-id="guiaTV" class="card disabled-card" style="display: none;"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>`,
+		
+		emergencias: `
+		<div class="card clickable-card" data-card-id="emergencias" id="emergencias-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/emergencias512x512.jpg?v=1'); background-size: cover; background-position: center;">
+		</div>`
     };
 
     mainContentArea.innerHTML = `<div class="grid" id="dashboard-grid">${cardOrder.map(id => cards[id] || '').join('')}</div>`;
