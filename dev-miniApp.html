@@ -33,6 +33,19 @@
     .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(135px, 1fr));gap:16px;padding:20px;}
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);position:relative;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;}
     .card.clickable-card { cursor: pointer; }
+
+/* --- INICIO: ESTILOS PARA FEEDBACK DE EMERGENCIA --- */
+	.card.emergency-selected {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(74, 118, 243, 0.4);
+    border: 2px solid var(--primary);
+}
+	.grid.emergency-dimmed .card:not(.emergency-selected) {
+    opacity: 0.6;
+    pointer-events: none;
+    transform: scale(0.98);
+}
+/* --- FIN: ESTILOS PARA FEEDBACK DE EMERGENCIA --- */
 	.card.sortable-ghost {
     opacity: 0.4;
     background: #c8ebfb;
@@ -4778,19 +4791,16 @@ function handleEmergenciasClick(event) {
     const card = event.target.closest('.card[data-search-term]');
     if (!card) return;
 
-    // --- INICIO: LÓGICA DE FEEDBACK VISUAL MEJORADA ---
-    // Desactivamos todas las tarjetas para evitar clics múltiples
-    document.querySelectorAll('#emergency-searches-grid .card').forEach(c => {
-        c.style.pointerEvents = 'none'; // Previene más clics
-        c.style.transform = 'scale(1)';
-        c.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
-    });
-
-    // Resaltamos solo la tarjeta seleccionada
-    card.style.transform = 'scale(1.05)';
-    card.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)';
-	void card.offsetHeight; // Fuerza al navegador a aplicar los estilos antes de continuar
-    // --- FIN: LÓGICA DE FEEDBACK VISUAL ---
+    // --- INICIO: NUEVA LÓGICA DE FEEDBACK VISUAL CON CLASES CSS ---
+    const grid = document.getElementById('emergency-searches-grid');
+    
+    // 1. Limpiamos cualquier selección anterior en el grid
+    grid.querySelectorAll('.card').forEach(c => c.classList.remove('emergency-selected'));
+    
+    // 2. Aplicamos las clases a la tarjeta seleccionada y al contenedor
+    card.classList.add('emergency-selected');
+    grid.classList.add('emergency-dimmed');
+    // --- FIN: NUEVA LÓGICA DE FEEDBACK VISUAL ---
     
     const searchTerm = card.dataset.searchTerm;
     const categoryTitle = card.querySelector('.card-title').textContent;
@@ -4798,12 +4808,13 @@ function handleEmergenciasClick(event) {
     
     if (tg && tg.MainButton) {
         
+        // La función de restauración ahora solo necesita eliminar las clases
         const restoreCards = () => {
-             document.querySelectorAll('#emergency-searches-grid .card').forEach(c => {
-                c.style.pointerEvents = 'auto'; // Reactiva los clics
-                c.style.transform = 'scale(1)';
-                c.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
-            });
+            const grid = document.getElementById('emergency-searches-grid');
+            const selectedCard = grid.querySelector('.emergency-selected');
+            
+            if (grid) grid.classList.remove('emergency-dimmed');
+            if (selectedCard) selectedCard.classList.remove('emergency-selected');
         };
 
         const handleLocationError = (error, retryCallback) => {
