@@ -6689,11 +6689,31 @@ function renderDashboard() {
     updateBackButton();
     const counts = appData.counts;
     const isPremium = appData.isPremium === true;
-	localStorage.removeItem('dashboardCardOrder'); // Reseteo temporal
-    const cardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || [
+	
+    // --- Lógica de Reconciliación Automática del Dashboard ---
+const masterCardList = Object.keys(cards); // La "Fuente de la Verdad" de todas las cards existentes
+const defaultCardOrder = [
     'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
     'cuentasClaras', 'chef', 'combustible', 'guiaTV', 'emergencias'
 ];
+let userCardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || defaultCardOrder;
+
+// 1. Limpieza: Eliminar cards obsoletas del orden del usuario
+userCardOrder = userCardOrder.filter(cardId => masterCardList.includes(cardId));
+
+// 2. Detección de Novedades: Añadir cards nuevas al final
+masterCardList.forEach(cardId => {
+    if (!userCardOrder.includes(cardId)) {
+        userCardOrder.push(cardId);
+    }
+});
+
+// Guardamos el orden reconciliado para la próxima vez
+localStorage.setItem('dashboardCardOrder', JSON.stringify(userCardOrder));
+
+// Usamos el orden final y reconciliado
+const cardOrder = userCardOrder;
+// --- Fin de la Lógica de Reconciliación ---
 
     const cards = {
         reminders: `
