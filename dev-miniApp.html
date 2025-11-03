@@ -4870,14 +4870,12 @@ function renderEmergenciasView() {
 
             <div class="grid" id="emergency-searches-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
                 <div class="card clickable-card" data-card-id="my-location" id="my-location-card">
-				<div class="card-icon">📍</div><div class="card-title">Mi Ubicación</div>
-				</div>
-				<div class="card clickable-card" data-search-term="veterinario 24 horas">
-				<div class="card-icon">🐾</div><div class="card-title">Veterinarias 24h</div>
-				</div>
-				<div class="card clickable-card" data-search-term="hospital">
-				<div class="card-icon">🏥</div><div class="card-title">Hospitales</div>
-				</div>
+                    <div class="card-icon">📍</div><div class="card-title">Mi Ubicación</div>
+                </div>
+                <div class="card clickable-card" data-search-term="veterinario 24 horas">
+                    <div class="card-icon">🐾</div><div class="card-title">Veterinarias 24h</div>
+                </div>
+                <div class="card clickable-card" data-search-term="hospital">
                     <div class="card-icon">🏥</div><div class="card-title">Hospitales</div>
                 </div>
                 <div class="card clickable-card" data-search-term="pharmacy">
@@ -4910,9 +4908,6 @@ function handleEmergenciasClick(event) {
     if (card.dataset.cardId === 'my-location') {
         renderMyLocationView();
         return; // Detenemos la ejecución aquí para esta tarjeta específica
-    }
-    // --- FIN: Lógica para la nueva tarjeta ---
-
     }
     // --- FIN: Lógica para la nueva tarjeta ---
 
