@@ -4882,6 +4882,13 @@ function fetchAndDisplayLocationWithMap() {
 }
 
 function renderEmergenciasView() {
+    // --- LÍNEA CLAVE AÑADIDA ---
+    // Nos aseguramos de que el botón principal esté oculto al entrar a esta vista.
+    if (tg && tg.MainButton.isVisible) {
+        tg.MainButton.hide();
+    }
+    // --- FIN DE LA CORRECCIÓN ---
+
     navigationHistory.push(() => {
         if (tg && tg.MainButton.isVisible) {
             tg.MainButton.hide();
