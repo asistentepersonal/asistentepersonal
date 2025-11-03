@@ -5000,33 +5000,36 @@ function handleEmergenciasClick(event) {
         };
 
         const onMainButtonClick = () => {
-            const modalShown = localStorage.getItem('fuelModalShown');
-            if (modalShown === 'true') {
-                requestLocationAndSearch();
-            } else {
-                const modal = document.getElementById('fuel-location-modal');
-                if(modal){
-                    modal.style.display = 'flex';
-                    setTimeout(() => modal.classList.add('show'), 10);
-                    document.getElementById('fuel-modal-continue').onclick = () => {
-                        if (document.getElementById('fuel-modal-checkbox').checked) {
-                            localStorage.setItem('fuelModalShown', 'true');
-                        }
-                        modal.classList.remove('show');
-                        setTimeout(() => { modal.style.display = 'none'; }, 300);
-                        requestLocationAndSearch();
-                    };
-                    document.getElementById('fuel-modal-cancel').onclick = () => {
-                         modal.classList.remove('show');
-                         setTimeout(() => { modal.style.display = 'none'; }, 300);
-                         tg.MainButton.hide();
-                         restoreCards();
-                    };
-                } else {
+        const emergencyModalShown = localStorage.getItem('emergencyModalShown');
+        if (emergencyModalShown === 'true') {
+            requestLocationAndSearch();
+        } else {
+            const modal = document.getElementById('emergency-location-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('show'), 10);
+                
+                document.getElementById('emergency-modal-continue').onclick = () => {
+                    if (document.getElementById('emergency-modal-checkbox').checked) {
+                        localStorage.setItem('emergencyModalShown', 'true');
+                    }
+                    modal.classList.remove('show');
+                    setTimeout(() => { modal.style.display = 'none'; }, 300);
                     requestLocationAndSearch();
-                }
+                };
+                
+                document.getElementById('emergency-modal-cancel').onclick = () => {
+                     modal.classList.remove('show');
+                     setTimeout(() => { modal.style.display = 'none'; }, 300);
+                     tg.MainButton.hide();
+                     restoreCards();
+                };
+            } else {
+                // Si el modal no existe por alguna razón, ejecutar la búsqueda directamente
+                requestLocationAndSearch();
             }
-        };
+        }
+    };
 
         tg.MainButton.offClick(onMainButtonClick);
         tg.MainButton.setText(mainButtonText);
