@@ -3285,23 +3285,43 @@ function renderAddGastoForm(initialData = null) {
     locale: "es", 
     onChange: validateGastoForm 
 });
-    elementsToValidate.forEach(el => el.oninput = validateGastoForm);
-    categoriaSelect.onchange = () => {
-        const selectedCategory = categoriaSelect.value;
-        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
-        if (selectedCategory && categoriasGastos[selectedCategory]) {
-            const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}" ${data.subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += subcategoriasOptions;
-            subcategoriaSelect.disabled = false;
-        } else { subcategoriaSelect.disabled = true; }
-        validateGastoForm();
-    };
-    saveBtn.onclick = () => saveGasto();
-    if (initialData) {
-        categoriaSelect.dispatchEvent(new Event('change'));
-        if(data.subcategoria) { subcategoriaSelect.value = data.subcategoria; }
+    // Asignamos los listeners para validación manual
+elementsToValidate.forEach(el => el.addEventListener('input', validateGastoForm));
+
+categoriaSelect.onchange = () => {
+    const selectedCategory = categoriaSelect.value;
+    subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
+    if (selectedCategory && categoriasGastos[selectedCategory]) {
+        const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
+        subcategoriaSelect.innerHTML += subcategoriasOptions;
+        subcategoriaSelect.disabled = false;
+    } else {
+        subcategoriaSelect.disabled = true;
     }
     validateGastoForm();
+};
+// Añadimos el listener que faltaba para la selección manual de subcategoría
+subcategoriaSelect.onchange = validateGastoForm;
+
+saveBtn.onclick = () => saveGasto();
+
+// Lógica de inicialización con datos del ticket
+if (initialData) {
+    // Disparamos el cambio de categoría para poblar las subcategorías
+    categoriaSelect.dispatchEvent(new Event('change'));
+    
+    // Esperamos un instante para que el DOM se actualice con las nuevas opciones
+    setTimeout(() => {
+        if (data.subcategoria) {
+            subcategoriaSelect.value = data.subcategoria;
+        }
+        // Ahora, con todos los datos en su sitio, forzamos la validación final.
+        validateGastoForm();
+    }, 0);
+} else {
+    // Si no hay datos iniciales, validamos para establecer el estado inicial del botón.
+    validateGastoForm();
+}
 }
 
 async function saveGasto() {
