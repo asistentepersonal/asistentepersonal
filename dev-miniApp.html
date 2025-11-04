@@ -2440,10 +2440,10 @@ async function renderRemindersList() {
                 .orderBy('fecha_universal', 'asc');
     
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-    const reminders = [];
+    const officialReminders = [];
     snapshot.forEach(doc => {
         const data = doc.data();
-        reminders.push({
+        officialReminders.push({
             tracking_code: doc.id,
             Descripcion: data.descripcion,
             Categoria: data.categoria_recordatorio,
@@ -2451,23 +2451,27 @@ async function renderRemindersList() {
             Status: data.status
         });
     });
+
+    // --- INICIO: Lógica de Reemplazo por ID ---
+    const newRemindersMap = new Map(officialReminders.map(r => [r.tracking_code, r]));
+    const existingOptimistic = appData.remindersList.filter(r => r.Status === 'pending_creation');
+
+    // Empezamos con la lista oficial.
+    let finalReminders = [...officialReminders];
+
+    // Añadimos solo los recordatorios optimistas que AÚN no han sido confirmados.
+    existingOptimistic.forEach(optimistic => {
+        if (!newRemindersMap.has(optimistic.tracking_code)) {
+            finalReminders.unshift(optimistic);
+        }
+    });
     
-    // --- INICIO: Fusión Inteligente ---
-		const pendingOptimistic = appData.remindersList.filter(r => r.Status === 'pending_creation');
-		const finalReminders = [...reminders];
+    appData.remindersList = finalReminders;
+    // --- FIN: Lógica de Reemplazo por ID ---
 
-	pendingOptimistic.forEach(pending => {
-		// Si el recordatorio optimista aún no ha sido confirmado por Firestore, lo mantenemos en la lista.
-    if (!finalReminders.some(r => r.tracking_code === pending.tracking_code)) {
-        finalReminders.unshift(pending);
-    }
-});
-
-appData.remindersList = finalReminders;
-appData.counts.remindersCount = finalReminders.length;
-// --- FIN: Fusión Inteligente ---
+    appData.counts.remindersCount = finalReminders.length;
     if (document.getElementById('reminders-badge')) {
-        document.getElementById('reminders-badge').textContent = reminders.length;
+        document.getElementById('reminders-badge').textContent = finalReminders.length;
     }
 
     drawRemindersList();
