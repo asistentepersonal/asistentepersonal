@@ -2483,13 +2483,13 @@ async function renderRemindersList(isCreating = false) { // <--- Parámetro aña
 
     appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
     
-    // --- INICIO DE LA CORRECCIÓN CLAVE ---
-    // Si el contenedor principal tiene el spinner, lo reemplazamos por la estructura 
-    // de lista vacía que `drawRemindersList` necesita para funcionar.
-    if (listWrapper) {
-        listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+    if (isCreating) {
+        // Si estábamos en modo creación, quitamos el spinner.
+        if (listWrapper) {
+            listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+        }
+        isCreating = false; // <-- LA LÍNEA CLAVE: Desactivamos el modo creación para futuras actualizaciones.
     }
-    // --- FIN DE LA CORRECCIÓN CLAVE ---
     
     const finalCount = appData.remindersList.length;
     appData.counts.remindersCount = finalCount;
