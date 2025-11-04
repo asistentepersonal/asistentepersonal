@@ -2334,7 +2334,7 @@ async function saveReminder() {
     sendBtn.disabled = true;
     sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Creando...`;
 
-    // 1. Recopilamos datos.
+    // 1. Recopilamos todos los datos del formulario.
     const category = document.querySelector('input[name="category"]:checked').value;
     const description = document.getElementById('text').value.trim();
     const timePicker = document.getElementById('time').parentElement._flatpickr;
@@ -2348,39 +2348,58 @@ async function saveReminder() {
         return;
     }
 
-    // 2. Navegamos a la lista Y LA PONEMOS EN MODO CARGA.
-    renderRemindersList(true); 
+    // 2. NAVEGAMOS ATRÁS PRIMERO. Esto es clave.
+    // Al volver a la lista, se ejecuta renderRemindersList() y su listener onSnapshot queda activo.
+    goBack();
 
-    try {
-        // 3. Preparamos y llamamos a la Cloud Function.
-        const customId = generateCustomId('G-');
-        const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
-        const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
-        const datosRecordatorio = {
-            descripcion: description,
-            categoria_recordatorio: category,
-            hora_local: fechaLocalParaUI,
-            horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
-        };
+    // 3. Usamos un setTimeout para dar tiempo al DOM a renderizar la vista de la lista.
+    setTimeout(async () => {
+        const listWrapper = document.getElementById('reminders-content-wrapper');
+        if (listWrapper) {
+            // 4. INYECTAMOS el spinner, reemplazando la lista actual.
+            listWrapper.innerHTML = `
+                <div class="combustible-loading-state" style="padding: 40px 0;">
+                    <p>Creando recordatorio en el servidor...</p>
+                    <div class="dot-spinner" style="margin-top: 20px;">
+                        <div class="dot-spinner__dot"></div>
+                        <div class="dot-spinner__dot"></div>
+                        <div class="dot-spinner__dot"></div>
+                    </div>
+                </div>`;
+        }
 
-        const payload = { chatId, tipo: 'recordatorioSimple', fechaLocal: fechaLocalString, datos: datosRecordatorio, customId };
-        const functions = firebase.app().functions('europe-west1');
-        const createNotificationFunction = functions.httpsCallable('createNotification');
-        
-        // ESPERAMOS a que la función termine, pero no hacemos nada con la respuesta.
-        await createNotificationFunction(payload);
+        try {
+            // 5. Con el listener ya escuchando y el spinner visible, llamamos a la Cloud Function.
+            const customId = generateCustomId('G-');
+            const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
+            const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
+            const datosRecordatorio = {
+                descripcion: description,
+                categoria_recordatorio: category,
+                hora_local: fechaLocalParaUI,
+                horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
+            };
 
-        // Si la función tuvo éxito, el listener ya habrá actualizado la UI.
-        // Si no lo ha hecho, lo hará en milisegundos.
+            const payload = { chatId, tipo: 'recordatorioSimple', fechaLocal: fechaLocalString, datos: datosRecordatorio, customId };
+            const functions = firebase.app().functions('europe-west1');
+            const createNotificationFunction = functions.httpsCallable('createNotification');
+            
+            await createNotificationFunction(payload);
 
-    } catch (err) {
-        // 4. ERROR: Si la Cloud Function falla.
-        console.error("Error al guardar el recordatorio:", err);
-        showToast("Error. No se pudo crear el recordatorio.", true, true);
-        
-        // Volvemos a la lista en su estado normal, sin el spinner.
-        renderRemindersList(false);
-    }
+            // 6. ÉXITO: No hacemos nada. El listener onSnapshot se encargará de quitar el spinner y mostrar la lista actualizada.
+
+        } catch (err) {
+            // 7. ERROR: Si la Cloud Function falla, restauramos la vista.
+            console.error("Error al guardar el recordatorio:", err);
+            showToast("Error. No se pudo crear el recordatorio.", true, true);
+            
+            const listWrapperOnError = document.getElementById('reminders-content-wrapper');
+            if (listWrapperOnError) {
+                listWrapperOnError.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+                drawRemindersList(); // Vuelve a dibujar la lista como estaba.
+            }
+        }
+    }, 100); // 100ms es un delay seguro para la transición de la UI.
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
