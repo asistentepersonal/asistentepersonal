@@ -4495,14 +4495,14 @@ async function syncShoppingCounts() {
     try {
         const shoppingListRef = db.collection('users').doc(chatId).collection('listaDeLaCompra');
         
-        // Usamos las consultas .count() que son ultra eficientes
-        const pendingPromise = shoppingListRef.where('estado', '==', 'Pendiente').count().get();
-        const boughtPromise = shoppingListRef.where('estado', '==', 'Comprado').count().get();
+        // Método de conteo universalmente compatible
+        const pendingPromise = shoppingListRef.where('estado', '==', 'Pendiente').get();
+        const boughtPromise = shoppingListRef.where('estado', '==', 'Comprado').get();
         
         const [pendingSnapshot, boughtSnapshot] = await Promise.all([pendingPromise, boughtPromise]);
         
-        const pendingCount = pendingSnapshot.data().count;
-        const boughtCount = boughtSnapshot.data().count;
+        const pendingCount = pendingSnapshot.size;
+        const boughtCount = boughtSnapshot.size;
         
         // Actualizamos el documento de resumen en Firestore
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
