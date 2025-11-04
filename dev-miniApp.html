@@ -2347,24 +2347,28 @@ async function saveReminder() {
     }
 
     // --- INICIO: LÓGICA OPTIMISTA MEJORADA ---
-    const customId = generateCustomId('G-');
+    const customId = generateCustomId('G-'); // Usamos tu función para generar un ID temporal
     const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
 
-    const tempReminder = {
-        tracking_code: customId,
+    // 1. Creamos el objeto optimista
+    const optimisticReminder = {
+        tracking_code: customId, // Usamos el ID temporal como tracking_code
         Descripcion: description,
         Categoria: category,
         Fecha: fechaLocalParaUI,
-        Status: 'pending_creation'
+        Status: 'pending_creation' // Un estado para saber que está guardándose
     };
-    appData.remindersList.unshift(tempReminder);
+
+    // 2. Lo añadimos al principio de la lista en memoria
+    appData.remindersList.unshift(optimisticReminder);
     
-    // Navegamos a la lista, que ahora dibujará desde la memoria local primero.
+    // 3. Navegamos a la lista, que se dibujará al instante con el nuevo item
     renderRemindersList();
+    showToast('Recordatorio añadido...');
     // --- FIN: LÓGICA OPTIMISTA MEJORADA ---
 
     try {
-        // 3. En segundo plano, llamamos a la Cloud Function.
+        // 4. En segundo plano, llamamos a la Cloud Function con el ID temporal
         const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
         const datosRecordatorio = {
             descripcion: description,
@@ -2378,20 +2382,20 @@ async function saveReminder() {
             tipo: 'recordatorioSimple',
             fechaLocal: fechaLocalString,
             datos: datosRecordatorio,
-            customId: customId
+            customId: customId // ¡Clave! Enviamos el ID temporal
         };
         
         const functions = firebase.app().functions('europe-west1');
         const createNotificationFunction = functions.httpsCallable('createNotification');
         await createNotificationFunction(payload);
-        // Si tiene éxito, no hacemos nada. El listener se encargará.
+        // Si tiene éxito, no hacemos nada más. El listener se encargará de actualizar el estado.
 
     } catch (err) {
-        // --- INICIO: NUEVO MANEJO DE ERRORES ---
+        // --- INICIO: MANEJO DE ERRORES MEJORADO ---
         console.error("Error al guardar el recordatorio:", err);
-        showToast("Error al guardar. No se pudo crear el recordatorio. Por favor, inténtalo de nuevo.", true, true); // Toast persistente
+        showToast("Error. No se pudo crear el recordatorio. Inténtalo de nuevo.", true, true);
         
-        // Eliminamos el recordatorio optimista fallido de la lista local
+        // Si falla, eliminamos el recordatorio optimista de la lista local
         const index = appData.remindersList.findIndex(r => r.tracking_code === customId);
         if (index > -1) {
             appData.remindersList.splice(index, 1);
@@ -2405,7 +2409,7 @@ async function saveReminder() {
         document.querySelector(`input[name="category"][value="${category}"]`).checked = true;
         document.getElementById('time').parentElement._flatpickr.setDate(selectedDate);
         if(horas_recurrentes) document.getElementById('recurrent-hours').value = horas_recurrentes;
-        // --- FIN: NUEVO MANEJO DE ERRORES ---
+        // --- FIN: MANEJO DE ERRORES MEJORADO ---
     }
 }
 
@@ -2429,7 +2433,7 @@ async function renderRemindersList() {
                             </div>
                             <ul class="list-style-none" id="reminders-list"></ul>
                          </div>`;
-						 document.getElementById('add-new-reminder-btn').onclick = renderReminderForm;
+                         document.getElementById('add-new-reminder-btn').onclick = renderReminderForm;
 
     // 1. Dibuja la lista INMEDIATAMENTE desde la memoria local (incluyendo el recordatorio optimista)
     drawRemindersList();
@@ -2438,7 +2442,7 @@ async function renderRemindersList() {
     listElement.removeEventListener('click', handleReminderListClick);
     listElement.addEventListener('click', handleReminderListClick);
 
-    // 2. Si ya hay un listener, no lo reinicies todavía para evitar el parpadeo.
+    // 2. Si ya hay un listener, no lo reinicies.
     if (typeof unsubscribeRemindersList === 'function') {
         return; 
     }
@@ -2446,50 +2450,65 @@ async function renderRemindersList() {
     const q = db.collection('users').doc(chatId).collection('notificaciones')
                 .orderBy('fecha_universal', 'asc');
     
+    // --- INICIO: LÓGICA DE RECONCILIACIÓN ---
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-    const officialReminders = [];
-    snapshot.forEach(doc => {
-        const data = doc.data();
-        officialReminders.push({
-            tracking_code: doc.id,
-            Descripcion: data.descripcion,
-            Categoria: data.categoria_recordatorio,
-            Fecha: data.hora_local,
-            Status: data.status
+        // 3. Obtenemos la lista "real" desde Firestore
+        const officialReminders = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            officialReminders.push({
+                tracking_code: doc.id,
+                Descripcion: data.descripcion,
+                Categoria: data.categoria_recordatorio,
+                Fecha: data.hora_local,
+                Status: data.status // El estado real, ej: 'active'
+            });
         });
+
+        // 4. Obtenemos solo los recordatorios optimistas que están en la memoria local
+        const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
+
+        // 5. Creamos un mapa de los IDs reales para una búsqueda rápida
+        const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
+        
+        // 6. Filtramos: nos quedamos solo con los optimistas que AÚN NO han sido confirmados por Firestore
+        const unconfirmedOptimistic = optimisticReminders.filter(
+            optimistic => !officialMap.has(optimistic.tracking_code)
+        );
+
+        // 7. Creamos la lista final: los no confirmados + la lista real y ordenada
+        appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
+        
+        // 8. Actualizamos el contador y redibujamos la lista
+        const finalCount = appData.remindersList.length;
+        appData.counts.remindersCount = finalCount;
+        const reminderBadge = document.getElementById('reminders-badge');
+        if (reminderBadge) {
+            reminderBadge.textContent = finalCount;
+        }
+
+        drawRemindersList();
+
+    }, error => {
+        console.error("Error en listener de recordatorios:", error);
+        showToast("Error de conexión con la lista.", true);
+        const listElement = document.getElementById('reminders-list');
+        if(listElement) listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
     });
-
-    const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
-    const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
-    const unconfirmedOptimistic = optimisticReminders.filter(
-        optimistic => !officialMap.has(optimistic.tracking_code)
-    );
-
-    appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
-    
-    const finalCount = appData.remindersList.length;
-    appData.counts.remindersCount = finalCount;
-    const reminderBadge = document.getElementById('reminders-badge');
-    if (reminderBadge) {
-        reminderBadge.textContent = finalCount;
-    }
-
-    drawRemindersList();
-
-}, error => {
-    console.error("Error en listener de recordatorios:", error);
-    showToast("Error de conexión con la lista.", true);
-    const listElement = document.getElementById('reminders-list');
-    if(listElement) listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
-});
+    // --- FIN: LÓGICA DE RECONCILIACIÓN ---
 }
 
 function drawRemindersList() {
     const listElement = document.getElementById('reminders-list');
     if (!listElement) return;
 
+    if (appData.remindersList.length === 0) {
+        listElement.innerHTML = '<div class="no-data-msg">📝<br>No tienes recordatorios.</div>';
+        return;
+    }
+
     const listHtml = appData.remindersList.map(item => `
-        <li class="list-item" id="item-${item.tracking_code}">
+        <li class="list-item" id="item-${item.tracking_code}" style="${item.Status === 'pending_creation' ? 'opacity: 0.7;' : ''}">
             <div class="list-item-content">
                 <span class="list-item-title">
                     ${item.Status === 'pending_creation' ? '⌛ ' : ''}${item.Descripcion}
@@ -2497,7 +2516,7 @@ function drawRemindersList() {
                 <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
             </div>
             <div class="list-item-actions">
-                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
+                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}" ${item.Status === 'pending_creation' ? 'disabled' : ''}>⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
                     <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
                 </div>
