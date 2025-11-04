@@ -2441,50 +2441,52 @@ async function renderRemindersList(isCreating = false) { // <--- Parámetro aña
                 .orderBy('fecha_universal', 'asc');
     
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-        // --- INICIO: Lógica de reconciliación (sin cambios, pero importante) ---
-        const officialReminders = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            officialReminders.push({
-                tracking_code: doc.id,
-                Descripcion: data.descripcion,
-                Categoria: data.categoria_recordatorio,
-                Fecha: data.hora_local,
-                Status: data.status 
-            });
+    const listWrapper = document.getElementById('reminders-content-wrapper'); // Asegurarnos de tener la referencia
+
+    // Lógica de reconciliación (sin cambios)
+    const officialReminders = [];
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        officialReminders.push({
+            tracking_code: doc.id,
+            Descripcion: data.descripcion,
+            Categoria: data.categoria_recordatorio,
+            Fecha: data.hora_local,
+            Status: data.status 
         });
+    });
 
-        const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
-        const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
-        const unconfirmedOptimistic = optimisticReminders.filter(
-            optimistic => !officialMap.has(optimistic.tracking_code)
-        );
+    const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
+    const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
+    const unconfirmedOptimistic = optimisticReminders.filter(
+        optimistic => !officialMap.has(optimistic.tracking_code)
+    );
 
-        appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
-        
-        // --- INICIO: Quitar Spinner si el listener lo activa ---
-        if (isCreating) {
-            // Si esta función se llamó en modo "creando", el listener
-            // es el encargado de quitar el spinner y mostrar la lista.
+    appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
+    
+    if (isCreating) {
+        // Si estábamos en modo creación, quitamos el spinner.
+        if (listWrapper) {
             listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
         }
-        // --- FIN: Quitar Spinner ---
-        
-        const finalCount = appData.remindersList.length;
-        appData.counts.remindersCount = finalCount;
-        const reminderBadge = document.getElementById('reminders-badge');
-        if (reminderBadge) {
-            reminderBadge.textContent = finalCount;
-        }
+        isCreating = false; // <-- LA LÍNEA CLAVE: Desactivamos el modo creación para futuras actualizaciones.
+    }
+    
+    const finalCount = appData.remindersList.length;
+    appData.counts.remindersCount = finalCount;
+    const reminderBadge = document.getElementById('reminders-badge');
+    if (reminderBadge) {
+        reminderBadge.textContent = finalCount;
+    }
 
-        drawRemindersList();
+    drawRemindersList();
 
-    }, error => {
-        console.error("Error en listener de recordatorios:", error);
-        showToast("Error de conexión con la lista.", true);
-        const listWrapper = document.getElementById('reminders-content-wrapper');
-        if(listWrapper) listWrapper.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
-    });
+}, error => {
+    console.error("Error en listener de recordatorios:", error);
+    showToast("Error de conexión con la lista.", true);
+    const listWrapper = document.getElementById('reminders-content-wrapper');
+    if(listWrapper) listWrapper.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
+});
 }
 
 function drawRemindersList() {
