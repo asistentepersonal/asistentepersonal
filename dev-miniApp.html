@@ -2440,6 +2440,7 @@ async function renderRemindersList() {
                 .orderBy('fecha_universal', 'asc');
     
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
+    // 1. Obtener la lista oficial de Firestore.
     const officialReminders = [];
     snapshot.forEach(doc => {
         const data = doc.data();
@@ -2452,32 +2453,32 @@ async function renderRemindersList() {
         });
     });
 
-    // --- INICIO: Lógica de Reemplazo por ID ---
-    const newRemindersMap = new Map(officialReminders.map(r => [r.tracking_code, r]));
-    const existingOptimistic = appData.remindersList.filter(r => r.Status === 'pending_creation');
-
-    // Empezamos con la lista oficial.
-    let finalReminders = [...officialReminders];
-
-    // Añadimos solo los recordatorios optimistas que AÚN no han sido confirmados.
-    existingOptimistic.forEach(optimistic => {
-        if (!newRemindersMap.has(optimistic.tracking_code)) {
-            finalReminders.unshift(optimistic);
-        }
-    });
+    // 2. Obtener los recordatorios optimistas que aún están en memoria.
+    const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
     
-    appData.remindersList = finalReminders;
-    // --- FIN: Lógica de Reemplazo por ID ---
+    // 3. Crear un mapa de los IDs oficiales para una búsqueda rápida.
+    const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
+    
+    // 4. Filtrar los optimistas: mantener solo los que AÚN NO han sido confirmados por Firestore.
+    const unconfirmedOptimistic = optimisticReminders.filter(
+        optimistic => !officialMap.has(optimistic.tracking_code)
+    );
 
-    appData.counts.remindersCount = finalReminders.length;
-    if (document.getElementById('reminders-badge')) {
-        document.getElementById('reminders-badge').textContent = finalReminders.length;
+    // 5. La lista final es la suma de los no confirmados y los oficiales.
+    appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
+    
+    // 6. Actualizar contadores y redibujar.
+    const finalCount = appData.remindersList.length;
+    appData.counts.remindersCount = finalCount;
+    const reminderBadge = document.getElementById('reminders-badge');
+    if (reminderBadge) {
+        reminderBadge.textContent = finalCount;
     }
 
     drawRemindersList();
 
 }, error => {
-    console.error("Error en el listener de recordatorios:", error);
+    console.error("Error en listener de recordatorios:", error);
     showToast("Error de conexión con la lista.", true);
     const listElement = document.getElementById('reminders-list');
     if(listElement) listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
