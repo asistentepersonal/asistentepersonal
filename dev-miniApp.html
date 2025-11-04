@@ -2073,11 +2073,20 @@ window.confirmDelete = function(type, id) {
     if (!itemElement) return;
 
     let actionsContainer, menuButton;
+    let originalDeleteBtn, originalSaveBtn; // Variables para guardar los botones del formulario
 
     if (itemElement.classList.contains('form-card')) {
+        // --- INICIO: Lógica específica para el formulario ---
         actionsContainer = itemElement.querySelector('.button-group');
-        menuButton = null; 
+        originalDeleteBtn = actionsContainer.querySelector('#delete-gasto-btn');
+        originalSaveBtn = actionsContainer.querySelector('#save-gasto-btn');
+        
+        // Ocultamos los botones originales
+        if (originalDeleteBtn) originalDeleteBtn.style.display = 'none';
+        if (originalSaveBtn) originalSaveBtn.style.display = 'none';
+        // --- FIN: Lógica específica para el formulario ---
     } else {
+        // Lógica para elementos de lista (sin cambios)
         actionsContainer = itemElement.querySelector('.list-item-actions');
         menuButton = actionsContainer.querySelector('.generic-menu-btn');
         const dropdown = actionsContainer.querySelector('.dropdown-menu');
@@ -2097,7 +2106,16 @@ window.confirmDelete = function(type, id) {
     confirmBtnNo.textContent = 'No';
     confirmBtnNo.onclick = (e) => { 
         e.stopPropagation(); 
-        if(menuButton) menuButton.style.display = 'block'; 
+        // --- INICIO: Lógica de restauración mejorada ---
+        if (itemElement.classList.contains('form-card')) {
+            // Si es el formulario, volvemos a mostrar los botones originales
+            if (originalDeleteBtn) originalDeleteBtn.style.display = 'block';
+            if (originalSaveBtn) originalSaveBtn.style.display = 'block';
+        } else {
+            // Si es una lista, mostramos el menú de nuevo
+            if (menuButton) menuButton.style.display = 'block'; 
+        }
+        // --- FIN: Lógica de restauración mejorada ---
         confirmBtnYes.remove(); 
         confirmBtnNo.remove(); 
     };
