@@ -2132,15 +2132,22 @@ async function executeDelete(type, id) {
     try {
         switch(type) {
             case 'reminder': {
-                // --- LÓGICA OPTIMISTA Y NATIVA DE FIRESTORE ---
-                const reminderItem = document.getElementById(`item-${id}`);
-                if (reminderItem) reminderItem.remove();
-                
-                appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
-                const reminderBadge = document.getElementById('reminders-badge');
-                if (reminderBadge) reminderBadge.textContent = appData.counts.remindersCount;
+    // --- LÓGICA OPTIMISTA CORREGIDA ---
+    const reminderItem = document.getElementById(`item-${id}`);
+    if (reminderItem) reminderItem.remove(); // 1. Borra de la pantalla
 
-                (async () => {
+    // 2. BORRA DE LA MEMORIA (LA LÍNEA QUE FALTABA)
+    const index = appData.remindersList.findIndex(r => r.tracking_code === id);
+    if (index > -1) {
+        appData.remindersList.splice(index, 1);
+    }
+    
+    // 3. Actualiza el contador
+    appData.counts.remindersCount = appData.remindersList.length;
+    const reminderBadge = document.getElementById('reminders-badge');
+    if (reminderBadge) reminderBadge.textContent = appData.counts.remindersCount;
+
+    (async () => { // 4. Borra de Firestore
                     try {
                         const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
                         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
@@ -2440,7 +2447,6 @@ async function renderRemindersList() {
                 .orderBy('fecha_universal', 'asc');
     
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-    // 1. Obtener la lista oficial de Firestore.
     const officialReminders = [];
     snapshot.forEach(doc => {
         const data = doc.data();
@@ -2453,21 +2459,14 @@ async function renderRemindersList() {
         });
     });
 
-    // 2. Obtener los recordatorios optimistas que aún están en memoria.
     const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
-    
-    // 3. Crear un mapa de los IDs oficiales para una búsqueda rápida.
     const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
-    
-    // 4. Filtrar los optimistas: mantener solo los que AÚN NO han sido confirmados por Firestore.
     const unconfirmedOptimistic = optimisticReminders.filter(
         optimistic => !officialMap.has(optimistic.tracking_code)
     );
 
-    // 5. La lista final es la suma de los no confirmados y los oficiales.
     appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
     
-    // 6. Actualizar contadores y redibujar.
     const finalCount = appData.remindersList.length;
     appData.counts.remindersCount = finalCount;
     const reminderBadge = document.getElementById('reminders-badge');
