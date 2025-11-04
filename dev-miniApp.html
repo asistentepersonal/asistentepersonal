@@ -2332,85 +2332,91 @@ flatpickr(document.querySelector("#time").parentElement, {
 async function saveReminder() {
     const sendBtn = document.getElementById('sendBtn');
     sendBtn.disabled = true;
-    
-    // Guardamos los datos antes de la operación asíncrona
+    sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Creando...`;
+
+    // 1. Recopilamos todos los datos del formulario de forma síncrona.
     const category = document.querySelector('input[name="category"]:checked').value;
     const description = document.getElementById('text').value.trim();
     const timePicker = document.getElementById('time').parentElement._flatpickr;
     const selectedDate = timePicker.selectedDates[0];
     const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
-    
+
     if (!description || !selectedDate) {
         showToast("La descripción y la fecha son obligatorias.", true);
-        sendBtn.disabled = false; // Reactivamos el botón
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = 'Crear Recordatorio';
         return;
     }
 
-    // --- INICIO: LÓGICA OPTIMISTA MEJORADA ---
-    const customId = generateCustomId('G-'); // Usamos tu función para generar un ID temporal
-    const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
-
-    // 1. Creamos el objeto optimista
-    const optimisticReminder = {
-        tracking_code: customId, // Usamos el ID temporal como tracking_code
-        Descripcion: description,
-        Categoria: category,
-        Fecha: fechaLocalParaUI,
-        Status: 'pending_creation' // Un estado para saber que está guardándose
-    };
-
-    // 2. Lo añadimos al principio de la lista en memoria
-    appData.remindersList.unshift(optimisticReminder);
-    
-    // 3. Navegamos a la lista, que se dibujará al instante con el nuevo item
+    // 2. Navegamos INMEDIATAMENTE a la lista de recordatorios.
     renderRemindersList();
-    showToast('Recordatorio añadido...');
-    // --- FIN: LÓGICA OPTIMISTA MEJORADA ---
 
-    try {
-        // 4. En segundo plano, llamamos a la Cloud Function con el ID temporal
-        const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
-        const datosRecordatorio = {
-            descripcion: description,
-            categoria_recordatorio: category,
-            hora_local: fechaLocalParaUI,
-            horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
-        };
-
-        const payload = {
-            chatId: chatId,
-            tipo: 'recordatorioSimple',
-            fechaLocal: fechaLocalString,
-            datos: datosRecordatorio,
-            customId: customId // ¡Clave! Enviamos el ID temporal
-        };
-        
-        const functions = firebase.app().functions('europe-west1');
-        const createNotificationFunction = functions.httpsCallable('createNotification');
-        await createNotificationFunction(payload);
-        // Si tiene éxito, no hacemos nada más. El listener se encargará de actualizar el estado.
-
-    } catch (err) {
-        // --- INICIO: MANEJO DE ERRORES MEJORADO ---
-        console.error("Error al guardar el recordatorio:", err);
-        showToast("Error. No se pudo crear el recordatorio. Inténtalo de nuevo.", true, true);
-        
-        // Si falla, eliminamos el recordatorio optimista de la lista local
-        const index = appData.remindersList.findIndex(r => r.tracking_code === customId);
-        if (index > -1) {
-            appData.remindersList.splice(index, 1);
+    // Usamos un setTimeout para asegurarnos de que el DOM de la lista se haya renderizado.
+    setTimeout(async () => {
+        const listWrapper = document.getElementById('reminders-content-wrapper');
+        if (listWrapper) {
+            // 3. Mostramos un spinner de 3 puntos mientras esperamos la confirmación.
+            listWrapper.innerHTML = `
+                <div class="combustible-loading-state" style="padding: 40px 0;">
+                    <p>Creando recordatorio en el servidor...</p>
+                    <div class="dot-spinner" style="margin-top: 20px;">
+                        <div class="dot-spinner__dot"></div>
+                        <div class="dot-spinner__dot"></div>
+                        <div class="dot-spinner__dot"></div>
+                    </div>
+                </div>`;
         }
-        
-        // Volvemos al formulario para que el usuario pueda reintentar
-        renderReminderForm();
-        
-        // Rellenamos el formulario con los datos que el usuario ya había introducido
-        document.getElementById('text').value = description;
-        document.querySelector(`input[name="category"][value="${category}"]`).checked = true;
-        document.getElementById('time').parentElement._flatpickr.setDate(selectedDate);
-        if(horas_recurrentes) document.getElementById('recurrent-hours').value = horas_recurrentes;
-        // --- FIN: MANEJO DE ERRORES MEJORADO ---
-    }
+
+        const customId = generateCustomId('G-'); // ID temporal
+
+        try {
+            // 4. LLAMAMOS A LA FUNCIÓN Y ESPERAMOS a que termine.
+            const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
+            const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
+            const datosRecordatorio = {
+                descripcion: description,
+                categoria_recordatorio: category,
+                hora_local: fechaLocalParaUI,
+                horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
+            };
+
+            const payload = { chatId, tipo: 'recordatorioSimple', fechaLocal: fechaLocalString, datos: datosRecordatorio, customId };
+            const functions = firebase.app().functions('europe-west1');
+            const createNotificationFunction = functions.httpsCallable('createNotification');
+            
+            await createNotificationFunction(payload);
+
+            // 5. ÉXITO: La Cloud Function ha terminado.
+            // Creamos nuestro recordatorio local "pendiente de confirmación por Firestore"
+            const pendingReminder = {
+                tracking_code: customId,
+                Descripcion: description,
+                Categoria: category,
+                Fecha: fechaLocalParaUI,
+                Status: 'pending_creation' // El estado para el reloj de arena ⌛
+            };
+
+            // Lo añadimos a la lista local
+            appData.remindersList.unshift(pendingReminder);
+            
+            // Quitamos el spinner y redibujamos la lista completa.
+            if (listWrapper) {
+                listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+                drawRemindersList(); // Ahora mostrará el item con el ⌛
+            }
+
+        } catch (err) {
+            // 6. ERROR: La Cloud Function falló.
+            console.error("Error al guardar el recordatorio:", err);
+            showToast("Error. No se pudo crear el recordatorio.", true, true);
+            
+            // Simplemente quitamos el spinner y dejamos la lista como estaba.
+            if (listWrapper) {
+                listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+                drawRemindersList(); // Dibuja la lista sin el nuevo item
+            }
+        }
+    }, 100); // Un pequeño delay para dar tiempo al DOM a actualizarse.
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
@@ -2431,7 +2437,9 @@ async function renderRemindersList() {
                             <div class="add-article-btn-container">
                                 <button class="add-article-btn" id="add-new-reminder-btn">➕ Añadir Recordatorio</button>
                             </div>
-                            <ul class="list-style-none" id="reminders-list"></ul>
+                            <div id="reminders-content-wrapper">
+							<ul class="list-style-none" id="reminders-list"></ul>
+							</div>
                          </div>`;
                          document.getElementById('add-new-reminder-btn').onclick = renderReminderForm;
 
