@@ -2267,7 +2267,7 @@ async function executeDelete(type, id) {
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
 function renderReminderForm() {
-  navigationHistory.push(renderDashboard);
+  navigationHistory.push(renderRemindersList);
   updateBackButton();
   mainContentArea.innerHTML = `
     <div class="list-container">
@@ -2348,8 +2348,7 @@ async function saveReminder() {
         return;
     }
 
-    // 2. NAVEGAMOS ATRÁS PRIMERO. Esto es clave.
-    // Al volver a la lista, se ejecuta renderRemindersList() y su listener onSnapshot queda activo.
+    // 2. NAVEGAMOS ATRÁS PRIMERO. Con el Paso 1, esto ahora te llevará a la lista de recordatorios.
     goBack();
 
     // 3. Usamos un setTimeout para dar tiempo al DOM a renderizar la vista de la lista.
@@ -2386,7 +2385,7 @@ async function saveReminder() {
             
             await createNotificationFunction(payload);
 
-            // 6. ÉXITO: No hacemos nada. El listener onSnapshot se encargará de quitar el spinner y mostrar la lista actualizada.
+            // 6. ÉXITO: No hacemos nada. El listener onSnapshot se encargará del resto.
 
         } catch (err) {
             // 7. ERROR: Si la Cloud Function falla, restauramos la vista.
@@ -2399,7 +2398,7 @@ async function saveReminder() {
                 drawRemindersList(); // Vuelve a dibujar la lista como estaba.
             }
         }
-    }, 100); // 100ms es un delay seguro para la transición de la UI.
+    }, 100); 
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
