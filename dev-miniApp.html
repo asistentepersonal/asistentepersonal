@@ -2558,8 +2558,8 @@ async function renderShoppingList() {
     
     appData.shoppingList = items;
     const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-    renderShoppingListContent(items, userTimeZone);
-    updateShoppingCounts(items);
+	renderShoppingListContent(items, userTimeZone);
+	syncShoppingCounts();
     console.log("Lista de compras actualizada desde Firestore.");
 
 }, (error) => {
@@ -2624,19 +2624,6 @@ function renderShoppingListContent(items, userTimeZone) {
         document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
         updateMultiSelectButtonState();
     }
-}
-
-function updateShoppingCounts(items) {
-    const pending = items.filter(item => item.estado === 'Pendiente').length;
-    const bought = items.filter(item => item.estado === 'Comprado').length;
-    
-    appData.counts.shoppingPendingCount = pending;
-    appData.counts.shoppingBoughtCount = bought;
-
-    const pendingBadge = document.getElementById('shopping-pending-badge');
-    const boughtBadge = document.getElementById('shopping-bought-badge');
-    if (pendingBadge) pendingBadge.textContent = pending;
-    if (boughtBadge) boughtBadge.textContent = bought;
 }
 
 function handleShoppingItemInteractions(event) {
