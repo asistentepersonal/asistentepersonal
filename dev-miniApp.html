@@ -3213,9 +3213,12 @@ async function handleImageScan() {
         sendBtn.disabled = false;
         sendBtn.innerHTML = originalBtnHTML;
     } finally {
-        // Limpiamos la variable de la imagen seleccionada
-        selectedImageFile = null;
-    }
+    // Restauramos el botón a su estado original, independientemente del resultado
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = originalBtnHTML;
+    // Limpiamos la variable de la imagen seleccionada
+    selectedImageFile = null;
+}
 }
 
 document.getElementById('preview-cancel-btn').onclick = () => {
