@@ -1557,7 +1557,8 @@ if (tg) {
             }
             // --- FIN: LÓGICA DE SINCRONIZACIÓN ---
 
-            updateCalendarBadgeListener(); // Re-verifica el badge del calendario
+			syncShoppingCounts(); // ¡NUEVO! Sincroniza los contadores de la compra
+			updateCalendarBadgeListener(); // Re-verifica el badge del calendario
         }
     });
 }
@@ -4498,6 +4499,36 @@ async function saveSettings() {
         saveBtn.innerHTML = originalBtnText;
         saveBtn.disabled = false;
         saveBtn.classList.add('enabled');
+    }
+}
+
+async function syncShoppingCounts() {
+    if (!chatId) return;
+    console.log("[Sincronización de Compra] Iniciando recálculo de contadores.");
+    try {
+        const shoppingListRef = db.collection('users').doc(chatId).collection('listaDeLaCompra');
+        
+        // Usamos las consultas .count() que son ultra eficientes
+        const pendingPromise = shoppingListRef.where('estado', '==', 'Pendiente').count().get();
+        const boughtPromise = shoppingListRef.where('estado', '==', 'Comprado').count().get();
+        
+        const [pendingSnapshot, boughtSnapshot] = await Promise.all([pendingPromise, boughtPromise]);
+        
+        const pendingCount = pendingSnapshot.data().count;
+        const boughtCount = boughtSnapshot.data().count;
+        
+        // Actualizamos el documento de resumen en Firestore
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        await countsRef.update({
+            shoppingPendingCount: pendingCount,
+            shoppingBoughtCount: boughtCount
+        });
+        
+        console.log(`[Sincronización de Compra] Recálculo completado. Pendientes: ${pendingCount}, Comprados: ${boughtCount}`);
+        
+    } catch (error) {
+        // Este error no debe detener al usuario, solo lo registramos.
+        console.error("[Sincronización de Compra] Error durante el recálculo:", error);
     }
 }
 
