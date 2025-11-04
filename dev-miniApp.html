@@ -2334,7 +2334,7 @@ async function saveReminder() {
     sendBtn.disabled = true;
     sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Creando...`;
 
-    // 1. Recopilamos todos los datos del formulario de forma síncrona.
+    // 1. Recopilamos datos.
     const category = document.querySelector('input[name="category"]:checked').value;
     const description = document.getElementById('text').value.trim();
     const timePicker = document.getElementById('time').parentElement._flatpickr;
@@ -2348,81 +2348,45 @@ async function saveReminder() {
         return;
     }
 
-    // 2. Navegamos INMEDIATAMENTE a la lista de recordatorios.
-    renderRemindersList();
+    // 2. Navegamos a la lista Y LA PONEMOS EN MODO CARGA.
+    renderRemindersList(true); 
 
-    // Usamos un setTimeout para asegurarnos de que el DOM de la lista se haya renderizado.
-    setTimeout(async () => {
-        const listWrapper = document.getElementById('reminders-content-wrapper');
-        if (listWrapper) {
-            // 3. Mostramos un spinner de 3 puntos mientras esperamos la confirmación.
-            listWrapper.innerHTML = `
-                <div class="combustible-loading-state" style="padding: 40px 0;">
-                    <p>Creando recordatorio en el servidor...</p>
-                    <div class="dot-spinner" style="margin-top: 20px;">
-                        <div class="dot-spinner__dot"></div>
-                        <div class="dot-spinner__dot"></div>
-                        <div class="dot-spinner__dot"></div>
-                    </div>
-                </div>`;
-        }
+    try {
+        // 3. Preparamos y llamamos a la Cloud Function.
+        const customId = generateCustomId('G-');
+        const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
+        const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
+        const datosRecordatorio = {
+            descripcion: description,
+            categoria_recordatorio: category,
+            hora_local: fechaLocalParaUI,
+            horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
+        };
 
-        const customId = generateCustomId('G-'); // ID temporal
+        const payload = { chatId, tipo: 'recordatorioSimple', fechaLocal: fechaLocalString, datos: datosRecordatorio, customId };
+        const functions = firebase.app().functions('europe-west1');
+        const createNotificationFunction = functions.httpsCallable('createNotification');
+        
+        // ESPERAMOS a que la función termine, pero no hacemos nada con la respuesta.
+        await createNotificationFunction(payload);
 
-        try {
-            // 4. LLAMAMOS A LA FUNCIÓN Y ESPERAMOS a que termine.
-            const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
-            const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
-            const datosRecordatorio = {
-                descripcion: description,
-                categoria_recordatorio: category,
-                hora_local: fechaLocalParaUI,
-                horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
-            };
+        // Si la función tuvo éxito, el listener ya habrá actualizado la UI.
+        // Si no lo ha hecho, lo hará en milisegundos.
 
-            const payload = { chatId, tipo: 'recordatorioSimple', fechaLocal: fechaLocalString, datos: datosRecordatorio, customId };
-            const functions = firebase.app().functions('europe-west1');
-            const createNotificationFunction = functions.httpsCallable('createNotification');
-            
-            await createNotificationFunction(payload);
-
-            // 5. ÉXITO: La Cloud Function ha terminado.
-            // Creamos nuestro recordatorio local "pendiente de confirmación por Firestore"
-            const pendingReminder = {
-                tracking_code: customId,
-                Descripcion: description,
-                Categoria: category,
-                Fecha: fechaLocalParaUI,
-                Status: 'pending_creation' // El estado para el reloj de arena ⌛
-            };
-
-            // Lo añadimos a la lista local
-            appData.remindersList.unshift(pendingReminder);
-            
-            // Quitamos el spinner y redibujamos la lista completa.
-            if (listWrapper) {
-                listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
-                drawRemindersList(); // Ahora mostrará el item con el ⌛
-            }
-
-        } catch (err) {
-            // 6. ERROR: La Cloud Function falló.
-            console.error("Error al guardar el recordatorio:", err);
-            showToast("Error. No se pudo crear el recordatorio.", true, true);
-            
-            // Simplemente quitamos el spinner y dejamos la lista como estaba.
-            if (listWrapper) {
-                listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
-                drawRemindersList(); // Dibuja la lista sin el nuevo item
-            }
-        }
-    }, 100); // Un pequeño delay para dar tiempo al DOM a actualizarse.
+    } catch (err) {
+        // 4. ERROR: Si la Cloud Function falla.
+        console.error("Error al guardar el recordatorio:", err);
+        showToast("Error. No se pudo crear el recordatorio.", true, true);
+        
+        // Volvemos a la lista en su estado normal, sin el spinner.
+        renderRemindersList(false);
+    }
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
 let unsubscribeRemindersList = null;
 
-async function renderRemindersList() {
+async function renderRemindersList(isCreating = false) { // <--- Parámetro añadido
     navigationHistory.push(() => {
         if (typeof unsubscribeRemindersList === 'function') {
             unsubscribeRemindersList();
@@ -2438,19 +2402,37 @@ async function renderRemindersList() {
                                 <button class="add-article-btn" id="add-new-reminder-btn">➕ Añadir Recordatorio</button>
                             </div>
                             <div id="reminders-content-wrapper">
-							<ul class="list-style-none" id="reminders-list"></ul>
-							</div>
+                                <ul class="list-style-none" id="reminders-list"></ul>
+                            </div>
                          </div>`;
-                         document.getElementById('add-new-reminder-btn').onclick = renderReminderForm;
+    document.getElementById('add-new-reminder-btn').onclick = () => renderReminderForm();
 
-    // 1. Dibuja la lista INMEDIATAMENTE desde la memoria local (incluyendo el recordatorio optimista)
-    drawRemindersList();
+    const listWrapper = document.getElementById('reminders-content-wrapper');
+
+    // --- INICIO: Lógica del modo de carga ---
+    if (isCreating) {
+        // Si estamos creando, mostramos el spinner en lugar de la lista.
+        listWrapper.innerHTML = `
+            <div class="combustible-loading-state" style="padding: 40px 0;">
+                <p>Creando recordatorio en el servidor...</p>
+                <div class="dot-spinner" style="margin-top: 20px;">
+                    <div class="dot-spinner__dot"></div>
+                    <div class="dot-spinner__dot"></div>
+                    <div class="dot-spinner__dot"></div>
+                </div>
+            </div>`;
+    } else {
+        // Si no, dibujamos la lista desde la memoria como de costumbre.
+        drawRemindersList();
+    }
+    // --- FIN: Lógica del modo de carga ---
     
     const listElement = document.getElementById('reminders-list');
-    listElement.removeEventListener('click', handleReminderListClick);
-    listElement.addEventListener('click', handleReminderListClick);
+    if(listElement) {
+        listElement.removeEventListener('click', handleReminderListClick);
+        listElement.addEventListener('click', handleReminderListClick);
+    }
 
-    // 2. Si ya hay un listener, no lo reinicies.
     if (typeof unsubscribeRemindersList === 'function') {
         return; 
     }
@@ -2458,9 +2440,8 @@ async function renderRemindersList() {
     const q = db.collection('users').doc(chatId).collection('notificaciones')
                 .orderBy('fecha_universal', 'asc');
     
-    // --- INICIO: LÓGICA DE RECONCILIACIÓN ---
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-        // 3. Obtenemos la lista "real" desde Firestore
+        // --- INICIO: Lógica de reconciliación (sin cambios, pero importante) ---
         const officialReminders = [];
         snapshot.forEach(doc => {
             const data = doc.data();
@@ -2469,25 +2450,26 @@ async function renderRemindersList() {
                 Descripcion: data.descripcion,
                 Categoria: data.categoria_recordatorio,
                 Fecha: data.hora_local,
-                Status: data.status // El estado real, ej: 'active'
+                Status: data.status 
             });
         });
 
-        // 4. Obtenemos solo los recordatorios optimistas que están en la memoria local
         const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
-
-        // 5. Creamos un mapa de los IDs reales para una búsqueda rápida
         const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
-        
-        // 6. Filtramos: nos quedamos solo con los optimistas que AÚN NO han sido confirmados por Firestore
         const unconfirmedOptimistic = optimisticReminders.filter(
             optimistic => !officialMap.has(optimistic.tracking_code)
         );
 
-        // 7. Creamos la lista final: los no confirmados + la lista real y ordenada
         appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
         
-        // 8. Actualizamos el contador y redibujamos la lista
+        // --- INICIO: Quitar Spinner si el listener lo activa ---
+        if (isCreating) {
+            // Si esta función se llamó en modo "creando", el listener
+            // es el encargado de quitar el spinner y mostrar la lista.
+            listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+        }
+        // --- FIN: Quitar Spinner ---
+        
         const finalCount = appData.remindersList.length;
         appData.counts.remindersCount = finalCount;
         const reminderBadge = document.getElementById('reminders-badge');
@@ -2500,10 +2482,9 @@ async function renderRemindersList() {
     }, error => {
         console.error("Error en listener de recordatorios:", error);
         showToast("Error de conexión con la lista.", true);
-        const listElement = document.getElementById('reminders-list');
-        if(listElement) listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
+        const listWrapper = document.getElementById('reminders-content-wrapper');
+        if(listWrapper) listWrapper.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
     });
-    // --- FIN: LÓGICA DE RECONCILIACIÓN ---
 }
 
 function drawRemindersList() {
@@ -2514,22 +2495,29 @@ function drawRemindersList() {
         listElement.innerHTML = '<div class="no-data-msg">📝<br>No tienes recordatorios.</div>';
         return;
     }
-
-    const listHtml = appData.remindersList.map(item => `
-        <li class="list-item" id="item-${item.tracking_code}" style="${item.Status === 'pending_creation' ? 'opacity: 0.7;' : ''}">
+    
+    // --- INICIO: Lógica del reloj de arena mejorada ---
+    const listHtml = appData.remindersList.map(item => {
+        // CUALQUIER estado que no sea 'active' se considera pendiente.
+        const isPending = item.Status !== 'active';
+        
+        return `
+        <li class="list-item" id="item-${item.tracking_code}" style="${isPending ? 'opacity: 0.7;' : ''}">
             <div class="list-item-content">
                 <span class="list-item-title">
-                    ${item.Status === 'pending_creation' ? '⌛ ' : ''}${item.Descripcion}
+                    ${isPending ? '⌛ ' : ''}${item.Descripcion}
                 </span>
                 <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
             </div>
             <div class="list-item-actions">
-                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}" ${item.Status === 'pending_creation' ? 'disabled' : ''}>⋮</button>
+                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}" ${isPending ? 'disabled' : ''}>⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
                     <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
                 </div>
             </div>
-        </li>`).join('');
+        </li>`;
+    }).join('');
+    // --- FIN: Lógica del reloj de arena mejorada ---
 
     listElement.innerHTML = listHtml;
 }
