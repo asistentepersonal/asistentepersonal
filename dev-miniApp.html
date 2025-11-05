@@ -2392,12 +2392,6 @@ async function renderRemindersList(isCreating = false) { // <--- Parámetro aña
         drawRemindersList();
     }
     // --- FIN: Lógica del modo de carga ---
-    
-    const listElement = document.getElementById('reminders-list');
-    if(listElement) {
-        listElement.removeEventListener('click', handleReminderListClick);
-        listElement.addEventListener('click', handleReminderListClick);
-    }
 
     if (typeof unsubscribeRemindersList === 'function') {
         return; 
@@ -2446,6 +2440,11 @@ async function renderRemindersList(isCreating = false) { // <--- Parámetro aña
     }
 
     drawRemindersList();
+	const listElement = document.getElementById('reminders-list');
+    if(listElement) {
+        listElement.removeEventListener('click', handleReminderListClick);
+        listElement.addEventListener('click', handleReminderListClick);
+    }
 
 }, error => {
     console.error("Error en listener de recordatorios:", error);
