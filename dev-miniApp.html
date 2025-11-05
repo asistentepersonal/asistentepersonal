@@ -2215,12 +2215,13 @@ async function executeDelete(type, id) {
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
 function renderReminderForm(reminder = null, isReactivating = false) {
-  const onBack = isReactivating ? renderRemindersList : renderDashboard;
-  navigationHistory.push(onBack);
+  // La navegación se simplifica: siempre volvemos a la lista de donde vinimos.
+  navigationHistory.push(renderRemindersList);
   updateBackButton();
 
   const title = isReactivating ? '🔄 Reactivar Recordatorio' : '📝 Nuevo Recordatorio';
   const buttonText = isReactivating ? 'Activar' : 'Crear Recordatorio';
+  // Guardamos el ID del aviso viejo para poder borrarlo al reactivar.
   const oldIdAttribute = isReactivating ? `data-old-id="${reminder.tracking_code}"` : '';
 
   mainContentArea.innerHTML = `
@@ -2237,22 +2238,14 @@ function renderReminderForm(reminder = null, isReactivating = false) {
         </div>
         <div id="recurrent-hours-container">
           <label>Repetir cada...</label>
-          <select id="recurrent-hours"></select>
+          <select id="recurrent-hours">${[...Array(11).keys()].map(i => `<option value="${i + 2}">${i + 2} horas</option>`).join('')}</select>
         </div>
         <button id="sendBtn" ${oldIdAttribute} disabled>${buttonText}</button>
       </div>
     </div>`;
 
-  const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container'), recurrentSelect = document.getElementById('recurrent-hours');
-
-  // Rellenar las horas recurrentes
-  let hoursOptionsHtml = '';
-  for(let i=2; i<=12; i++) {
-      const selected = (reminder && reminder.HorasRecurrentes == i) ? 'selected' : '';
-      hoursOptionsHtml += `<option value="${i}" ${selected}>${i} horas</option>`;
-  }
-  recurrentSelect.innerHTML = hoursOptionsHtml;
-
+  const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
+  
   const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const getNowInUserTimeZone = () => {
     const now = new Date();
@@ -2273,10 +2266,7 @@ function renderReminderForm(reminder = null, isReactivating = false) {
   textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
   sendBtn.onclick = saveReminder;
   
-  // Si estamos reactivando, los campos de tipo no se pueden cambiar.
-  if (isReactivating) {
-    radios.forEach(r => r.disabled = true);
-  }
+  if (isReactivating) { radios.forEach(r => r.disabled = true); }
   
   toggleRecurrentField(); validate();
 }
@@ -2288,16 +2278,6 @@ async function saveReminder() {
 
     sendBtn.disabled = true;
     sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> ${isReactivating ? 'Activando...' : 'Creando...'}`;
-
-    // --- INICIO: CORRECCIÓN DE FLICKER VISUAL ---
-    // Si estamos reactivando, eliminamos el aviso de la memoria local ANTES de navegar.
-    if (isReactivating) {
-        const index = appData.remindersList.findIndex(r => r.tracking_code === oldId);
-        if (index > -1) {
-            appData.remindersList.splice(index, 1);
-        }
-    }
-    // --- FIN: CORRECCIÓN DE FLICKER VISUAL ---
 
     const category = document.querySelector('input[name="category"]:checked').value;
     const description = document.getElementById('text').value.trim();
@@ -2312,60 +2292,59 @@ async function saveReminder() {
         return;
     }
 
+    // Navegamos a la lista, que es el comportamiento correcto para ambos flujos.
     goBack();
 
-    setTimeout(async () => {
+    // Mostramos el spinner DE INMEDIATO para una experiencia fluida.
+    setTimeout(() => {
         const listWrapper = document.getElementById('reminders-content-wrapper');
         if (listWrapper) {
-            listWrapper.innerHTML = `<div class="combustible-loading-state" style="padding: 40px 0;"><p>${isReactivating ? 'Reactivando aviso en el servidor...' : 'Creando recordatorio...'}</p><div class="dot-spinner" style="margin-top: 20px;"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
+            listWrapper.innerHTML = `<div class="combustible-loading-state" style="padding: 40px 0;"><p>${isReactivating ? 'Reactivando aviso...' : 'Creando recordatorio...'}</p><div class="dot-spinner" style="margin-top: 20px;"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
+        }
+    }, 50);
+
+    try {
+        // Si estamos reactivando, primero eliminamos el aviso suspendido y ajustamos el contador.
+        if (isReactivating) {
+            const oldReminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(oldId);
+            const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+
+            const batch = db.batch();
+            batch.delete(oldReminderRef);
+            // Esta resta es clave para que el contador quede balanceado.
+            batch.update(countsRef, {
+                remindersCount: firebase.firestore.FieldValue.increment(-1)
+            });
+            await batch.commit();
         }
 
-        try {
-            // --- INICIO: CORRECCIÓN DEL CONTADOR ---
-            // Si estamos reactivando, eliminamos el aviso suspendido Y RESTAMOS 1 AL CONTADOR.
-            if (isReactivating) {
-                console.log(`[Reactivación] Eliminando aviso suspendido y ajustando contador: ${oldId}`);
-                const oldReminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(oldId);
-                const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        // Ahora, SIEMPRE creamos un nuevo aviso. La Cloud Function sumará +1 al contador.
+        const customId = generateCustomId('G-');
+        const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
+        const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
+        const datosRecordatorio = {
+            descripcion: description,
+            categoria_recordatorio: category,
+            hora_local: fechaLocalParaUI,
+            horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
+        };
 
-                const batch = db.batch();
-                batch.delete(oldReminderRef);
-                batch.update(countsRef, {
-                    remindersCount: firebase.firestore.FieldValue.increment(-1)
-                });
-                await batch.commit();
-            }
-            // --- FIN: CORRECCIÓN DEL CONTADOR ---
+        const payload = { chatId, tipo: 'recordatorioSimple', fechaLocal: fechaLocalString, datos: datosRecordatorio, customId };
+        const functions = firebase.app().functions('europe-west1');
+        const createNotificationFunction = functions.httpsCallable('createNotification');
+        
+        await createNotificationFunction(payload);
 
-            // Ahora, procedemos a crear el nuevo aviso. La Cloud Function sumará 1 al contador,
-            // resultando en un cambio neto de 0 para el contador total.
-            const customId = generateCustomId('G-');
-            const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
-            const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
-            const datosRecordatorio = {
-                descripcion: description,
-                categoria_recordatorio: category,
-                hora_local: fechaLocalParaUI,
-                horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
-            };
-
-            const payload = { chatId, tipo: 'recordatorioSimple', fechaLocal: fechaLocalString, datos: datosRecordatorio, customId };
-            const functions = firebase.app().functions('europe-west1');
-            const createNotificationFunction = functions.httpsCallable('createNotification');
-            
-            await createNotificationFunction(payload);
-
-        } catch (err) {
-            console.error("Error al guardar el recordatorio (crear/activar):", err);
-            showToast("Error. No se pudo completar la operación.", true, true);
-            
-            const listWrapperOnError = document.getElementById('reminders-content-wrapper');
-            if (listWrapperOnError) {
-                listWrapperOnError.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
-                drawRemindersList(); 
-            }
+    } catch (err) {
+        console.error("Error al guardar el recordatorio (crear/activar):", err);
+        showToast("Error. No se pudo completar la operación.", true, true);
+        // En caso de error, forzamos un redibujado de la lista para mostrar el estado real.
+        const listWrapperOnError = document.getElementById('reminders-content-wrapper');
+        if (listWrapperOnError) {
+            listWrapperOnError.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+            drawRemindersList(); 
         }
-    }, 100); 
+    }
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
