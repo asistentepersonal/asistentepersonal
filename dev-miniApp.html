@@ -2478,12 +2478,13 @@ function drawRemindersList() {
             }
         }
 
+        // El emoji se construye aquí
+        const titleContent = `${isSuspended ? '⚠️ ' : ''}${item.Descripcion}`;
+
         return `
         <li class="list-item" id="item-${item.tracking_code}" style="${isSuspended ? 'opacity: 0.6;' : ''}">
             <div class="list-item-content">
-                <span class="list-item-title">
-                    ${isSuspended ? '⚠️ ' : ''}${item.Descripcion}
-                </span>
+                <span class="list-item-title">${titleContent}</span>
                 <span class="list-item-subtitle">${item.Categoria}: ${isSuspended ? 'Suspendido' : item.Fecha}</span>
             </div>
             <div class="list-item-actions">
