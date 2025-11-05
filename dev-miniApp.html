@@ -2289,6 +2289,16 @@ async function saveReminder() {
     sendBtn.disabled = true;
     sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> ${isReactivating ? 'Activando...' : 'Creando...'}`;
 
+    // --- INICIO: CORRECCIÓN DE FLICKER VISUAL ---
+    // Si estamos reactivando, eliminamos el aviso de la memoria local ANTES de navegar.
+    if (isReactivating) {
+        const index = appData.remindersList.findIndex(r => r.tracking_code === oldId);
+        if (index > -1) {
+            appData.remindersList.splice(index, 1);
+        }
+    }
+    // --- FIN: CORRECCIÓN DE FLICKER VISUAL ---
+
     const category = document.querySelector('input[name="category"]:checked').value;
     const description = document.getElementById('text').value.trim();
     const timePicker = document.getElementById('time').parentElement._flatpickr;
@@ -2311,14 +2321,24 @@ async function saveReminder() {
         }
 
         try {
-            // PASO CRÍTICO: Si estamos reactivando, primero eliminamos el aviso suspendido.
+            // --- INICIO: CORRECCIÓN DEL CONTADOR ---
+            // Si estamos reactivando, eliminamos el aviso suspendido Y RESTAMOS 1 AL CONTADOR.
             if (isReactivating) {
-                console.log(`[Reactivación] Eliminando aviso suspendido: ${oldId}`);
+                console.log(`[Reactivación] Eliminando aviso suspendido y ajustando contador: ${oldId}`);
                 const oldReminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(oldId);
-                await oldReminderRef.delete();
-            }
+                const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-            // Ahora, procedemos a crear el nuevo aviso, sea cual sea el caso.
+                const batch = db.batch();
+                batch.delete(oldReminderRef);
+                batch.update(countsRef, {
+                    remindersCount: firebase.firestore.FieldValue.increment(-1)
+                });
+                await batch.commit();
+            }
+            // --- FIN: CORRECCIÓN DEL CONTADOR ---
+
+            // Ahora, procedemos a crear el nuevo aviso. La Cloud Function sumará 1 al contador,
+            // resultando en un cambio neto de 0 para el contador total.
             const customId = generateCustomId('G-');
             const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
             const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
@@ -2335,9 +2355,6 @@ async function saveReminder() {
             
             await createNotificationFunction(payload);
 
-            // Éxito: El listener onSnapshot se encargará del resto.
-            // El toast de éxito lo mostrará el listener al detectar el nuevo elemento.
-
         } catch (err) {
             console.error("Error al guardar el recordatorio (crear/activar):", err);
             showToast("Error. No se pudo completar la operación.", true, true);
@@ -2345,7 +2362,7 @@ async function saveReminder() {
             const listWrapperOnError = document.getElementById('reminders-content-wrapper');
             if (listWrapperOnError) {
                 listWrapperOnError.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
-                drawRemindersList(); // Vuelve a dibujar la lista como estaba.
+                drawRemindersList(); 
             }
         }
     }, 100); 
@@ -2354,7 +2371,7 @@ async function saveReminder() {
 // Variable global para poder desconectar el listener si el usuario sale de la vista
 let unsubscribeRemindersList = null;
 
-async function renderRemindersList(isCreating = false) { // <--- Parámetro añadido
+async function renderRemindersList(isCreating = false) { 
     navigationHistory.push(() => {
         if (typeof unsubscribeRemindersList === 'function') {
             unsubscribeRemindersList();
@@ -2364,7 +2381,8 @@ async function renderRemindersList(isCreating = false) { // <--- Parámetro aña
     });
     updateBackButton();
     
-    mainContentArea.innerHTML = `<div class="list-container">
+    // Añadimos un ID al contenedor principal para poder seleccionarlo fácilmente
+    mainContentArea.innerHTML = `<div class="list-container" id="reminders-view-container">
                             <div class="list-header"><h2>Recordatorios</h2></div>
                             <div class="add-article-btn-container">
                                 <button class="add-article-btn" id="add-new-reminder-btn">➕ Añadir Recordatorio</button>
@@ -2377,23 +2395,29 @@ async function renderRemindersList(isCreating = false) { // <--- Parámetro aña
 
     const listWrapper = document.getElementById('reminders-content-wrapper');
 
-    // --- INICIO: Lógica del modo de carga ---
     if (isCreating) {
-        // Si estamos creando, mostramos el spinner en lugar de la lista.
-        listWrapper.innerHTML = `
-            <div class="combustible-loading-state" style="padding: 40px 0;">
-                <p>Creando recordatorio en el servidor...</p>
-                <div class="dot-spinner" style="margin-top: 20px;">
-                    <div class="dot-spinner__dot"></div>
-                    <div class="dot-spinner__dot"></div>
-                    <div class="dot-spinner__dot"></div>
-                </div>
-            </div>`;
+        listWrapper.innerHTML = `<div class="combustible-loading-state" style="padding: 40px 0;"><p>Creando recordatorio en el servidor...</p><div class="dot-spinner" style="margin-top: 20px;"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
     } else {
-        // Si no, dibujamos la lista desde la memoria como de costumbre.
         drawRemindersList();
     }
-    // --- FIN: Lógica del modo de carga ---
+    
+    // --- INICIO DEL CÓDIGO AÑADIDO ---
+    // Este listener se asegura de que cualquier clic fuera del menú lo cierre.
+    const viewContainer = document.getElementById('reminders-view-container');
+    if (viewContainer) {
+        viewContainer.addEventListener('click', (e) => {
+            if (!e.target.closest('.generic-menu-btn') && !e.target.closest('.dropdown-menu')) {
+                document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+            }
+        });
+    }
+    // --- FIN DEL CÓDIGO AÑADIDO ---
+
+    const listElement = document.getElementById('reminders-list');
+    if(listElement) {
+        listElement.removeEventListener('click', handleReminderListClick);
+        listElement.addEventListener('click', handleReminderListClick);
+    }
 
     if (typeof unsubscribeRemindersList === 'function') {
         return; 
@@ -2403,57 +2427,53 @@ async function renderRemindersList(isCreating = false) { // <--- Parámetro aña
                 .orderBy('fecha_universal', 'asc');
     
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-    const listWrapper = document.getElementById('reminders-content-wrapper'); // Asegurarnos de tener la referencia
-
-    // Lógica de reconciliación (sin cambios)
-    const officialReminders = [];
-    snapshot.forEach(doc => {
-        const data = doc.data();
-        officialReminders.push({
-            tracking_code: doc.id,
-            Descripcion: data.descripcion,
-            Categoria: data.categoria_recordatorio,
-            Fecha: data.hora_local,
-            Status: data.status 
+        const listWrapper = document.getElementById('reminders-content-wrapper');
+        const officialReminders = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            officialReminders.push({
+                tracking_code: doc.id,
+                Descripcion: data.descripcion,
+                Categoria: data.categoria_recordatorio,
+                Fecha: data.hora_local,
+                Status: data.status 
+            });
         });
+
+        const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
+        const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
+        const unconfirmedOptimistic = optimisticReminders.filter(
+            optimistic => !officialMap.has(optimistic.tracking_code)
+        );
+
+        appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
+        
+        if (listWrapper) {
+            listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+        }
+        
+        const finalCount = appData.remindersList.length;
+        appData.counts.remindersCount = finalCount;
+        const reminderBadge = document.getElementById('reminders-badge');
+        if (reminderBadge) {
+            reminderBadge.textContent = finalCount;
+        }
+
+        drawRemindersList();
+
+        // Re-asignamos el listener principal después de dibujar la lista
+        const newListElement = document.getElementById('reminders-list');
+        if(newListElement) {
+            newListElement.removeEventListener('click', handleReminderListClick);
+            newListElement.addEventListener('click', handleReminderListClick);
+        }
+
+    }, error => {
+        console.error("Error en listener de recordatorios:", error);
+        showToast("Error de conexión con la lista.", true);
+        const listWrapper = document.getElementById('reminders-content-wrapper');
+        if(listWrapper) listWrapper.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
     });
-
-    const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
-    const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
-    const unconfirmedOptimistic = optimisticReminders.filter(
-        optimistic => !officialMap.has(optimistic.tracking_code)
-    );
-
-    appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
-    
-    // --- INICIO DE LA CORRECCIÓN CLAVE ---
-    // Si el contenedor principal tiene el spinner, lo reemplazamos por la estructura 
-    // de lista vacía que `drawRemindersList` necesita para funcionar.
-    if (listWrapper) {
-        listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
-    }
-    // --- FIN DE LA CORRECCIÓN CLAVE ---
-    
-    const finalCount = appData.remindersList.length;
-    appData.counts.remindersCount = finalCount;
-    const reminderBadge = document.getElementById('reminders-badge');
-    if (reminderBadge) {
-        reminderBadge.textContent = finalCount;
-    }
-
-    drawRemindersList();
-	const listElement = document.getElementById('reminders-list');
-    if(listElement) {
-        listElement.removeEventListener('click', handleReminderListClick);
-        listElement.addEventListener('click', handleReminderListClick);
-    }
-
-}, error => {
-    console.error("Error en listener de recordatorios:", error);
-    showToast("Error de conexión con la lista.", true);
-    const listWrapper = document.getElementById('reminders-content-wrapper');
-    if(listWrapper) listWrapper.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
-});
 }
 
 function drawRemindersList() {
