@@ -2134,33 +2134,27 @@ async function executeDelete(type, id) {
             case 'reminder': {
                 const reminderItemElement = document.getElementById(`item-${id}`);
                 if (reminderItemElement) {
-                    reminderItemElement.style.opacity = '0.5'; // Atenuamos para dar feedback visual
+                    // Damos feedback visual inmediato de que algo está pasando.
+                    reminderItemElement.style.opacity = '0.5';
+                    reminderItemElement.style.pointerEvents = 'none';
                 }
-                showToast('Eliminando recordatorio...');
+                
+                // Await se asegura de que esperamos la respuesta de Firestore.
+                const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
+                const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+                
+                const batch = db.batch();
+                batch.delete(reminderRef);
+                batch.update(countsRef, {
+                    remindersCount: firebase.firestore.FieldValue.increment(-1)
+                });
+                
+                await batch.commit();
 
-                try {
-                    const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
-                    const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-
-                    const batch = db.batch();
-                    batch.delete(reminderRef);
-                    batch.update(countsRef, {
-                        remindersCount: firebase.firestore.FieldValue.increment(-1)
-                    });
-                    
-                    await batch.commit();
-                    
-                    showToast('Recordatorio eliminado.');
-                    // El listener onSnapshot se encargará de remover el elemento de la UI.
-
-                } catch (err) {
-                    console.error("Error al eliminar recordatorio en Firestore:", err);
-                    showToast('Error de sincronización. No se pudo eliminar.', true, true);
-                    if (reminderItemElement) {
-                        reminderItemElement.style.opacity = '1'; // Restauramos si falla
-                    }
-                }
-                return; 
+                // Si todo va bien, el listener onSnapshot se encargará de eliminar
+                // el elemento de la UI de forma limpia y definitiva.
+                showToast('Recordatorio eliminado con éxito.');
+                break; // Usamos break para que el catch general pueda funcionar.
             }
 
             case 'note': {
