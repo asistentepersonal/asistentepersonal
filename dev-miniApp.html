@@ -2532,7 +2532,7 @@ function drawRemindersList() {
             <div class="list-item-actions">
                 <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}" ${isPending ? 'disabled' : ''}>⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                    <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
+                    <a class="dropdown-item" data-action="delete-reminder" data-id="${item.tracking_code}">Eliminar</a>
                 </div>
             </div>
         </li>`;
@@ -2546,7 +2546,7 @@ function drawRemindersList() {
 function handleReminderListClick(e) {
     const target = e.target.closest('.dropdown-item[data-action="delete-reminder"]');
     if (target) {
-        confirmDelete('reminder', target.dataset.trackingCode);
+        confirmDelete('reminder', target.dataset.id);
     }
 }
 
