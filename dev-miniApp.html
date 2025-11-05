@@ -2132,52 +2132,36 @@ async function executeDelete(type, id) {
     try {
         switch(type) {
             case 'reminder': {
-    // Obtenemos el elemento de la UI.
-    const reminderItemElement = document.getElementById(`item-${id}`);
-    
-    // 1. Eliminación Optimista de la UI: Lo borramos de la pantalla inmediatamente.
-    if (reminderItemElement) {
-        reminderItemElement.remove();
-    }
+                const reminderItemElement = document.getElementById(`item-${id}`);
+                if (reminderItemElement) {
+                    reminderItemElement.style.opacity = '0.5'; // Atenuamos para dar feedback visual
+                }
+                showToast('Eliminando recordatorio...');
 
-    // 2. Eliminación de la Memoria Local: Buscamos y eliminamos el recordatorio del array de datos.
-    const index = appData.remindersList.findIndex(r => r.tracking_code === id);
-    if (index > -1) {
-        appData.remindersList.splice(index, 1);
-    }
-    
-    // Damos feedback inmediato al usuario.
-    showToast('Recordatorio eliminado');
-    
-    // 3. Operación Asíncrona: Ejecutamos la eliminación en la base de datos en segundo plano.
-    (async () => {
-        try {
-            const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
-            const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+                try {
+                    const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
+                    const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-            const batch = db.batch();
-            batch.delete(reminderRef);
-            // Usamos FieldValue.increment(-1) que es más seguro para contadores.
-            batch.update(countsRef, {
-                remindersCount: firebase.firestore.FieldValue.increment(-1)
-            });
-            await batch.commit();
-            
-            // Forzamos una actualización final del contador en el badge para asegurar consistencia.
-            appData.counts.remindersCount = appData.remindersList.length;
-            const reminderBadge = document.getElementById('reminders-badge');
-            if (reminderBadge) reminderBadge.textContent = appData.counts.remindersCount;
-            
-        } catch (err) {
-            // Si la sincronización falla, lo notificamos y recargamos para restaurar la consistencia.
-            console.error("Error al eliminar recordatorio en Firestore:", err);
-            showToast('Error de sincronización. Restaurando...', true, true);
-            // Volvemos a dibujar la lista para que el elemento "fantasma" reaparezca.
-            setTimeout(() => drawRemindersList(), 1500); 
-        }
-    })();
-    return; // Salimos del switch.
-}
+                    const batch = db.batch();
+                    batch.delete(reminderRef);
+                    batch.update(countsRef, {
+                        remindersCount: firebase.firestore.FieldValue.increment(-1)
+                    });
+                    
+                    await batch.commit();
+                    
+                    showToast('Recordatorio eliminado.');
+                    // El listener onSnapshot se encargará de remover el elemento de la UI.
+
+                } catch (err) {
+                    console.error("Error al eliminar recordatorio en Firestore:", err);
+                    showToast('Error de sincronización. No se pudo eliminar.', true, true);
+                    if (reminderItemElement) {
+                        reminderItemElement.style.opacity = '1'; // Restauramos si falla
+                    }
+                }
+                return; 
+            }
 
             case 'note': {
                 const noteItemElement = document.getElementById(`item-${id}`);
