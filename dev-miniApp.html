@@ -2214,75 +2214,81 @@ async function executeDelete(type, id) {
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
-function renderReminderForm() {
-  navigationHistory.push(renderRemindersList);
+function renderReminderForm(reminder = null, isReactivating = false) {
+  const onBack = isReactivating ? renderRemindersList : renderDashboard;
+  navigationHistory.push(onBack);
   updateBackButton();
+
+  const title = isReactivating ? '🔄 Reactivar Recordatorio' : '📝 Nuevo Recordatorio';
+  const buttonText = isReactivating ? 'Activar' : 'Crear Recordatorio';
+  const oldIdAttribute = isReactivating ? `data-old-id="${reminder.tracking_code}"` : '';
+
   mainContentArea.innerHTML = `
     <div class="list-container">
-      <div class="list-header"><h2>📝 Nuevo Recordatorio</h2></div>
+      <div class="list-header"><h2>${title}</h2></div>
       <div class="form-card">
-        <label>Descripción</label><textarea id="text" rows="3" required></textarea>
+        <label>Descripción</label><textarea id="text" rows="3" required>${reminder ? reminder.Descripcion : ''}</textarea>
         <label>Fecha y hora</label><div class="flatpickr-wrapper"><input type="text" id="time" required data-input/></div>
         <label>Tipo</label>
         <div class="radio-group" id="reminder-type-group">
-          <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
-          <label><input type="radio" name="category" value="Diario"/> Diario</label>
-          <label><input type="radio" name="category" value="Recurrente"/> Recurrente</label>
+          <label><input type="radio" name="category" value="Un solo uso" ${reminder && reminder.Categoria === 'Un solo uso' ? 'checked' : !reminder ? 'checked' : ''}/> Único</label>
+          <label><input type="radio" name="category" value="Diario" ${reminder && reminder.Categoria === 'Diario' ? 'checked' : ''}/> Diario</label>
+          <label><input type="radio" name="category" value="Recurrente" ${reminder && reminder.Categoria === 'Recurrente' ? 'checked' : ''}/> Recurrente</label>
         </div>
         <div id="recurrent-hours-container">
           <label>Repetir cada...</label>
-          <select id="recurrent-hours">${[...Array(11).keys()].map(i => `<option value="${i + 2}">${i + 2} horas</option>`).join('')}</select>
+          <select id="recurrent-hours"></select>
         </div>
-        <button id="sendBtn" disabled>Crear Recordatorio</button>
+        <button id="sendBtn" ${oldIdAttribute} disabled>${buttonText}</button>
       </div>
     </div>`;
-  const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container');
-  
-  // --- INICIO: Lógica de fecha por defecto precisa (v2.1) ---
-const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-// Función para obtener la fecha/hora actual real en la zona del usuario
-const getNowInUserTimeZone = () => {
-    const now = new Date(); // Obtiene la hora actual universal (UTC)
-    // Usamos Intl.DateTimeFormat para convertir la hora UTC a la zona horaria del usuario
-    // 'en-CA' nos da el formato YYYY-MM-DD, ideal para flatpickr
-    const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: userTimeZone,
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    }).formatToParts(now).reduce((acc, part) => ({ ...acc, [part.type]: part.value }), {});
-    
-    // Devolvemos la fecha como un objeto Date, que es lo que flatpickr maneja mejor
-    // para evitar ambigüedades de zona horaria.
+  const textInput = document.getElementById('text'), timeInput = document.getElementById('time'), sendBtn = document.getElementById('sendBtn'), radios = document.querySelectorAll('input[name="category"]'), recurrentContainer = document.getElementById('recurrent-hours-container'), recurrentSelect = document.getElementById('recurrent-hours');
+
+  // Rellenar las horas recurrentes
+  let hoursOptionsHtml = '';
+  for(let i=2; i<=12; i++) {
+      const selected = (reminder && reminder.HorasRecurrentes == i) ? 'selected' : '';
+      hoursOptionsHtml += `<option value="${i}" ${selected}>${i} horas</option>`;
+  }
+  recurrentSelect.innerHTML = hoursOptionsHtml;
+
+  const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const getNowInUserTimeZone = () => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: userTimeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(now).reduce((acc, part) => ({ ...acc, [part.type]: part.value }), {});
     return new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`);
-};
+  };
+  const nowInUserZone = getNowInUserTimeZone();
 
-const nowInUserZone = getNowInUserTimeZone();
-
-flatpickr(document.querySelector("#time").parentElement, {
-    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
-    enableTime: true,
-    altInput: true,
-    altFormat: "d/m/Y H:i",
-    dateFormat: "Y-m-d H:i",
-    defaultDate: nowInUserZone, // Usamos el objeto Date preciso
-    minDate: nowInUserZone // Bloqueamos la selección de cualquier momento anterior al actual
-});
-// --- FIN: Lógica de fecha por defecto precisa ---
+  flatpickr(document.querySelector("#time").parentElement, {
+    ...getFlatpickrBaseConfig(),
+    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Y-m-d H:i",
+    defaultDate: nowInUserZone, minDate: nowInUserZone
+  });
 
   function toggleRecurrentField() { const selected = document.querySelector('input[name="category"]:checked').value; recurrentContainer.style.display = selected === 'Recurrente' ? 'block' : 'none'; }
   function validate() { const isValid = textInput.value.trim() !== '' && timeInput.value && document.querySelector('input[name="category"]:checked'); sendBtn.disabled = !isValid; sendBtn.classList.toggle('enabled', isValid); }
+  
   textInput.oninput = validate; timeInput.oninput = validate; radios.forEach(r => r.onchange = () => { toggleRecurrentField(); validate(); });
   sendBtn.onclick = saveReminder;
+  
+  // Si estamos reactivando, los campos de tipo no se pueden cambiar.
+  if (isReactivating) {
+    radios.forEach(r => r.disabled = true);
+  }
+  
   toggleRecurrentField(); validate();
 }
 
 async function saveReminder() {
     const sendBtn = document.getElementById('sendBtn');
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Creando...`;
+    const oldId = sendBtn.dataset.oldId;
+    const isReactivating = !!oldId;
 
-    // 1. Recopilamos todos los datos del formulario.
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> ${isReactivating ? 'Activando...' : 'Creando...'}`;
+
     const category = document.querySelector('input[name="category"]:checked').value;
     const description = document.getElementById('text').value.trim();
     const timePicker = document.getElementById('time').parentElement._flatpickr;
@@ -2292,31 +2298,27 @@ async function saveReminder() {
     if (!description || !selectedDate) {
         showToast("La descripción y la fecha son obligatorias.", true);
         sendBtn.disabled = false;
-        sendBtn.innerHTML = 'Crear Recordatorio';
+        sendBtn.innerHTML = isReactivating ? 'Activar' : 'Crear Recordatorio';
         return;
     }
 
-    // 2. NAVEGAMOS ATRÁS PRIMERO. Con el Paso 1, esto ahora te llevará a la lista de recordatorios.
     goBack();
 
-    // 3. Usamos un setTimeout para dar tiempo al DOM a renderizar la vista de la lista.
     setTimeout(async () => {
         const listWrapper = document.getElementById('reminders-content-wrapper');
         if (listWrapper) {
-            // 4. INYECTAMOS el spinner, reemplazando la lista actual.
-            listWrapper.innerHTML = `
-                <div class="combustible-loading-state" style="padding: 40px 0;">
-                    <p>Creando recordatorio en el servidor...</p>
-                    <div class="dot-spinner" style="margin-top: 20px;">
-                        <div class="dot-spinner__dot"></div>
-                        <div class="dot-spinner__dot"></div>
-                        <div class="dot-spinner__dot"></div>
-                    </div>
-                </div>`;
+            listWrapper.innerHTML = `<div class="combustible-loading-state" style="padding: 40px 0;"><p>${isReactivating ? 'Reactivando aviso en el servidor...' : 'Creando recordatorio...'}</p><div class="dot-spinner" style="margin-top: 20px;"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
         }
 
         try {
-            // 5. Con el listener ya escuchando y el spinner visible, llamamos a la Cloud Function.
+            // PASO CRÍTICO: Si estamos reactivando, primero eliminamos el aviso suspendido.
+            if (isReactivating) {
+                console.log(`[Reactivación] Eliminando aviso suspendido: ${oldId}`);
+                const oldReminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(oldId);
+                await oldReminderRef.delete();
+            }
+
+            // Ahora, procedemos a crear el nuevo aviso, sea cual sea el caso.
             const customId = generateCustomId('G-');
             const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
             const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
@@ -2333,12 +2335,12 @@ async function saveReminder() {
             
             await createNotificationFunction(payload);
 
-            // 6. ÉXITO: No hacemos nada. El listener onSnapshot se encargará del resto.
+            // Éxito: El listener onSnapshot se encargará del resto.
+            // El toast de éxito lo mostrará el listener al detectar el nuevo elemento.
 
         } catch (err) {
-            // 7. ERROR: Si la Cloud Function falla, restauramos la vista.
-            console.error("Error al guardar el recordatorio:", err);
-            showToast("Error. No se pudo crear el recordatorio.", true, true);
+            console.error("Error al guardar el recordatorio (crear/activar):", err);
+            showToast("Error. No se pudo completar la operación.", true, true);
             
             const listWrapperOnError = document.getElementById('reminders-content-wrapper');
             if (listWrapperOnError) {
@@ -2463,37 +2465,77 @@ function drawRemindersList() {
         return;
     }
     
-    // --- INICIO: Lógica del reloj de arena mejorada ---
     const listHtml = appData.remindersList.map(item => {
-        // CUALQUIER estado que no sea 'active' se considera pendiente.
-        const isPending = item.Status !== 'active';
+        const isSuspended = item.Status === 'suspended';
+        const isRecurrent = ['Diario', 'Recurrente'].includes(item.Categoria);
         
+        let menuOption = '';
+        if (isRecurrent) {
+            if (isSuspended) {
+                menuOption = `<a class="dropdown-item" data-action="activate-reminder" data-id="${item.tracking_code}">Activar</a>`;
+            } else {
+                menuOption = `<a class="dropdown-item" data-action="suspend-reminder" data-id="${item.tracking_code}">Suspender</a>`;
+            }
+        }
+
         return `
-        <li class="list-item" id="item-${item.tracking_code}" style="${isPending ? 'opacity: 0.7;' : ''}">
+        <li class="list-item" id="item-${item.tracking_code}" style="${isSuspended ? 'opacity: 0.6;' : ''}">
             <div class="list-item-content">
                 <span class="list-item-title">
-                    ${isPending ? '⌛ ' : ''}${item.Descripcion}
+                    ${isSuspended ? '⚠️ ' : ''}${item.Descripcion}
                 </span>
-                <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
+                <span class="list-item-subtitle">${item.Categoria}: ${isSuspended ? 'Suspendido' : item.Fecha}</span>
             </div>
             <div class="list-item-actions">
-                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}" ${isPending ? 'disabled' : ''}>⋮</button>
+                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
+                    ${menuOption}
                     <a class="dropdown-item" data-action="delete-reminder" data-id="${item.tracking_code}">Eliminar</a>
                 </div>
             </div>
         </li>`;
     }).join('');
-    // --- FIN: Lógica del reloj de arena mejorada ---
 
     listElement.innerHTML = listHtml;
 }
 
 // Nueva función de ayuda para manejar los clics en la lista
 function handleReminderListClick(e) {
-    const target = e.target.closest('.dropdown-item[data-action="delete-reminder"]');
-    if (target) {
-        confirmDelete('reminder', target.dataset.id);
+    const target = e.target.closest('.dropdown-item');
+    if (!target) return;
+
+    const action = target.dataset.action;
+    const id = target.dataset.id;
+
+    switch (action) {
+        case 'delete-reminder':
+            confirmDelete('reminder', id);
+            break;
+        case 'suspend-reminder':
+            suspendReminder(id);
+            break;
+        case 'activate-reminder':
+            // Buscamos el recordatorio completo en memoria para pasarlo al formulario
+            const reminderToActivate = appData.remindersList.find(r => r.tracking_code === id);
+            if (reminderToActivate) {
+                renderReminderForm(reminderToActivate, true); // true indica que estamos reactivando
+            }
+            break;
+    }
+}
+
+async function suspendReminder(id) {
+    showToast('Suspendiendo recordatorio...');
+    try {
+        const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
+        await reminderRef.update({
+            status: 'suspended'
+        });
+        // El listener onSnapshot se encargará del resto, no necesitamos hacer nada más.
+        showToast('Recordatorio suspendido.');
+    } catch (err) {
+        console.error("Error al suspender el recordatorio:", err);
+        showToast('No se pudo suspender el recordatorio.', true);
     }
 }
 
