@@ -6222,16 +6222,21 @@ function renderMonthView(events, currentDate) {
 }
 
 function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDate = null, prefilledEndDate = null) {
-	const fab = document.getElementById('calendar-fab');
-	if (fab) fab.remove();
-	let isDateEditFlowActive = false; // Flag para nuestro nuevo flujo
-	const originalStartDate = isEditing ? new Date(event.fechaInicio) : null;
-    navigationHistory.push(onBackCallback);
-    updateBackButton();
+    // --- INICIO: Bloque de variables reorganizado ---
     const isEditing = event && event.id;
+    const fab = document.getElementById('calendar-fab');
+    if (fab) fab.remove();
+
+    let isDateEditFlowActive = false; // Flag para nuestro nuevo flujo
+    const originalStartDate = isEditing ? new Date(event.fechaInicio) : null;
+
     let currentNotifications = (isEditing && event.notificaciones) ? 
         event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
         [];
+    
+    navigationHistory.push(onBackCallback);
+    updateBackButton();
+    // --- FIN: Bloque de variables reorganizado ---
 
     const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
         `<div class="custom-dropdown-item" data-value="${preset.value}">
