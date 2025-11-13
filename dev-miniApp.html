@@ -1976,10 +1976,19 @@ function getFlatpickrBaseConfig() {
         },
 
         onClose: function(selectedDates, dateStr, instance) {
-            if (activeFlatpickrInstance === instance) {
-                activeFlatpickrInstance = null;
-            }
-        },
+    if (activeFlatpickrInstance === instance) {
+        activeFlatpickrInstance = null;
+    }
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    const titleInput = document.getElementById('event-title');
+    // Solo actuar si estamos en el formulario de eventos y el título está vacío
+    if (titleInput && titleInput.value.trim() === '' && selectedDates.length > 0) {
+        titleInput.focus(); // Mueve el cursor al campo
+        titleInput.classList.add('input-error'); // Añade el borde rojo
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+},
 
         // onReady es el hook oficial para añadir elementos al calendario ya construido
         onReady: function(selectedDates, dateStr, instance) {
@@ -6384,7 +6393,8 @@ const fpStart = flatpickr(document.querySelector("#event-start-date").parentElem
     addNotificationBtn.onclick = () => showNotificationModal(currentNotifications, renderChips);
     renderChips();
 
-    const validate = () => { 
+    const validate = () => {
+		titleInput.classList.remove('input-error');
         const isValid = titleInput.value.trim() !== '';
         saveBtn.disabled = !isValid;
         addNotificationBtn.disabled = !isValid;
