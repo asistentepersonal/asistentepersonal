@@ -6224,7 +6224,6 @@ function renderMonthView(events, currentDate) {
 function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDate = null, prefilledEndDate = null) {
 	const fab = document.getElementById('calendar-fab');
 	if (fab) fab.remove();
-	const isEditing = event && event.id;
 	let isDateEditFlowActive = false; // Flag para nuestro nuevo flujo
 	const originalStartDate = isEditing ? new Date(event.fechaInicio) : null;
     navigationHistory.push(onBackCallback);
