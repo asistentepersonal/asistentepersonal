@@ -6222,21 +6222,13 @@ function renderMonthView(events, currentDate) {
 }
 
 function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDate = null, prefilledEndDate = null) {
-    // --- INICIO: Bloque de variables reorganizado ---
+	removeCalendarFAB();
+    navigationHistory.push(onBackCallback);
+    updateBackButton();
     const isEditing = event && event.id;
-    const fab = document.getElementById('calendar-fab');
-    if (fab) fab.remove();
-
-    let isDateEditFlowActive = false; // Flag para nuestro nuevo flujo
-    const originalStartDate = isEditing ? new Date(event.fechaInicio) : null;
-
     let currentNotifications = (isEditing && event.notificaciones) ? 
         event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
         [];
-    
-    navigationHistory.push(onBackCallback);
-    updateBackButton();
-    // --- FIN: Bloque de variables reorganizado ---
 
     const colorOptionsHtml = EVENT_COLORS_PRESETS.map(preset => 
         `<div class="custom-dropdown-item" data-value="${preset.value}">
@@ -6309,56 +6301,28 @@ const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolved
     return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 };
 
-	// --- INICIO: LÓGICA DE FECHAS CON FLUJO DE EDICIÓN (V4) ---
+	// --- LÓGICA DE FECHAS CORREGIDA (V3) ---
 const nowInUserZone = new Date(getNowInUserTimeZone());
 const defaultStartDate = isEditing ? event.fechaInicio : (prefilledStartDate || nowInUserZone);
 const defaultEndDate = isEditing ? event.fechaFin : (prefilledEndDate || new Date(defaultStartDate.getTime() + 60 * 60 * 1000));
 
 const fpEnd = flatpickr(document.querySelector("#event-end-date").parentElement, {
-    ...getFlatpickrBaseConfig(),
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultEndDate,
-    minDate: defaultStartDate,
-    onClose: function() {
-        // Paso 2 del flujo: se activa al cerrar el calendario de fecha final
-        if (isDateEditFlowActive) {
-            isDateEditFlowActive = false; // Reiniciar flag
-            
-            const titleInput = document.getElementById('event-title');
-            if (titleInput.value.trim() === '') {
-                titleInput.focus();
-            } else {
-                const notificationSection = document.getElementById('notification-chips-container');
-                notificationSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-    }
+    minDate: defaultStartDate
 });
 
 const fpStart = flatpickr(document.querySelector("#event-start-date").parentElement, {
-    ...getFlatpickrBaseConfig(),
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultStartDate,
-    minDate: isEditing ? null : nowInUserZone,
+    minDate: isEditing ? null : nowInUserZone, // Usamos la misma referencia de 'ahora'
     onChange: function(selectedDates) {
         const newStartDate = selectedDates[0];
         if (!newStartDate) return;
-        
-        const currentEndDate = fpEnd.selectedDates[0];
-        if (!currentEndDate || currentEndDate < newStartDate) {
-           fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
-        }
+        fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
         fpEnd.set('minDate', newStartDate);
-    },
-    onClose: function(selectedDates) {
-        // Paso 1 del flujo: se activa al cerrar el calendario de fecha de inicio
-        if (isEditing && selectedDates.length > 0) {
-            const newStartDate = selectedDates[0];
-            if (newStartDate.getTime() !== originalStartDate.getTime()) {
-                isDateEditFlowActive = true; // Activar el flujo
-                fpEnd.open();
-            }
-        }
     }
 });
 
