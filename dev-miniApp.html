@@ -6224,6 +6224,7 @@ function renderMonthView(events, currentDate) {
 function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDate = null, prefilledEndDate = null) {
     navigationHistory.push(onBackCallback);
     updateBackButton();
+	removeCalendarFAB();
     const isEditing = event && event.id;
     let currentNotifications = (isEditing && event.notificaciones) ? 
         event.notificaciones.map(n => ({ metodo: n.metodo, minutosAntes: n.minutosAntes })) : 
@@ -6309,7 +6310,25 @@ const fpEnd = flatpickr(document.querySelector("#event-end-date").parentElement,
     ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultEndDate,
-    minDate: defaultStartDate
+    minDate: defaultStartDate,
+    // --- INICIO CÓDIGO AÑADIDO ---
+    onClose: function(selectedDates) {
+        // Solo actuar si se ha seleccionado una fecha
+        if (selectedDates.length > 0) {
+            const titleInput = document.getElementById('event-title');
+            const addNotificationBtn = document.getElementById('add-notification-btn');
+
+            // Si el título está vacío, enfocarlo
+            if (titleInput.value.trim() === '') {
+                titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => titleInput.focus(), 300); // Dar tiempo al scroll antes de enfocar
+            } else {
+                // Si el título ya tiene contenido, guiar al usuario al siguiente paso
+                addNotificationBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }
+    // --- FIN CÓDIGO AÑADIDO ---
 });
 
 const fpStart = flatpickr(document.querySelector("#event-start-date").parentElement, {
@@ -6322,7 +6341,18 @@ const fpStart = flatpickr(document.querySelector("#event-start-date").parentElem
         if (!newStartDate) return;
         fpEnd.setDate(new Date(newStartDate.getTime() + 60 * 60 * 1000), true);
         fpEnd.set('minDate', newStartDate);
+    },
+    // --- INICIO CÓDIGO AÑADIDO ---
+    onClose: function(selectedDates) {
+        // Si se ha seleccionado una fecha, abrimos el siguiente calendario
+        if (selectedDates.length > 0) {
+            // Usamos un pequeño retardo para asegurar que el primer calendario se ha cerrado completamente
+            setTimeout(() => {
+                fpEnd.open();
+            }, 100);
+        }
     }
+    // --- FIN CÓDIGO AÑADIDO ---
 });
 
     const toggleTimePickers = () => {
