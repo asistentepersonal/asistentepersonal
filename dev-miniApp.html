@@ -6312,9 +6312,11 @@ const fpEnd = flatpickr(document.querySelector("#event-end-date").parentElement,
     defaultDate: defaultEndDate,
     minDate: defaultStartDate,
     // --- INICIO CÓDIGO AÑADIDO ---
-    onClose: function(selectedDates) {
-        // Solo actuar si se ha seleccionado una fecha
-        if (selectedDates.length > 0) {
+    onClose: function(selectedDates, dateStr, instance) {
+    // Restaurar el formato original que el usuario ve
+    instance.set('altFormat', "d/m/Y H:i");
+    // Solo actuar si se ha seleccionado una fecha
+    if (selectedDates.length > 0) {
             const titleInput = document.getElementById('event-title');
             const addNotificationBtn = document.getElementById('add-notification-btn');
 
@@ -6343,9 +6345,11 @@ const fpStart = flatpickr(document.querySelector("#event-start-date").parentElem
         fpEnd.set('minDate', newStartDate);
     },
     // --- INICIO CÓDIGO AÑADIDO ---
-    onClose: function(selectedDates) {
-        // Si se ha seleccionado una fecha, abrimos el siguiente calendario
-        if (selectedDates.length > 0) {
+    onClose: function(selectedDates, dateStr, instance) {
+    // Restaurar el formato original que el usuario ve
+    instance.set('altFormat', "d/m/Y H:i");
+    // Si se ha seleccionado una fecha, abrimos el siguiente calendario
+    if (selectedDates.length > 0) {
             // Usamos un pequeño retardo para asegurar que el primer calendario se ha cerrado completamente
             setTimeout(() => {
                 fpEnd.open();
