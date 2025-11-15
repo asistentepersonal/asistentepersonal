@@ -9,23 +9,50 @@
   <title>Dashboard - Mini App Telegram</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/plugins/confirmDate/confirmDate.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+  <script src="https://npmcdn.com/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <!-- Librería de Mapas (Leaflet.js) -->
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+	<link rel="stylesheet" href="https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/dist/leaflet-color-markers.css" />
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- SDKs de Firebase para la Mini App (Cargados de forma segura) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
   <!-- SDKs de Firebase para la Mini App -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
   <style>
-    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #cccccc; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
+    :root { --bg:#f5f7fa; --card-bg:#fff; --text:#333; --muted:#555; --badge-color:#e74c3c; --primary:#4a76f3; --action-bg:#4caf50; --action-text:#fff; --error-bg:#e74c3c; --delete-bg: #e74c3c; --delete-text: #fff; --menu-bg: #fff; --confirm-yes-bg: #e74c3c; --confirm-no-bg: #28a745; --pending-bg: #28a745; --bought-bg: #dc3545; --list-item-text: #fff; }
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom: 60px;}
     .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(135px, 1fr));gap:16px;padding:20px;}
     .card{background:var(--card-bg);border-radius:12px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);position:relative;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;}
     .card.clickable-card { cursor: pointer; }
+
+/* --- INICIO: ESTILOS PARA FEEDBACK DE EMERGENCIA --- */
+	.card.emergency-selected {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(74, 118, 243, 0.4);
+    border: 2px solid var(--primary);
+}
+	.grid.emergency-dimmed .card:not(.emergency-selected) {
+    opacity: 0.6;
+    pointer-events: none;
+    transform: scale(0.98);
+}
+/* --- FIN: ESTILOS PARA FEEDBACK DE EMERGENCIA --- */
+	.card.sortable-ghost {
+    opacity: 0.4;
+    background: #c8ebfb;
+}
+	.card.sortable-chosen {
+    cursor: grabbing;
+}
     .card-icon{font-size:2.5rem;margin-bottom:8px;}
     .card-title{font-size:1.2rem;margin-bottom:4px;}
     .card-badge{position:absolute;top:8px;left:8px;background:var(--badge-color);color:#fff;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;line-height:24px;font-weight:500;}
@@ -34,10 +61,19 @@
     height: auto;
     min-width: 0;
     border-radius: 999px;
-    padding: 3px 10px;
-    line-height: 1.4;
+    padding: 4px 9px;
+    font-size: 0.85rem;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    /* --- LÍNEA AÑADIDA --- */
+    color: var(--action-text, #fff) !important; /* Asegura que el texto e iconos sean siempre blancos */
 }
     .card-badge-group{position:absolute;top:12px;left:12px;display:flex;gap:4px;}
+	.trend-icon { font-size: 0.9em; vertical-align: middle; margin-left: 2px; font-weight: bold; }
+	.trend-up { color: #e74c3c; }
+	.trend-down { color: #2ecc71; }
     .card-badge.green{background-color:#28a745;}
     .card-badge.red{background-color:#e74c3c;}
     .card-badge-group .card-badge{position:static;}
@@ -108,26 +144,16 @@
 }    .toast.error{background:var(--error-bg);}
     .toast.show{visibility:visible;animation:fadein .3s,fadeout .3s 2.7s;}
     /* --- SPINNER MEJORADO (MÁS FLUIDO Y REUTILIZABLE) --- */
-    .spinner {
-        display: none;
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid var(--primary);
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite; /* Usamos 'linear' para una rotación constante */
-        z-index: 1001;
-    }
-    /* La animación ahora solo se encarga de rotar, haciendo el spinner reutilizable */
-    @keyframes spin {
-        0% { transform: translate(-50%, -50%) rotate(0deg); }
-        100% { transform: translate(-50%, -50%) rotate(360deg); }
-    }
-    /* --- FIN SPINNER MEJORADO --- */
-
+    /* --- ESTILOS PARA EL CONTENEDOR DEL SPINNER GENERAL --- */
+#spinner {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Centrado perfecto */
+    z-index: 1001;
+}
+    
     /* --- ESTILOS PARA SPINNER DENTRO DE BOTONES --- */
     .btn-spinner {
         animation: spin-button 0.8s linear infinite;
@@ -195,7 +221,7 @@
     .generic-menu-btn { background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); padding: 5px; }
     .confirm-btn-yes, .confirm-btn-no { padding: 8px 12px; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
     .confirm-btn-yes { background-color: var(--confirm-yes-bg); color: var(--delete-text); }
-    .confirm-btn-no { background-color: var(--confirm-no-bg); color: var(--text); }
+    .confirm-btn-no { background-color: var(--confirm-no-bg); color: #fff; }
     .no-data-msg { text-align: center; padding: 40px; color: var(--muted); background: var(--card-bg); border-radius: 12px; font-size: 1.2rem; line-height: 1.5; }
     #recurrent-hours-container { display: none; margin-top: 15px; }
     .shopping-list-header-row { display: flex; align-items: center; justify-content: flex-end; padding: 0 10px 10px 10px; color: var(--muted); font-size: 0.9rem; }
@@ -422,6 +448,77 @@
     opacity: 1;
   }
 }
+/* --- INICIO: ESTILO PARA ESTADO DE CARGA LOCALIZADO --- */
+.combustible-loading-state {
+    text-align: center;
+    padding: 20px 0;
+    color: var(--muted);
+}
+.combustible-loading-state .dot-spinner {
+    margin-top: 15px; /* Espacio entre el texto y los puntos */
+}
+/* --- INICIO: ESTILOS PARA LISTA INTELIGENTE DE COMBUSTIBLE --- */
+.combustible-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--bg);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.combustible-list-item:hover {
+    background-color: var(--bg);
+}
+.combustible-item-info {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+.combustible-item-name {
+    font-weight: 500;
+    font-size: 1rem;
+}
+.combustible-item-distance {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 2px;
+}
+.combustible-item-price {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--primary);
+}
+.combustible-list-item.cheapest .combustible-item-price {
+    color: #2ecc71; /* Verde para el más barato */
+}
+/* --- INICIO: ESTILOS PARA CONTROL DE ORDENACIÓN DE COMBUSTIBLE --- */
+.combustible-sort-controls {
+    display: flex;
+    justify-content: center;
+    padding: 10px;
+    gap: 8px;
+    border-bottom: 1px solid var(--bg);
+}
+.sort-btn {
+    padding: 8px 16px;
+    border: 1px solid var(--muted);
+    background-color: transparent;
+    color: var(--muted);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.sort-btn.active {
+    background-color: var(--primary);
+    color: var(--action-text);
+    border-color: var(--primary);
+}
+/* --- FIN: ESTILOS PARA CONTROL DE ORDENACIÓN --- */
+/* --- FIN: ESTILOS PARA LISTA INTELIGENTE --- */
+/* --- FIN: ESTILO PARA ESTADO DE CARGA LOCALIZADO --- */
 /* --- FIN ESTILOS SPINNER DE PUNTOS --- */
 /* --- INICIO ESTILOS GUÍA TV --- */
 .guia-tv-container { padding: 10px; max-width: 100%; overflow: hidden; }
@@ -967,6 +1064,127 @@
     margin-top: 0; /* Anulamos el margen superior del button-group */
 }
 /* --- FIN: Estilos para el Modal de Changelog --- */
+/* --- INICIO: Estilos para Botones de Calendario Personalizados --- */
+.flatpickr-calendar .fp-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px;
+    border-top: 1px solid var(--bg);
+    background-color: var(--card-bg);
+}
+.flatpickr-calendar .fp-button {
+    background-color: transparent;
+    border: 1px solid var(--muted);
+    color: var(--text);
+    border-radius: 5px;
+    padding: 6px 12px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.flatpickr-calendar .fp-button.fp-confirm-btn {
+    background-color: var(--primary);
+    color: var(--action-text);
+    border-color: var(--primary);
+}
+.dark-theme .fp-buttons {
+    border-top-color: var(--muted);
+}
+/* --- FIN: Estilos para Botones --- */
+
+/* --- INICIO: CORRECCIÓN DE VISIBILIDAD DE BOTONES DE CALENDARIO --- */
+	.flatpickr-calendar {
+    z-index: 9999 !important; /* Asegura que el calendario flote por encima de todo */
+}
+/* --- FIN: CORRECCIÓN --- */
+
+/* --- INICIO: ESTILOS PARA MODAL DE UBICACIÓN Y MAPA AMPLIABLE --- */
+.fuel-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    z-index: 2100; /* Prioridad alta */
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.fuel-modal-overlay.show {
+    display: flex;
+    opacity: 1;
+}
+.fuel-modal-content {
+    background-color: var(--card-bg);
+    padding: 24px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 400px;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+.fuel-modal-overlay.show .fuel-modal-content {
+    transform: scale(1);
+}
+.fuel-modal-checkbox-container {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+    padding: 10px;
+    background-color: var(--bg);
+    border-radius: 8px;
+    cursor: pointer;
+}
+.fuel-modal-checkbox-container input {
+    width: 18px;
+    height: 18px;
+    margin-right: 12px;
+}
+.map-fullscreen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg);
+    z-index: 2050; /* Prioridad muy alta */
+    display: none; /* Oculto por defecto */
+    flex-direction: column;
+}
+.map-fullscreen-header {
+    flex-shrink: 0;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--muted);
+}
+#fullscreen-map-container {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+}
+.map-expand-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 401; /* Justo encima del mapa */
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+/* --- FIN: ESTILOS PARA MODAL DE UBICACIÓN Y MAPA AMPLIABLE --- */
   </style>
 
 </head>
@@ -996,14 +1214,19 @@
     </div>
 </div>
 <!-- --- FIN MODAL DE CHANGELOG --- -->
-  <div id="spinner" class="spinner"></div>
+  <div id="spinner" style="display: none;">
+    <div class="dot-spinner">
+        <div class="dot-spinner__dot"></div>
+        <div class="dot-spinner__dot"></div>
+        <div class="dot-spinner__dot"></div>
+    </div>
+</div>
   <div id="main-content-area">
   </div>
   <div id="toast" class="toast"></div>
   </div>
     <div class="tabs">
     <div class="tab active" id="tab-home">🏠 Home</div>
-    <div class="tab" id="tab-chef">🧑‍🍳 Chef</div>
     <div class="tab" id="tab-export">📊 Exportar Gastos</div>
     <div class="tab" id="tab-settings">⚙️ Ajustes</div>
   </div>
@@ -1074,6 +1297,53 @@
     </div>
 </div>
 <!-- FIN MODAL DE NOTIFICACIONES -->
+
+<!-- INICIO MODAL AVISO UBICACIÓN COMBUSTIBLE -->
+<div class="fuel-modal-overlay" id="fuel-location-modal">
+    <div class="fuel-modal-content">
+        <h3>Activa tu Ubicación</h3>
+        <p style="line-height: 1.5; color: var(--muted); margin-top: 10px;">
+            Para buscar, asegúrate de tener activado el GPS o los servicios de ubicación en los ajustes de tu móvil y concede el permiso cuando se te pida.
+        </p>
+        <div class="fuel-modal-checkbox-container" onclick="document.getElementById('fuel-modal-checkbox').click();">
+            <input type="checkbox" id="fuel-modal-checkbox">
+            <label for="fuel-modal-checkbox">No volver a mostrar este aviso</label>
+        </div>
+        <div class="button-group" style="margin-top: 20px;">
+            <button id="fuel-modal-cancel" class="cancel">Cancelar</button>
+            <button id="fuel-modal-continue" class="enabled">Continuar</button>
+        </div>
+    </div>
+</div>
+<!-- FIN MODAL AVISO UBICACIÓN COMBUSTIBLE -->
+<!-- INICIO MODAL AVISO UBICACIÓN EMERGENCIAS -->
+<div class="fuel-modal-overlay" id="emergency-location-modal">
+    <div class="fuel-modal-content">
+        <h3>Permiso de Ubicación</h3>
+        <p style="line-height: 1.5; color: var(--muted); margin-top: 10px;">
+            Para realizar una búsqueda de emergencia, necesitamos acceder a tu ubicación. Por favor, activa el GPS y concede el permiso cuando se te pida.
+        </p>
+        <div class="fuel-modal-checkbox-container" onclick="document.getElementById('emergency-modal-checkbox').click();">
+            <input type="checkbox" id="emergency-modal-checkbox">
+            <label for="emergency-modal-checkbox">No volver a mostrar este aviso</label>
+        </div>
+        <div class="button-group" style="margin-top: 20px;">
+            <button id="emergency-modal-cancel" class="cancel">Cancelar</button>
+            <button id="emergency-modal-continue" class="enabled">Continuar</button>
+        </div>
+    </div>
+</div>
+<!-- FIN MODAL AVISO UBICACIÓN EMERGENCIAS -->
+
+<!-- INICIO VISTA MAPA PANTALLA COMPLETA -->
+<div class="map-fullscreen-overlay" id="map-fullscreen-view">
+    <div class="map-fullscreen-header">
+        <h3 id="fullscreen-map-title" style="margin: 0;">Gasolineras Cercanas</h3>
+        <button id="map-close-fullscreen-btn" class="back-btn" style="font-size: 1.5rem; padding: 5px;">✖</button>
+    </div>
+    <div id="fullscreen-map-container"></div>
+</div>
+<!-- FIN VISTA MAPA PANTALLA COMPLETA -->
   
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -1206,13 +1476,17 @@ async function runApp() {
         console.log("▶️ [Arranque] runApp iniciado. Configurando oyentes en tiempo real...");
         // 1. Obtener los ajustes del usuario (sin cambios)
         const userSettingsDoc = await db.collection('users').doc(chatId).get();
-        if (!userSettingsDoc.exists) {
-            failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
-            return;
-        }
-        appData.settings = userSettingsDoc.data() || {};
-        applyTheme(appData.settings.tema || 'auto');
-        appData.isPremium = appData.settings.plan_premium === true;
+if (!userSettingsDoc.exists) {
+    failApp("Usuario no encontrado.<br><small>Contacta con soporte.</small>");
+    return;
+}
+appData.settings = userSettingsDoc.data() || {};
+
+// Lógica de tema simplificada
+	const userConfig = appData.settings.configuracion || {};
+	applyTheme(userConfig.tema || 'auto');
+
+		appData.isPremium = appData.settings.plan_premium === true;
         console.log(`[App Flow] runApp ejecutado. Contadores iniciales:`, JSON.parse(JSON.stringify(appData.counts)));
 
         // 2. Configurar el listener ÚNICO para contadores
@@ -1258,7 +1532,6 @@ async function runApp() {
         updateCalendarBadgeListener(); // Llamada inicial al arrancar la app.
         
         // 4. Dibujar la UI con los datos ya cargados (sin cambios)
-        updateChefTabStyle();
         renderDashboard();
         isAppReady = true;
 		// --- INICIO: Listener para re-verificar versión y contadores al reanudar la app ---
@@ -1267,7 +1540,25 @@ if (tg) {
         if (event.isStateStable) {
             console.log("[Reanudación] Vista estable, re-verificando servicios...");
             performVersionCheck(true); // Re-verifica la versión
-            updateCalendarBadgeListener(); // Re-verifica el badge del calendario
+
+            // --- INICIO: LÓGICA DE SINCRONIZACIÓN DE AJUSTES Y TEMA AÑADIDA ---
+            if (chatId) {
+                db.collection('users').doc(chatId).get().then(doc => {
+                    if (doc.exists) {
+                        const newSettings = doc.data();
+                        Object.assign(appData.settings, newSettings); // Fusiona los ajustes
+                        const userConfig = appData.settings.configuracion || {};
+                        applyTheme(userConfig.tema || 'auto'); // Re-aplica el tema
+                        console.log("[Reanudación] Ajustes y tema sincronizados desde Firestore.");
+                    }
+                }).catch(error => {
+                    console.error("Error al sincronizar ajustes al reanudar:", error);
+                });
+            }
+            // --- FIN: LÓGICA DE SINCRONIZACIÓN ---
+
+			syncShoppingCounts(); // ¡NUEVO! Sincroniza los contadores de la compra
+			updateCalendarBadgeListener(); // Re-verifica el badge del calendario
         }
     });
 }
@@ -1339,6 +1630,7 @@ function showChangelogModal(version, changelogText) {
 let navigationHistory = [];
 
 function goBack() {
+	destroyActiveFlatpickr();
     if (navigationHistory.length > 0) {
         const previousStep = navigationHistory.pop();
         if (typeof previousStep === 'function') {
@@ -1362,13 +1654,11 @@ function updateBackButton() {
 const tg = window.Telegram?.WebApp;
 // --- VARIABLES GLOBALES PARA EMOJIS ---
 let emojiDictionary = [];
-const EMOJIS_DB_FILENAME = 'emoji-articulos-v1.json'; // Nombre del archivo JSON
+const EMOJIS_DB_FILENAME = 'https://asistentepersonal-4ad2b.web.app/emoji-articulos-v1.json'; // Nombre del archivo JSON
 // ---
 
 // Variable "guardián" para asegurar una única ejecución
 let versionCheckPerformed = false;
-
-const gasWebhookURL = 'https://script.google.com/macros/s/AKfycbwq5YTuS1yk_0irer9CKvc2Prev5XWUaKJLR_UpNaEkY42rg6TMSCqnXo3FqMmHUUSX/exec';
 let selectedImageFile = null;
 let chatId;
 
@@ -1478,25 +1768,49 @@ function showSpinner(message = '') {
     spinner.style.display = 'block'; 
 }
 async function loadEmojiDictionary() {
-    const cacheKey = `emojiCache-${EMOJIS_DB_FILENAME}`; // Usa el nuevo nombre
-    try {
-        const cachedData = localStorage.getItem(cacheKey);
-        if (cachedData) {
-            console.log("Cargando diccionario de emojis desde el caché local.");
-            emojiDictionary = JSON.parse(cachedData);
-            return;
-        }
+    // 1. Definimos los nombres de las claves que usaremos en el localStorage.
+    const EMOJI_DATA_CACHE_KEY = 'emoji_dictionary_data';
+    const EMOJI_VERSION_CACHE_KEY = 'emoji_dictionary_version';
 
-        console.log("Descargando diccionario de emojis por primera vez...");
-        const response = await fetch(EMOJIS_DB_FILENAME); // Usa el nuevo nombre
-        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-        
-        const data = await response.json();
-        emojiDictionary = data;
-        localStorage.setItem(cacheKey, JSON.stringify(data));
+    try {
+        // 2. Obtenemos la versión más reciente del diccionario desde Firestore.
+        const versionDoc = await db.collection('app_config').doc('version_info').get();
+        const serverVersion = versionDoc.exists ? (versionDoc.data().emoji_dictionary_version || 1) : 1;
+
+        // 3. Obtenemos la versión y los datos que el usuario tiene guardados localmente.
+        const localVersion = parseInt(localStorage.getItem(EMOJI_VERSION_CACHE_KEY) || '0', 10);
+        const cachedData = localStorage.getItem(EMOJI_DATA_CACHE_KEY);
+
+        // 4. Comparamos. Descargamos solo si la versión del servidor es más nueva O si no hay datos en caché.
+        if (serverVersion > localVersion || !cachedData) {
+            console.log(`[Emoji] Actualizando diccionario. Servidor: v${serverVersion}, Local: v${localVersion}`);
+            
+            const response = await fetch(EMOJIS_DB_FILENAME);
+            if (!response.ok) throw new Error(`Error HTTP al descargar diccionario: ${response.status}`);
+            
+            const data = await response.json();
+            emojiDictionary = data;
+
+            // 5. Guardamos los nuevos datos Y la nueva versión en el localStorage.
+            localStorage.setItem(EMOJI_DATA_CACHE_KEY, JSON.stringify(data));
+            localStorage.setItem(EMOJI_VERSION_CACHE_KEY, serverVersion.toString());
+
+        } else {
+            // Si las versiones coinciden y hay datos, cargamos desde la caché local.
+            console.log(`[Emoji] Diccionario local (v${localVersion}) está actualizado.`);
+            emojiDictionary = JSON.parse(cachedData);
+        }
 
     } catch (error) {
         console.error("No se pudo cargar el diccionario de emojis:", error);
+        // Plan B: Si todo falla, intentamos usar la última versión que tengamos guardada.
+        const fallbackData = localStorage.getItem(EMOJI_DATA_CACHE_KEY);
+        if (fallbackData) {
+            console.warn("[Emoji] Usando versión de respaldo del diccionario desde caché.");
+            emojiDictionary = JSON.parse(fallbackData);
+        } else {
+            emojiDictionary = []; // Si no hay nada, lo dejamos vacío para no romper la app.
+        }
     }
 }
 function generateCustomId(prefix) {
@@ -1561,73 +1875,6 @@ function showToast(msg, isError = false, persistent = false) {
     
     // Mostramos el toast
     t.classList.add('show');
-}
-
-/**
- * Realiza una petición fetch con un tiempo de espera.
- * VERSIÓN FINAL Y ROBUSTA: Usa siempre el método FormData para las peticiones a Apps Script
- * para evitar errores de CORS, independientemente de los parámetros.
- */
-/**
- * [VERSIÓN CORREGIDA Y DEFINITIVA]
- * Realiza una petición fetch con un tiempo de espera.
- * Forza el uso de FormData para todas las llamadas a Apps Script para evitar errores de CORS.
- */
-/**
- * [VERSIÓN FINAL Y ROBUSTA]
- * Realiza una petición fetch con un tiempo de espera, manejando diferentes formatos
- * según si el destino es Apps Script (anti-CORS) o Make.com (para imágenes).
- */
-async function fetchWithTimeout(resource, payloadObject, isMakeWebhook = false) {
-  const controller = new AbortController();
-  // Aumentamos el timeout para Make, ya que el procesamiento de imágenes puede tardar.
-  const timeout = isMakeWebhook ? 60000 : 30000;
-  const id = setTimeout(() => controller.abort(), timeout);
-  
-  let options = {
-    method: 'POST',
-    signal: controller.signal
-  };
-
-  // --- LÓGICA DE ENRUTAMIENTO DE FORMATO ---
-  if (isMakeWebhook) {
-      // Si es para Make.com, construimos un FormData específico para imágenes,
-      // que es el formato que originalmente funcionaba.
-      const formData = new FormData();
-      // Añadimos el prompt y el conteo de imágenes como campos de texto.
-      formData.append('prompt', payloadObject.prompt);
-      if (payloadObject.image_count !== undefined) {
-          formData.append('image_count', payloadObject.image_count);
-      }
-      // Añadimos cada archivo de imagen.
-      if (payloadObject.images && payloadObject.images.length > 0) {
-          payloadObject.images.forEach(imageFile => {
-              formData.append('images', imageFile, imageFile.name);
-          });
-      }
-      options.body = formData;
-      // IMPORTANTE: Al usar FormData para subir archivos, NO se debe especificar
-      // el 'Content-Type' en las cabeceras. El navegador lo hace automáticamente
-      // con el 'boundary' correcto, lo cual es esencial para que funcione.
-  } else {
-      // Para TODAS las demás peticiones (a Apps Script), usamos el método
-      // FormData simple que evita el error de CORS.
-      const formData = new FormData();
-      formData.append("postData", JSON.stringify(payloadObject));
-      options.body = formData;
-  }
-  // --- FIN DE LA LÓGICA DE ENRUTAMIENTO ---
-  
-  try {
-    const response = await fetch(resource, options);
-    clearTimeout(id);
-    if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
-    return response; // Devuelve la respuesta para que la función que llama la procese
-  } catch (error) {
-    clearTimeout(id);
-    if (error.name === 'AbortError') throw new Error('La solicitud tardó demasiado.');
-    throw error;
-  }
 }
 
 let isInitializing = false;
@@ -1698,8 +1945,87 @@ function applyTheme(theme) {
     
     console.log(`[Theme] Tema aplicado: ${theme}. Modo oscuro: ${isDarkMode}`);
 }
+
 // --- FIN GESTOR DE TEMAS ---
 let isAppReady = false;
+let activeFlatpickrInstance = null;
+
+function destroyActiveFlatpickr() {
+  if (activeFlatpickrInstance) {
+    activeFlatpickrInstance.destroy();
+    activeFlatpickrInstance = null;
+  }
+}
+
+// Función de ayuda para la configuración base de todos los calendarios
+function getFlatpickrBaseConfig() {
+    let initialDate = null; // Guardará la fecha original al abrir
+
+    return {
+        disableMobile: true,
+        locale: "es",
+        wrap: true,   // CLAVE: Necesario para que detecte el <input> dentro del <div>
+
+        onOpen: function(selectedDates, dateStr, instance) {
+            if (activeFlatpickrInstance && activeFlatpickrInstance !== instance) {
+                activeFlatpickrInstance.destroy();
+            }
+            activeFlatpickrInstance = instance;
+            // Guarda la fecha inicial para poder "cancelar"
+            initialDate = instance.selectedDates[0] || null;
+        },
+
+        onClose: function(selectedDates, dateStr, instance) {
+    if (activeFlatpickrInstance === instance) {
+        activeFlatpickrInstance = null;
+    }
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    const titleInput = document.getElementById('event-title');
+    // Solo actuar si estamos en el formulario de eventos y el título está vacío
+    if (titleInput && titleInput.value.trim() === '' && selectedDates.length > 0) {
+        titleInput.focus(); // Mueve el cursor al campo
+        titleInput.classList.add('input-error'); // Añade el borde rojo
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+},
+
+        // onReady es el hook oficial para añadir elementos al calendario ya construido
+        onReady: function(selectedDates, dateStr, instance) {
+            const isDarkMode = !!document.getElementById('flatpickr-dark-theme');
+            if (isDarkMode) {
+                instance.calendarContainer.classList.add("dark-theme");
+            }
+
+            // Si los botones ya existen, no los volvemos a crear
+            if (instance.calendarContainer.querySelector('.fp-buttons')) return;
+
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'fp-buttons';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'fp-button fp-cancel-btn';
+            cancelBtn.textContent = 'Cancelar';
+            cancelBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                instance.setDate(initialDate, true);
+                instance.close();
+            });
+
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'fp-button fp-confirm-btn';
+            confirmBtn.textContent = 'Establecer';
+            confirmBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                instance.close();
+            });
+
+            btnContainer.appendChild(cancelBtn);
+            btnContainer.appendChild(confirmBtn);
+            instance.calendarContainer.appendChild(btnContainer);
+        }
+    };
+}
 let unsubscribeShoppingList = null;
 let unsubscribeNotesList = null;
 let unsubscribeCalendarEvents = null; // Declaración única para el listener del calendario
@@ -1752,38 +2078,25 @@ document.body.addEventListener('click', (e) => {
     }
 });
 
-function updateChefTabStyle() {
-    const chefTab = document.getElementById('tab-chef');
-    if (!chefTab) return;
-    
-    const isPremium = appData.isPremium === true;
-    
-    if (isPremium) {
-        // Si es Premium, la pestaña es funcional y normal.
-        chefTab.classList.remove('tab-premium-locked');
-        chefTab.innerHTML = '🧑‍🍳 Chef';
-        chefTab.onclick = renderChefPage; // Asignamos la función para que se pueda hacer clic
-    } else {
-        // Si no es Premium, la pestaña se bloquea visualmente y funcionalmente.
-        chefTab.classList.add('tab-premium-locked');
-        chefTab.innerHTML = 'Chef ⭐';
-        // Asignamos una función que solo muestra el toast.
-        chefTab.onclick = () => {
-            showToast('⭐ Función exclusiva para usuarios Premium.');
-        };
-    }
-}
-
 window.confirmDelete = function(type, id) {
     const itemElement = document.getElementById(`item-${id}`);
     if (!itemElement) return;
 
     let actionsContainer, menuButton;
+    let originalDeleteBtn, originalSaveBtn; // Variables para guardar los botones del formulario
 
     if (itemElement.classList.contains('form-card')) {
+        // --- INICIO: Lógica específica para el formulario ---
         actionsContainer = itemElement.querySelector('.button-group');
-        menuButton = null; 
+        originalDeleteBtn = actionsContainer.querySelector('#delete-gasto-btn');
+        originalSaveBtn = actionsContainer.querySelector('#save-gasto-btn');
+        
+        // Ocultamos los botones originales
+        if (originalDeleteBtn) originalDeleteBtn.style.display = 'none';
+        if (originalSaveBtn) originalSaveBtn.style.display = 'none';
+        // --- FIN: Lógica específica para el formulario ---
     } else {
+        // Lógica para elementos de lista (sin cambios)
         actionsContainer = itemElement.querySelector('.list-item-actions');
         menuButton = actionsContainer.querySelector('.generic-menu-btn');
         const dropdown = actionsContainer.querySelector('.dropdown-menu');
@@ -1803,7 +2116,16 @@ window.confirmDelete = function(type, id) {
     confirmBtnNo.textContent = 'No';
     confirmBtnNo.onclick = (e) => { 
         e.stopPropagation(); 
-        if(menuButton) menuButton.style.display = 'block'; 
+        // --- INICIO: Lógica de restauración mejorada ---
+        if (itemElement.classList.contains('form-card')) {
+            // Si es el formulario, volvemos a mostrar los botones originales
+            if (originalDeleteBtn) originalDeleteBtn.style.display = 'block';
+            if (originalSaveBtn) originalSaveBtn.style.display = 'block';
+        } else {
+            // Si es una lista, mostramos el menú de nuevo
+            if (menuButton) menuButton.style.display = 'block'; 
+        }
+        // --- FIN: Lógica de restauración mejorada ---
         confirmBtnYes.remove(); 
         confirmBtnNo.remove(); 
     };
@@ -1813,148 +2135,103 @@ window.confirmDelete = function(type, id) {
 }
 
 async function executeDelete(type, id) {
-    let payload = { chat_ID: chatId };
-    let successMessage = '';
+    console.log(`[Debug 1/5] executeDelete INICIADO. Tipo: '${type}', ID: '${id}'`);
+
+    const itemElement = document.getElementById(`item-${id}`);
+    if (!itemElement) {
+        console.error(`[Debug ERROR] No se encontró el elemento con id: item-${id}`);
+        return;
+    }
 
     try {
         switch(type) {
             case 'reminder': {
-                // --- LÓGICA OPTIMISTA Y NATIVA DE FIRESTORE ---
-                const reminderItem = document.getElementById(`item-${id}`);
-                if (reminderItem) reminderItem.remove();
+                console.log("[Debug 2/5] Entrando en el caso 'reminder'.");
                 
-                appData.counts.remindersCount = Math.max(0, appData.counts.remindersCount - 1);
-                const reminderBadge = document.getElementById('reminders-badge');
-                if (reminderBadge) reminderBadge.textContent = appData.counts.remindersCount;
+                itemElement.style.opacity = '0.5';
+                itemElement.style.pointerEvents = 'none';
+                showToast('Iniciando eliminación...'); // Toast de depuración
 
-                (async () => {
-                    try {
-                        const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
-                        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+                const reminderRef = db.collection('users').doc(chatId).collection('notificaciones').doc(id);
+                const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
 
-                        const batch = db.batch();
-                        batch.delete(reminderRef);
-                        batch.update(countsRef, {
-                            remindersCount: firebase.firestore.FieldValue.increment(-1)
-                        });
-                        await batch.commit();
-                        console.log("Recordatorio eliminado y contador actualizado en Firestore.");
+                const batch = db.batch();
+                batch.delete(reminderRef);
+                batch.update(countsRef, {
+                    remindersCount: firebase.firestore.FieldValue.increment(-1)
+                });
+                
+                console.log("[Debug 3/5] Batch creado. A punto de ejecutar batch.commit()...");
+                
+                await batch.commit();
 
-                    } catch (err) {
-                        console.error("Error al eliminar recordatorio en Firestore:", err);
-                        showToast('Error de sincronización al eliminar. Restaurando...', true);
-                        setTimeout(() => initializeApp(), 1500);
-                    }
-                })(); 
-                return;
+                console.log("[Debug 4/5] batch.commit() EJECUTADO con éxito.");
+                showToast('Recordatorio eliminado.');
+                break;
             }
 
+            // El resto de los casos se mantienen sin cambios para no afectar lo que ya funciona.
             case 'note': {
-                const noteItemElement = document.getElementById(`item-${id}`);
-                if (noteItemElement) noteItemElement.remove();
-                
-                appData.counts.notesCount = Math.max(0, appData.counts.notesCount - 1);
-                const notesListBadge = document.getElementById('notes-badge');
-                if(notesListBadge) notesListBadge.textContent = appData.counts.notesCount;
-
-                if (document.getElementById('notes-list') && document.getElementById('notes-list').children.length === 0) {
-                     document.getElementById('notes-list').innerHTML = '<div class="no-data-msg">📝<br>No tienes notas guardadas.</div>';
-                }
-
-                showToast('Nota eliminada');
-                
-                (async () => {
-                    try {
-                        const noteDocRef = db.collection('users').doc(chatId).collection('notas').doc(id);
-                        const countsDocRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-
-                        const batch = db.batch();
-                        batch.delete(noteDocRef);
-                        batch.update(countsDocRef, {
-                            notesCount: firebase.firestore.FieldValue.increment(-1)
-                        });
-                        await batch.commit();
-                        console.log("Nota eliminada y contador actualizado en Firestore.");
-
-                    } catch(err) {
-                        console.error("Error al eliminar nota en Firestore:", err);
-                        showToast('Error de sincronización al eliminar. Recargando...', true);
-                        setTimeout(() => initializeApp(), 1500);
-                    }
-                })();
-                return; 
+                handleDeleteShoppingItem(id); // Placeholder
+                break;
             }
-            
             case 'calendar_event':
                 handleDeleteCalendarEvent(id);
-                return;
-
+                break;
             case 'gasto': {
-                // --- INICIO: LÓGICA DE ELIMINACIÓN NATIVA CON TRANSACCIÓN DE FIRESTORE ---
                 showToast("Eliminando gasto...");
-
                 (async () => {
                     try {
                         const gastoRef = db.collection('users').doc(chatId).collection('gastos').doc(id);
                         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
-
-                        // Usamos una transacción para garantizar la consistencia de los datos financieros.
                         await db.runTransaction(async (transaction) => {
                             const gastoDoc = await transaction.get(gastoRef);
-                            if (!gastoDoc.exists) {
-                                throw "El gasto que intentas eliminar ya no existe.";
-                            }
-
+                            if (!gastoDoc.exists) throw "El gasto que intentas eliminar ya no existe.";
                             const importeGasto = gastoDoc.data().importe || 0;
                             const decremento = -importeGasto;
-
-                            // 1. Preparamos la eliminación del gasto
                             transaction.delete(gastoRef);
-                            // 2. Preparamos la actualización del contador
-                            transaction.update(countsRef, { 
-                                gastosMesActual: firebase.firestore.FieldValue.increment(decremento) 
-                            });
+                            transaction.update(countsRef, { gastosMesActual: firebase.firestore.FieldValue.increment(decremento) });
                         });
-
-                        // Si la transacción tuvo éxito, actualizamos la UI localmente.
-                        // La lista de gastos se actualizará la próxima vez que se cargue,
-                        // pero el contador del dashboard lo podemos refrescar ya.
                         const gastoOriginal = gastosEncontrados.find(g => g.ID_Unico === id);
-                        if (gastoOriginal) {
-                             appData.counts.gastosMesActual -= (gastoOriginal.importe || 0);
-                        }
-                        renderDashboard(); // Re-dibuja el dashboard con el nuevo total.
+                        if (gastoOriginal) appData.counts.gastosMesActual -= (gastoOriginal.importe || 0);
+                        renderDashboard();
                         showToast("Gasto eliminado con éxito.");
-
                     } catch (err) {
                         console.error("Error en la transacción de eliminación de gasto:", err);
                         showToast(`Error al eliminar: ${err}.`, true);
                     }
                 })();
-
-                return; // Salimos para no ejecutar el código antiguo de abajo.
+                return;
             }
-            
             case 'shopping_item': 
                 handleDeleteShoppingItem(id);
                 return;
         }
 
-    } catch(e) { showToast('Error local al procesar.', true); return; }
+        console.log("[Debug 5/5] La función executeDelete terminó SIN ERRORES en el bloque try.");
+
+    } catch(e) { 
+        console.error("[Debug ERROR FATAL] Se ha producido un error en el bloque catch de executeDelete:", e);
+        showToast(`Error CRÍTICO: ${e.message}`, true, true);
+        if (itemElement) {
+            itemElement.style.opacity = '1';
+            itemElement.style.pointerEvents = 'auto';
+        }
+    }
 }
 
 // ==================================================
 // --- MÓDULO: RECORDATORIOS ---
 // ==================================================
 function renderReminderForm() {
-  navigationHistory.push(renderDashboard);
+  navigationHistory.push(renderRemindersList);
   updateBackButton();
   mainContentArea.innerHTML = `
     <div class="list-container">
       <div class="list-header"><h2>📝 Nuevo Recordatorio</h2></div>
       <div class="form-card">
         <label>Descripción</label><textarea id="text" rows="3" required></textarea>
-        <label>Fecha y hora</label><input type="text" id="time" required/>
+        <label>Fecha y hora</label><div class="flatpickr-wrapper"><input type="text" id="time" required data-input/></div>
         <label>Tipo</label>
         <div class="radio-group" id="reminder-type-group">
           <label><input type="radio" name="category" value="Un solo uso" checked/> Único</label>
@@ -1991,14 +2268,13 @@ const getNowInUserTimeZone = () => {
 
 const nowInUserZone = getNowInUserTimeZone();
 
-flatpickr("#time", {
-    disableMobile: true,
+flatpickr(document.querySelector("#time").parentElement, {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
     enableTime: true,
     altInput: true,
     altFormat: "d/m/Y H:i",
     dateFormat: "Y-m-d H:i",
     defaultDate: nowInUserZone, // Usamos el objeto Date preciso
-    locale: "es",
     minDate: nowInUserZone // Bloqueamos la selección de cualquier momento anterior al actual
 });
 // --- FIN: Lógica de fecha por defecto precisa ---
@@ -2013,79 +2289,79 @@ flatpickr("#time", {
 async function saveReminder() {
     const sendBtn = document.getElementById('sendBtn');
     sendBtn.disabled = true;
+    sendBtn.innerHTML = `<span class="spinner btn-spinner"></span> Creando...`;
 
-    try {
-        const category = document.querySelector('input[name="category"]:checked').value;
-        const description = document.getElementById('text').value.trim();
-        const timePicker = document.getElementById('time')._flatpickr;
-        const selectedDate = timePicker.selectedDates[0];
-        const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
+    // 1. Recopilamos todos los datos del formulario.
+    const category = document.querySelector('input[name="category"]:checked').value;
+    const description = document.getElementById('text').value.trim();
+    const timePicker = document.getElementById('time').parentElement._flatpickr;
+    const selectedDate = timePicker.selectedDates[0];
+    const horas_recurrentes = (category === 'Recurrente') ? document.getElementById('recurrent-hours').value : null;
 
-        if (!description || !selectedDate) {
-            throw new Error("La descripción y la fecha son obligatorias.");
-        }
-        
-        // --- INICIO: LÓGICA OPTIMISTA ---
-
-        const customId = generateCustomId('G-');
-        const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
-
-        // 1. Creamos el objeto temporal y lo añadimos a la lista local.
-        const tempReminder = {
-            tracking_code: customId,
-            Descripcion: description,
-            Categoria: category,
-            Fecha: fechaLocalParaUI,
-            Status: 'pending_creation' // <-- Estado inicial con reloj de arena
-        };
-        appData.remindersList.unshift(tempReminder); // 'unshift' lo añade al principio
-		// --- INICIO: Actualización optimista del contador ---
-		appData.counts.remindersCount++;
-		const reminderBadge = document.getElementById('reminders-badge');
-		if (reminderBadge) {
-		reminderBadge.textContent = appData.counts.remindersCount;
-}
-// --- FIN: Actualización optimista del contador ---
-
-        // 2. Navegamos y redibujamos la UI instantáneamente.
-        renderRemindersList();
-
-        // --- FIN: LÓGICA OPTIMISTA ---
-
-        // 3. En segundo plano, llamamos a la Cloud Function.
-        const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
-        const datosRecordatorio = {
-            descripcion: description,
-            categoria_recordatorio: category,
-            hora_local: fechaLocalParaUI, // <-- CORRECCIÓN INCLUIDA PARA EL 'undefined'
-            horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
-        };
-
-        const payload = {
-		chatId: chatId,
-		tipo: 'recordatorioSimple',
-		fechaLocal: fechaLocalString,
-		datos: datosRecordatorio,
-		customId: customId // <-- AÑADIMOS EL ID PARA SINCRONIZAR
-};
-        
-        const functions = firebase.app().functions('europe-west1');
-        const createNotificationFunction = functions.httpsCallable('createNotification');
-        await createNotificationFunction(payload);
-        // Si la llamada falla, el error se captura en el bloque catch.
-        // Si tiene éxito, no hacemos nada, 'onSnapshot' se encargará de quitar el ⌛.
-
-    } catch (err) {
-        showToast(`Error: ${err.message}. El recordatorio no se guardó.`, true);
-        // En caso de error, forzamos una recarga desde Firestore para eliminar el ítem optimista.
-        goBack(); 
+    if (!description || !selectedDate) {
+        showToast("La descripción y la fecha son obligatorias.", true);
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = 'Crear Recordatorio';
+        return;
     }
+
+    // 2. NAVEGAMOS ATRÁS PRIMERO. Con el Paso 1, esto ahora te llevará a la lista de recordatorios.
+    goBack();
+
+    // 3. Usamos un setTimeout para dar tiempo al DOM a renderizar la vista de la lista.
+    setTimeout(async () => {
+        const listWrapper = document.getElementById('reminders-content-wrapper');
+        if (listWrapper) {
+            // 4. INYECTAMOS el spinner, reemplazando la lista actual.
+            listWrapper.innerHTML = `
+                <div class="combustible-loading-state" style="padding: 40px 0;">
+                    <p>Creando recordatorio en el servidor...</p>
+                    <div class="dot-spinner" style="margin-top: 20px;">
+                        <div class="dot-spinner__dot"></div>
+                        <div class="dot-spinner__dot"></div>
+                        <div class="dot-spinner__dot"></div>
+                    </div>
+                </div>`;
+        }
+
+        try {
+            // 5. Con el listener ya escuchando y el spinner visible, llamamos a la Cloud Function.
+            const customId = generateCustomId('G-');
+            const fechaLocalParaUI = timePicker.formatDate(selectedDate, "d/m/Y H:i");
+            const fechaLocalString = timePicker.formatDate(selectedDate, "Y-m-d\\TH:i:S");
+            const datosRecordatorio = {
+                descripcion: description,
+                categoria_recordatorio: category,
+                hora_local: fechaLocalParaUI,
+                horas_recurrentes: horas_recurrentes ? parseInt(horas_recurrentes, 10) : null
+            };
+
+            const payload = { chatId, tipo: 'recordatorioSimple', fechaLocal: fechaLocalString, datos: datosRecordatorio, customId };
+            const functions = firebase.app().functions('europe-west1');
+            const createNotificationFunction = functions.httpsCallable('createNotification');
+            
+            await createNotificationFunction(payload);
+
+            // 6. ÉXITO: No hacemos nada. El listener onSnapshot se encargará del resto.
+
+        } catch (err) {
+            // 7. ERROR: Si la Cloud Function falla, restauramos la vista.
+            console.error("Error al guardar el recordatorio:", err);
+            showToast("Error. No se pudo crear el recordatorio.", true, true);
+            
+            const listWrapperOnError = document.getElementById('reminders-content-wrapper');
+            if (listWrapperOnError) {
+                listWrapperOnError.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+                drawRemindersList(); // Vuelve a dibujar la lista como estaba.
+            }
+        }
+    }, 100); 
 }
 
 // Variable global para poder desconectar el listener si el usuario sale de la vista
 let unsubscribeRemindersList = null;
 
-async function renderRemindersList() {
+async function renderRemindersList(isCreating = false) { // <--- Parámetro añadido
     navigationHistory.push(() => {
         if (typeof unsubscribeRemindersList === 'function') {
             unsubscribeRemindersList();
@@ -2095,48 +2371,95 @@ async function renderRemindersList() {
     });
     updateBackButton();
     
-    mainContentArea.innerHTML = `<div class="list-container"><div class="list-header"><h2>Recordatorios</h2></div><ul class="list-style-none" id="reminders-list"></ul></div>`;
+    mainContentArea.innerHTML = `<div class="list-container">
+                            <div class="list-header"><h2>Recordatorios</h2></div>
+                            <div class="add-article-btn-container">
+                                <button class="add-article-btn" id="add-new-reminder-btn">➕ Añadir Recordatorio</button>
+                            </div>
+                            <div id="reminders-content-wrapper">
+                                <ul class="list-style-none" id="reminders-list"></ul>
+                            </div>
+                         </div>`;
+    document.getElementById('add-new-reminder-btn').onclick = () => renderReminderForm();
 
-    // Dibuja la lista inmediatamente desde la memoria local para una carga optimista
-    drawRemindersList();
-    
-    const listElement = document.getElementById('reminders-list');
-    listElement.removeEventListener('click', handleReminderListClick); // Previene duplicados
-    listElement.addEventListener('click', handleReminderListClick);
+    const listWrapper = document.getElementById('reminders-content-wrapper');
+
+    // --- INICIO: Lógica del modo de carga ---
+    if (isCreating) {
+        // Si estamos creando, mostramos el spinner en lugar de la lista.
+        listWrapper.innerHTML = `
+            <div class="combustible-loading-state" style="padding: 40px 0;">
+                <p>Creando recordatorio en el servidor...</p>
+                <div class="dot-spinner" style="margin-top: 20px;">
+                    <div class="dot-spinner__dot"></div>
+                    <div class="dot-spinner__dot"></div>
+                    <div class="dot-spinner__dot"></div>
+                </div>
+            </div>`;
+    } else {
+        // Si no, dibujamos la lista desde la memoria como de costumbre.
+        drawRemindersList();
+    }
+    // --- FIN: Lógica del modo de carga ---
 
     if (typeof unsubscribeRemindersList === 'function') {
-        unsubscribeRemindersList();
+        return; 
     }
 
     const q = db.collection('users').doc(chatId).collection('notificaciones')
                 .orderBy('fecha_universal', 'asc');
     
     unsubscribeRemindersList = q.onSnapshot(snapshot => {
-    const reminders = [];
+    const listWrapper = document.getElementById('reminders-content-wrapper'); // Asegurarnos de tener la referencia
+
+    // Lógica de reconciliación (sin cambios)
+    const officialReminders = [];
     snapshot.forEach(doc => {
         const data = doc.data();
-        reminders.push({
+        officialReminders.push({
             tracking_code: doc.id,
             Descripcion: data.descripcion,
             Categoria: data.categoria_recordatorio,
             Fecha: data.hora_local,
-            Status: data.status
+            Status: data.status 
         });
     });
+
+    const optimisticReminders = appData.remindersList.filter(r => r.Status === 'pending_creation');
+    const officialMap = new Map(officialReminders.map(r => [r.tracking_code, true]));
+    const unconfirmedOptimistic = optimisticReminders.filter(
+        optimistic => !officialMap.has(optimistic.tracking_code)
+    );
+
+    appData.remindersList = [...unconfirmedOptimistic, ...officialReminders];
     
-    appData.remindersList = reminders;
-    appData.counts.remindersCount = reminders.length;
-    if (document.getElementById('reminders-badge')) {
-        document.getElementById('reminders-badge').textContent = reminders.length;
+    // --- INICIO DE LA CORRECCIÓN CLAVE ---
+    // Si el contenedor principal tiene el spinner, lo reemplazamos por la estructura 
+    // de lista vacía que `drawRemindersList` necesita para funcionar.
+    if (listWrapper) {
+        listWrapper.innerHTML = '<ul class="list-style-none" id="reminders-list"></ul>';
+    }
+    // --- FIN DE LA CORRECCIÓN CLAVE ---
+    
+    const finalCount = appData.remindersList.length;
+    appData.counts.remindersCount = finalCount;
+    const reminderBadge = document.getElementById('reminders-badge');
+    if (reminderBadge) {
+        reminderBadge.textContent = finalCount;
     }
 
     drawRemindersList();
+	const listElement = document.getElementById('reminders-list');
+    if(listElement) {
+        listElement.removeEventListener('click', handleReminderListClick);
+        listElement.addEventListener('click', handleReminderListClick);
+    }
 
 }, error => {
-    console.error("Error en el listener de recordatorios:", error);
+    console.error("Error en listener de recordatorios:", error);
     showToast("Error de conexión con la lista.", true);
-    const listElement = document.getElementById('reminders-list');
-    if(listElement) listElement.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
+    const listWrapper = document.getElementById('reminders-content-wrapper');
+    if(listWrapper) listWrapper.innerHTML = '<div class="no-data-msg">❌ Error de conexión.</div>';
 });
 }
 
@@ -2145,25 +2468,32 @@ function drawRemindersList() {
     if (!listElement) return;
 
     if (appData.remindersList.length === 0) {
-        listElement.innerHTML = '<div class="no-data-msg">🎉<br>No tienes recordatorios.</div>';
+        listElement.innerHTML = '<div class="no-data-msg">📝<br>No tienes recordatorios.</div>';
         return;
     }
-
-    const listHtml = appData.remindersList.map(item => `
-        <li class="list-item" id="item-${item.tracking_code}">
+    
+    // --- INICIO: Lógica del reloj de arena mejorada ---
+    const listHtml = appData.remindersList.map(item => {
+        // CUALQUIER estado que no sea 'active' se considera pendiente.
+        const isPending = item.Status !== 'active';
+        
+        return `
+        <li class="list-item" id="item-${item.tracking_code}" style="${isPending ? 'opacity: 0.7;' : ''}">
             <div class="list-item-content">
                 <span class="list-item-title">
-                    ${item.Status === 'pending_creation' ? '⌛ ' : ''}${item.Descripcion}
+                    ${isPending ? '⌛ ' : ''}${item.Descripcion}
                 </span>
                 <span class="list-item-subtitle">${item.Categoria}: ${item.Fecha}</span>
             </div>
             <div class="list-item-actions">
-                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}">⋮</button>
+                <button class="generic-menu-btn" data-menu-id="menu-item-${item.tracking_code}" ${isPending ? 'disabled' : ''}>⋮</button>
                 <div class="dropdown-menu" id="menu-item-${item.tracking_code}">
-                    <a class="dropdown-item" data-action="delete-reminder" data-tracking-code="${item.tracking_code}">Eliminar</a>
+                    <a class="dropdown-item" data-action="delete-reminder" data-id="${item.tracking_code}">Eliminar</a>
                 </div>
             </div>
-        </li>`).join('');
+        </li>`;
+    }).join('');
+    // --- FIN: Lógica del reloj de arena mejorada ---
 
     listElement.innerHTML = listHtml;
 }
@@ -2172,7 +2502,7 @@ function drawRemindersList() {
 function handleReminderListClick(e) {
     const target = e.target.closest('.dropdown-item[data-action="delete-reminder"]');
     if (target) {
-        confirmDelete('reminder', target.dataset.trackingCode);
+        confirmDelete('reminder', target.dataset.id);
     }
 }
 
@@ -2250,8 +2580,8 @@ async function renderShoppingList() {
     
     appData.shoppingList = items;
     const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-    renderShoppingListContent(items, userTimeZone);
-    updateShoppingCounts(items);
+	renderShoppingListContent(items, userTimeZone);
+	syncShoppingCounts();
     console.log("Lista de compras actualizada desde Firestore.");
 
 }, (error) => {
@@ -2316,19 +2646,6 @@ function renderShoppingListContent(items, userTimeZone) {
         document.querySelectorAll('.shopping-item-checkbox').forEach(cb => { cb.onchange = updateMultiSelectButtonState; });
         updateMultiSelectButtonState();
     }
-}
-
-function updateShoppingCounts(items) {
-    const pending = items.filter(item => item.estado === 'Pendiente').length;
-    const bought = items.filter(item => item.estado === 'Comprado').length;
-    
-    appData.counts.shoppingPendingCount = pending;
-    appData.counts.shoppingBoughtCount = bought;
-
-    const pendingBadge = document.getElementById('shopping-pending-badge');
-    const boughtBadge = document.getElementById('shopping-bought-badge');
-    if (pendingBadge) pendingBadge.textContent = pending;
-    if (boughtBadge) boughtBadge.textContent = bought;
 }
 
 function handleShoppingItemInteractions(event) {
@@ -2924,9 +3241,12 @@ async function handleImageScan() {
         sendBtn.disabled = false;
         sendBtn.innerHTML = originalBtnHTML;
     } finally {
-        // Limpiamos la variable de la imagen seleccionada
-        selectedImageFile = null;
-    }
+    // Restauramos el botón a su estado original, independientemente del resultado
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = originalBtnHTML;
+    // Limpiamos la variable de la imagen seleccionada
+    selectedImageFile = null;
+}
 }
 
 document.getElementById('preview-cancel-btn').onclick = () => {
@@ -2950,7 +3270,7 @@ function renderAddGastoForm(initialData = null) {
                 <select id="gasto-categoria" required><option value="">-- Selecciona una categoría --</option>${categoriasOptions}</select>
                 <label>Subcategoría</label>
                 <select id="gasto-subcategoria" required disabled><option value="">-- Selecciona una subcategoría --</option></select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <label>Fecha</label> <div class="flatpickr-wrapper"><input type="text" id="gasto-fecha" required data-input/></div>
                 <div class="button-group">
                     <button id="cancel-gasto-btn" class="cancel">Cancelar</button>
                     <button id="save-gasto-btn" disabled>Registrar Gasto</button>
@@ -2984,24 +3304,52 @@ function renderAddGastoForm(initialData = null) {
             }
         }
     }
-    flatpickr("#gasto-fecha", { disableMobile: true, defaultDate: defaultDate, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es", onChange: validateGastoForm });
-    elementsToValidate.forEach(el => el.oninput = validateGastoForm);
-    categoriaSelect.onchange = () => {
-        const selectedCategory = categoriaSelect.value;
-        subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
-        if (selectedCategory && categoriasGastos[selectedCategory]) {
-            const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}" ${data.subcategoria === sub ? 'selected' : ''}>${sub}</option>`).join('');
-            subcategoriaSelect.innerHTML += subcategoriasOptions;
-            subcategoriaSelect.disabled = false;
-        } else { subcategoriaSelect.disabled = true; }
-        validateGastoForm();
-    };
-    saveBtn.onclick = () => saveGasto();
-    if (initialData) {
-        categoriaSelect.dispatchEvent(new Event('change'));
-        if(data.subcategoria) { subcategoriaSelect.value = data.subcategoria; }
+    flatpickr(document.querySelector("#gasto-fecha").parentElement, { 
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    disableMobile: true, 
+    defaultDate: defaultDate, 
+    dateFormat: "d/m/Y H:i", 
+    enableTime: true, 
+    locale: "es", 
+    onChange: validateGastoForm 
+});
+    // Asignamos los listeners para validación manual
+elementsToValidate.forEach(el => el.addEventListener('input', validateGastoForm));
+
+categoriaSelect.onchange = () => {
+    const selectedCategory = categoriaSelect.value;
+    subcategoriaSelect.innerHTML = '<option value="">-- Selecciona una subcategoría --</option>';
+    if (selectedCategory && categoriasGastos[selectedCategory]) {
+        const subcategoriasOptions = categoriasGastos[selectedCategory].map(sub => `<option value="${sub}">${sub}</option>`).join('');
+        subcategoriaSelect.innerHTML += subcategoriasOptions;
+        subcategoriaSelect.disabled = false;
+    } else {
+        subcategoriaSelect.disabled = true;
     }
     validateGastoForm();
+};
+// Añadimos el listener que faltaba para la selección manual de subcategoría
+subcategoriaSelect.onchange = validateGastoForm;
+
+saveBtn.onclick = () => saveGasto();
+
+// Lógica de inicialización con datos del ticket
+if (initialData) {
+    // Disparamos el cambio de categoría para poblar las subcategorías
+    categoriaSelect.dispatchEvent(new Event('change'));
+    
+    // Esperamos un instante para que el DOM se actualice con las nuevas opciones
+    setTimeout(() => {
+        if (data.subcategoria) {
+            subcategoriaSelect.value = data.subcategoria;
+        }
+        // Ahora, con todos los datos en su sitio, forzamos la validación final.
+        validateGastoForm();
+    }, 0);
+} else {
+    // Si no hay datos iniciales, validamos para establecer el estado inicial del botón.
+    validateGastoForm();
+}
 }
 
 async function saveGasto() {
@@ -3011,7 +3359,7 @@ async function saveGasto() {
     saveBtn.innerHTML = `<span class="spinner btn-spinner"></span> Registrando...`;
 
     try {
-        const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+        const fechaGastoObj = document.getElementById('gasto-fecha').parentElement._flatpickr.selectedDates[0];
         const importe = parseFloat(document.getElementById('gasto-importe').value.replace(',', '.'));
         const establecimiento = document.getElementById('gasto-establecimiento').value;
         const categoria = document.getElementById('gasto-categoria').value;
@@ -3023,23 +3371,33 @@ async function saveGasto() {
         const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
         const newGastoRef = db.collection('users').doc(chatId).collection('gastos').doc(generateCustomId('G-'));
 
-        // Transacción simplificada: asume que 'counts' ya existe.
-        await db.runTransaction(async (transaction) => {
-            const countsDoc = await transaction.get(countsRef);
-            const currentCounts = countsDoc.data();
+        // Transacción robusta: crea o actualiza el documento de contadores.
+await db.runTransaction(async (transaction) => {
+    const countsDoc = await transaction.get(countsRef);
 
-            const nuevoTotalGastos = (currentCounts.gastosMesActual || 0) + importe;
-            const mesesActivos = currentCounts.mesesActivosGastos || [];
-            if (!mesesActivos.includes(mesAnio)) {
-                mesesActivos.push(mesAnio);
-            }
+    // Primero, siempre creamos el nuevo gasto.
+    transaction.set(newGastoRef, gastoData);
 
-            transaction.set(newGastoRef, gastoData);
-            transaction.update(countsRef, { 
-                gastosMesActual: nuevoTotalGastos, 
-                mesesActivosGastos: mesesActivos 
-            });
+    if (countsDoc.exists) {
+        // Si el documento de contadores EXISTE, lo actualizamos.
+        const currentCounts = countsDoc.data();
+        const nuevoTotalGastos = (currentCounts.gastosMesActual || 0) + importe;
+        const mesesActivos = currentCounts.mesesActivosGastos || [];
+        if (!mesesActivos.includes(mesAnio)) {
+            mesesActivos.push(mesAnio);
+        }
+        transaction.update(countsRef, { 
+            gastosMesActual: nuevoTotalGastos, 
+            mesesActivosGastos: mesesActivos 
         });
+    } else {
+        // Si el documento NO EXISTE, lo creamos con los valores iniciales.
+        transaction.set(countsRef, {
+            gastosMesActual: importe,
+            mesesActivosGastos: [mesAnio]
+        });
+    }
+});
 
         // Se actualiza la UI local SOLO si la transacción tuvo éxito.
         appData.counts.gastosMesActual = (parseFloat(appData.counts.gastosMesActual) || 0) + importe;
@@ -3235,17 +3593,24 @@ function renderGastosSearchScreen(gastos = null) {
         <div class="list-container">
             <div class="list-header"><h2>🔎 Buscar Gastos</h2></div>
             <div class="form-card">
-                <label>Fecha de Inicio</label> <input type="text" id="gasto-fecha-inicio" required />
-                <label>Fecha de Fin</label> <input type="text" id="gasto-fecha-fin" required />
+                <label>Fecha de Inicio</label> <div class="flatpickr-wrapper"><input type="text" id="gasto-fecha-inicio" required data-input/></div>
+                <label>Fecha de Fin</label> <div class="flatpickr-wrapper"><input type="text" id="gasto-fecha-fin" required data-input/></div>
                 <button id="search-gasto-btn" class="enabled">Buscar</button>
             </div>
             <p style="text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 15px; display: ${legendDisplay};">Pulsa sobre un gasto para ver/editarlo</p>
             <div id="gastos-search-results" style="margin-top: 10px;">${resultsHtml}</div>
         </div>`;
         
-    const fpConfig = { disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
-    flatpickr("#gasto-fecha-inicio", { ...fpConfig, defaultDate: new Date(new Date().setDate(1)) });
-    flatpickr("#gasto-fecha-fin", { ...fpConfig, defaultDate: new Date() });
+    flatpickr(document.querySelector("#gasto-fecha-inicio").parentElement, {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    dateFormat: "d/m/Y",
+    defaultDate: new Date(new Date().setDate(1))
+});
+	flatpickr(document.querySelector("#gasto-fecha-fin").parentElement, {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    dateFormat: "d/m/Y",
+    defaultDate: new Date()
+});
     
     document.getElementById('search-gasto-btn').onclick = executeSearchGastos;
     
@@ -3327,7 +3692,7 @@ function renderEditGastoForm(gasto) {
                 <label>Establecimiento</label> <input type="text" id="gasto-establecimiento" value="${gasto.establecimiento}" required />
                 <label>Categoría</label> <select id="gasto-categoria" required>${categoriasOptions}</select>
                 <label>Subcategoría</label> <select id="gasto-subcategoria" required>${subcategoriasOptions}</select>
-                <label>Fecha</label> <input type="text" id="gasto-fecha" required />
+                <label>Fecha</label> <div class="flatpickr-wrapper"><input type="text" id="gasto-fecha" required data-input/></div>
                 <div class="button-group">
                     <button id="delete-gasto-btn" class="cancel">Eliminar</button>
                     <button id="save-gasto-btn" disabled>Guardar Cambios</button>
@@ -3335,7 +3700,14 @@ function renderEditGastoForm(gasto) {
             </div>
         </div>`;
     
-    const fechaPicker = flatpickr("#gasto-fecha", { disableMobile: true, defaultDate: gasto.Fecha, dateFormat: "d/m/Y H:i", enableTime: true, locale: "es" });
+    const fechaPicker = flatpickr(document.querySelector("#gasto-fecha").parentElement, { 
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    disableMobile: true, 
+    defaultDate: gasto.Fecha, 
+    dateFormat: "d/m/Y H:i", 
+    enableTime: true, 
+    locale: "es" 
+});
     const categoriaSelect = document.getElementById('gasto-categoria');
     const subcategoriaSelect = document.getElementById('gasto-subcategoria');
     const importeInput = document.getElementById('gasto-importe');
@@ -3390,7 +3762,7 @@ async function saveEditedGasto(idUnico) {
         const nuevoEstablecimiento = document.getElementById('gasto-establecimiento').value;
         const nuevaCategoria = document.getElementById('gasto-categoria').value;
         const nuevaSubcategoria = document.getElementById('gasto-subcategoria').value;
-        const fechaGastoObj = document.getElementById('gasto-fecha')._flatpickr.selectedDates[0];
+        const fechaGastoObj = document.getElementById('gasto-fecha').parentElement._flatpickr.selectedDates[0];
         const mesAnio = `${(fechaGastoObj.getMonth() + 1).toString().padStart(2, '0')}/${fechaGastoObj.getFullYear()}`;
 
         const gastoActualizado = { 
@@ -3454,7 +3826,7 @@ function renderChefPage() {
                 </div>
                 <div class="chef-item">
                     <label>Fecha y Hora</label>
-                    <input type="text" id="chef-fecha-comida" style="width: 150px; text-align: center;"/>
+                    <div class="flatpickr-wrapper"><input type="text" id="chef-fecha-comida" style="width: 150px; text-align: center;" data-input/></div>
                 </div>
                 <div class="chef-item">
                     <label>Nº de Comensales</label>
@@ -3503,18 +3875,17 @@ function renderChefPage() {
     const maxDateForChef = new Date();
     maxDateForChef.setDate(now.getDate() + 3);
 
-    flatpickr("#chef-fecha-comida", {
-        disableMobile: true,
-        enableTime: true,
-        locale: "es",
-        altInput: true,
-        altFormat: "D, j M H:i",
-        dateFormat: "Z",
-        time_24hr: true,
-        defaultDate: now,
-        minDate: now,
-        maxDate: maxDateForChef
-    });
+    flatpickr(document.querySelector("#chef-fecha-comida").parentElement, {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    enableTime: true,
+    altInput: true,
+    altFormat: "D, j M H:i",
+    dateFormat: "Z",
+    time_24hr: true,
+    defaultDate: now,
+    minDate: now,
+    maxDate: maxDateForChef
+});
 
     document.getElementById('chef-cancel-btn').onclick = goBack;
     
@@ -3634,7 +4005,7 @@ async function executeChefRequest(files) {
     const chefFunctionUrl = "https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/processChefRequest";
 
     try {
-        const fechaComidaSeleccionada = document.getElementById('chef-fecha-comida')._flatpickr.selectedDates[0];
+        const fechaComidaSeleccionada = document.getElementById('chef-fecha-comida').parentElement._flatpickr.selectedDates[0];
         
         if (!fechaComidaSeleccionada) {
             throw new Error("Por favor, selecciona una fecha y hora válidas.");
@@ -4007,18 +4378,22 @@ function renderSettings() {
 });
 
 	const themeSelector = document.getElementById('settings-theme');
-	themeSelector.addEventListener('change', async () => {
-	const nuevoTema = themeSelector.value;
-	applyTheme(nuevoTema);
-	try {
-		const functions = firebase.app().functions('europe-west1');
-		const updateThemeFunction = functions.httpsCallable('updateTheme');
-		await updateThemeFunction({ chatId: chatId, tema: nuevoTema });
-	} catch (error) {
-		console.error("Error al guardar el tema:", error);
-		showToast("No se pudo guardar la preferencia de tema.", true);
-	}
-});
+	themeSelector.addEventListener('change', () => {
+        const nuevoTema = themeSelector.value;
+        applyTheme(nuevoTema);
+        
+        // Actualizamos la memoria local en la ruta correcta
+        if (!appData.settings.configuracion) appData.settings.configuracion = {};
+        appData.settings.configuracion.tema = nuevoTema;
+
+        // Guardado directo en Firestore usando "dot notation" para el campo anidado
+        db.collection('users').doc(chatId).update({
+            'configuracion.tema': nuevoTema
+        }).catch(error => {
+            console.error("Error al guardar el tema directamente en Firestore:", error);
+            showToast("No se pudo guardar la preferencia de tema.", true);
+        });
+    });
 
     document.getElementById('settings-save-btn').onclick = saveSettings;
     document.getElementById('settings-cancel-btn').onclick = renderDashboard;
@@ -4136,6 +4511,36 @@ async function saveSettings() {
     }
 }
 
+async function syncShoppingCounts() {
+    if (!chatId) return;
+    console.log("[Sincronización de Compra] Iniciando recálculo de contadores.");
+    try {
+        const shoppingListRef = db.collection('users').doc(chatId).collection('listaDeLaCompra');
+        
+        // Método de conteo universalmente compatible
+        const pendingPromise = shoppingListRef.where('estado', '==', 'Pendiente').get();
+        const boughtPromise = shoppingListRef.where('estado', '==', 'Comprado').get();
+        
+        const [pendingSnapshot, boughtSnapshot] = await Promise.all([pendingPromise, boughtPromise]);
+        
+        const pendingCount = pendingSnapshot.size;
+        const boughtCount = boughtSnapshot.size;
+        
+        // Actualizamos el documento de resumen en Firestore
+        const countsRef = db.collection('users').doc(chatId).collection('_metadata').doc('counts');
+        await countsRef.update({
+            shoppingPendingCount: pendingCount,
+            shoppingBoughtCount: boughtCount
+        });
+        
+        console.log(`[Sincronización de Compra] Recálculo completado. Pendientes: ${pendingCount}, Comprados: ${boughtCount}`);
+        
+    } catch (error) {
+        // Este error no debe detener al usuario, solo lo registramos.
+        console.error("[Sincronización de Compra] Error durante el recálculo:", error);
+    }
+}
+
 async function syncCounts() {
     showSpinner("Sincronizando contadores...");
     try {
@@ -4194,9 +4599,9 @@ function renderExportPage() {
             <div class="form-card">
                 <p style="font-size:0.9rem; color:var(--muted); margin-bottom:15px;">Selecciona el rango de fechas para la exportación. Recibirás el archivo en tu email.</p>
                 <label>Fecha de Inicio</label>
-                <input type="text" id="export-start-date" required />
+                <div class="flatpickr-wrapper"><input type="text" id="export-start-date" required data-input/></div>
                 <label>Fecha de Fin</label>
-                <input type="text" id="export-end-date" required />
+                <div class="flatpickr-wrapper"><input type="text" id="export-end-date" required data-input/></div>
                 <div class="button-group">
                     <button id="export-cancel-btn" class="cancel">Cancelar</button>
                     <button id="export-confirm-btn" class="enabled">Generar y Enviar</button>
@@ -4204,9 +4609,16 @@ function renderExportPage() {
             </div>
         </div>
     `;
-    const fpConfig = { disableMobile: true, dateFormat: "d/m/Y", locale: "es" };
-    flatpickr("#export-start-date", { ...fpConfig, defaultDate: new Date(new Date().getFullYear(), 0, 1) });
-    flatpickr("#export-end-date", { ...fpConfig, defaultDate: new Date() });
+    flatpickr(document.querySelector("#export-start-date").parentElement, {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    dateFormat: "d/m/Y",
+    defaultDate: new Date(new Date().getFullYear(), 0, 1)
+});
+flatpickr(document.querySelector("#export-end-date").parentElement, {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    dateFormat: "d/m/Y",
+    defaultDate: new Date()
+});
     document.getElementById('export-cancel-btn').onclick = goBack;
     document.getElementById('export-confirm-btn').onclick = executeExport;
 }
@@ -4428,6 +4840,283 @@ function renderTimelineGrid(canales, programas) {
     const wrapper = document.getElementById('guia-grid-wrapper');
     if (activeDate === todayISO) {
          wrapper.scrollLeft = nowPosition - (wrapper.offsetWidth / 2);
+    }
+}
+
+// ==================================================
+// --- MÓDULO: EMERGENCIAS ---
+// ==================================================
+function renderMyLocationView() {
+    navigationHistory.push(renderEmergenciasView);
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>📍 Mi Ubicación Actual</h2></div>
+            <div class="form-card" id="location-display-card">
+                
+                <div id="location-spinner" class="combustible-loading-state" style="padding: 30px 0;">
+                    <p>Obteniendo tu ubicación precisa...</p>
+                    <small style="color:var(--muted); display:block; margin-top:5px;">Por favor, acepta el permiso si se solicita.</small>
+                    <div class="dot-spinner" style="margin-top: 20px;"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div>
+                </div>
+
+                <div id="location-content" style="display:none;">
+                    <div id="location-map" style="height: 200px; border-radius: 12px; margin-bottom: 20px; background-color: #e9e9e9;"></div>
+                    <div style="text-align: left; line-height: 1.6;">
+                        <p><strong>Latitud:</strong> <code id="location-lat">--</code></p>
+                        <p><strong>Longitud:</strong> <code id="location-lon">--</code></p>
+                    </div>
+                    <div id="location-actions" style="margin-top: 25px;">
+                        <button id="copy-location-btn" class="add-article-btn enabled" style="width:100%; max-width:100%; margin-bottom:10px;">Copiar Coordenadas</button>
+                        
+                        <p style="text-align: center; font-weight: 500; color: var(--muted); margin-bottom: 15px;">Compartir Mi Ubicación:</p>
+                        
+                        <div id="share-actions-container" style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;"></div>
+                    </div>
+                </div>
+
+                <div id="location-error" style="display:none; text-align:center;" class="no-data-msg">
+                    <p style="font-size:1.1rem; line-height:1.5;">❌ No se pudo obtener la ubicación.</p>
+                    <small id="location-error-reason" style="color:var(--muted); margin-top:10px; display:block;"></small>
+                    <button id="retry-location-btn" class="add-article-btn enabled" style="width:100%; max-width:250px; margin-top:20px;">Reintentar</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    fetchAndDisplayLocationWithMap();
+}
+
+function fetchAndDisplayLocationWithMap() {
+    const spinner = document.getElementById('location-spinner');
+    const contentContainer = document.getElementById('location-content');
+    const errorContainer = document.getElementById('location-error');
+    let map = null;
+
+    spinner.style.display = 'block';
+    contentContainer.style.display = 'none';
+    errorContainer.style.display = 'none';
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const { latitude, longitude } = position.coords;
+
+            spinner.style.display = 'none';
+            contentContainer.style.display = 'block';
+
+            document.getElementById('location-lat').textContent = latitude.toFixed(6);
+            document.getElementById('location-lon').textContent = longitude.toFixed(6);
+
+            const mapContainer = document.getElementById('location-map');
+            if (mapContainer) {
+                map = L.map('location-map').setView([latitude, longitude], 16);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                L.marker([latitude, longitude]).addTo(map);
+            }
+
+            const locationTextForCopy = `Latitud: ${latitude.toFixed(6)}, Longitud: ${longitude.toFixed(6)}`;
+            const locationTextForShare = `Mi ubicación actual:\n${locationTextForCopy}\n\nVer en el mapa:\nhttps://www.google.com/maps?q=${latitude},${longitude}`;
+
+            document.getElementById('copy-location-btn').onclick = () => {
+                navigator.clipboard.writeText(locationTextForCopy).then(() => {
+                    showToast('Coordenadas copiadas.');
+                }).catch(() => showToast('Error al copiar.', true));
+            };
+
+            const shareActionsContainer = document.getElementById('share-actions-container');
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(locationTextForShare)}`;
+            const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://www.google.com/maps?q=${latitude},${longitude}`)}&text=${encodeURIComponent("Mi ubicación actual:")}`;
+            
+            shareActionsContainer.innerHTML = `
+                <button class="share-action-btn whatsapp-btn" style="background-color: #25D366;" onclick="Telegram.WebApp.openLink('${whatsappUrl}')" title="Compartir en WhatsApp">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.61 15.35 3.48 16.84L2 22L7.32 20.55C8.75 21.33 10.36 21.8 12.04 21.8H12.05C17.5 21.8 21.95 17.35 21.95 11.9C21.95 9.28 20.94 6.85 19.1 4.99C17.25 3.14 14.81 2 12.04 2M16.57 13.95C16.37 14.45 15.38 15.05 15.11 15.2C14.84 15.35 14.53 15.41 14.24 15.26C13.94 15.11 13.06 14.81 12.08 13.95C10.88 12.89 10.24 11.65 10.09 11.4C9.94 11.15 10.12 10.98 10.27 10.83C10.4 10.7 10.55 10.5 10.69 10.3C10.84 10.15 10.89 10.03 10.79 9.88C10.69 9.73 10.24 8.53 10.04 8.03C9.84 7.53 9.64 7.6 9.49 7.6H9.04C8.84 7.6 8.53 7.68 8.26 7.93C7.98 8.18 7.34 8.76 7.34 9.95C7.34 11.15 8.29 12.3 8.44 12.45C8.59 12.6 10.04 14.83 12.31 15.75C14.58 16.68 14.93 16.53 15.38 16.48C15.83 16.43 16.71 15.86 16.91 15.31C17.11 14.76 17.11 14.28 17.06 14.18C17 14.08 16.77 13.95 16.57 13.95Z" /></svg>
+                </button>
+                <button class="share-action-btn telegram-btn" style="background-color: #0088cc;" onclick="Telegram.WebApp.openTelegramLink('${telegramUrl}')" title="Compartir en Telegram">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M9.78,18.65L10.26,14.21L18.46,7.5C18.85,7.11 18.42,6.92 18,7.31L9.62,13.23L5.32,11.86C4.89,11.72 4.88,11.37 5.37,11.16L19.37,5.16C19.87,4.96 20.34,5.25 20.14,5.83L17.14,19.83C16.94,20.33 16.47,20.44 16.1,20.05L12.06,16.64L9.78,18.65Z" /></svg>
+                </button>
+            `;
+        },
+        (error) => {
+            spinner.style.display = 'none';
+            errorContainer.style.display = 'block';
+            const reasonEl = document.getElementById('location-error-reason');
+            const errorMessages = {
+                [error.PERMISSION_DENIED]: "Has denegado el permiso. Actívalo en los ajustes de tu móvil o Telegram.",
+                [error.POSITION_UNAVAILABLE]: "La información no está disponible. Inténtalo en un lugar con mejor señal.",
+                [error.TIMEOUT]: "La solicitud ha tardado demasiado. Comprueba tu conexión a internet."
+            };
+            reasonEl.textContent = errorMessages[error.code] || "Ha ocurrido un error desconocido.";
+            document.getElementById('retry-location-btn').onclick = fetchAndDisplayLocationWithMap;
+        },
+        { timeout: 15000, enableHighAccuracy: true }
+    );
+}
+
+function renderEmergenciasView() {
+    if (tg && tg.MainButton.isVisible) {
+        tg.MainButton.hide();
+    }
+
+    navigationHistory.push(() => {
+        if (tg && tg.MainButton.isVisible) {
+            tg.MainButton.hide();
+        }
+        mainContentArea.removeEventListener('click', handleEmergenciasClick);
+        renderDashboard();
+    });
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>🆘 Búsquedas de Emergencia</h2></div>
+
+            <div class="grid" id="emergency-searches-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
+                <div class="card clickable-card" data-card-id="my-location" id="my-location-card">
+				<div class="card-icon">📍</div><div class="card-title">Mi Ubicación</div>
+				</div>
+				<div class="card clickable-card" data-search-term="veterinario 24 horas">
+				<div class="card-icon">🐾</div><div class="card-title">Veterinarias 24h</div>
+				</div>
+				<div class="card clickable-card" data-search-term="hospital">
+				<div class="card-icon">🏥</div><div class="card-title">Hospitales</div>
+				</div>
+                <div class="card clickable-card" data-search-term="pharmacy">
+                    <div class="card-icon">💊</div><div class="card-title">Farmacias</div>
+                </div>
+                <div class="card clickable-card" data-search-term="police">
+                    <div class="card-icon">🚓</div><div class="card-title">Policía</div>
+                </div>
+                <div class="card clickable-card" data-search-term="gas station">
+                    <div class="card-icon">⛽</div><div class="card-title">Gasolineras</div>
+                </div>
+                <div class="card clickable-card" data-search-term="car repair">
+                    <div class="card-icon">🔧</div><div class="card-title">Talleres</div>
+                </div>
+                <div class="card clickable-card" data-search-term="atm">
+                    <div class="card-icon">🏧</div><div class="card-title">Cajeros</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => { mainContentArea.addEventListener('click', handleEmergenciasClick); }, 0);
+}
+
+function handleEmergenciasClick(event) {
+    const card = event.target.closest('.card.clickable-card');
+    if (!card) return;
+
+    if (card.dataset.cardId === 'my-location') {
+        renderMyLocationView();
+        return;
+    }
+    
+    const grid = document.getElementById('emergency-searches-grid');
+    grid.querySelectorAll('.card').forEach(c => c.classList.remove('emergency-selected'));
+    card.classList.add('emergency-selected');
+    grid.classList.add('emergency-dimmed');
+    
+    const searchTerm = card.dataset.searchTerm;
+    const categoryTitle = card.querySelector('.card-title').textContent;
+    const mainButtonText = `Buscar ${categoryTitle} cerca 📍`;
+    
+    if (tg && tg.MainButton) {
+        const restoreCards = () => {
+            const grid = document.getElementById('emergency-searches-grid');
+            if (!grid) return;
+            const selectedCard = grid.querySelector('.emergency-selected');
+            grid.classList.remove('emergency-dimmed');
+            if (selectedCard) selectedCard.classList.remove('emergency-selected');
+        };
+
+        const handleLocationError = (error, retryCallback) => {
+            tg.MainButton.hideProgress();
+            tg.MainButton.enable();
+            let msg = "No se pudo obtener tu ubicación. Revisa los permisos y la señal de GPS.";
+            if (error && error.code === 1) msg = "Has denegado el permiso de ubicación.";
+
+            tg.showPopup({
+                title: "Ubicación no encontrada", message: msg,
+                buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel' }]
+            }, (buttonId) => {
+                restoreCards();
+                if (buttonId === 'retry') {
+                    retryCallback();
+                } else {
+                    tg.MainButton.hide();
+                }
+            });
+        };
+
+        const requestLocationAndSearch = () => {
+            tg.MainButton.showProgress(true);
+            tg.MainButton.disable();
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(categoryTitle + ' cercanas')}/@${latitude},${longitude},15z`;
+
+                    tg.MainButton.hideProgress();
+                    tg.MainButton.enable();
+                    tg.MainButton.hide();
+                    restoreCards();
+
+                    tg.showPopup({
+                        title: "Búsqueda Lista",
+                        message: `Pulsa el botón para ver los resultados de "${categoryTitle}" en Google Maps.`,
+                        buttons: [{ id: 'open_map', type: 'default', text: '🗺️ Ver en Google Maps' }, { type: 'cancel' }]
+                    }, (buttonId) => {
+                        if (buttonId === 'open_map') {
+                            tg.openLink(mapsUrl);
+                        }
+                    });
+                },
+                (error) => {
+                    handleLocationError(error, requestLocationAndSearch);
+                },
+                { timeout: 12000, enableHighAccuracy: true }
+            );
+        };
+
+        const onMainButtonClick = () => {
+        const emergencyModalShown = localStorage.getItem('emergencyModalShown');
+        if (emergencyModalShown === 'true') {
+            requestLocationAndSearch();
+        } else {
+            const modal = document.getElementById('emergency-location-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('show'), 10);
+                
+                document.getElementById('emergency-modal-continue').onclick = () => {
+                    if (document.getElementById('emergency-modal-checkbox').checked) {
+                        localStorage.setItem('emergencyModalShown', 'true');
+                    }
+                    modal.classList.remove('show');
+                    setTimeout(() => { modal.style.display = 'none'; }, 300);
+                    requestLocationAndSearch();
+                };
+                
+                document.getElementById('emergency-modal-cancel').onclick = () => {
+                     modal.classList.remove('show');
+                     setTimeout(() => { modal.style.display = 'none'; }, 300);
+                     tg.MainButton.hide();
+                     restoreCards();
+                };
+            } else {
+                // Si el modal no existe por alguna razón, ejecutar la búsqueda directamente
+                requestLocationAndSearch();
+            }
+        }
+    };
+
+        tg.MainButton.offClick(onMainButtonClick);
+        tg.MainButton.setText(mainButtonText);
+        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+        tg.MainButton.onClick(onMainButtonClick);
+        tg.MainButton.show();
     }
 }
 
@@ -5542,6 +6231,7 @@ function renderMonthView(events, currentDate) {
 }
 
 function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDate = null, prefilledEndDate = null) {
+	removeCalendarFAB();
     navigationHistory.push(onBackCallback);
     updateBackButton();
     const isEditing = event && event.id;
@@ -5566,8 +6256,8 @@ function renderCalendarEventForm(event = null, onBackCallback, prefilledStartDat
                 <label>Descripción</label><textarea id="event-description" rows="5">${isEditing ? event.descripcion : ''}</textarea>
                 <div class="settings-item"><span class="settings-item-label">Todo el día</span><label class="switch"><input type="checkbox" id="event-all-day" ${isEditing && event.esTodoElDia ? 'checked' : ''}><span class="slider"></span></label></div>
                 <div id="time-pickers">
-                    <label>Inicio</label><input type="text" id="event-start-date" required/>
-                    <label>Fin</label><input type="text" id="event-end-date" required/>
+                    <label>Inicio</label><div class="flatpickr-wrapper"><input type="text" id="event-start-date" required data-input/></div>
+                    <label>Fin</label><div class="flatpickr-wrapper"><input type="text" id="event-end-date" required data-input/></div>
                 </div>
                 
                 <label>Color</label>
@@ -5625,16 +6315,16 @@ const nowInUserZone = new Date(getNowInUserTimeZone());
 const defaultStartDate = isEditing ? event.fechaInicio : (prefilledStartDate || nowInUserZone);
 const defaultEndDate = isEditing ? event.fechaFin : (prefilledEndDate || new Date(defaultStartDate.getTime() + 60 * 60 * 1000));
 
-const fpEnd = flatpickr("#event-end-date", {
-    disableMobile: true,
-    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+const fpEnd = flatpickr(document.querySelector("#event-end-date").parentElement, {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultEndDate,
     minDate: defaultStartDate
 });
 
-const fpStart = flatpickr("#event-start-date", {
-    disableMobile: true,
-    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z", locale: "es",
+const fpStart = flatpickr(document.querySelector("#event-start-date").parentElement, {
+    ...getFlatpickrBaseConfig(), // <-- AÑADIDO
+    enableTime: true, altInput: true, altFormat: "d/m/Y H:i", dateFormat: "Z",
     defaultDate: defaultStartDate,
     minDate: isEditing ? null : nowInUserZone, // Usamos la misma referencia de 'ahora'
     onChange: function(selectedDates) {
@@ -5703,7 +6393,8 @@ const fpStart = flatpickr("#event-start-date", {
     addNotificationBtn.onclick = () => showNotificationModal(currentNotifications, renderChips);
     renderChips();
 
-    const validate = () => { 
+    const validate = () => {
+		titleInput.classList.remove('input-error');
         const isValid = titleInput.value.trim() !== '';
         saveBtn.disabled = !isValid;
         addNotificationBtn.disabled = !isValid;
@@ -5907,8 +6598,8 @@ async function saveCalendarEvent(eventId, notifications) {
         const userTimeZone = appData.settings.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
         const isAllDay = document.getElementById('event-all-day').checked;
 
-        let startDateFromPicker = document.getElementById('event-start-date')._flatpickr.selectedDates[0];
-        let endDateFromPicker = document.getElementById('event-end-date')._flatpickr.selectedDates[0];
+        let startDateFromPicker = document.getElementById('event-start-date').parentElement._flatpickr.selectedDates[0];
+		let endDateFromPicker = document.getElementById('event-end-date').parentElement._flatpickr.selectedDates[0];
 
         if (isAllDay) {
             startDateFromPicker.setHours(0, 0, 0, 0);
@@ -6041,112 +6732,526 @@ async function handleDeleteCalendarEvent(eventId) {
     } 
     // Se elimina el 'finally' porque ya no hay spinner global que ocultar.
 }
+
+// ==================================================
+// --- MÓDULO: RADAR COMBUSTIBLE (VERSIÓN 2.0) ---
+// ==================================================
+function renderCombustibleView() {
+    let onMainButtonClick; 
+    let map = null;
+    let fullscreenMap = null;
+    let currentStations = [];
+    let markers = new Map();
+    let fullscreenMarkers = new Map();
+
+    navigationHistory.push(() => {
+        if (tg && tg.MainButton.isVisible) {
+            tg.MainButton.hide();
+            if (onMainButtonClick) {
+                tg.MainButton.offClick(onMainButtonClick);
+            }
+        }
+        // Limpiar mapas al salir
+        if (map) map.remove();
+        if (fullscreenMap) fullscreenMap.remove();
+        renderDashboard();
+    });
+    updateBackButton();
+
+    mainContentArea.innerHTML = `
+        <div class="list-container">
+            <div class="list-header"><h2>⛽ Radar Combustible</h2></div>
+            <div id="combustible-map-wrapper" style="position: relative; margin: 10px;">
+                <div id="combustible-map" style="height: 300px; background-color: #e9e9e9; border-radius: 12px;"></div>
+            </div>
+            <div id="combustible-controls-container"></div>
+            <div id="combustible-list"><div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div></div>
+        </div>
+    `;
+
+    const mapContainer = document.getElementById('combustible-map');
+    const listContainer = document.getElementById('combustible-list');
+    const controlsContainer = document.getElementById('combustible-controls-container');
+
+    const getDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 0.5 - Math.cos(dLat) / 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * (1 - Math.cos(dLon)) / 2;
+        return R * 2 * Math.asin(Math.sqrt(a));
+    };
+
+    const openFullscreenMap = () => {
+        const view = document.getElementById('map-fullscreen-view');
+        const fullscreenMapContainer = document.getElementById('fullscreen-map-container');
+        view.style.display = 'flex';
+
+        if (!fullscreenMap) {
+            fullscreenMap = L.map(fullscreenMapContainer);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(fullscreenMap);
+        }
+
+        setTimeout(() => {
+            fullscreenMap.invalidateSize(); // ¡Clave! Ajusta el tamaño del mapa al contenedor visible
+            if (map) {
+                fullscreenMap.setView(map.getCenter(), map.getZoom() + 1);
+            }
+            fullscreenMarkers = drawStationsAndList(currentStations, fullscreenMap, document.querySelector('.sort-btn.active')?.dataset.sort || 'gasolina', true);
+        }, 50); // Pequeño delay para asegurar que el contenedor es visible
+
+        document.getElementById('map-close-fullscreen-btn').onclick = () => {
+            view.style.display = 'none';
+        };
+    };
+
+    const renderSortedListAndMap = (sortBy) => {
+        if (currentStations.length === 0) return;
+
+        currentStations.sort((a, b) => {
+            if (sortBy === 'distancia') return a.distance - b.distance;
+            const priceKey = sortBy === 'gasolina' ? 'gasolina_95_e5' : 'gasoleo_a';
+            const priceA = a.prices[priceKey] || 999;
+            const priceB = b.prices[priceKey] || 999;
+            const priceDifference = priceA - priceB;
+            return priceDifference !== 0 ? priceDifference : a.distance - b.distance;
+        });
+
+        markers = drawStationsAndList(currentStations, map, sortBy);
+
+        const handleItemClick = (container, markersMap) => {
+            container.querySelectorAll('.combustible-list-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const stationId = item.dataset.id;
+                    const marker = markersMap.get(stationId);
+                    const targetMap = container === listContainer ? map : fullscreenMap;
+                    if (marker && targetMap) {
+                        targetMap.flyTo(marker.getLatLng(), 15);
+                        marker.openPopup();
+                    }
+                });
+            });
+        };
+        handleItemClick(listContainer, markers);
+
+        controlsContainer.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.sort === sortBy);
+        });
+    };
+
+    if (tg && tg.MainButton) {
+        
+        const handleLocationError = (error) => {
+            tg.MainButton.hideProgress(); tg.MainButton.enable();
+            let errorMsg = "No pudimos obtener tu ubicación. Asegúrate de que el GPS de tu móvil esté activado y tengas buena señal.";
+            if (error && error.code === 1) errorMsg = "Permiso de ubicación denegado. Revisa los ajustes de tu móvil y de Telegram.";
+            
+            tg.showPopup({
+                title: "Ubicación no Encontrada", message: errorMsg,
+                buttons: [{ id: 'retry', type: 'default', text: 'Reintentar' }, { id: 'cancel', type: 'cancel', text: 'Cancelar' }]
+            }, (buttonId) => { if (buttonId === 'retry') requestLocationAndFetchStations(); });
+            
+            listContainer.innerHTML = `<div class="no-data-msg">Usa el botón de abajo para buscar cerca de ti.</div>`;
+        };
+        
+        const requestLocationAndFetchStations = () => {
+            tg.MainButton.showProgress(true); tg.MainButton.disable();
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    listContainer.innerHTML = `<div class="combustible-loading-state"><p>Buscando gasolineras...</p><div class="dot-spinner"><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div><div class="dot-spinner__dot"></div></div></div>`;
+                    controlsContainer.innerHTML = '';
+                    const { latitude, longitude } = position.coords;
+                    
+                    if (!map) {
+                        map = L.map('combustible-map');
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    }
+                    map.setView([latitude, longitude], 14);
+                    
+                    // Añadir botón de expandir mapa
+                    const mapWrapper = document.getElementById('combustible-map-wrapper');
+                    if (!document.getElementById('map-expand-btn')) {
+                        const expandBtn = document.createElement('button');
+                        expandBtn.id = 'map-expand-btn';
+                        expandBtn.className = 'map-expand-btn';
+                        expandBtn.innerHTML = '⛶';
+                        expandBtn.onclick = openFullscreenMap;
+                        mapWrapper.appendChild(expandBtn);
+                    }
+                    
+                    (async () => {
+                        try {
+                            currentStations = await fetchStations(latitude, longitude, 5);
+                            if (currentStations.length > 0) {
+                                controlsContainer.innerHTML = `<div class="combustible-sort-controls"><button class="sort-btn" data-sort="gasolina">⛽ Gasolina</button><button class="sort-btn" data-sort="diesel">⚫ Diésel</button><button class="sort-btn" data-sort="distancia">📍 Distancia</button></div>`;
+                                controlsContainer.querySelectorAll('.sort-btn').forEach(btn => btn.addEventListener('click', (e) => renderSortedListAndMap(e.target.dataset.sort)));
+                                currentStations.forEach(s => { s.distance = getDistance(latitude, longitude, s.lat, s.lon); });
+                                renderSortedListAndMap('gasolina');
+                            } else {
+                                listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
+                            }
+                        } catch (fetchError) { handleLocationError(null); } 
+                        finally { tg.MainButton.hideProgress(); tg.MainButton.enable(); }
+                    })();
+                },
+                handleLocationError,
+                { timeout: 12000, enableHighAccuracy: true }
+            );
+        };
+
+        onMainButtonClick = () => {
+            const fuelModalShown = localStorage.getItem('fuelModalShown');
+            if (fuelModalShown === 'true') {
+                requestLocationAndFetchStations();
+            } else {
+                const modal = document.getElementById('fuel-location-modal');
+                const continueBtn = document.getElementById('fuel-modal-continue');
+                const cancelBtn = document.getElementById('fuel-modal-cancel');
+                const checkbox = document.getElementById('fuel-modal-checkbox');
+                const hideModal = () => { modal.classList.remove('show'); setTimeout(() => { modal.style.display = 'none'; }, 300); };
+                continueBtn.onclick = () => { if (checkbox.checked) localStorage.setItem('fuelModalShown', 'true'); hideModal(); requestLocationAndFetchStations(); };
+                cancelBtn.onclick = hideModal;
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('show'), 10);
+            }
+        };
+        
+        tg.MainButton.offClick(onMainButtonClick);
+        tg.MainButton.hideProgress();
+        tg.MainButton.enable();
+        tg.MainButton.setText("Buscar cerca de mí 📍");
+        tg.MainButton.setParams({ text_color: '#ffffff', color: '#4a76f3' });
+        tg.MainButton.onClick(onMainButtonClick);
+        tg.MainButton.show();
+    }
+    
+    if (mapContainer && appData.settings.ubicacion && appData.settings.ubicacion.lat) {
+        map = L.map('combustible-map').setView([appData.settings.ubicacion.lat, appData.settings.ubicacion.lon], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        L.marker([appData.settings.ubicacion.lat, appData.settings.ubicacion.lon]).addTo(map).bindPopup('Tu ubicación guardada');
+    } else {
+        mapContainer.innerHTML = '<div class="no-data-msg">Configura una ubicación en Ajustes o usa el botón de abajo.</div>';
+    }
+}
+
+// --- INICIO: Lógica para obtener y mostrar datos de gasolineras ---
+
+// Función de ayuda para ejecutar la búsqueda
+const fetchStations = async (lat, lon, radius) => {
+    try {
+        const functionUrl = 'https://europe-west1-asistentepersonal-4ad2b.cloudfunctions.net/getFuelStations';
+        const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: { lat, lon, radius } })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error.message || 'Error en la respuesta del servidor.');
+        }
+        
+        const { stations } = await response.json();
+        return stations;
+
+    } catch (error) {
+        console.error("Error al llamar a getFuelStations:", error);
+        showToast(`Error: ${error.message}`, true);
+        return []; // Devolvemos un array vacío en caso de error
+    }
+};
+
+// Función para dibujar los pines en el mapa
+const drawStationsAndList = (stations, map, sortBy = 'gasolina') => {
+    if (!map) return;
+
+    map.eachLayer(layer => { if (layer instanceof L.Marker) map.removeLayer(layer); });
+    const listContainer = document.getElementById('combustible-list');
+    const markersMap = new Map();
+
+    if (stations.length === 0) {
+        listContainer.innerHTML = '<div class="no-data-msg">🚫<br>No se encontraron gasolineras en este radio.</div>';
+        return markersMap;
+    }
+
+    const blueIcon = new L.Icon.Default();
+    const greenIcon = L.icon({
+        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    });
+
+    let listHtml = '';
+    stations.forEach((station, index) => {
+        // El más barato solo se resalta si se ordena por precio
+        const isCheapest = index === 0 && sortBy !== 'distancia';
+        const iconToUse = isCheapest ? greenIcon : blueIcon;
+        
+        const priceKey = sortBy === 'diesel' ? 'gasoleo_a' : 'gasolina_95_e5';
+        const priceToShow = station.prices[priceKey];
+
+        const popupContent = `
+            <b>${station.label}</b><br>
+            ${station.address}<br>
+            Gasolina 95: <b>${station.prices.gasolina_95_e5 ? station.prices.gasolina_95_e5.toFixed(3) + '€' : 'N/D'}</b><br>
+            Diésel A: <b>${station.prices.gasoleo_a ? station.prices.gasoleo_a.toFixed(3) + '€' : 'N/D'}</b>
+            <br><br><a href="javascript:void(0);" onclick="Telegram.WebApp.openLink('https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lon}')" style="padding: 5px 10px; background-color: #4a76f3; color: white; text-decoration: none; border-radius: 5px;">Cómo llegar</a>
+        `;
+
+        const marker = L.marker([station.lat, station.lon], { icon: iconToUse })
+            .addTo(map)
+            .bindPopup(popupContent);
+        
+        markersMap.set(station.id, marker);
+
+        listHtml += `
+            <div class="combustible-list-item ${isCheapest ? 'cheapest' : ''}" data-id="${station.id}">
+                <div class="combustible-item-info">
+                    <span class="combustible-item-name">${station.label}</span>
+                    <span class="combustible-item-distance">a ${station.distance.toFixed(1)} km</span>
+                </div>
+                ${priceToShow ? `<span class="combustible-item-price">${priceToShow.toFixed(3)}€</span>` : ''}
+            </div>
+        `;
+    });
+    
+    listContainer.innerHTML = listHtml;
+    return markersMap;
+};
+
+// Ejecutamos la búsqueda inicial con la ubicación de los ajustes
+if (appData.settings.ubicacion && appData.settings.ubicacion.lat) {
+    const initialLat = appData.settings.ubicacion.lat;
+    const initialLon = appData.settings.ubicacion.lon;
+    
+    (async () => {
+        const stations = await fetchStations(initialLat, initialLon, 20); // Búsqueda inicial de 20 km
+        drawStationMarkers(stations);
+    })();
+}
+// --- FIN: Lógica para obtener y mostrar datos ---
+
 // ==================================================
 // --- CONECTOR E INICIO DE LA APP ---
 // ==================================================
 function renderDashboard() {
-  removeCalendarFAB();
-  setActiveTab('tab-home');
-  navigationHistory = [];
-  updateBackButton();
-  const counts = appData.counts;
-  console.log(`[UI Render] renderDashboard dibujando con contadores:`, JSON.parse(JSON.stringify(counts)));
-  const isPremium = appData.isPremium === true;
-
-  let chefCardHtml = '';
-  if (isPremium) {
-    chefCardHtml = `<div class="card clickable-card" id="chef-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center; background-repeat: no-repeat;"><div class="card-icon"></div><div class="card-title"></div></div>`;
-  } else {
-    chefCardHtml = `<div class="card disabled-card" id="chef-card-locked" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center; background-repeat: no-repeat;"><div class="card-icon"></div><div class="card-title"></div></div>`;
-  }
-  
-  const calendarCardHtml = `<div class="card clickable-card" id="calendar-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/calendario512x512.jpg?v=3'); background-size: cover; background-position: center; background-repeat: no-repeat;"><div class="card-badge red"  id="calendar-badge">${counts.calendarTodayCount || 0}</div><div class="card-icon"></div><div class="card-title"></div></div>`;
-  const cuentasClarasCardHtml = `
-      <div class="card clickable-card" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/cuentasclaras512x512.jpg?v=3'); background-size: cover; background-position: center; background-repeat: no-repeat;">
-        <div class="card-badge red" id="cuentas-claras-badge">${counts.cuentasClarasCount || 0}</div>
-      </div>`;
-
-  mainContentArea.innerHTML = `
-    <div class="grid">
-	<div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center; background-repeat: no-repeat;"><div class="card-badge red"  id="reminders-badge">${counts.remindersCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button><div class="card-icon"></div><div class="card-title"></div><div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div></div>      <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/listadeCompras512x512.jpg?v=3'); background-size: cover; background-position: center; background-repeat: no-repeat;"><div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div><button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button><div class="card-icon"></div><div class="card-title"></div><div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div></div>
-     <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/notas512x512.jpg?v=3'); background-size: cover; background-position: center; background-repeat: no-repeat;"><div class="card-badge red"  id="notes-badge">${counts.notesCount || 0}</div><button class="card-menu-btn" data-menu-id="menu-notes">⋮</button><div class="card-icon"></div><div class="card-title"></div><div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div></div>
-      ${calendarCardHtml}
-    <div class="card clickable-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/Gastos512x512.jpg?v=3'); background-size: cover; background-position: center; background-repeat: no-repeat;"><div class="card-badge card-badge-pill red"  id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div><button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button><div class="card-icon"></div><div class="card-title"></div><div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div></div>
-      ${cuentasClarasCardHtml}
-      ${chefCardHtml}
-      <div id="guia-tv-card" class="card disabled-card"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>
-    </div>`;  
-  document.getElementById('add-reminder-link').onclick = renderReminderForm;
-  document.getElementById('list-reminders-link').onclick = renderRemindersList;
-  document.getElementById('view-shopping-list-link').onclick = renderShoppingList;
-  document.getElementById('add-shopping-item-link').onclick = renderAddArticleForm;
-  document.getElementById('add-note-link').onclick = () => renderNoteForm();
-  document.getElementById('list-notes-link').onclick = renderNotesList;
-  document.getElementById('scan-gasto-link').onclick = renderInstructionScreen;
-  document.getElementById('add-gasto-link').onclick = () => renderAddGastoForm();
-  document.getElementById('guia-tv-card').onclick = () => showToast('Función en desarrollo.');
-  document.getElementById('list-gastos-link').onclick = () => {
-      navigationHistory.push(renderDashboard);
-      updateBackButton();
-      renderGastosSearchScreen();
-  };
-  document.getElementById('view-gasto-chart-link').onclick = renderGastoChart;
-
-  document.getElementById('calendar-card').onclick = renderCalendarView;
-  document.getElementById('cuentas-claras-card').onclick = renderCuentasClarasLobby;
-  
-  if (isPremium) {
-    const chefCard = document.getElementById('chef-card');
-    if (chefCard) chefCard.onclick = renderChefPage;
-  } else {
-    const chefCardLocked = document.getElementById('chef-card-locked');
-    if (chefCardLocked) chefCardLocked.onclick = () => showToast('⭐ Función exclusiva para usuarios Premium.');
-  }
-
-  // --- CÓDIGO RESTAURADO PARA LOS MENÚS ---
-  document.querySelectorAll('.clickable-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-          if (e.target.closest('.card-menu-btn') || e.target.closest('.dropdown-menu')) return;
-          if (e.currentTarget.id === 'chef-card' && !isPremium) return;
-          // [LOG Estratégico] Confirmamos que el clic en la card se ha registrado.
-          console.log(`[UI Event] Clic en la card: ${e.currentTarget.querySelector('.card-title')?.textContent || e.currentTarget.id}`);
-          e.stopPropagation();
-          const menuBtn = card.querySelector('.card-menu-btn');
-          if (menuBtn) {
-            const menuId = menuBtn.dataset.menuId;
-            const menu = document.getElementById(menuId);
-            if (menu) {
-                const isShown = menu.classList.contains('show');
-                document.querySelectorAll('.dropdown-menu.show').forEach(m => {
-                    if (m.id !== menuId) m.classList.remove('show');
-                });
-                if (isShown) {
-                    menu.classList.remove('show');
-                } else {
-                    const buttonRect = menuBtn.getBoundingClientRect();
-                    const windowHeight = window.innerHeight;
-                    if (buttonRect.top > (windowHeight / 2)) {
-                        menu.classList.add('up');
-                    } else {
-                        menu.classList.remove('up');
-                    }
-                    menu.classList.add('show');
-                }
+    removeCalendarFAB();
+    setActiveTab('tab-home');
+    navigationHistory = [];
+    updateBackButton();
+    const counts = appData.counts;
+    const isPremium = appData.isPremium === true;
+	const cards = {
+        reminders: `
+            <div class="card clickable-card" data-card-id="reminders" id="card-reminders" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/avisarme512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge red" id="reminders-badge">${counts.remindersCount || 0}</div>
+                <button class="card-menu-btn" data-menu-id="menu-recordatorios">⋮</button>
+                <div class="dropdown-menu" id="menu-recordatorios"><a class="dropdown-item" id="add-reminder-link">Añadir</a><a class="dropdown-item" id="list-reminders-link">Ver Lista</a></div>
+            </div>`,
+        shopping: `
+            <div class="card clickable-card" data-card-id="shopping" id="card-shopping" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/listadeCompras512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge-group"><div class="card-badge green" id="shopping-pending-badge">${counts.shoppingPendingCount || 0}</div><div class="card-badge red" id="shopping-bought-badge">${counts.shoppingBoughtCount || 0}</div></div>
+                <button class="card-menu-btn" data-menu-id="menu-shopping-list">⋮</button>
+                <div class="dropdown-menu" id="menu-shopping-list"><a class="dropdown-item" id="add-shopping-item-link">Añadir</a><a class="dropdown-item" id="view-shopping-list-link">Ver Lista</a></div>
+            </div>`,
+        notes: `
+            <div class="card clickable-card" data-card-id="notes" id="card-notes" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/notas512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge red" id="notes-badge">${counts.notesCount || 0}</div>
+                <button class="card-menu-btn" data-menu-id="menu-notes">⋮</button>
+                <div class="dropdown-menu" id="menu-notes"><a class="dropdown-item" id="add-note-link">Añadir</a><a class="dropdown-item" id="list-notes-link">Ver Lista</a></div>
+            </div>`,
+        calendar: `
+            <div class="card clickable-card" data-card-id="calendar" id="calendar-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/calendario512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge red" id="calendar-badge">${counts.calendarTodayCount || 0}</div>
+            </div>`,
+        gastos: `
+            <div class="card clickable-card" data-card-id="gastos" id="card-gastos" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/Gastos512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge card-badge-pill red" id="gastos-badge">${Number(counts.gastosMesActual || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} ${appData.settings.moneda || ''}</div>
+                <button class="card-menu-btn" data-menu-id="menu-gastos">⋮</button>
+                <div class="dropdown-menu" id="menu-gastos"><a class="dropdown-item" id="add-gasto-link">Añadir</a><a class="dropdown-item" id="scan-gasto-link">Registrar Gasto con Foto</a><a class="dropdown-item" id="list-gastos-link">Ver/Buscar</a><a class="dropdown-item" id="view-gasto-chart-link">Ver Gráfico</a></div>
+            </div>`,
+        cuentasClaras: `
+            <div class="card clickable-card" data-card-id="cuentasClaras" id="cuentas-claras-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/cuentasclaras512x512.jpg?v=3'); background-size: cover; background-position: center;">
+                <div class="card-badge red" id="cuentas-claras-badge">${counts.cuentasClarasCount || 0}</div>
+            </div>`,
+        chef: isPremium 
+            ? `<div class="card clickable-card" data-card-id="chef" id="chef-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>` 
+            : `<div class="card disabled-card" data-card-id="chef" id="chef-card-locked" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>`,
+        combustible: (() => {
+            const fuelData = counts.fuelWidgetData;
+            if (fuelData) {
+                const getTrendIcon = (trend) => (trend === 'up' ? '▲' : (trend === 'down' ? '▼' : '='));
+                const getTrendBgColor = (trend) => (trend === 'up' ? '#e74c3c' : (trend === 'down' ? '#2ecc71' : '#f39c12'));
+                const formatLastUpdated = (dt) => {
+                    if (!dt) return ''; const parts = dt.split(','); if (parts.length < 2) return dt; return `${parts[0]} ${parts[1].trim().slice(0, 5)}`;
+                };
+                const gasolinePill = fuelData.gasolinePrice ? `<div class="card-badge card-badge-pill" id="gasoline-pill" style="background-color: ${getTrendBgColor(fuelData.gasolineTrend)};">⛽ ${fuelData.gasolinePrice.toFixed(3)}${getTrendIcon(fuelData.gasolineTrend)}</div>` : '';
+                const dieselPill = `<div class="card-badge card-badge-pill" id="diesel-pill" style="background-color: ${getTrendBgColor(fuelData.dieselTrend)};">⚫ ${fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D'}${getTrendIcon(fuelData.dieselTrend)}</div>`;
+                return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;"><div class="card-badge-group">${gasolinePill}${dieselPill}</div><div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.75rem; color: #fff; background-color: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 4px;">${formatLastUpdated(fuelData.lastUpdated)}</div></div>`;
             }
-          }
-      });
-  });
+            if (appData.settings.pais && appData.settings.pais !== 'España') return `<div class="card" data-card-id="combustible" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;"><div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">Próximamente en ${appData.settings.pais}</div></div>`;
+            return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
+        })(),
+        guiaTV: `<div id="guia-tv-card" data-card-id="guiaTV" class="card disabled-card" style="display: none;"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>`,
+		
+		emergencias: `
+    <div class="card clickable-card" data-card-id="emergencias" id="emergencias-card">
+        <div class="card-icon" style="font-size: 3.5rem; line-height: 1;">🆘</div>
+        <div class="card-title">Emergencias</div>
+    </div>`
+    };
+	
+    // --- Lógica de Reconciliación Automática del Dashboard ---
+const masterCardList = Object.keys(cards); // La "Fuente de la Verdad" de todas las cards existentes
+const defaultCardOrder = [
+    'reminders', 'shopping', 'notes', 'calendar', 'gastos', 
+    'cuentasClaras', 'chef', 'combustible', 'guiaTV', 'emergencias'
+];
+let userCardOrder = JSON.parse(localStorage.getItem('dashboardCardOrder')) || defaultCardOrder;
+
+// 1. Limpieza: Eliminar cards obsoletas del orden del usuario
+userCardOrder = userCardOrder.filter(cardId => masterCardList.includes(cardId));
+
+// 2. Detección de Novedades: Añadir cards nuevas al final
+masterCardList.forEach(cardId => {
+    if (!userCardOrder.includes(cardId)) {
+        userCardOrder.push(cardId);
+    }
+});
+
+// Guardamos el orden reconciliado para la próxima vez
+localStorage.setItem('dashboardCardOrder', JSON.stringify(userCardOrder));
+
+// Usamos el orden final y reconciliado
+const cardOrder = userCardOrder;
+// --- Fin de la Lógica de Reconciliación ---
+
+    mainContentArea.innerHTML = `<div class="grid" id="dashboard-grid">${cardOrder.map(id => cards[id] || '').join('')}</div>`;
+    
+    // La clave: Llamamos a la función de activación después de un brevísimo instante.
+    setTimeout(() => activateDashboardListeners(), 0);
+}
+
+function activateDashboardListeners() {
+    const grid = document.getElementById('dashboard-grid');
+    if (!grid) return;
+
+    // Variable de estado en un alcance superior para ser compartida
+    let isDragging = false;
+
+    // 1. CONFIGURACIÓN DE SORTABLEJS (SOLO PARA ARRASTRAR)
+    new Sortable(grid, {
+        animation: 150,
+        forceFallback: true, // Mejora la compatibilidad y suavidad en móviles
+        delay: 200,          // Tiempo para diferenciar clic de arrastre
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        
+        // Cuando el usuario empieza a arrastrar
+        onStart: function () {
+            isDragging = true;
+        },
+
+        // Cuando el usuario suelta la tarjeta
+        onEnd: function (evt) {
+            const newOrder = Array.from(grid.children).map(card => card.dataset.cardId);
+            localStorage.setItem('dashboardCardOrder', JSON.stringify(newOrder));
+            
+            // CRÍTICO: Reseteamos la variable de estado después de un instante.
+            // Esto evita que el evento 'click' que se dispara después de un arrastre sea procesado.
+            setTimeout(() => {
+                isDragging = false;
+            }, 50);
+        }
+    });
+
+    // 2. LISTENER DE CLIC (CORREGIDO Y DEFINITIVO)
+grid.addEventListener('click', (event) => {
+    // Si se está arrastrando, no hacer NADA.
+    if (isDragging) {
+        return;
+    }
+
+    const target = event.target;
+
+    // --- LÓGICA 1: ¿SE HIZO CLIC EN UN ITEM DE MENÚ? (LA MÁS IMPORTANTE) ---
+    // Se procesa primero para asegurar que siempre funcione.
+    const menuItem = target.closest('.dropdown-item');
+    if (menuItem) {
+        switch (menuItem.id) {
+            case 'add-reminder-link': renderReminderForm(); break;
+            case 'list-reminders-link': renderRemindersList(); break;
+            case 'add-shopping-item-link': renderAddArticleForm(); break;
+            case 'view-shopping-list-link': renderShoppingList(); break;
+            case 'add-note-link': renderNoteForm(); break;
+            case 'list-notes-link': renderNotesList(); break;
+            case 'scan-gasto-link': renderInstructionScreen(); break;
+            case 'add-gasto-link': renderAddGastoForm(); break;
+            case 'list-gastos-link': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+            case 'view-gasto-chart-link': renderGastoChart(); break;
+        }
+        return; // Se ha manejado la acción, no hacer nada más.
+    }
+
+    // --- LÓGICA 2: ¿SE HIZO CLIC EN UNA TARJETA? ---
+    const card = target.closest('.card');
+    if (card) {
+        // Si el clic fue en un elemento interactivo que ya funciona O necesita lógica especial
+if (target.closest('.card-menu-btn, .card-badge-pill')) {
+    const fuelPill = target.closest('.card-badge-pill[id$="-pill"]');
+    if (fuelPill && appData.counts.fuelWidgetData) {
+        // LÓGICA DE LAS PÍLDORAS DE COMBUSTIBLE RESTAURADA
+        const fuelData = appData.counts.fuelWidgetData;
+        let pillData = {};
+
+        if (fuelPill.id === 'gasoline-pill') pillData = { station: fuelData.gasolineStation, address: fuelData.gasolineAddress, schedule: fuelData.gasolineSchedule, mapUrl: fuelData.gasolineMapUrl };
+        if (fuelPill.id === 'diesel-pill') pillData = { station: fuelData.dieselStation, address: fuelData.dieselAddress, schedule: fuelData.dieselSchedule, mapUrl: fuelData.dieselMapUrl };
+        
+        if (pillData.station) {
+            tg.showPopup({
+                title: pillData.station,
+                message: `${pillData.address}\nHorario: ${pillData.schedule}`,
+                buttons: [{ id: 'navigate', type: 'default', text: '🗺️ Cómo Llegar' }]
+            }, (buttonId) => { if (buttonId === 'navigate' && pillData.mapUrl) tg.openLink(pillData.mapUrl); });
+        }
+    }
+    // Para .card-menu-btn y otros elementos que no sean de combustible, simplemente detenemos la ejecución aquí.
+    return;
+}
+        
+        // Si es una tarjeta deshabilitada
+        if (card.classList.contains('disabled-card')) {
+            showToast('⭐ Función exclusiva para usuarios Premium.');
+            return;
+        }
+
+        // Lógica para abrir menú o navegar
+        const menuButton = card.querySelector('.card-menu-btn');
+        if (menuButton) {
+            // Si la tarjeta TIENE un menú, lo abrimos y detenemos el evento.
+            menuButton.click();
+            event.stopPropagation();
+        } else {
+            // Si la tarjeta NO tiene menú, navegamos.
+            switch (card.id) {
+				case 'emergencias-card': renderEmergenciasView(); break;
+                case 'card-reminders': renderRemindersList(); break;
+                case 'card-shopping': renderShoppingList(); break;
+                case 'card-notes': renderNotesList(); break;
+                case 'calendar-card': renderCalendarView(); break;
+                case 'card-gastos': navigationHistory.push(renderDashboard); updateBackButton(); renderGastosSearchScreen(); break;
+                case 'cuentas-claras-card': renderCuentasClarasLobby(); break;
+                case 'chef-card': renderChefPage(); break;
+                case 'combustible-card': renderCombustibleView(); break;
+            }
+        }
+    }
+});
 }
 
 // Lógica de pestañas
-document.getElementById('tab-home').onclick = renderDashboard;
-document.getElementById('tab-settings').onclick = renderSettings;
-document.getElementById('tab-export').onclick = renderExportPage;
-document.getElementById('tab-chef').onclick = () => {
-    if (String(appData.settings.Premium).toLowerCase() === 'si') {
-        renderChefPage();
-    }
-};
+document.getElementById('tab-home').onclick = () => { destroyActiveFlatpickr(); renderDashboard(); };
+document.getElementById('tab-settings').onclick = () => { destroyActiveFlatpickr(); renderSettings(); };
+document.getElementById('tab-export').onclick = () => { destroyActiveFlatpickr(); renderExportPage(); };
+
 // =========================================================================
 // --- NUEVO PUNTO DE ENTRADA DE LA APP (GUARDIÁN DE VERSIÓN) ---
 // =========================================================================
