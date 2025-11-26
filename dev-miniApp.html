@@ -7076,6 +7076,14 @@ function renderDashboard() {
             ? `<div class="card clickable-card" data-card-id="chef" id="chef-card" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>` 
             : `<div class="card disabled-card" data-card-id="chef" id="chef-card-locked" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/chef512x512.jpg?v=3'); background-size: cover; background-position: center;"></div>`,
         combustible: (() => {
+            // CORRECCIÓN BUG: Prioridad absoluta a la comprobación del país.
+            // Si el país NO es España (y está definido), mostramos "Próximamente" inmediatamente,
+            // ignorando cualquier dato antiguo de gasolina que pueda existir en la base de datos.
+            if (appData.settings.pais && appData.settings.pais !== 'España') {
+                return `<div class="card" data-card-id="combustible" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;"><div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">Próximamente en ${appData.settings.pais}</div></div>`;
+            }
+
+            // Solo si es España (o no está definido), miramos si hay datos
             const fuelData = counts.fuelWidgetData;
             if (fuelData) {
                 const getTrendIcon = (trend) => (trend === 'up' ? '▲' : (trend === 'down' ? '▼' : '='));
@@ -7087,7 +7095,8 @@ function renderDashboard() {
                 const dieselPill = `<div class="card-badge card-badge-pill" id="diesel-pill" style="background-color: ${getTrendBgColor(fuelData.dieselTrend)};">⚫ ${fuelData.dieselPrice ? fuelData.dieselPrice.toFixed(3) : 'N/D'}${getTrendIcon(fuelData.dieselTrend)}</div>`;
                 return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card" style="background-image: url('${fuelData.mapImageUrl}'); background-size: cover; background-position: center;"><div class="card-badge-group">${gasolinePill}${dieselPill}</div><div style="position: absolute; bottom: 8px; right: 8px; font-size: 0.75rem; color: #fff; background-color: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 4px;">${formatLastUpdated(fuelData.lastUpdated)}</div></div>`;
             }
-            if (appData.settings.pais && appData.settings.pais !== 'España') return `<div class="card" data-card-id="combustible" style="background-image: url('https://asistentepersonal-4ad2b.web.app/icons/gasolinera512x512.jpg?v=3'); background-size: cover; background-position: center; position: relative;"><div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 15px; border-radius: 12px; font-size: 1.1rem;">Próximamente en ${appData.settings.pais}</div></div>`;
+            
+            // Fallback por defecto
             return `<div class="card clickable-card" data-card-id="combustible" id="combustible-card"><div class="card-icon">⛽</div><div class="card-title">Combustible</div></div>`;
         })(),
         guiaTV: `<div id="guia-tv-card" data-card-id="guiaTV" class="card disabled-card" style="display: none;"><div class="card-icon">📺</div><div class="card-title">Guía TV</div></div>`,
